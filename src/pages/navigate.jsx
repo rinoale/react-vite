@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Search, MapPin } from 'lucide-react';
+import { Search, MapPin, Navigation, Crosshair } from 'lucide-react';
 
 export default function SouthKoreaMap() {
   const mapRef = useRef(null);
@@ -8,7 +8,11 @@ export default function SouthKoreaMap() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState('');
+  const [locationError, setLocationError] = useState('');
+  const [isGettingLocation, setIsGettingLocation] = useState(false);
+  const [userLocation, setUserLocation] = useState(null);
   const searchMarkerRef = useRef(null);
+  const userMarkerRef = useRef(null);
 
   useEffect(() => {
     // Check if Leaflet is already loaded
@@ -93,6 +97,50 @@ export default function SouthKoreaMap() {
     };
   }, [mapReady]);
 
+  // Auto-ask for location permission on map load
+  useEffect(() => {
+    if (mapReady && !userLocation && 'geolocation' in navigator) {
+      // Small delay to ensure map is fully loaded
+      setTimeout(() => {
+        requestUserLocation(true); // Silent request (no error messages)
+      }, 1000);
+    }
+  }, [mapReady]);
+
+  // Update user marker when location changes
+  useEffect(() => {
+    if (!mapReady || !userLocation || !mapInstanceRef.current) return;
+
+    // Remove previous user marker
+    if (userMarkerRef.current) {
+      mapInstanceRef.current.removeLayer(userMarkerRef.current);
+    }
+
+    // Create custom icon for user location
+    const userIcon = window.L.divIcon({
+      className: 'custom-user-marker',
+      html: '<div style="background-color: #3b82f6; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.4);"></div>',
+      iconSize: [20, 20],
+      iconAnchor: [10, 10],
+    });
+
+    // Add user marker
+    userMarkerRef.current = window.L.marker([userLocation.lat, userLocation.lng], { icon: userIcon })
+      .addTo(mapInstanceRef.current)
+      .bindPopup('<b>Your Location</b>');
+
+    // Add accuracy circle if available
+    if (userLocation.accuracy) {
+      window.L.circle([userLocation.lat, userLocation.lng], {
+        radius: userLocation.accuracy,
+        color: '#3b82f6',
+        fillColor: '#3b82f6',
+        fillOpacity: 0.1,
+        weight: 2
+      }).addTo(mapInstanceRef.current);
+    }
+  }, [mapReady, userLocation]);
+
   const handleSearch = async (e) => {
     e.preventDefault();
     if (!searchQuery.trim()) return;
@@ -147,11 +195,97 @@ export default function SouthKoreaMap() {
     }
   };
 
+  const requestUserLocation = async (silent = false) => {
+    if (!('geolocation' in navigator)) {
+      if (!silent) {
+        setLocationError('Geolocation is not supported by your browser');
+      }
+      return;
+    }
+
+    setIsGettingLocation(true);
+    if (!silent) {
+      setLocationError('');
+    }
+
+    try {
+      const position = await new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(
+          resolve,
+          reject,
+          {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 0
+          }
+        );
+      });
+
+      const { latitude, longitude, accuracy } = position.coords;
+      const location = {
+        lat: latitude,
+        lng: longitude,
+        accuracy: accuracy
+      };
+
+      setUserLocation(location);
+
+      // Zoom to user location
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.setView([latitude, longitude], 15, {
+          animate: true,
+          duration: 1
+        });
+      }
+
+      if (!silent) {
+        // Show success message briefly
+        console.log('Location found successfully');
+      }
+    } catch (error) {
+      let errorMessage = 'Unable to get your location';
+      
+      switch (error.code) {
+        case error.PERMISSION_DENIED:
+          errorMessage = 'Location access denied. Please allow location access.';
+          break;
+        case error.POSITION_UNAVAILABLE:
+          errorMessage = 'Location information unavailable.';
+          break;
+        case error.TIMEOUT:
+          errorMessage = 'Location request timed out.';
+          break;
+      }
+      
+      if (!silent) {
+        setLocationError(errorMessage);
+      }
+    } finally {
+      setIsGettingLocation(false);
+    }
+  };
+
+  const zoomToUserLocation = () => {
+    if (userLocation && mapInstanceRef.current) {
+      mapInstanceRef.current.setView([userLocation.lat, userLocation.lng], 16, {
+        animate: true,
+        duration: 1
+      });
+      
+      // Open user popup
+      if (userMarkerRef.current) {
+        userMarkerRef.current.openPopup();
+      }
+    } else {
+      requestUserLocation();
+    }
+  };
+
   return (
     <div className="w-full h-screen flex flex-col">
       <div className="bg-blue-600 text-white p-4 shadow-lg">
         <h1 className="text-2xl font-bold">South Korea Navigation Map</h1>
-        <p className="text-sm mt-1">Interactive map with address search</p>
+        <p className="text-sm mt-1">Interactive map with address search and location services</p>
         
         {/* Search Bar */}
         <form onSubmit={handleSearch} className="mt-4 flex gap-2">
@@ -175,14 +309,64 @@ export default function SouthKoreaMap() {
           </button>
         </form>
         
-        {searchError && (
-          <div className="mt-2 bg-red-500 text-white px-3 py-2 rounded text-sm">
-            {searchError}
+        {/* Location Controls */}
+        <div className="mt-3 flex gap-2">
+          <button
+            onClick={() => requestUserLocation()}
+            disabled={isGettingLocation}
+            className="bg-green-600 hover:bg-green-700 disabled:bg-green-800 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-colors"
+          >
+            <Navigation className="w-4 h-4" />
+            {isGettingLocation ? 'Getting Location...' : 'Get My Location'}
+          </button>
+          
+          {userLocation && (
+            <button
+              onClick={zoomToUserLocation}
+              className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-colors"
+            >
+              <Crosshair className="w-4 h-4" />
+              Zoom to My Location
+            </button>
+          )}
+        </div>
+        
+        {/* Error Messages */}
+        {(searchError || locationError) && (
+          <div className="mt-2 space-y-1">
+            {searchError && (
+              <div className="bg-red-500 text-white px-3 py-2 rounded text-sm">
+                {searchError}
+              </div>
+            )}
+            {locationError && (
+              <div className="bg-yellow-500 text-white px-3 py-2 rounded text-sm">
+                {locationError}
+              </div>
+            )}
           </div>
         )}
       </div>
       
-      <div ref={mapRef} className="flex-1 w-full relative" style={{ height: '100%', minHeight: '400px' }} />
+      <div className="relative flex-1">
+        <div ref={mapRef} className="w-full h-full" style={{ height: '100%', minHeight: '400px' }} />
+        
+        {/* Floating Location Status */}
+        {userLocation && (
+          <div className="absolute top-4 left-4 bg-white text-gray-800 px-3 py-2 rounded-lg shadow-lg text-sm flex items-center gap-2 z-10">
+            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+            <span>Location Active</span>
+          </div>
+        )}
+        
+        {/* Location Permission Request Tooltip */}
+        {!userLocation && mapReady && (
+          <div className="absolute bottom-4 left-4 bg-yellow-100 border border-yellow-300 text-yellow-800 px-3 py-2 rounded-lg shadow-lg text-sm max-w-xs z-10">
+            <p className="font-medium mb-1">📍 Enable Location Services</p>
+            <p className="text-xs">Click "Get My Location" to see your position on the map</p>
+          </div>
+        )}
+      </div>
       
       {!mapReady && (
         <div className="absolute inset-0 flex items-center justify-center bg-gray-100">

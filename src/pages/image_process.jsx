@@ -5,9 +5,9 @@ const MabinogiTesseractPrep = () => {
   const [image, setImage] = useState(null);
   const [processedImage, setProcessedImage] = useState(null);
   const [settings, setSettings] = useState({
-    contrast: 1.5,
-    brightness: 1.2,
-    threshold: 128,
+    contrast: 3.0,
+    brightness: 2.0,
+    threshold: 120,
     useAdaptive: false,
     colorChannel: 'grayscale'
   });
@@ -84,7 +84,7 @@ const MabinogiTesseractPrep = () => {
     } else {
       for (let i = 0; i < data.length; i += 4) {
         const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
-        const val = avg > settings.threshold ? 255 : 0;
+        const val = avg > settings.threshold ? 0 : 255;
         data[i] = data[i + 1] = data[i + 2] = val;
       }
     }
@@ -112,7 +112,7 @@ const MabinogiTesseractPrep = () => {
         
         const threshold = sum / count - 10;
         const idx = (y * width + x) * 4;
-        const val = temp[idx] > threshold ? 255 : 0;
+        const val = temp[idx] > threshold ? 0 : 255;
         data[idx] = data[idx + 1] = data[idx + 2] = val;
       }
     }
@@ -223,21 +223,49 @@ const MabinogiTesseractPrep = () => {
     setCurrentSelection(null);
   };
 
-  const downloadDataset = () => {
-    images.forEach((item) => {
-      const link = document.createElement('a');
-      link.href = item.image;
-      link.download = item.filename;
-      link.click();
-
-      const textBlob = new Blob([item.text], { type: 'text/plain' });
-      const textUrl = URL.createObjectURL(textBlob);
-      const textLink = document.createElement('a');
-      textLink.href = textUrl;
-      textLink.download = item.filename.replace('.png', '.gt.txt');
-      textLink.click();
-      URL.revokeObjectURL(textUrl);
-    });
+  const downloadDataset = async () => {
+    console.log(`Starting download of ${images.length} image/text pairs...`);
+    
+    // Download files with delays to avoid browser blocking
+    for (let i = 0; i < images.length; i++) {
+      const item = images[i];
+      
+      try {
+        // Download image
+        const imageLink = document.createElement('a');
+        imageLink.href = item.image;
+        imageLink.download = item.filename;
+        imageLink.style.display = 'none';
+        document.body.appendChild(imageLink);
+        imageLink.click();
+        document.body.removeChild(imageLink);
+        
+        // Small delay between downloads
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        // Download text file
+        const textBlob = new Blob([item.text || ''], { type: 'text/plain' });
+        const textUrl = URL.createObjectURL(textBlob);
+        const textLink = document.createElement('a');
+        textLink.href = textUrl;
+        textLink.download = item.filename.replace('.png', '.gt.txt');
+        textLink.style.display = 'none';
+        document.body.appendChild(textLink);
+        textLink.click();
+        document.body.removeChild(textLink);
+        URL.revokeObjectURL(textUrl);
+        
+        // Another delay
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        console.log(`Downloaded ${i + 1}/${images.length}: ${item.filename}`);
+        
+      } catch (error) {
+        console.error(`Error downloading ${item.filename}:`, error);
+      }
+    }
+    
+    console.log(`Finished downloading ${images.length} image/text pairs`);
   };
 
   const downloadTrainingScript = () => {
@@ -310,8 +338,42 @@ echo "Box files generated. Please manually correct them before proceeding."
     img.src = processedImage;
   }, [processedImage, manualSegments, currentSelection, isSelecting, selectionStart, selectionEnd]);
 
+  // Calculate button position next to selection
+  const getButtonPosition = () => {
+    if (!currentSelection || !displayCanvasRef.current) return {};
+    
+    const canvas = displayCanvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    
+    // Account for canvas scaling
+    const scaleX = rect.width / canvas.width;
+    const scaleY = rect.height / canvas.height;
+    
+    // Convert canvas coordinates to screen coordinates
+    const screenX = rect.left + (currentSelection.x + currentSelection.width) * scaleX;
+    const screenY = rect.top + currentSelection.y * scaleY;
+    
+    // Position button to the right of selection
+    // Use absolute positioning within the canvas container instead of fixed
+    return {
+      position: 'absolute',
+      left: `${(currentSelection.x + currentSelection.width) * scaleX + 10}px`,
+      top: `${currentSelection.y * scaleY}px`,
+      zIndex: 20,
+      pointerEvents: 'auto' // Ensure it's clickable
+    };
+  };
+
   return (
     <div className="min-h-screen bg-gray-900 text-gray-100 p-6">
+      {/* Smart Positioning Add Selected Region Button */}
+      {currentSelection && (
+        <div style={getButtonPosition()} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 transition-all duration-200 hover:scale-105 border-2 border-green-500">
+          <Scissors className="w-4 h-4" />
+          Add Selected Region
+        </div>
+      )}
+
       <div className="max-w-7xl mx-auto">
         <h1 className="text-3xl font-bold mb-2 text-cyan-400">Mabinogi Tesseract Training Prep</h1>
         <p className="text-gray-400 mb-6">Preprocess item tooltip images and prepare training data</p>
@@ -357,14 +419,17 @@ echo "Box files generated. Please manually correct them before proceeding."
                         onMouseUp={handleMouseUp}
                         className="w-full border border-gray-700 rounded cursor-crosshair"
                       />
+                      
+                      {/* Smart Positioning Add Selected Region Button */}
                       {currentSelection && (
-                        <button
+                        <div 
+                          style={getButtonPosition()} 
+                          className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 transition-all duration-200 hover:scale-105 border-2 border-green-500 cursor-pointer"
                           onClick={addSelection}
-                          className="mt-2 w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg flex items-center justify-center gap-2"
                         >
                           <Scissors className="w-4 h-4" />
                           Add Selected Region
-                        </button>
+                        </div>
                       )}
                     </div>
                   )}
