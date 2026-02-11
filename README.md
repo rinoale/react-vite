@@ -63,10 +63,9 @@ python3 scripts/generate_training_data.py
 ```
 
 ### 2. Test OCR Pipeline (`scripts/test_ocr.py`)
-Tests the `TooltipLineSplitter` and EasyOCR on a sample image. useful for debugging the OCR preprocessing logic.
+Runs EasyOCR with the custom trained model directly on a sample image. Useful for evaluating OCR accuracy.
 
 ```bash
-# Runs OCR on data/sample_images/... and outputs to test_output/
 python3 scripts/test_ocr.py
 ```
 
@@ -77,7 +76,21 @@ Simple utility to print the dimensions and mean brightness of an image. Used to 
 python3 scripts/check_image_stats.py
 ```
 
-### 4. Create Model Config (`scripts/create_model_config.py`)
+### 4. Test Line Splitter (`scripts/test_line_splitter.py`)
+Splits a tooltip image into individual text line images using horizontal projection profiling. Useful for visually verifying that line detection is working correctly.
+
+```bash
+python3 scripts/test_line_splitter.py <image_path> <output_dir>
+
+# Example
+python3 scripts/test_line_splitter.py data/sample_images/lightarmor_processed_2.png test_split_output
+```
+
+The output directory will contain:
+- `*_line_001.png`, `*_line_002.png`, ... — cropped line images
+- `*_visualization.png` — original image with detected line bounding boxes
+
+### 5. Create Model Config (`scripts/create_model_config.py`)
 Generates the YAML configuration file required by EasyOCR to load a custom trained model. Reads characters from `backend/unique_chars.txt`.
 
 ```bash
@@ -90,9 +103,12 @@ python3 scripts/create_model_config.py
 
 To improve OCR accuracy for Mabinogi fonts, use the included **OCR Trainer Skill**.
 
-1.  **Generate Data:** Run `scripts/generate_training_data.py`.
+1.  **Generate Data:** `python3 scripts/generate_training_data.py`
 2.  **Create LMDB:**
     ```bash
     python3 skills/ocr-trainer/scripts/create_lmdb_dataset.py --input backend/train_data --output backend/train_data_lmdb
     ```
-3.  **Train:** (See `skills/ocr-trainer/SKILL.md` for full training command using `deep-text-recognition-benchmark`).
+3.  **Train:** See `skills/ocr-trainer/SKILL.md` for the full training command. Critical flags: `--sensitive --PAD --workers 0 --batch_max_length 30`.
+4.  **Deploy:** `cp deep-text-recognition-benchmark/saved_models/TPS-ResNet-BiLSTM-CTC-Seed1111/best_accuracy.pth backend/models/custom_mabinogi.pth`
+
+For training history and known pitfalls, see `OCR_TRAINING_HISTORY.md`.

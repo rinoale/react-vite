@@ -7,7 +7,10 @@ import cv2
 
 # Configuration - Assumes running from project root
 FONT_PATH = "data/fonts/mabinogi_classic.ttf"
-DICT_PATH = "data/dictionary/reforging_options.txt"
+DICT_PATHS = [
+    "data/dictionary/reforging_options.txt",
+    "data/dictionary/tooltip_general.txt",
+]
 OUTPUT_DIR = "backend/train_data"
 IMAGES_DIR = os.path.join(OUTPUT_DIR, "images")
 LABELS_DIR = os.path.join(OUTPUT_DIR, "labels")
@@ -18,19 +21,18 @@ FONT_SIZE = 18    # Approximate size of game text
 MIN_PADDING = 5
 MAX_PADDING = 15
 
-# Colors (R, G, B)
+# Colors (R, G, B) - Black text on white background for OCR
 TEXT_COLORS = [
-    (255, 255, 255), # White
-    (255, 255, 224), # Light Yellow (Set items)
-    (224, 255, 255), # Light Cyan (Reforging)
-    (200, 200, 200), # Grey (Inactive)
-    (255, 100, 100), # Red (Negative/Special)
+    (0, 0, 0),       # Black
+    (20, 20, 20),    # Near Black
+    (40, 40, 40),    # Dark Grey
+    (10, 10, 10),    # Very Dark Grey
 ]
 
 BG_COLORS = [
-    (20, 20, 20),    # Dark Grey
-    (10, 10, 10),    # Near Black
-    (30, 30, 40),    # Dark Blue-ish Grey
+    (255, 255, 255), # White
+    (245, 245, 245), # Off-White
+    (240, 240, 240), # Light Grey
 ]
 
 def ensure_dirs():
@@ -40,15 +42,22 @@ def ensure_dirs():
 def generate_data(num_samples=1000):
     ensure_dirs()
     
-    # 1. Load Dictionary
-    if not os.path.exists(DICT_PATH):
-        print(f"Error: Dictionary not found at {DICT_PATH}")
+    # 1. Load Dictionaries
+    words = []
+    for dict_path in DICT_PATHS:
+        if not os.path.exists(dict_path):
+            print(f"Warning: Dictionary not found at {dict_path}, skipping.")
+            continue
+        with open(dict_path, 'r', encoding='utf-8') as f:
+            entries = [line.strip() for line in f if line.strip()]
+        print(f"Loaded {len(entries)} entries from {dict_path}")
+        words.extend(entries)
+
+    if not words:
+        print("Error: No dictionary entries loaded.")
         return
 
-    with open(DICT_PATH, 'r', encoding='utf-8') as f:
-        words = [line.strip() for line in f if line.strip()]
-
-    print(f"Loaded {len(words)} dictionary entries.")
+    print(f"Total: {len(words)} dictionary entries.")
     
     # 2. Load Font
     try:

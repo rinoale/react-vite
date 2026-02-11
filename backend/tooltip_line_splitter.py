@@ -39,94 +39,81 @@ class TooltipLineSplitter:
         
         # Convert to grayscale
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+        # Auto-detect background type and threshold accordingly
+        mean_val = np.mean(gray)
+        if mean_val >= 128:
+            # Light background, dark text → invert so text becomes white (foreground)
+            _, binary = cv2.threshold(gray, 80, 255, cv2.THRESH_BINARY_INV)
+        else:
+            # Dark background, bright text → text is already bright (foreground)
+            _, binary = cv2.threshold(gray, 80, 255, cv2.THRESH_BINARY)
         
-        # Simple global threshold for bright text on dark background
-        # Adjust 80 based on testing (mean is 26, so 80 is safe)
-        _, binary = cv2.threshold(gray, 80, 255, cv2.THRESH_BINARY)
-        
-        # Dilate slightly to connect broken characters
-        kernel = np.ones((1, 3), np.uint8)
-        cleaned = cv2.dilate(binary, kernel, iterations=1)
-        
-        return img, gray, cleaned
+        return img, gray, binary
     
     def detect_text_lines(self, binary_img, min_height=8, max_height=50, min_width=30):
-        """Detect individual text lines using connected components"""
+        """Detect individual text lines using horizontal projection profile"""
         if not DEPENDENCIES_AVAILABLE:
             return []
-            
-        # Find connected components
-        num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(binary_img, connectivity=8)
-        
+
+        h, w = binary_img.shape
+
+        # Horizontal projection: sum white pixels per row
+        projection = np.sum(binary_img > 0, axis=1)
+
+        # Find rows with text (threshold: at least a few pixels)
+        threshold = max(2, w * 0.005)
+        has_text = projection > threshold
+
+        # Find contiguous runs of text rows
         lines = []
-        
-        for i in range(1, num_labels):  # Skip background (0)
-            x, y, w, h, area = stats[i]
-            
-            # Filter based on text line characteristics
-            if (min_height <= h <= max_height and 
-                w >= min_width and 
-                area > min_height * min_width * 0.3):  # Minimum density
-                
-                lines.append({
-                    'x': int(x),
-                    'y': int(y),
-                    'width': int(w),
-                    'height': int(h),
-                    'area': int(area),
-                    'label': int(i)
-                })
-        
-        # Sort lines by vertical position (top to bottom)
-        lines.sort(key=lambda l: l['y'])
-        
-        return self.merge_overlapping_lines(lines)
-    
-    def merge_overlapping_lines(self, lines, vertical_threshold=5):
-        """Merge lines that are vertically close to each other"""
-        if not lines:
-            return []
-        
-        merged = []
-        current_group = [lines[0]]
-        
-        for i in range(1, len(lines)):
-            current_line = lines[i]
-            last_line = current_group[-1]
-            
-            # Check if lines should be merged
-            if (current_line['y'] - (last_line['y'] + last_line['height']) < vertical_threshold and
-                abs(current_line['x'] - last_line['x']) < 50):  # Similar horizontal position
-                
-                # Merge with current group
-                current_group.append(current_line)
-            else:
-                # Save current group and start new one
-                merged.append(self.merge_group(current_group))
-                current_group = [current_line]
-        
-        # Don't forget the last group
-        merged.append(self.merge_group(current_group))
-        
-        return merged
-    
-    def merge_group(self, group):
-        """Merge a group of lines into a single line bounding box"""
-        if not group:
-            return None
-        
-        min_x = min(l['x'] for l in group)
-        min_y = min(l['y'] for l in group)
-        max_x = max(l['x'] + l['width'] for l in group)
-        max_y = max(l['y'] + l['height'] for l in group)
-        
-        return {
-            'x': int(min_x),
-            'y': int(min_y),
-            'width': int(max_x - min_x),
-            'height': int(max_y - min_y),
-            'components': int(len(group))
-        }
+        in_line = False
+        line_start = 0
+
+        for y in range(h):
+            if has_text[y] and not in_line:
+                line_start = y
+                in_line = True
+            elif not has_text[y] and in_line:
+                line_h = y - line_start
+                if min_height <= line_h <= max_height:
+                    # Find horizontal extent (x range with text)
+                    row_slice = binary_img[line_start:y, :]
+                    col_projection = np.sum(row_slice > 0, axis=0)
+                    text_cols = np.where(col_projection > 0)[0]
+                    if len(text_cols) > 0:
+                        x_start = int(text_cols[0])
+                        x_end = int(text_cols[-1]) + 1
+                        line_w = x_end - x_start
+                        if line_w >= min_width:
+                            lines.append({
+                                'x': x_start,
+                                'y': int(line_start),
+                                'width': line_w,
+                                'height': int(line_h),
+                            })
+                in_line = False
+
+        # Handle last line if image ends with text
+        if in_line:
+            line_h = h - line_start
+            if min_height <= line_h <= max_height:
+                row_slice = binary_img[line_start:h, :]
+                col_projection = np.sum(row_slice > 0, axis=0)
+                text_cols = np.where(col_projection > 0)[0]
+                if len(text_cols) > 0:
+                    x_start = int(text_cols[0])
+                    x_end = int(text_cols[-1]) + 1
+                    line_w = x_end - x_start
+                    if line_w >= min_width:
+                        lines.append({
+                            'x': x_start,
+                            'y': int(line_start),
+                            'width': line_w,
+                            'height': int(line_h),
+                        })
+
+        return lines
     
     def extract_lines(self, img, lines, base_filename):
         """Extract individual line images"""

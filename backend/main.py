@@ -2,11 +2,7 @@ from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import shutil
 import os
-import cv2
 import easyocr
-import numpy as np
-from pathlib import Path
-from tooltip_line_splitter import TooltipLineSplitter
 from recommendation import recommender, ITEMS_DB
 from text_corrector import TextCorrector
 from pydantic import BaseModel
@@ -28,27 +24,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize Text Corrector
+# Initialize Text Corrector with both dictionaries
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DICT_PATH = os.path.join(BASE_DIR, '..', 'data', 'dictionary', 'reforging_options.txt')
-corrector = TextCorrector(DICT_PATH)
+DICT_DIR = os.path.join(BASE_DIR, '..', 'data', 'dictionary')
+corrector = TextCorrector(os.path.join(DICT_DIR, 'reforging_options.txt'))
+corrector.load_dictionary(os.path.join(DICT_DIR, 'tooltip_general.txt'))
 
-# Initialize EasyOCR Reader (loads model into memory)
-# 'ko' for Korean, 'en' for English
-# Using custom model trained on Mabinogi font
+# Initialize EasyOCR Reader with custom trained model
 MODELS_DIR = os.path.join(BASE_DIR, 'models')
 
 reader = easyocr.Reader(
     ['ko'],
     model_storage_directory=MODELS_DIR,
     user_network_directory=MODELS_DIR,
-    recog_network='custom_mabinogi' 
+    recog_network='custom_mabinogi'
 )
-
-# Initialize Splitter
-# We will use a temp directory for intermediate split images
-TEMP_DIR = "temp_split"
-splitter = TooltipLineSplitter(output_dir=TEMP_DIR)
 
 class UserHistory(BaseModel):
     history_ids: List[int]
@@ -78,43 +68,39 @@ async def upload_item(file: UploadFile = File(...)):
         temp_filename = f"temp_{file.filename}"
         with open(temp_filename, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
-        
-        # 2. Process image to get text lines
-        # This uses the CV2 logic from your existing script
-        extracted_lines = splitter.process_image(temp_filename, save_visualization=False)
-        
-        results = []
-        
-        # 3. Run EasyOCR on each extracted line
-        for line_data in extracted_lines:
-            line_img_path = line_data['path']
-            
-            # Read the split line image
-            # detail=0 returns just the text list
-            ocr_result = reader.readtext(line_img_path, detail=0)
-            
-            # Combine text parts if multiple
-            raw_text = " ".join(ocr_result)
-            
-            if raw_text.strip():
-                # 4. Apply Dictionary Correction
-                corrected_text, score = corrector.correct(raw_text)
-                
-                # If matched well (e.g. > 60), use corrected, else keep raw
-                # Using 60 because OCR might be quite messy
-                final_text = corrected_text if score > 60 else raw_text
-                
-                results.append({
-                    "text": final_text,
-                    "raw_text": raw_text,
-                    "confidence": float(score)/100.0, # Using fuzzy score as confidence proxy
-                    "bounds": line_data['bounds']
-                })
 
-        # Cleanup temp files
+        # 2. Run OCR directly on the full image (CRAFT handles text detection)
+        ocr_results = reader.readtext(temp_filename)
+
+        results = []
+        for bbox, raw_text, confidence in ocr_results:
+            if not raw_text.strip():
+                continue
+
+            # 3. Apply Dictionary Correction
+            corrected_text, score = corrector.correct(raw_text)
+            final_text = corrected_text if score > 60 else raw_text
+
+            # Convert bbox to simple bounds
+            xs = [pt[0] for pt in bbox]
+            ys = [pt[1] for pt in bbox]
+            bounds = {
+                "x": int(min(xs)),
+                "y": int(min(ys)),
+                "width": int(max(xs) - min(xs)),
+                "height": int(max(ys) - min(ys)),
+            }
+
+            results.append({
+                "text": final_text,
+                "raw_text": raw_text,
+                "confidence": float(confidence),
+                "correction_score": float(score) / 100.0,
+                "bounds": bounds,
+            })
+
+        # Cleanup temp file
         os.remove(temp_filename)
-        # Optional: cleanup split images in TEMP_DIR if you don't want to keep them
-        # shutil.rmtree(TEMP_DIR) 
 
         return {
             "filename": file.filename,

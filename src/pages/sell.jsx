@@ -8,12 +8,13 @@ const Sell = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [detectedLines, setDetectedLines] = useState([]);
   const [showSettings, setShowSettings] = useState(false);
+  const [showProcessed, setShowProcessed] = useState(false);
   
   // Image Processing Settings
   const [settings, setSettings] = useState({
-    contrast: 3.0,
-    brightness: 2.0,
-    threshold: 120,
+    contrast: 1.0,
+    brightness: 1.0,
+    threshold: 80,
     useAdaptive: false,
     colorChannel: 'grayscale'
   });
@@ -77,12 +78,12 @@ const Sell = () => {
         // 3. Thresholding (Simple or Adaptive)
         for (let i = 0; i < data.length; i += 4) {
             const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
-            // Thresholding: Text is Light, Background is Dark.
-            // We want White Text (255) on Black Background (0) to match training data.
-            // If pixel is BRIGHT (> threshold), it's TEXT -> Make it WHITE (255).
-            // Else (Background), set to BLACK (0).
-            
-            const val = avg > settings.threshold ? 255 : 0;
+            // Thresholding: Text is Light, Background is Dark in original screenshot.
+            // We want Black Text (0) on White Background (255) for OCR.
+            // If pixel is BRIGHT (> threshold), it's TEXT -> Make it BLACK (0).
+            // Else (Background), set to WHITE (255).
+
+            const val = avg > settings.threshold ? 0 : 255;
             
             data[i] = data[i + 1] = data[i + 2] = val;
         }
@@ -201,6 +202,21 @@ const Sell = () => {
                     </button>
                   </div>
                   
+                  {/* Debug: Processed Image Preview */}
+                  <button
+                    onClick={() => setShowProcessed(!showProcessed)}
+                    className="text-xs text-gray-500 hover:text-gray-300 underline"
+                  >
+                    {showProcessed ? 'Hide' : 'Show'} processed image
+                  </button>
+                  {showProcessed && processedUrl && (
+                    <img
+                      src={processedUrl}
+                      alt="Processed Preview"
+                      className="w-full rounded-lg border border-gray-600"
+                    />
+                  )}
+
                   {/* Settings Panel */}
                   {showSettings && (
                     <div className="bg-gray-700/50 p-4 rounded-lg text-sm space-y-3">

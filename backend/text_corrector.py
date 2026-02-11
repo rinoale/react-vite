@@ -11,9 +11,9 @@ class TextCorrector:
 
     def load_dictionary(self, path):
         with open(path, 'r', encoding='utf-8') as f:
-            # Filter out empty lines and strip whitespace
-            self.dictionary = [line.strip() for line in f if line.strip()]
-        print(f"TextCorrector loaded {len(self.dictionary)} entries.")
+            new_entries = [line.strip() for line in f if line.strip()]
+        self.dictionary.extend(new_entries)
+        print(f"TextCorrector loaded {len(new_entries)} entries from {os.path.basename(path)} (total: {len(self.dictionary)})")
 
     def correct(self, text, cutoff_score=80):
         """
