@@ -39,7 +39,7 @@ class Model(nn.Module):
             opt.Prediction = kwargs.get('Prediction', 'CTC')
             opt.num_fiducial = int(kwargs.get('num_fiducial', 20))
             opt.imgH = int(kwargs.get('imgH', 32))
-            opt.imgW = int(kwargs.get('imgW', 100))
+            opt.imgW = int(kwargs.get('imgW', 200))
             opt.input_channel = int(kwargs.get('input_channel', 1))
             opt.output_channel = int(kwargs.get('output_channel', 512))
             opt.hidden_size = int(kwargs.get('hidden_size', 256))

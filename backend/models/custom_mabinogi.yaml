@@ -1,15 +1,18 @@
-FeatureExtraction: ResNet
-Prediction: CTC
-SequenceModeling: BiLSTM
-Transformation: TPS
+PAD: true
 character_list: ' #%()+-./0123456789:ABCDEFGLRS[]~가각간감갑강개거건걸검게겟격견결경계고곡골공과광괴교구궁궤귀그근금급기긴길깃깨꽃끼낄나낚날남내너널넓넘네년노논높누느는능니닝다단달담당대더던데도독돋돌동되된두둔듀드득든들등디딩때라란람랑래랙랜랭량러런럴레렌렘려력련렵로론롤롭료룰류률륭르른를름리린림립릿링마막만망매머먼메멜면명모목몬몸무묵물미밀및바박반발방배밸뱃버범법벚벨벼벽변별볍보복본볼부분불붉브븐블비빛빠뻗사산상새색샌생샤샷서석설섬성세셔션소속손솔솜솟쇄쇼수숙순술쉬슈스슬승시식신실썬쓰씨아악애액앵야약얀양어언얼없었에엘여역연영오올옷와완요용우운울움워원웨위윈윙유율으은을음의이익인일임입있자작장재잿저적전점접정제져조종주죽준줄중즈즌증지직진질집징찌차찰채챈챔천체초최추충츄치침카캐커컨컬컴콘쿨크클킥킬킹타탈탐탑태택탬터테텔템토톰통투트특튼티틱팅파판팔패퍼펀페펜펠펫편포폭표푸풀품풍퓨프플피핀필핑하학한할함합항해핸행향험헤현형호혹화확환활회획횟효후훌흙흡히힌힐힘'
 imgH: 32
-imgW: 100
+imgW: 200
 lang_list:
 - ko
 network_params:
+  FeatureExtraction: ResNet
+  Prediction: CTC
+  SequenceModeling: BiLSTM
+  Transformation: TPS
   hidden_size: 256
+  imgH: 32
+  imgW: 200
   input_channel: 1
+  num_fiducial: 20
   output_channel: 512
-num_fiducial: 20
 rgb: false

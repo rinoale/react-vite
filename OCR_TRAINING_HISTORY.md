@@ -84,6 +84,129 @@ The model learned to recognize distorted text but receives properly-proportioned
 
 ---
 
-## Next: Attempt 4
+## Attempt 4: Retrain with --PAD
 
-Retrain with `--PAD` flag to match EasyOCR's `keep_ratio_with_pad=True` inference preprocessing.
+**Changes:** Added `--PAD` flag. Same data (3,714 samples), same imgW=100.
+
+**Training command:**
+```
+python3 train.py --train_data ../backend/train_data_lmdb \
+  --valid_data ../backend/train_data_lmdb \
+  --select_data / --batch_ratio 1.0 \
+  --Transformation TPS --FeatureExtraction ResNet \
+  --SequenceModeling BiLSTM --Prediction CTC \
+  --batch_max_length 30 --imgH 32 --imgW 100 \
+  --num_iter 10000 --valInterval 500 \
+  --batch_size 64 --workers 0 --sensitive --PAD \
+  --character "$(cat ../backend/unique_chars.txt | tr -d '\n')"
+```
+
+**Result:** 99.246% best accuracy at 10,000 iterations. Notably faster convergence — 68% at iteration 500 (vs 15% without `--PAD`), confirming the preprocessing mismatch was a real problem.
+
+---
+
+## Attempt 5: Enhanced Augmentation + imgW=200
+
+**Changes:**
+- **`imgW` increased to 200** — Accommodates longer text (up to 55 chars). Reduces aspect ratio distortion during resize+pad.
+- **`batch_max_length` increased to 55** — Matches the longest labels in the expanded training set.
+- **`valInterval` increased to 2000** — Fewer validation checkpoints (5 vs 20).
+- **Overhauled `generate_training_data.py`:**
+  - 5 variations per word (was 2), producing ~9,285 training samples
+  - Variable font sizes (12-26pt) instead of fixed
+  - Random thresholding (30% chance, thresh 100-200) — mimics jagged-pixel look of browser-preprocessed screenshots
+  - Random dilate/erode (30% chance) — simulates font weight variation
+  - Random Gaussian blur (50% chance, radius 0.1-1.0)
+  - Random interpolation (NEAREST/BILINEAR/BICUBIC) during resize
+  - Aspect-ratio-preserving resize to 32px height (matches inference PAD behavior)
+  - Variable padding (0-15px left/right)
+- **Fixed `create_model_config.py`:** Uses `.replace('\n', '')` instead of `.strip()` to preserve leading space character in character set (prevents 344 vs 343 class count mismatch).
+- **Refactored `custom_mabinogi.py`:** Handles both `opt` namespace and `**kwargs` initialization for EasyOCR compatibility. Architecture params moved into `network_params` block in yaml.
+
+**Training command:**
+```
+python3 train.py --train_data ../backend/train_data_lmdb \
+  --valid_data ../backend/train_data_lmdb \
+  --select_data / --batch_ratio 1.0 \
+  --Transformation TPS --FeatureExtraction ResNet \
+  --SequenceModeling BiLSTM --Prediction CTC \
+  --batch_max_length 55 --imgH 32 --imgW 200 \
+  --num_iter 10000 --valInterval 2000 \
+  --batch_size 64 --workers 0 --sensitive --PAD \
+  --character "$(cat ../backend/unique_chars.txt | tr -d '\n')"
+```
+
+**Result:** **100% accuracy** at 10,000 iterations (~43 min). Reached 96% by iteration 2000, 99.5% by 4000, 99.9% by 8000. Confidence scores also notably higher (0.5-0.9 range vs 0.1-0.5 in Attempt 4).
+
+---
+
+## Training Flags Reference
+
+| Flag | Why Required |
+|------|-------------|
+| `--workers 0` | LMDB can't be pickled for multiprocessing |
+| `--sensitive` | Prevents lowercasing R,G,B,L,A-F characters |
+| `--PAD` | Matches EasyOCR's hardcoded `keep_ratio_with_pad=True` inference |
+| `--batch_max_length 55` | Longest labels are ~55 chars |
+| `--character "$(cat ...)"` | Full 442-char Korean set (train.py patched so `--sensitive` no longer overrides) |
+
+**Note:** EasyOCR ignores the `PAD` field in the yaml config. It always uses `keep_ratio_with_pad=True` during inference (hardcoded in `recognition.py`). The `PAD: true` in the yaml is for documentation accuracy only — training must always use `--PAD` to match.
+
+---
+
+## Attempt 6: Binary Training Data (Domain Gap Fix)
+
+**Problem diagnosed:** Despite 100% training accuracy (Attempt 5), the model failed on real screenshots. Investigation revealed a domain gap: 78% of synthetic training images were grayscale anti-aliased (255 unique pixel values), while real frontend-preprocessed screenshots are strictly binary (only 0 and 255).
+
+**Root cause:** `generate_training_data.py` only applied thresholding 70% of the time, and BILINEAR/BICUBIC interpolation during resize reintroduced gray pixels even after thresholding.
+
+**Changes to `generate_training_data.py`:**
+- Thresholding applied 100% of the time (was 70%)
+- Threshold value: `FRONTEND_THRESHOLD(80) + random(-10, +40)` matching the frontend
+- Added re-threshold after resize: `img.point(lambda x: 0 if x < 128 else 255)` to guarantee binary output
+- Background canvas hardcoded to 255 (white)
+
+**Result:** 97.4% best accuracy at 10,000 iterations. All 9,285 training images verified as strictly binary (only 0 and 255 pixel values).
+
+**Still failed on real screenshots.** Despite matching pixel value distribution, the model produced mostly garbage output on real tooltip images. This pointed to additional problems beyond pixel-level domain gap — specifically CRAFT text detection being unsuitable for structured tooltip layouts.
+
+---
+
+## Diagnosis: CRAFT Detection is the Wrong Tool
+
+After 6 training attempts, a key insight emerged: the problem is not just recognition accuracy — **CRAFT text detection is fundamentally wrong for this use case**.
+
+CRAFT was designed for natural scene text (signs, labels, handwriting in photos). Mabinogi tooltips are structured UI elements with:
+- Consistent layout and font
+- Known line spacing and borders
+- Section headers with box decorations
+
+CRAFT fragments tooltip lines into irregular polygonal regions, merges adjacent lines, and misses section boundaries. Meanwhile, our custom `TooltipLineSplitter` using horizontal projection profiling achieves **perfect** line detection:
+- `lightarmor_processed`: 75/75 lines
+- `lobe_processed`: 22/22 lines
+- `captain_suit_processed`: 23/23 lines
+
+---
+
+## New Strategy: Line Splitter + Direct Recognition (v2 Pipeline)
+
+**Architecture change:** Replace CRAFT detection with the proven `TooltipLineSplitter`, then feed individual line crops directly to the recognition model via EasyOCR's low-level `recognize()` API.
+
+```
+Old: Frontend → Full image → EasyOCR readtext() [CRAFT + Recognition] → Text correction
+New: Frontend → Full image → TooltipLineSplitter → Line crops → EasyOCR recognize() [Recognition only] → Text correction
+```
+
+**Benefits:**
+1. Detection is solved — line splitter is proven accurate
+2. Training data naturally matches line crops (single-line images)
+3. Bypasses CRAFT entirely — eliminates fragmentation and merging errors
+4. Recognition model sees clean, rectangular, single-line inputs
+5. Each line maps to a known tooltip field for structured data extraction
+
+**Training data adjustments needed:**
+- Match real line crop dimensions (full tooltip width ~250px, variable height)
+- Generate from actual tooltip text patterns, not just dictionary words
+- Include structured patterns: `R:0 G:0 B:12`, `내구력 20/20`, `- 피어싱 레벨 3`
+
+**Implementation:** Use EasyOCR's `recognize()` method (bypasses CRAFT) or call the recognition model directly on pre-cropped line images.

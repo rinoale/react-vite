@@ -5,21 +5,35 @@ Build a specialized marketplace for trading in-game items where the core data en
 
 ## 2. Key Features
 
-### A. OCR-based Item Registration
-- **User Action:** Uploads a screenshot of the game item.
-- **Frontend Processing:**
-  - Browser automatically preprocesses the image (Grayscale → Thresholding) to create a clean "Black Text on White Background" version.
-  - Settings: contrast=1.0, brightness=1.0, threshold=80.
-  - Sends this processed image to the backend.
-- **Backend Processing:**
-  - Runs EasyOCR `readtext()` directly on the full image (CRAFT handles text region detection).
-  - Custom recognition model (`TPS-ResNet-BiLSTM-CTC`) trained on Mabinogi's game font recognizes Korean text.
-  - Corrects OCR errors using Fuzzy Matching against dictionaries (`reforging_options.txt` + `tooltip_general.txt`).
-- **Goal:** Minimize manual typing and ensure accurate stat-based searching.
+### A. OCR-based Item Registration (v2 Pipeline)
+- **User Action:** Uploads a screenshot of the game item tooltip.
+- **Frontend Processing (`src/pages/sell.jsx`):**
+  - Browser preprocesses the image: Grayscale (ITU-R BT.601) → Contrast/Brightness (default 1.0) → Binary thresholding (threshold=80, inverted: bright→black, dark→white)
+  - Output: strictly binary PNG (pixel values 0 and 255 only), black text on white background
+  - Sends this processed image to the backend
+- **Backend Processing (`backend/main.py`):**
+  1. **Line Detection** — `TooltipLineSplitter` (`tooltip_line_splitter.py`) splits full tooltip image into individual line crops using horizontal projection profiling
+  2. **Recognition** — Each line crop is fed to EasyOCR's `recognize()` API (bypasses CRAFT detection entirely). Custom `TPS-ResNet-BiLSTM-CTC` model recognizes Korean text.
+  3. **Correction** — `TextCorrector` (`text_corrector.py`) applies RapidFuzz fuzzy matching against dictionaries (`reforging_options.txt` + `tooltip_general.txt`) to fix OCR errors
+- **Goal:** Minimize manual typing and enable accurate stat-based searching.
+
+### Why Line Splitter Instead of CRAFT?
+CRAFT is EasyOCR's default text detector, designed for natural scene text (signs, labels in photos). On structured game tooltip layouts:
+- CRAFT **fragments** single lines into 2-3 detection boxes
+- CRAFT **merges** adjacent lines into one region
+- CRAFT **misses** entire sections (enchants, reforging blocks)
+- CRAFT produces irregular polygonal crops that don't match training data format
+
+The custom `TooltipLineSplitter` uses horizontal projection profiling tailored for tooltip layout:
+- Removes vertical UI border columns that bridge inter-line gaps
+- Handles section headers adjacent to box decorations
+- Proportional padding prevents bleed between adjacent lines
+- Proven accuracy: 75/75 (lightarmor), 22/22 (lobe), 23/23 (captain suit)
 
 ### B. Advanced Search & Database
 - **Storage:** Structured storage of item stats (e.g., "Fire Damage", "Durability", "Rarity").
 - **Search:** Users can filter by specific attributes.
+- Each OCR line will be classified by type (reforging → reforging table, enchant → enchant table, etc.)
 
 ### C. Recommendation Algorithm
 - **Logic:** Content-based filtering using TF-IDF on item descriptions.
@@ -28,7 +42,8 @@ Build a specialized marketplace for trading in-game items where the core data en
 ## 3. Technology Stack
 - **Frontend:** React + Vite + Tailwind CSS.
 - **Backend:** Python (FastAPI).
-- **OCR:** EasyOCR (Custom Model: `TPS-ResNet-BiLSTM-CTC`).
+- **OCR Detection:** Custom `TooltipLineSplitter` (horizontal projection profiling).
+- **OCR Recognition:** EasyOCR `recognize()` API with custom model (`TPS-ResNet-BiLSTM-CTC`).
 - **Font:** `data/fonts/mabinogi_classic.ttf` (official Mabinogi game font).
 - **Correction:** RapidFuzz (Levenshtein distance).
 - **Training:** `deep-text-recognition-benchmark` (PyTorch).
@@ -36,19 +51,54 @@ Build a specialized marketplace for trading in-game items where the core data en
 ## 4. Workflows & Guides
 
 ### OCR Training Pipeline
-1.  **Generate Data:** `python3 scripts/generate_training_data.py` (Creates synthetic black-text-on-white-background images using the Mabinogi game font).
-2.  **Create LMDB:** `python3 skills/ocr-trainer/scripts/create_lmdb_dataset.py --input backend/train_data --output backend/train_data_lmdb`
-3.  **Train:** Run `train.py` from `deep-text-recognition-benchmark` with flags: `--sensitive --PAD --workers 0 --batch_max_length 30 --character "$(cat ../backend/unique_chars.txt | tr -d '\n')"`. See `OCR_TRAINING_HISTORY.md` for details and past issues.
-4.  **Deploy:** Copy `best_accuracy.pth` to `backend/models/custom_mabinogi.pth`.
+1. **Generate Data:** `python3 scripts/generate_training_data.py` — Creates synthetic binary training images using the Mabinogi game font. Images must be strictly binary (0/255 only), matching frontend preprocessing.
+2. **Create LMDB:** `python3 skills/ocr-trainer/scripts/create_lmdb_dataset.py --input backend/train_data --output backend/train_data_lmdb`
+3. **Train:** Run `train.py` from `deep-text-recognition-benchmark` with flags: `--sensitive --PAD --workers 0 --batch_max_length 55 --character "$(cat ../backend/unique_chars.txt | tr -d '\n')"`. See `OCR_TRAINING_HISTORY.md` for details and past issues.
+4. **Deploy:** Copy `best_accuracy.pth` to `backend/models/custom_mabinogi.pth`.
 
 ### Custom Model Configuration
 - Requires `backend/models/custom_mabinogi.yaml` generated by `scripts/create_model_config.py`.
 - Requires `backend/models/custom_mabinogi.py` (copied from training repo) to define the architecture for EasyOCR.
+- EasyOCR always uses `keep_ratio_with_pad=True` during inference (hardcoded), regardless of yaml PAD setting.
 
 ### Frontend Preprocessing
 - Logic in `src/pages/sell.jsx`.
-- Converts images to binary (Black text / White bg) before upload to match training data distribution.
+- Converts images to binary (Black text / White bg) before upload.
+- Threshold value: 80. Output is strictly binary (0, 255 only).
 
-## 5. General Guidelines
+### Line Splitter (`backend/tooltip_line_splitter.py`)
+- Auto-detects background polarity (light vs dark)
+- `_remove_borders()`: Masks vertical border columns (>15% row density)
+- Gap tolerance: 2 rows (closes thin character stroke dips)
+- `_split_tall_block()`: Splits oversized blocks via local projection
+- Proportional padding: `pad_x = max(2, h//3)`, `pad_y = max(1, h//5)`
+- Parameters: `min_height=6, max_height=25, min_width=10`
+- Does NOT remove horizontal separators (they sit adjacent to section headers)
+- Ground truth test pairs in `data/sample_images/` (`*_processed.png` + `*_processed.txt`)
+
+### Ground Truth Data
+Located in `data/sample_images/`:
+- `lightarmor_processed_2.png` + `.txt` — 75 lines, full tooltip with reforging/enchants/colors
+- `lobe_processed.png` + `.txt` — 22 lines, armor with piercing stats and 6 color parts
+- `captain_suit_processed.png` + `.txt` — 23 lines, clothing with enchants and crafting info
+
+## 5. Key Technical Insights
+
+### Domain Gap (Training vs Real Images)
+The biggest challenge has been the domain gap between synthetic training data and real preprocessed screenshots:
+- Real images are strictly binary (0, 255) after frontend thresholding
+- Synthetic images must also be strictly binary — any grayscale anti-aliasing or interpolation artifacts cause the model to learn features absent from real data
+- After any resize operation, **re-threshold** to guarantee binary output
+- Font rendering at small sizes with thresholding produces different stroke patterns than at larger sizes
+
+### EasyOCR Internals
+- `readtext()` = CRAFT detection + recognition (we don't use this in v2)
+- `recognize()` = recognition only on pre-cropped images (used in v2 pipeline)
+- `recognition.py` lines 199, 213: `keep_ratio_with_pad=True` is hardcoded
+- The `PAD` field in yaml is ignored during inference
+
+## 6. General Guidelines
 - Ask before making changes.
 - Maintain existing code styles.
+- See `OCR_TRAINING_HISTORY.md` for full training history and pitfalls.
+- See `OCR_ISSUES.md` for current and resolved issues.

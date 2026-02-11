@@ -9,19 +9,21 @@ with open("backend/unique_chars.txt", "r", encoding="utf-8") as f:
     'network_params': {
         'input_channel': 1,
         'output_channel': 512,
-        'hidden_size': 256
+        'hidden_size': 256,
+        'Transformation': 'TPS',
+        'FeatureExtraction': 'ResNet',
+        'SequenceModeling': 'BiLSTM',
+        'Prediction': 'CTC',
+        'num_fiducial': 20,
+        'imgH': 32,
+        'imgW': 200,
     },
     'imgH': 32,
-    'imgW': 100,
+    'imgW': 200,
     'lang_list': ['ko'],
     'character_list': chars,
-    # Architecture parameters required by custom_mabinogi.py
-    'Transformation': 'TPS',
-    'FeatureExtraction': 'ResNet',
-    'SequenceModeling': 'BiLSTM',
-    'Prediction': 'CTC',
-    'num_fiducial': 20,
-    'rgb': False
+    'rgb': False,
+    'PAD': True
 }
 
 with open("backend/models/custom_mabinogi.yaml", "w", encoding="utf-8") as f:

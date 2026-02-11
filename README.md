@@ -19,12 +19,23 @@ A specialized marketplace for trading in-game items with automated OCR (Optical 
 ## 📂 Project Structure
 
 ```
-├── backend/            # FastAPI server & OCR logic
-├── data/               # Fonts and Dictionaries (Not committed)
-├── scripts/            # Helper scripts (Data Gen, Testing, Config)
-├── skills/             # Gemini CLI Skills (OCR Trainer)
-├── src/                # React Frontend
-└── README.md
+├── backend/
+│   ├── main.py                    # FastAPI server, OCR pipeline endpoint
+│   ├── tooltip_line_splitter.py   # Line detection via horizontal projection
+│   ├── text_corrector.py          # Fuzzy matching post-correction
+│   ├── models/                    # Custom EasyOCR model (.pth, .yaml, .py)
+│   └── unique_chars.txt           # 442-char Korean character set
+├── data/
+│   ├── fonts/                     # Mabinogi game font
+│   ├── dictionary/                # Reforging + tooltip dictionaries
+│   └── sample_images/             # Ground truth pairs (.png + .txt)
+├── scripts/                       # Training data gen, testing, config
+├── skills/                        # Gemini CLI Skills (OCR Trainer)
+├── src/                           # React Frontend
+├── OCR_TRAINING_HISTORY.md        # Full training history (6 attempts)
+├── OCR_ISSUES.md                  # Known issues and resolutions
+├── AGENTS.md                      # Detailed project context for AI agents
+└── CLAUDE.md                      # Claude Code instructions
 ```
 
 ## ⚡ Quick Start
@@ -99,16 +110,40 @@ python3 scripts/create_model_config.py
 
 ---
 
+## 🔍 OCR Pipeline (v2)
+
+The OCR pipeline uses a two-stage approach:
+
+1. **Detection** — `TooltipLineSplitter` splits the tooltip image into individual text lines using horizontal projection profiling. This replaces EasyOCR's CRAFT detector, which is designed for natural scene text and performs poorly on structured tooltip layouts.
+
+2. **Recognition** — Each line crop is fed directly to the custom EasyOCR recognition model (`TPS-ResNet-BiLSTM-CTC`) via the `recognize()` API, bypassing CRAFT entirely.
+
+3. **Correction** — RapidFuzz fuzzy matching against game dictionaries fixes common OCR errors.
+
+```
+Screenshot → Frontend (binary threshold) → Line Splitter → Recognition → Correction → Structured JSON
+```
+
 ## 🧠 Training Custom OCR Model
 
-To improve OCR accuracy for Mabinogi fonts, use the included **OCR Trainer Skill**.
-
-1.  **Generate Data:** `python3 scripts/generate_training_data.py`
+1.  **Generate Data:** `python3 scripts/generate_training_data.py` — Binary images matching frontend preprocessing
 2.  **Create LMDB:**
     ```bash
     python3 skills/ocr-trainer/scripts/create_lmdb_dataset.py --input backend/train_data --output backend/train_data_lmdb
     ```
-3.  **Train:** See `skills/ocr-trainer/SKILL.md` for the full training command. Critical flags: `--sensitive --PAD --workers 0 --batch_max_length 30`.
+3.  **Train:** Critical flags: `--sensitive --PAD --workers 0 --batch_max_length 55`.
+    ```bash
+    cd deep-text-recognition-benchmark
+    python3 train.py --train_data ../backend/train_data_lmdb \
+      --valid_data ../backend/train_data_lmdb \
+      --select_data / --batch_ratio 1.0 \
+      --Transformation TPS --FeatureExtraction ResNet \
+      --SequenceModeling BiLSTM --Prediction CTC \
+      --batch_max_length 55 --imgH 32 --imgW 200 \
+      --num_iter 10000 --valInterval 2000 \
+      --batch_size 64 --workers 0 --sensitive --PAD \
+      --character "$(cat ../backend/unique_chars.txt | tr -d '\n')"
+    ```
 4.  **Deploy:** `cp deep-text-recognition-benchmark/saved_models/TPS-ResNet-BiLSTM-CTC-Seed1111/best_accuracy.pth backend/models/custom_mabinogi.pth`
 
 For training history and known pitfalls, see `OCR_TRAINING_HISTORY.md`.
