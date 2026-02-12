@@ -1,5 +1,24 @@
 # OCR Training History
 
+## Progress Summary
+
+Each attempt has identified and fixed a specific bottleneck, steadily raising real-world accuracy:
+
+| Attempt | Synthetic Acc | Real Char Acc | Real Confidence | Bottleneck Fixed |
+|---------|--------------|---------------|-----------------|------------------|
+| 1-4 | 99% | ~0% | ~0.01 | Charset, --sensitive bug, --PAD mismatch |
+| 5 | 100% | ~0% | ~0.05 | imgW=200, augmentation |
+| 6 | 97.4% | 19.5% | 0.039 | Binary domain gap, v2 pipeline (bypass CRAFT) |
+| 7 | 97.7% | 35.8% | 0.097 | +67 chars, templates, natural height |
+| 8 (5k iter) | 56.2% | 28.3% | 0.004 | Squash factor, proportional canvas width (underfit) |
+| 8b | Pending | Pending | Pending | Continue training from 8 checkpoint (+10k iter) |
+
+Real-world char accuracy: **0% → 19.5% → 35.8% → 28.3%** (Attempt 8 regressed due to underfitting — more varied data needs more iterations). Attempt 8b continues training from checkpoint.
+
+**Training strategy:** Two-stage approach — Stage 1: synthetic-only training until **60% real char accuracy**. Stage 2: fine-tune with real GT line crops mixed into training data.
+
+---
+
 ## Attempt 1: Initial Model (Pre-existing)
 
 The project shipped with a pre-trained model trained only on `reforging_options.txt` entries.
@@ -204,9 +223,156 @@ New: Frontend → Full image → TooltipLineSplitter → Line crops → EasyOCR 
 4. Recognition model sees clean, rectangular, single-line inputs
 5. Each line maps to a known tooltip field for structured data extraction
 
-**Training data adjustments needed:**
-- Match real line crop dimensions (full tooltip width ~250px, variable height)
-- Generate from actual tooltip text patterns, not just dictionary words
-- Include structured patterns: `R:0 G:0 B:12`, `내구력 20/20`, `- 피어싱 레벨 3`
+**Implementation:** Use EasyOCR's `recognize()` method with `horizontal_list=[[0, w, 0, h]]` and `free_list=[]` to bypass CRAFT and recognize pre-cropped line images directly.
 
-**Implementation:** Use EasyOCR's `recognize()` method (bypasses CRAFT) or call the recognition model directly on pre-cropped line images.
+**v2 pipeline test script:** `scripts/test_v2_pipeline.py` — splits sample images, feeds line crops to `recognize()`, compares against GT `.txt` files.
+
+---
+
+## Domain Gap Analysis (v2 Pipeline Baseline)
+
+Ran `test_v2_pipeline.py` on all 5 GT pairs (235 total lines). **Result: 0/235 exact matches (0%), 19.5% char accuracy, avg confidence 0.039.** The model outputs random dictionary fragments.
+
+Three root causes identified:
+
+### Problem 1: 62 Missing Characters (Critical)
+
+The character set (`unique_chars.txt`, 442 chars) is missing **62 characters** that appear in ground truth text. The model physically cannot output these characters.
+
+| Category | Missing | Examples |
+|----------|---------|---------|
+| Korean syllables (41) | `축`, `캡`, `싱`, `픽`, `받`, `뎌`, `균`, `멸`, `글`, `낸`, `녔`, `딘`, `떠`, `떤`, `롬`, `루`, `릴`, `멘`, `선`, `습`, `얌`, `염`, `족`, `존`, `쪽`, `착`, `참`, `출`, `칠`, `케`, `탄`, `탓`, `텐`, `틴`, `팩`, `같`, `것`, `관`, `권` | Can't recognize "축복받은", "캡틴", "피어싱", "에픽" |
+| Lowercase Latin (15) | `a, c, e, g, h, i, l, m, n, o, p, r, t, x, y` | Can't recognize "Copyright", "MABINOGI" lowercase |
+| Uppercase Latin (4) | `I, M, N, O` | Can't recognize "MABINOGI" |
+| Hangul jamo (1) | `ㄴ` | Can't recognize sub-bullet marker "ㄴ" |
+| Punctuation (1) | `,` (comma) | Can't recognize comma-separated values |
+
+### Problem 2: Dimension Mismatch (3x scale error)
+
+| Metric | Real line crops | Synthetic training |
+|--------|-----------------|-------------------|
+| Height | 6-14px (median **10px**) | Fixed **32px** |
+| Width | 22-269px (median **261px**) | 24-488px (median 213px) |
+| Aspect ratio (w/h) | 2.8-33.4 (median **18.8**) | 0.8-15.2 (median **6.3**) |
+
+Real crops are ~10px tall with extreme aspect ratios (19:1). Synthetic images are 32px tall with moderate ratios (6:1). When the model resizes a 10px-tall real crop to 32px, the upscaling artifacts differ completely from what was seen during training.
+
+Real height distribution: 6px (14), **7px (53)**, 8px (9), 9px (5), **10px (120)**, 11px (29), 13px (4), 14px (1). Two dominant clusters at 7px and 10px.
+
+### Problem 3: Dictionary-Only Labels (12% coverage)
+
+Training labels come exclusively from dictionary entries. Only **25/210** (12%) unique GT lines have an exact dictionary match. The model has never seen:
+- Stat lines: `방어력 14`, `내구력 32/32`, `공격 107~189`
+- Color parts: `- 파트 A R:0 G:0 B:0`, `파트 B    R:187 G:153 B:85`
+- Hashtag lines: `#인챈트 실패 시 아이템 보호 #남성 전용 #대장장이`
+- Piercing: `(피어싱이 부여된 장비를 양 쪽에 착용 시, 높은 쪽 적용)`
+- Multi-value: `- 방어 20, 보호 15 차감`
+- Price: `상점판매가 : 4597 골드`
+- Item names: `축복받은 새끼너구리 파이릿 캡틴 수트`
+- Flavor text / descriptions
+
+---
+
+## Attempt 7: Fix All Three Root Causes
+
+**Changes:**
+1. **Character set expanded**: 442 → 509 chars (+62 from GT, +5 from templates: 민번센첩황)
+2. **Template-based generator**: Rewrote `generate_training_data.py` with ~2,300 template lines covering stat lines, color parts, enchant headers/effects, sub-bullets, reforging, crafting, set items, piercing, hashtags, prices, grades, ergo, flavor text. Plus GT lines verbatim and dictionary entries.
+3. **Natural image dimensions**: Render at font sizes 9-11 on ~260px canvas → natural height 10-14px (no pre-resize to 32px)
+4. **Binary enforcement**: Re-threshold after all augmentations. Blank image detection added.
+5. Generated **8,665 images** (509-char set, 3 variations per label)
+
+**Training:** 10,000 iterations. Best accuracy: **97.725%** on synthetic validation.
+
+**v2 Pipeline Result:**
+
+| Image | Lines | Exact | Char Acc | Confidence |
+|-------|-------|-------|----------|------------|
+| captain_suit | 23 | 0 | 29.9% | 0.067 |
+| dropbell | 36 | 0 | 35.9% | 0.071 |
+| lightarmor | 75 | 0 | 38.3% | 0.118 |
+| lobe | 22 | 0 | 32.2% | 0.077 |
+| titan_blade | 79 | 1 | 35.0% | 0.099 |
+| **TOTAL** | **235** | **1** | **35.8%** | **0.097** |
+
+**Improvement over baseline:** Char accuracy 19.5% → 35.8% (1.8x), confidence 0.039 → 0.097 (2.5x). The model now produces recognizable Korean fragments, but accuracy remains poor.
+
+### Attempt 7 Analysis: Squash Factor Mismatch
+
+**Root cause:** EasyOCR's `AlignCollate` preprocessing resizes images to `imgH=32` maintaining aspect ratio, then if the resulting width exceeds `imgW=200`, it **squashes** horizontally to fit 200px. This squash factor depends on the original image height:
+
+| Source | Height | Resize to h=32 | Resulting width (260px canvas) | Squash to 200px |
+|--------|--------|-----------------|-------------------------------|-----------------|
+| Real 7px crop | 7px | 4.6x upscale | 260 × (32/7) = **1,189px** | **5.9x squash** |
+| Real 10px crop | 10px | 3.2x upscale | 260 × (32/10) = **832px** | **4.2x squash** |
+| Synthetic (Att 7) | 14px | 2.3x upscale | 260 × (32/14) = **594px** | **3.0x squash** |
+
+The model trained on 3.0x squash but encounters 4.2x–5.9x squash at inference. Lines at 10-15px height (where squash is closest to training) achieve 80-93% char accuracy, confirming the mismatch.
+
+**Second issue: Short text hallucination.** Short text like "세공" (4 chars) rendered on a 260px canvas = 80% whitespace. After squashing, the model sees a long input and hallucinates extra characters to fill it. Real short-text crops from the splitter are narrow (22-100px), not full tooltip width.
+
+---
+
+## Attempt 8: Fix Squash Factor + Canvas Width
+
+**Changes to `generate_training_data.py`:**
+1. **Font size 8 added** (~30% of images): `FONT_SIZES = [8, 8, 9, 9, 10, 10, 11]`. Size 8 produces 8-9px tall text, matching the real 7px height cluster. This teaches the model the extreme 5.9x horizontal squash it encounters on real 7px crops.
+2. **Canvas width proportional to text length**: Short text gets tight-cropped (60% of the time) with width = text_width + padding + 0-10px margin. Long text still uses full ~260px canvas. This matches the splitter's ink-bound cropping for short lines (real widths range 22-269px) and prevents short-text hallucination.
+
+**Generated:** 8,702 images (509-char set).
+
+**Image dimension distribution (sample 500):**
+- Height: 9-19px (covers both 7px and 10px real clusters after padding)
+- Width: 22-280px (matches real 22-269px range)
+  - <50px: 8%, 50-100px: 33%, 100-200px: 21%, 200-270px: 38%
+
+**Training (Attempt 8, 5k iterations):** Best synthetic accuracy: **56.2%** at 5,000 iterations (~31 min with `--batch_size 64`). Model underfit — the more varied training data (variable widths, multiple font sizes) requires more iterations to converge.
+
+**v2 Pipeline Result (Attempt 8):**
+
+| Image | Lines | Exact | Char Acc | Confidence |
+|-------|-------|-------|----------|------------|
+| captain_suit | 23 | 0 | 25.6% | 0.010 |
+| dropbell | 36 | 0 | 24.4% | 0.006 |
+| lightarmor | 75 | 0 | 34.3% | 0.004 |
+| lobe | 22 | 0 | 28.5% | 0.001 |
+| titan_blade | 79 | 0 | 25.2% | 0.004 |
+| **TOTAL** | **235** | **0** | **28.3%** | **0.004** |
+
+**Regression from Attempt 7** (35.8% → 28.3%). The model didn't converge on the harder training distribution. Synthetic accuracy was only 56.2% vs 97.7% in Attempt 7.
+
+**Fix:** Continue training from checkpoint (`--saved_model`) for 10,000 more iterations (Attempt 8b).
+
+---
+
+## Attempt 8b: Continue Training from Checkpoint
+
+Resume from Attempt 8's `best_accuracy.pth` with `--saved_model`. Same data, +10,000 iterations. This avoids restarting from scratch while allowing the model to fully converge on the more varied training distribution.
+
+**Training:** Pending.
+
+---
+
+## Training Strategy: Two-Stage Approach
+
+### Stage 1: Synthetic Only (Current)
+Train on synthetic data generated by `generate_training_data.py`. Measure real-world accuracy with `test_v2_pipeline.py` after each attempt.
+
+**Gate:** Achieve **60% real-world char accuracy** on synthetic-only training.
+
+Below 60%, there are still fundamental synthetic-vs-real gaps worth fixing in the generator (cheaper than using limited real data). Above 60%, diminishing returns from synthetic tweaks — real data becomes more valuable.
+
+### Stage 2: Fine-tune with Real Images
+Once Stage 1 gate is met:
+1. Split 5 GT images through `TooltipLineSplitter` to produce ~235 real line crops
+2. Pair each crop with its GT text label
+3. Augment heavily (blur, threshold variation, small shifts) to prevent overfitting on 235 samples
+4. Mix ~50/50 with synthetic data in a combined LMDB dataset
+5. Fine-tune from the Stage 1 model using `--saved_model`
+6. Use lower learning rate to avoid catastrophic forgetting of synthetic-learned features
+
+**Why two stages?**
+- Stage 1 teaches character shapes, layout patterns, and squash factors from abundant synthetic data
+- Stage 2 closes the "last mile" domain gap: real pixel artifacts, actual font rendering, border residue, upscaling noise
+- 235 real lines is too few for training from scratch but sufficient for fine-tuning
+- Continued training (`--saved_model`) is supported by `deep-text-recognition-benchmark/train.py`

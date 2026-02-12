@@ -51,7 +51,7 @@ The data flow for item registration:
 ### Custom OCR Model
 - Architecture: `TPS-ResNet-BiLSTM-CTC` (from `deep-text-recognition-benchmark/`)
 - Font: `data/fonts/mabinogi_classic.ttf` (actual game font)
-- Character set (442 chars) defined in `backend/unique_chars.txt` and mirrored in `backend/models/custom_mabinogi.yaml`
+- Character set (509 chars) defined in `backend/unique_chars.txt` and mirrored in `backend/models/custom_mabinogi.yaml`
 - Model weights: `backend/models/custom_mabinogi.pth`
 - Model architecture for EasyOCR integration: `backend/models/custom_mabinogi.py`
 - Training history and known issues: `OCR_TRAINING_HISTORY.md`
@@ -73,15 +73,30 @@ When training with `deep-text-recognition-benchmark/train.py`:
 - `--sensitive` — Required. Prevents lowercasing labels (needed for R,G,B,L,A-F characters).
 - `--PAD` — Required. Matches EasyOCR's `keep_ratio_with_pad=True` inference preprocessing.
 - `--batch_max_length 55` — Longest labels are ~55 chars.
-- `--character "$(cat ../backend/unique_chars.txt | tr -d '\n')"` — Full 442-char Korean set.
+- `--character "$(cat ../backend/unique_chars.txt | tr -d '\n')"` — Full 509-char Korean set.
 - Note: `train.py` line 287-289 was patched so `--sensitive` no longer overrides the character set.
 
 ### Training Data Requirements
-Synthetic training images must match real line crops:
-- **Binary only**: Pixel values strictly 0 and 255 (no grayscale anti-aliasing). Re-threshold after any resize.
-- **Frontend threshold**: Base value 80 with small random variation, matching `sell.jsx` preprocessing.
-- **Content**: Full tooltip line patterns (not just dictionary words) — e.g., `R:0 G:0 B:12`, `내구력 20/20`, `- 방어 20, 보호 15 차감`
+Synthetic training images must match real line crops from the splitter:
+- **Dimensions**: Render at font sizes 8-11 (`[8,8,9,9,10,10,11]`, ~30% size-8) on proportional canvas width. Do NOT pre-resize to 32px; let model inference handle that.
+  - Font size 8 → 8-9px height (matches real 7px cluster, produces 5x+ squash factor)
+  - Font sizes 9-11 → 10-14px height (matches real 10px cluster)
+- **Canvas width**: Proportional to text length. Short text gets tight-cropped (60% of the time, width = text + padding); long text uses full ~260px canvas. Matches splitter's ink-bound cropping (real widths: 22-269px).
+- **Binary only**: Pixel values strictly 0 and 255. Re-threshold after any resize.
+- **Frontend threshold**: Base value 80 with small random variation, matching `sell.jsx`.
+- **Content**: Template-based full tooltip lines (not just dictionary words):
+  - Stat lines: `방어력 {N}`, `내구력 {N}/{N}`, `공격 {N}~{N}`
+  - Color parts: `- 파트 {A-F} R:{N} G:{N} B:{N}`
+  - Enchant headers/effects, hashtag lines, price lines, piercing text
+  - Item names, flavor text, sub-bullets with `ㄴ` marker
+  - All GT lines included verbatim
+- **Character set**: `backend/unique_chars.txt` (509 chars) must cover all characters in GT
 - **Font**: `data/fonts/mabinogi_classic.ttf` (actual game font)
+
+### Testing
+- `scripts/test_v2_pipeline.py` — Splits GT images → `recognize()` → compares against GT `.txt` files
+- `scripts/test_line_splitter.py <image> <output_dir>` — Visual line detection verification
+- Ground truth pairs in `data/sample_images/`: 5 images, 235 total lines
 
 ### Recommendation System
 - `backend/recommendation.py`: TF-IDF vectorization of item descriptions + cosine similarity
@@ -93,6 +108,16 @@ Synthetic training images must match real line crops:
 - `/navigate` → `Navigate` — Leaflet map (experimental)
 - `/image_process` → `ImageProcess` — OCR training data preparation tool
 
+## Documentation Policy
+
+**Always update documentation when a notable change occurs.** This includes:
+- New training attempts or results → update `OCR_TRAINING_HISTORY.md`
+- Issue status changes (resolved/new) → update `OCR_ISSUES.md`
+- Architecture or pipeline changes → update `CLAUDE.md` and `AGENTS.md`
+- New findings, insights, or root cause analyses → update the relevant doc
+
+Documents to keep in sync: `CLAUDE.md`, `AGENTS.md`, `OCR_TRAINING_HISTORY.md`, `OCR_ISSUES.md`.
+
 ## Key Constraints
 
 - Frontend sends preprocessed (thresholded) images: black text on white background, pixel values strictly 0 or 255
@@ -101,4 +126,9 @@ Synthetic training images must match real line crops:
 - EasyOCR always uses `keep_ratio_with_pad=True` during inference (hardcoded in `recognition.py` lines 199, 213), regardless of yaml PAD setting. Training must use `--PAD` to match.
 - Item database is currently mocked in `backend/recommendation.py` (`ITEMS_DB`); no persistent storage yet
 - The `data/` directory (fonts, dictionary, sample images) is not fully committed to git
-- Ground truth files (`data/sample_images/*.txt`) exist for: `lightarmor_processed_2`, `captain_suit_processed`, `lobe_processed`
+- Ground truth files (`data/sample_images/*.txt`) exist for: `lightarmor_processed_3`, `captain_suit_processed`, `lobe_processed`, `titan_blade_processed`, `dropbell_processed`
+- Character set expanded to 509 chars (was 442) — all GT characters now covered
+- Training must run independently (not as subprocess of Claude Code) to avoid OOM kills — use `nohup` in a separate terminal
+- Training requires `--batch_size 64` (default 192 causes extreme slowdown on 8GB VRAM) and `python3 -u` for unbuffered log output
+- Continued training from checkpoint is supported via `--saved_model <path_to_pth>`
+- Two-stage training strategy: Stage 1 synthetic-only until 60% real char accuracy, Stage 2 fine-tune with real GT line crops (see `OCR_TRAINING_HISTORY.md`)

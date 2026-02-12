@@ -77,28 +77,79 @@ The custom `TooltipLineSplitter` uses horizontal projection profiling tailored f
 - Ground truth test pairs in `data/sample_images/` (`*_processed.png` + `*_processed.txt`)
 
 ### Ground Truth Data
-Located in `data/sample_images/`:
-- `lightarmor_processed_2.png` + `.txt` — 75 lines, full tooltip with reforging/enchants/colors
+Located in `data/sample_images/` (5 pairs, 235 total lines):
+- `lightarmor_processed_3.png` + `.txt` — 75 lines, full tooltip with reforging/enchants/set items/colors
+- `titan_blade_processed.png` + `.txt` — 79 lines (longest), weapon with ergs/special reforging/set items
+- `dropbell_processed.png` + `.txt` — 36 lines, accessory with piercing/enchants/crafting
 - `lobe_processed.png` + `.txt` — 22 lines, armor with piercing stats and 6 color parts
 - `captain_suit_processed.png` + `.txt` — 23 lines, clothing with enchants and crafting info
 
 ## 5. Key Technical Insights
 
-### Domain Gap (Training vs Real Images)
-The biggest challenge has been the domain gap between synthetic training data and real preprocessed screenshots:
-- Real images are strictly binary (0, 255) after frontend thresholding
-- Synthetic images must also be strictly binary — any grayscale anti-aliasing or interpolation artifacts cause the model to learn features absent from real data
-- After any resize operation, **re-threshold** to guarantee binary output
-- Font rendering at small sizes with thresholding produces different stroke patterns than at larger sizes
+### Domain Gap Analysis & Fixes
+
+Three root causes were identified after Attempt 6 (0% real accuracy despite 97-100% synthetic):
+
+**1. Missing characters (62 chars) — Fixed in Attempt 7:**
+- Expanded charset 442 → 509 chars (+62 from GT, +5 from templates)
+
+**2. Dimension mismatch — Fixed in Attempts 7+8:**
+- Attempt 7: Render at font sizes 9-11 on ~260px canvas (natural height 10-14px, not fixed 32px)
+- Attempt 8: Added font size 8 (~30% of images) for 7px height cluster. This matches the extreme 5.9x squash factor that EasyOCR's AlignCollate applies to 7px-tall real crops.
+
+**3. Dictionary-only labels (12% GT coverage) — Fixed in Attempt 7:**
+- Template-based generator with ~2,300 tooltip line patterns + GT lines verbatim + dictionary entries
+
+**4. Squash factor mismatch — Identified after Attempt 7, fixed in Attempt 8:**
+- EasyOCR resizes to imgH=32, then squashes to imgW=200 if too wide
+- Real 7px crops: 5.9x squash. Real 10px: 4.2x. Attempt 7 synthetic (14px): only 3.0x
+- Fix: Font size 8 produces 8-9px heights → squash factor ~5x, matching real 7px cluster
+
+**5. Short text hallucination — Identified after Attempt 7, fixed in Attempt 8:**
+- Short text on 260px canvas = 80% whitespace → model hallucinates extra characters
+- Real short-text crops from splitter are narrow (22-100px), not full tooltip width
+- Fix: Canvas width proportional to text length (60% tight crop for short text)
+
+### Real Line Crop Statistics (from 235 lines across 5 GT images)
+- Text height: min=6, max=14, **median=10px** (two clusters: 7px and 10px)
+- Padded width: min=22, max=269, **median=261px** (most lines span full tooltip width)
+- Tooltip width: consistently 262-271px across all images
+- All images are strictly binary (0, 255) after frontend thresholding at 80
+
+### Synthetic Training Data Statistics (Attempt 8)
+- Generated: **8,702 images** (509-char set, 3 variations per label)
+- Height: 9-19px (font sizes 8-11, covers both 7px and 10px real clusters)
+- Width: 22-280px (proportional to text length, matches real 22-269px range)
+  - <50px: 8%, 50-100px: 33%, 100-200px: 21%, 200-270px: 38%
+- All images strictly binary (0, 255)
 
 ### EasyOCR Internals
 - `readtext()` = CRAFT detection + recognition (we don't use this in v2)
-- `recognize()` = recognition only on pre-cropped images (used in v2 pipeline)
+- `recognize(img_grey, horizontal_list=[[0, w, 0, h]], free_list=[], reformat=False)` = recognition only on pre-cropped images (v2 pipeline)
 - `recognition.py` lines 199, 213: `keep_ratio_with_pad=True` is hardcoded
 - The `PAD` field in yaml is ignored during inference
+- When both `horizontal_list` and `free_list` are None, it uses the entire image as one bbox
+- Must pass `free_list=[]` (not None) when `horizontal_list` is set, otherwise TypeError
+
+### v2 Pipeline Results
+| Attempt | Exact (of 235) | Char Acc | Confidence | Key Change |
+|---------|----------------|----------|------------|------------|
+| Baseline (Att 6) | 0 (0%) | 19.5% | 0.039 | Dictionary-only, 32px fixed, 442 chars |
+| Attempt 7 | 1 (0.4%) | 35.8% | 0.097 | +67 chars, templates, natural height |
+| Attempt 8 (5k) | 0 (0%) | 28.3% | 0.004 | +font size 8, proportional canvas (underfit) |
+| Attempt 8b | Pending | Pending | Pending | Continue from checkpoint (+10k iter) |
+
+Pipeline mechanics confirmed working. Line detection perfect. Recognition is the sole bottleneck.
+
+### Training Strategy: Two Stages
+1. **Stage 1 (synthetic only):** Train until **60% real char accuracy**. Fix generator issues to close domain gaps.
+2. **Stage 2 (fine-tune with real):** Split 5 GT images → 235 real line crops. Mix 50/50 with synthetic. Fine-tune from Stage 1 model using `--saved_model`. Lower learning rate to avoid catastrophic forgetting.
+
+**Key training flags:** `--batch_size 64` (not default 192), `python3 -u` for unbuffered logs, `--saved_model <path>` to continue training from checkpoint.
 
 ## 6. General Guidelines
 - Ask before making changes.
 - Maintain existing code styles.
+- **Always update documentation when a notable change occurs** — training attempts/results → `OCR_TRAINING_HISTORY.md`, issue status → `OCR_ISSUES.md`, architecture/pipeline changes → `CLAUDE.md` + `AGENTS.md`.
 - See `OCR_TRAINING_HISTORY.md` for full training history and pitfalls.
 - See `OCR_ISSUES.md` for current and resolved issues.
