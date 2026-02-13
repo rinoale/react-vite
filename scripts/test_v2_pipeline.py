@@ -37,14 +37,17 @@ def load_ground_truth(txt_path):
 
 
 def init_reader():
-    """Initialize EasyOCR reader with custom model."""
+    """Initialize EasyOCR reader with custom model and fixed imgW patch."""
     import easyocr
+    from ocr_utils import patch_reader_imgw
     reader = easyocr.Reader(
         ['ko'],
         model_storage_directory=MODELS_DIR,
         user_network_directory=MODELS_DIR,
         recog_network='custom_mabinogi'
     )
+    fixed_imgW = patch_reader_imgw(reader, MODELS_DIR)
+    print(f"Reader initialized with fixed imgW={fixed_imgW}")
     return reader
 
 

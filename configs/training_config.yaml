@@ -18,11 +18,11 @@ model:
   hidden_size: 256
   num_fiducial: 20
   imgH: 32
-  imgW: 600           # Must match EasyOCR inference width. Was 200 (caused 2.77x squash mismatch).
+  imgW: 200           # Fixed via patched inference (ocr_utils.py). Training and inference now match.
 
 # --- Training Hyperparameters ---
 training:
-  batch_size: 64      # Default 192 causes extreme slowdown on 8GB VRAM
+  batch_size: 64      # imgW=200 fits comfortably in 8GB VRAM
   num_iter: 10000
   valInterval: 500
   batch_max_length: 55

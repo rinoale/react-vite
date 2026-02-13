@@ -35,7 +35,7 @@ LABELS_DIR = os.path.join(OUTPUT_DIR, "labels")
 #   Font size 8 → 8-9px height (matches 7px cluster after padding)
 #   Font size 9-11 → 9-13px height (matches 10px cluster)
 #   Weighted to include both clusters proportionally
-FONT_SIZES = [8, 8, 9, 9, 10, 10, 11]  # ~30% size-8, ~70% size 9-11
+FONT_SIZES = [6, 7, 7, 7, 10, 10, 10, 10, 10, 10, 11, 11, 11, 11]  # ~28% size 6-7, ~72% size 10-11
 CANVAS_WIDTH = 260  # Match real tooltip width
 
 # Frontend threshold (from sell.jsx)
@@ -408,23 +408,19 @@ def render_line(text, font_size, canvas_width):
     text_color = random.choice([(0,), (10,), (30,)])
     bg_color = random.choice([(255,), (250,)])
 
-    # Canvas: height = text + small padding, width depends on text length
-    pad_y = max(1, text_h // 4)
-    pad_x = random.randint(2, 8)
+    # Canvas: height = text + small padding, width always ~260px (matching real tooltip)
+    # Real crops are 95.4% full-width (~261px) regardless of text length.
+    # Padding matches splitter formula: pad_y = max(1, h//5), pad_x = max(2, h//3)
+    pad_y = max(1, text_h // 5)
+    pad_x = max(2, text_h // 3)
     img_h = text_h + 2 * pad_y
 
-    # Real line crops range 22-269px wide. Long text spans full tooltip width,
-    # but short text (section headers, types) gets tight-cropped by the splitter.
-    # Mix both so the model learns to handle padded (narrow) and squashed (wide) inputs.
     text_w_padded = text_w + 2 * pad_x
     if text_w_padded >= canvas_width:
         # Long text: use natural width
         img_w = text_w_padded
-    elif random.random() < 0.6:
-        # Short text, tight crop: match splitter's ink-bound cropping
-        img_w = text_w_padded + random.randint(0, 10)
     else:
-        # Short text, full canvas: some real crops are full tooltip width
+        # Always use full canvas width to match real tooltip crops
         img_w = canvas_width
 
     img = Image.new('L', (img_w, img_h), color=bg_color[0])
@@ -456,6 +452,46 @@ def render_line(text, font_size, canvas_width):
     return img, True
 
 
+def split_long_label(text, font, max_width):
+    """Split a label at word boundaries if it exceeds max_width pixels.
+
+    Returns a list of sub-labels. If the text fits, returns [text].
+    Splits at spaces to produce sub-labels that each fit within max_width.
+    """
+    bbox = font.getbbox(text)
+    if bbox[2] - bbox[0] <= max_width:
+        return [text]
+
+    words = text.split(' ')
+    parts = []
+    current = words[0]
+    for word in words[1:]:
+        candidate = current + ' ' + word
+        bbox = font.getbbox(candidate)
+        if bbox[2] - bbox[0] <= max_width:
+            current = candidate
+        else:
+            parts.append(current)
+            current = word
+    parts.append(current)
+    return parts
+
+
+def split_all_labels(labels, font_path, max_font_size, max_width):
+    """Split all labels that would overflow at the largest font size."""
+    font = ImageFont.truetype(font_path, max_font_size)
+    result = []
+    split_count = 0
+    for label in labels:
+        parts = split_long_label(label, font, max_width)
+        if len(parts) > 1:
+            split_count += 1
+        result.extend(parts)
+    if split_count > 0:
+        print(f"  Split {split_count} long labels into {len(result) - len(labels) + split_count} sub-labels")
+    return result
+
+
 def generate_data():
     os.makedirs(IMAGES_DIR, exist_ok=True)
     os.makedirs(LABELS_DIR, exist_ok=True)
@@ -477,6 +513,12 @@ def generate_data():
 
     # Combine (deduplicate)
     all_labels = list(set(template_lines + gt_lines + dict_words))
+
+    # Split long labels at word boundaries to fit within canvas
+    max_font = max(FONT_SIZES)
+    max_text_width = CANVAS_WIDTH - 2 * max(2, 11 // 3)  # canvas minus padding at largest font
+    all_labels = split_all_labels(all_labels, FONT_PATH, max_font, max_text_width)
+    all_labels = list(set(all_labels))  # deduplicate after splitting
     random.shuffle(all_labels)
     print(f"Unique labels: {len(all_labels)}")
 

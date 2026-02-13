@@ -5,6 +5,7 @@ import os
 import easyocr
 from recommendation import recommender, ITEMS_DB
 from text_corrector import TextCorrector
+from ocr_utils import patch_reader_imgw
 from pydantic import BaseModel
 from typing import List
 
@@ -39,6 +40,7 @@ reader = easyocr.Reader(
     user_network_directory=MODELS_DIR,
     recog_network='custom_mabinogi'
 )
+patch_reader_imgw(reader, MODELS_DIR)
 
 class UserHistory(BaseModel):
     history_ids: List[int]

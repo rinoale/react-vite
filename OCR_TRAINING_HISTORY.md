@@ -13,8 +13,11 @@ Each attempt has identified and fixed a specific bottleneck, steadily raising re
 | 8 (5k) | 56.2% | 28.3% | 0.004 | Squash factor, proportional canvas width (underfit) |
 | 8b (15k) | 93.5% | 27.0% | 0.014 | Continue from 8 — domain gap, not underfitting |
 | 9 | 90.0% | 36.2% | 0.044 | Reverted canvas to ~260px, bimodal font sizes 6-7/10-11 |
+| 10 | — | — | — | OOM (imgW=600, batch_size=64 maxed 8GB VRAM). No training completed. |
+| 11 | 5.8% | — | ~0 | imgW=600, batch_size=16 → only 18 epochs in 10k iters. Underfitting. |
+| 12 | pending | — | — | Patched inference to use fixed imgW. Back to imgW=200, batch_size=64. |
 
-Real-world char accuracy: **0% → 19.5% → 35.8% → 27.0% (regression) → 36.2% (recovered)**. Attempt 8 regression caused by proportional canvas width; fixed in Attempt 9.
+Real-world char accuracy: **0% → 19.5% → 35.8% → 27.0% (regression) → 36.2% (recovered)**. Attempts 10-11 failed due to imgW=600 approach (OOM/underfitting). Attempt 12 patches EasyOCR inference instead.
 
 ---
 
@@ -362,8 +365,52 @@ This explains:
 
 ---
 
-## Attempt 10: Fix imgW to Match Inference
+## Attempt 10: Fix imgW to Match Inference (OOM)
 
-**Change:** `--imgW 600` (was 200). This prevents squashing during training, so the model sees character spacing consistent with inference. Same training data as Attempt 9.
+**Change:** `--imgW 600` (was 200). Intended to prevent squashing during training so the model sees character spacing consistent with inference. Same training data as Attempt 9.
 
-**Training:** 10,000 iterations, batch_size 64, from scratch, `--imgW 600`.
+**Result:** OOM. `batch_size=64` with `imgW=600` maxed out 8GB VRAM (7,972/8,192 MiB). Zero iterations completed.
+
+---
+
+## Attempt 11: imgW=600 with Reduced Batch Size
+
+**Changes:**
+1. **batch_size reduced to 16** — to fit imgW=600 in 8GB VRAM
+2. **Label splitting** — added `split_long_label()` to split overflow labels at word boundaries (33 labels split)
+3. **Training data regenerated** — 8,671 images with all Attempt 9 fixes (bimodal fonts, splitter padding, full canvas width)
+
+**Training:** 10,000 iterations, batch_size=16, imgW=600.
+
+**Result:** 5.8% best synthetic accuracy. Predictions were random fragments ("- 미 감소", "-어 소 감소"). Loss plateau at ~3.1.
+
+**Root cause:** Two compounding issues:
+1. **Too few epochs:** batch_size=16 → 542 iters/epoch → only 18 epochs in 10k iters (vs ~74 epochs in Attempt 9 with batch_size=64)
+2. **Fundamental imgW mismatch discovered:** EasyOCR's `recognize()` uses **dynamic** `max_width` per image, NOT the yaml's imgW. The dynamic width depends on each image's aspect ratio:
+
+| Image height | Dynamic inference imgW | Training imgW | Mismatch |
+|-------------|----------------------|---------------|----------|
+| h=8 | 1056 | 600 | 1.76x |
+| h=9 | 928 | 600 | 1.55x |
+| h=14 | 608 | 600 | ~match |
+| h=15 | 576 | 600 | slight |
+
+No single fixed imgW can match all image heights. The h=8-9 cluster (28% of data) has **worse** mismatch at imgW=600 than imgW=200 had for h=14 images.
+
+**Key finding (EasyOCR source):** In `easyocr.py` line 381, `recognize()` passes `int(max_width)` to `get_text()`, where `max_width = ceil(w/h) * 32`. The yaml's imgW is only used for TPS model construction, never for inference preprocessing.
+
+---
+
+## Attempt 12: Patch Inference to Use Fixed imgW
+
+**The real fix:** Instead of adjusting training imgW to match dynamic inference, patch inference to use fixed imgW from the yaml. This ensures training and inference always match at any imgW value.
+
+**Changes:**
+1. **`backend/ocr_utils.py`** (new) — `patch_reader_imgw()` monkey-patches EasyOCR's `recognize()` method to pass the yaml's `imgW` to `get_text()` instead of dynamic `max_width`
+2. **`scripts/test_v2_pipeline.py`** — applies the patch after reader init
+3. **`backend/main.py`** — applies the patch after reader init
+4. **Config reverted to imgW=200, batch_size=64, num_iter=10000** — no more VRAM constraints
+
+**Training data:** Same 8,671 images from Attempt 11 (bimodal fonts, splitter padding, full canvas, label splitting).
+
+**Training:** 10,000 iterations, batch_size=64, imgW=200. Pending results.
