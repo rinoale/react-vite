@@ -10,12 +10,11 @@ Each attempt has identified and fixed a specific bottleneck, steadily raising re
 | 5 | 100% | ~0% | ~0.05 | imgW=200, augmentation |
 | 6 | 97.4% | 19.5% | 0.039 | Binary domain gap, v2 pipeline (bypass CRAFT) |
 | 7 | 97.7% | 35.8% | 0.097 | +67 chars, templates, natural height |
-| 8 (5k iter) | 56.2% | 28.3% | 0.004 | Squash factor, proportional canvas width (underfit) |
-| 8b | Pending | Pending | Pending | Continue training from 8 checkpoint (+10k iter) |
+| 8 (5k) | 56.2% | 28.3% | 0.004 | Squash factor, proportional canvas width (underfit) |
+| 8b (15k) | 93.5% | 27.0% | 0.014 | Continue from 8 — domain gap, not underfitting |
+| 9 | 90.0% | 36.2% | 0.044 | Reverted canvas to ~260px, bimodal font sizes 6-7/10-11 |
 
-Real-world char accuracy: **0% → 19.5% → 35.8% → 28.3%** (Attempt 8 regressed due to underfitting — more varied data needs more iterations). Attempt 8b continues training from checkpoint.
-
-**Training strategy:** Two-stage approach — Stage 1: synthetic-only training until **60% real char accuracy**. Stage 2: fine-tune with real GT line crops mixed into training data.
+Real-world char accuracy: **0% → 19.5% → 35.8% → 27.0% (regression) → 36.2% (recovered)**. Attempt 8 regression caused by proportional canvas width; fixed in Attempt 9.
 
 ---
 
@@ -326,53 +325,45 @@ The model trained on 3.0x squash but encounters 4.2x–5.9x squash at inference.
 - Width: 22-280px (matches real 22-269px range)
   - <50px: 8%, 50-100px: 33%, 100-200px: 21%, 200-270px: 38%
 
-**Training (Attempt 8, 5k iterations):** Best synthetic accuracy: **56.2%** at 5,000 iterations (~31 min with `--batch_size 64`). Model underfit — the more varied training data (variable widths, multiple font sizes) requires more iterations to converge.
+**Training (Attempt 8, 5k iter):** Synthetic acc 56.2%, real char acc 28.3%, conf 0.004. Underfit — not enough iterations for varied data.
 
-**v2 Pipeline Result (Attempt 8):**
-
-| Image | Lines | Exact | Char Acc | Confidence |
-|-------|-------|-------|----------|------------|
-| captain_suit | 23 | 0 | 25.6% | 0.010 |
-| dropbell | 36 | 0 | 24.4% | 0.006 |
-| lightarmor | 75 | 0 | 34.3% | 0.004 |
-| lobe | 22 | 0 | 28.5% | 0.001 |
-| titan_blade | 79 | 0 | 25.2% | 0.004 |
-| **TOTAL** | **235** | **0** | **28.3%** | **0.004** |
-
-**Regression from Attempt 7** (35.8% → 28.3%). The model didn't converge on the harder training distribution. Synthetic accuracy was only 56.2% vs 97.7% in Attempt 7.
-
-**Fix:** Continue training from checkpoint (`--saved_model`) for 10,000 more iterations (Attempt 8b).
+**Training (Attempt 8b, 15k iter from checkpoint):** Synthetic acc 93.5%, real char acc 27.0%, conf 0.014. High synthetic + low real = domain gap confirmed. The proportional canvas width was the root cause — 57% of training images had squash factors 1.0-2.0x that never appear in real data. Real crops are 95.4% full-width (~261px).
 
 ---
 
-## Attempt 8b: Continue Training from Checkpoint
+## Attempt 9: Revert Canvas Width + Bimodal Font Sizes
 
-Resume from Attempt 8's `best_accuracy.pth` with `--saved_model`. Same data, +10,000 iterations. This avoids restarting from scratch while allowing the model to fully converge on the more varied training distribution.
+**Root cause of Attempt 8 regression:** Proportional canvas width (60% tight-crop for short text) caused squash factor mismatch. Real short-text crops are still full-width because the splitter crops to ink bounds within the full tooltip.
 
-**Training:** Pending.
+**Changes to `generate_training_data.py`:**
+1. **Reverted canvas width to always ~260px** — removed proportional/tight-crop logic entirely
+2. **Font sizes changed to `[6,7,7,7,10,10,10,10,10,10,11,11,11,11]`** — bimodal distribution matching real data. Dropped sizes 8-9 which produced h=10-13px (nonexistent in real data)
+3. **Padding formula aligned to splitter:** `pad_y = max(1, text_h // 5)`, `pad_x = max(2, text_h // 3)` matching `tooltip_line_splitter.py`
+
+**Generated:** 8,622 images (509-char set).
+
+**Image dimension distribution (sample 3,000):**
+- Width: p25=255, median=260, p75=266, **100% above 220px**
+- Height: bimodal — **24% at h=8-9px** (target 28%), **57% at h=14-15px** (target 63%)
+- h=12-13: **0%** (eliminated bad cluster)
+
+**Training:** 10,000 iterations, batch_size 64, from scratch. Best synthetic acc: 90.0%.
+
+**Results:** 0/235 exact, **36.2% real char accuracy**, 0.044 confidence. Recovered from Attempt 8 regression and slightly exceeded Attempt 7 (35.8%).
+
+### Attempt 9 Analysis: imgW Mismatch
+
+Investigation revealed the **dominant remaining domain gap**: training `AlignCollate` squashes images to `imgW=200`, but EasyOCR inference computes `max_width = ceil(ratio) * 32` per image, yielding ~554-576px for typical 260px-wide crops at h=8-15px. The model trains on 200px-wide squashed images but sees ~554px-wide unsquashed images at inference — **2.77x wider for the same content**.
+
+This explains:
+- Short text hallucination: `세공` (2 chars) → 16 chars (model fills extra columns with hallucinated chars)
+- OCR output averages 1.6x more characters than GT across all lines
+- Performance inversely correlates with whitespace ratio
 
 ---
 
-## Training Strategy: Two-Stage Approach
+## Attempt 10: Fix imgW to Match Inference
 
-### Stage 1: Synthetic Only (Current)
-Train on synthetic data generated by `generate_training_data.py`. Measure real-world accuracy with `test_v2_pipeline.py` after each attempt.
+**Change:** `--imgW 600` (was 200). This prevents squashing during training, so the model sees character spacing consistent with inference. Same training data as Attempt 9.
 
-**Gate:** Achieve **60% real-world char accuracy** on synthetic-only training.
-
-Below 60%, there are still fundamental synthetic-vs-real gaps worth fixing in the generator (cheaper than using limited real data). Above 60%, diminishing returns from synthetic tweaks — real data becomes more valuable.
-
-### Stage 2: Fine-tune with Real Images
-Once Stage 1 gate is met:
-1. Split 5 GT images through `TooltipLineSplitter` to produce ~235 real line crops
-2. Pair each crop with its GT text label
-3. Augment heavily (blur, threshold variation, small shifts) to prevent overfitting on 235 samples
-4. Mix ~50/50 with synthetic data in a combined LMDB dataset
-5. Fine-tune from the Stage 1 model using `--saved_model`
-6. Use lower learning rate to avoid catastrophic forgetting of synthetic-learned features
-
-**Why two stages?**
-- Stage 1 teaches character shapes, layout patterns, and squash factors from abundant synthetic data
-- Stage 2 closes the "last mile" domain gap: real pixel artifacts, actual font rendering, border residue, upscaling noise
-- 235 real lines is too few for training from scratch but sufficient for fine-tuning
-- Continued training (`--saved_model`) is supported by `deep-text-recognition-benchmark/train.py`
+**Training:** 10,000 iterations, batch_size 64, from scratch, `--imgW 600`.

@@ -24,7 +24,7 @@ A specialized marketplace for trading in-game items with automated OCR (Optical 
 │   ├── tooltip_line_splitter.py   # Line detection via horizontal projection
 │   ├── text_corrector.py          # Fuzzy matching post-correction
 │   ├── models/                    # Custom EasyOCR model (.pth, .yaml, .py)
-│   └── unique_chars.txt           # 509-char Korean character set
+│   └── unique_chars.txt           # 442-char Korean character set
 ├── data/
 │   ├── fonts/                     # Mabinogi game font
 │   ├── dictionary/                # Reforging + tooltip dictionaries
@@ -32,7 +32,7 @@ A specialized marketplace for trading in-game items with automated OCR (Optical 
 ├── scripts/                       # Training data gen, testing, config
 ├── skills/                        # Gemini CLI Skills (OCR Trainer)
 ├── src/                           # React Frontend
-├── OCR_TRAINING_HISTORY.md        # Full training history (8 attempts)
+├── OCR_TRAINING_HISTORY.md        # Full training history (6 attempts)
 ├── OCR_ISSUES.md                  # Known issues and resolutions
 ├── AGENTS.md                      # Detailed project context for AI agents
 └── CLAUDE.md                      # Claude Code instructions
@@ -126,28 +126,18 @@ Screenshot → Frontend (binary threshold) → Line Splitter → Recognition →
 
 ## 🧠 Training Custom OCR Model
 
-1.  **Generate Data:** `python3 scripts/generate_training_data.py` — Binary images matching frontend preprocessing
-2.  **Create LMDB:**
+All training parameters are centralized in **`configs/training_config.yaml`**.
+
+1.  **Generate Data:** `python3 scripts/generate_training_data.py`
+2.  **Generate Model Config:** `python3 scripts/create_model_config.py` — Reads `training_config.yaml` → generates `backend/models/custom_mabinogi.yaml`. **Required** when `imgW`, `imgH`, network params, or `unique_chars.txt` change.
+3.  **Create LMDB:** `python3 skills/ocr-trainer/scripts/create_lmdb_dataset.py --input backend/train_data --output backend/train_data_lmdb`
+4.  **Train** (use `nohup` — reads `configs/training_config.yaml`):
     ```bash
-    python3 skills/ocr-trainer/scripts/create_lmdb_dataset.py --input backend/train_data --output backend/train_data_lmdb
+    nohup python3 -u scripts/train.py > logs/training.log 2>&1 &
+    # Resume from checkpoint: nohup python3 -u scripts/train.py --resume > logs/training.log 2>&1 &
+    # Override iterations: nohup python3 -u scripts/train.py --num_iter 20000 > logs/training.log 2>&1 &
     ```
-3.  **Train:** Critical flags: `--sensitive --PAD --workers 0 --batch_max_length 55 --batch_size 64`. Use `python3 -u` for unbuffered log output. Run independently (not as subprocess) to avoid OOM kills.
-    ```bash
-    cd /path/to/project && nohup python3 -u deep-text-recognition-benchmark/train.py \
-      --train_data backend/train_data_lmdb \
-      --valid_data backend/train_data_lmdb \
-      --select_data / --batch_ratio 1 \
-      --Transformation TPS --FeatureExtraction ResNet \
-      --SequenceModeling BiLSTM --Prediction CTC \
-      --sensitive --PAD --workers 0 \
-      --batch_max_length 55 --batch_size 64 \
-      --character "$(cat backend/unique_chars.txt | tr -d '\n')" \
-      --num_iter 5000 --valInterval 500 \
-      --imgH 32 --imgW 200 \
-      --saved_model "" \
-      > training.log 2>&1 &
-    ```
-    Monitor with `tail -f training.log`.
-4.  **Deploy:** `cp saved_models/*/best_accuracy.pth backend/models/custom_mabinogi.pth`
+5.  **Deploy:** `cp saved_models/TPS-ResNet-BiLSTM-CTC-Seed1111/best_accuracy.pth backend/models/custom_mabinogi.pth`
+6.  **Validate:** `python3 scripts/test_v2_pipeline.py -q`
 
 For training history and known pitfalls, see `OCR_TRAINING_HISTORY.md`.

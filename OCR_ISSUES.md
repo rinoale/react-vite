@@ -31,37 +31,22 @@
 
 ---
 
-## Current: Squash Factor Mismatch (Attempt 7 → 8 Fix)
+## Resolved: Squash Factor Mismatch (Attempt 8 regression, fixed in Attempt 9)
 
-EasyOCR's `AlignCollate` resizes to `imgH=32` then squashes to `imgW=200` if too wide. The squash factor depends on original height:
-
-| Source | Height | Squash factor |
-|--------|--------|---------------|
-| Real 7px crop | 7px | **5.9x** |
-| Real 10px crop | 10px | **4.2x** |
-| Attempt 7 synthetic | 14px | **3.0x** |
-
-The model trained on 3.0x squash but encounters 4.2x–5.9x at inference. Lines at 10-15px height (squash ~3x) achieved 80-93% char accuracy; 7px lines performed far worse.
-
-**Fix (Attempt 8):** Added font size 8 (~30% of images) producing 8-9px tall text. Squash factor now ranges 3.0x–5.0x, covering the real distribution.
+Proportional canvas width caused 57% of training at wrong squash factors. Fixed by reverting to always ~260px canvas and bimodal font sizes 6-7/10-11.
 
 ---
 
-## Current: Short Text Hallucination (Attempt 7 → 8 Fix)
+## Current: Training imgW vs Inference imgW Mismatch (CRITICAL)
 
-Short text like "세공" (4 chars) on a 260px canvas is 80% whitespace. After squashing to 200px, the CTC decoder hallucinates extra characters to fill the space. Real short-text crops are narrow (22-100px) because the splitter crops to ink bounds.
+**Root cause of remaining 36% → 60% gap.** Training `AlignCollate` squashes images to `imgW=200`, but EasyOCR inference pre-resizes to h=32 then uses `max_width = ceil(ratio) * 32` ≈ 554-576px. The model trains on 200px-wide squashed images but sees 554px-wide unsquashed images at inference — **2.77x wider**.
 
-**Fix (Attempt 8):** Canvas width now proportional to text length. Short text gets tight-cropped (60% of the time), matching splitter behavior. Generated images now range 22-280px wide (was always ~260px).
+Evidence:
+- Short headers worst: `세공` (2 chars) → 16 chars output (8x hallucination)
+- OCR output averages 1.6x more characters than GT
+- Performance correlates inversely with whitespace-to-text ratio
 
----
-
-## Current: Underfitting on Varied Training Data (Attempt 8)
-
-Attempt 8 introduced font size 8 and proportional canvas width, making training data much more varied. With only 5,000 iterations, synthetic accuracy reached just 56.2% (vs 97.7% in Attempt 7). Real-world accuracy regressed from 35.8% to 28.3%.
-
-**Fix (Attempt 8b):** Continue training from checkpoint with `--saved_model` for 10,000 more iterations. The model needs more time to converge on the harder distribution.
-
-**Lesson:** Always use `--batch_size 64` (not default 192) and ensure sufficient iterations when training data variety increases. Use `python3 -u` for unbuffered log output with `nohup`.
+**Fix (Attempt 10):** Train with `--imgW 600` to match inference width. No squashing during training = model sees same character spacing as inference.
 
 ---
 
@@ -72,7 +57,8 @@ Attempt 8 introduced font size 8 and proportional canvas width, making training 
 | Baseline (Att 6) | 0 (0%) | 19.5% | 0.039 | Dictionary-only, 32px fixed, 442 chars |
 | Attempt 7 | 1 (0.4%) | 35.8% | 0.097 | +67 chars, templates, natural height |
 | Attempt 8 (5k) | 0 (0%) | 28.3% | 0.004 | +font size 8, proportional canvas (underfit) |
-| Attempt 8b | Pending | Pending | Pending | Continue from checkpoint (+10k iter) |
+| Attempt 8b (15k) | 0 (0%) | 27.0% | 0.014 | Continue from checkpoint — domain gap confirmed |
+| Attempt 9 | 0 (0%) | 36.2% | 0.044 | Reverted canvas to ~260px, bimodal font sizes 6-7/10-11 |
 
 **Stage 1 gate:** 60% real char accuracy on synthetic-only training → then move to Stage 2 (fine-tune with real GT line crops).
 

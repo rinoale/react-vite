@@ -67,21 +67,30 @@ Splits tooltip images into individual text line crops using horizontal projectio
 - Horizontal separators are intentionally kept (they don't bridge sections, and removing them destroys adjacent headers like "개조", "세공")
 - Ground truth test images in `data/sample_images/` with matching `.txt` files
 
-### Training Flags (Critical)
-When training with `deep-text-recognition-benchmark/train.py`:
-- `--workers 0` — Required. LMDB can't be pickled for multiprocessing.
-- `--sensitive` — Required. Prevents lowercasing labels (needed for R,G,B,L,A-F characters).
-- `--PAD` — Required. Matches EasyOCR's `keep_ratio_with_pad=True` inference preprocessing.
-- `--batch_max_length 55` — Longest labels are ~55 chars.
-- `--character "$(cat ../backend/unique_chars.txt | tr -d '\n')"` — Full 509-char Korean set.
+### Training Configuration
+All training parameters are centralized in **`configs/training_config.yaml`**. This is the single source of truth for model architecture, hyperparameters, and paths.
+
+**Critical rule:** When changing `imgH`, `imgW`, or any `model:` param in `training_config.yaml`, you **MUST** re-run `python3 scripts/create_model_config.py` to regenerate `backend/models/custom_mabinogi.yaml`. Mismatched `imgW` between training and inference will cause TPS layer shape errors or garbage output.
+
+Key parameters and why (see `configs/training_config.yaml` for full list):
+- `imgW: 600` — Must match EasyOCR inference width. Was 200 (caused 2.77x squash mismatch).
+- `workers: 0` — Required. LMDB can't be pickled for multiprocessing.
+- `sensitive: true` — Required. Prevents lowercasing (needed for R,G,B,L,A-F characters).
+- `PAD: true` — Required. Matches EasyOCR's hardcoded `keep_ratio_with_pad=True`.
+- `batch_size: 64` — Default 192 causes extreme slowdown on 8GB VRAM.
+- `batch_max_length: 55` — Longest labels are ~55 chars.
 - Note: `train.py` line 287-289 was patched so `--sensitive` no longer overrides the character set.
+
+**Training launcher:** `scripts/train.py` reads the config and runs `deep-text-recognition-benchmark/train.py` with all args. Supports `--resume`, `--num_iter`, `--batch_size` overrides.
 
 ### Training Data Requirements
 Synthetic training images must match real line crops from the splitter:
-- **Dimensions**: Render at font sizes 8-11 (`[8,8,9,9,10,10,11]`, ~30% size-8) on proportional canvas width. Do NOT pre-resize to 32px; let model inference handle that.
-  - Font size 8 → 8-9px height (matches real 7px cluster, produces 5x+ squash factor)
-  - Font sizes 9-11 → 10-14px height (matches real 10px cluster)
-- **Canvas width**: Proportional to text length. Short text gets tight-cropped (60% of the time, width = text + padding); long text uses full ~260px canvas. Matches splitter's ink-bound cropping (real widths: 22-269px).
+- **Dimensions**: Bimodal font sizes `[6,7,7,7,10,10,10,10,10,10,11,11,11,11]` (~28% size 6-7, ~72% size 10-11). Do NOT pre-resize to 32px; let model inference handle that.
+  - Font sizes 6-7 → total h=8-9px (matches real 7px ink cluster + splitter padding)
+  - Font sizes 10-11 → total h=14-15px (matches real 10px ink cluster + splitter padding)
+  - **Avoid font sizes 8-9** — they produce h=10-13px which doesn't exist in real data
+- **Canvas width**: Always ~260px (`CANVAS_WIDTH + randint(-10,10)`). Do NOT tight-crop short text. Real crops are 95.4% full-width regardless of text length.
+- **Padding**: Match splitter formula: `pad_y = max(1, text_h // 5)`, `pad_x = max(2, text_h // 3)`
 - **Binary only**: Pixel values strictly 0 and 255. Re-threshold after any resize.
 - **Frontend threshold**: Base value 80 with small random variation, matching `sell.jsx`.
 - **Content**: Template-based full tooltip lines (not just dictionary words):
@@ -92,6 +101,54 @@ Synthetic training images must match real line crops from the splitter:
   - All GT lines included verbatim
 - **Character set**: `backend/unique_chars.txt` (509 chars) must cover all characters in GT
 - **Font**: `data/fonts/mabinogi_classic.ttf` (actual game font)
+
+### Full Training Pipeline (run from project root)
+All params read from `configs/training_config.yaml`.
+```bash
+# Step 1: Generate synthetic training images
+rm -rf backend/train_data backend/train_data_lmdb
+python3 scripts/generate_training_data.py
+
+# Step 2: Verify dimension distribution (acceptance check)
+python3 - <<'PY'
+import os, random, numpy as np
+from PIL import Image
+files=[f for f in os.listdir('backend/train_data/images') if f.endswith('.png')]
+random.seed(0); files=random.sample(files, min(3000, len(files)))
+wh=[Image.open(os.path.join('backend/train_data/images',f)).size for f in files]
+w=np.array([x for x,_ in wh]); h=np.array([y for _,y in wh])
+print(f"n={len(files)}, width>220={100*(w>220).mean():.0f}%")
+for lo,hi in [(8,9),(10,11),(12,13),(14,15),(16,20)]:
+    c=int(((h>=lo)&(h<=hi)).sum()); print(f"  h={lo}-{hi}: {c} ({100*c/len(h):.1f}%)")
+PY
+# Expected: width>220 ~100%, h=8-9 ~24-28%, h=12-13 ~0%, h=14-15 ~55-63%
+
+# Step 3: Generate model config (reads from configs/training_config.yaml)
+# REQUIRED when: imgW, imgH, network params, or unique_chars.txt changed
+python3 scripts/create_model_config.py
+
+# Step 4: Create LMDB dataset
+python3 skills/ocr-trainer/scripts/create_lmdb_dataset.py \
+  --input backend/train_data --output backend/train_data_lmdb
+
+# Step 5: Train (run with nohup to avoid OOM kills)
+nohup python3 -u scripts/train.py > logs/training_attemptN.log 2>&1 &
+# Override examples:
+#   nohup python3 -u scripts/train.py --num_iter 20000 > training.log 2>&1 &
+#   nohup python3 -u scripts/train.py --resume > training.log 2>&1 &
+#   nohup python3 -u scripts/train.py --batch_size 32 > training.log 2>&1 &
+# Monitor: tail -f logs/training_attemptN.log
+
+# Step 6: Deploy trained model
+cp saved_models/TPS-ResNet-BiLSTM-CTC-Seed1111/best_accuracy.pth \
+  backend/models/custom_mabinogi.pth
+
+# Step 7: Validate on real GT images
+python3 scripts/test_v2_pipeline.py        # Full output
+python3 scripts/test_v2_pipeline.py -q     # Summary only
+```
+
+**When to re-run `create_model_config.py`:** Anytime you change `model:` section in `configs/training_config.yaml` (especially `imgW`, `imgH`), or update `unique_chars.txt`. The yaml must match training args exactly — the TPS Spatial Transformer is built with `I_size=(imgH, imgW)` and mismatched weights will crash or produce garbage.
 
 ### Testing
 - `scripts/test_v2_pipeline.py` — Splits GT images → `recognize()` → compares against GT `.txt` files
@@ -129,6 +186,3 @@ Documents to keep in sync: `CLAUDE.md`, `AGENTS.md`, `OCR_TRAINING_HISTORY.md`, 
 - Ground truth files (`data/sample_images/*.txt`) exist for: `lightarmor_processed_3`, `captain_suit_processed`, `lobe_processed`, `titan_blade_processed`, `dropbell_processed`
 - Character set expanded to 509 chars (was 442) — all GT characters now covered
 - Training must run independently (not as subprocess of Claude Code) to avoid OOM kills — use `nohup` in a separate terminal
-- Training requires `--batch_size 64` (default 192 causes extreme slowdown on 8GB VRAM) and `python3 -u` for unbuffered log output
-- Continued training from checkpoint is supported via `--saved_model <path_to_pth>`
-- Two-stage training strategy: Stage 1 synthetic-only until 60% real char accuracy, Stage 2 fine-tune with real GT line crops (see `OCR_TRAINING_HISTORY.md`)

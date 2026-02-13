@@ -136,16 +136,11 @@ Three root causes were identified after Attempt 6 (0% real accuracy despite 97-1
 |---------|----------------|----------|------------|------------|
 | Baseline (Att 6) | 0 (0%) | 19.5% | 0.039 | Dictionary-only, 32px fixed, 442 chars |
 | Attempt 7 | 1 (0.4%) | 35.8% | 0.097 | +67 chars, templates, natural height |
-| Attempt 8 (5k) | 0 (0%) | 28.3% | 0.004 | +font size 8, proportional canvas (underfit) |
-| Attempt 8b | Pending | Pending | Pending | Continue from checkpoint (+10k iter) |
+| Attempt 8 (5k) | 56.2% | 28.3% | 0.004 | +font size 8, proportional canvas (regression) |
+| Attempt 8b (15k) | 93.5% | 27.0% | 0.014 | Continue from checkpoint — domain gap confirmed |
+| Attempt 9 | 90.0% | 36.2% | 0.044 | Reverted canvas to ~260px, bimodal font sizes 6-7/10-11 |
 
 Pipeline mechanics confirmed working. Line detection perfect. Recognition is the sole bottleneck.
-
-### Training Strategy: Two Stages
-1. **Stage 1 (synthetic only):** Train until **60% real char accuracy**. Fix generator issues to close domain gaps.
-2. **Stage 2 (fine-tune with real):** Split 5 GT images → 235 real line crops. Mix 50/50 with synthetic. Fine-tune from Stage 1 model using `--saved_model`. Lower learning rate to avoid catastrophic forgetting.
-
-**Key training flags:** `--batch_size 64` (not default 192), `python3 -u` for unbuffered logs, `--saved_model <path>` to continue training from checkpoint.
 
 ## 6. General Guidelines
 - Ask before making changes.

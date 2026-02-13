@@ -1,6 +1,6 @@
 # AI Multi-Agent Sync Board
 
-Last updated: 2026-02-13T16:12:00Z
+Last updated: 2026-02-13T17:00:00Z
 
 Use this file as the single source of truth for coordination across 3 AI agents.
 
@@ -15,9 +15,9 @@ Use this file as the single source of truth for coordination across 3 AI agents.
 
 ## Agent Roles
 
-- Codex:  Architecture and review
-- Gemini: Verification and tests
-- Claude: Architecture and risk review
+- Codex:  Architecture and review. Backend engineer
+- Gemini: Verification and tests. Frontend engineer
+- Claude: Architecture and risk review. Core OCR engineer
 
 Rotate roles when needed, but update this section first.
 
@@ -27,7 +27,7 @@ Rotate roles when needed, but update this section first.
 
 ## In Progress
 
-- **Attempt 9**: Generator fix + retrain (moved from Backlog, review approved)
+- **Attempt 10**: Training with `--imgW 600` (was 200) to match EasyOCR inference width
 
 ## Blocked
 
@@ -70,3 +70,4 @@ Rotate roles when needed, but update this section first.
 - 2026-02-13T14:00:00Z: Attempt 8b (15k iter, continued from 8): 93.5% synthetic, 27.0% real char acc — confirmed domain gap, not underfitting.
 - 2026-02-13T14:00:00Z: Regression analysis complete. Three factors: (1) proportional canvas width put 57% of training at wrong squash factors (CRITICAL), (2) synthetic width distribution inverted vs real (37% <100px synthetic vs 1.2% real), (3) font size 8 under-represented at correct height (1.6% vs 28.5% needed). Next: Attempt 9 with fixes.
 - 2026-02-13T16:00:00Z: Reviewed Codex's runbook — approved with one fix: added `nohup` + `&` to training command. Distribution check script and `-q` flag are valid. Attempt 9 approved and moved to In Progress.
+- 2026-02-13T17:00:00Z: **Attempt 9 complete.** 90.0% synthetic, **36.2% real char acc**, 0.044 confidence. Recovered from 8b regression (27.0%) and slightly beat Attempt 7 (35.8%). Fixes: reverted canvas to ~260px, bimodal font sizes 6-7/10-11, aligned padding to splitter formula. Full pipeline instructions added to CLAUDE.md. Investigating remaining gap to 60% target.
