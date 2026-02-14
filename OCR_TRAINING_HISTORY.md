@@ -16,9 +16,9 @@ Each attempt has identified and fixed a specific bottleneck, steadily raising re
 | 10 | — | — | — | OOM (imgW=600, batch_size=64 maxed 8GB VRAM). No training completed. |
 | 11 | 5.8% | — | ~0 | imgW=600, batch_size=16 → only 18 epochs in 10k iters. Underfitting. |
 | 12 | 84.4% | 38.1% | 0.120 | Patched inference to use fixed imgW. Squash factors now match. |
-| 13 (prep) | — | — | — | Tight-crop training data, font 10-11 only, splitter border filtering |
+| 13 | 100% | 52.4% | 0.247 | Tight-crop, font 10-11, splitter border filter, inference patch |
 
-Real-world char accuracy: **0% → 19.5% → 35.8% → 27.0% (regression) → 36.2% → 38.1%**. Attempts 10-11 failed due to imgW=600 approach. Attempt 12 patched EasyOCR inference to use fixed imgW. Attempt 13 shifts focus from training hyperparameters to infrastructure: fixing how images are generated, analyzed, and cropped.
+Real-world char accuracy: **0% → 19.5% → 35.8% → 27.0% (regression) → 36.2% → 38.1% → 52.4%**. Attempt 13 shifted focus from training hyperparameters to infrastructure — tight-crop training data, splitter border filtering, quality gates. First attempt with exact matches (14/235). Aligned images average 65.5% char accuracy; misaligned images (titan_blade, dropbell) drag the overall score down due to GT line count mismatch.
 
 ---
 
@@ -228,7 +228,7 @@ New: Frontend → Full image → TooltipLineSplitter → Line crops → EasyOCR 
 
 **Implementation:** Use EasyOCR's `recognize()` method with `horizontal_list=[[0, w, 0, h]]` and `free_list=[]` to bypass CRAFT and recognize pre-cropped line images directly.
 
-**v2 pipeline test script:** `scripts/test_v2_pipeline.py` — splits sample images, feeds line crops to `recognize()`, compares against GT `.txt` files.
+**v2 pipeline test script:** `scripts/test_v2_pipeline.py` — splits sample images, feeds line crops to `recognize()`, compares against ground truth (GT) `.txt` files.
 
 ---
 
@@ -533,3 +533,76 @@ training:
   sensitive: true
   PAD: true
 ```
+
+---
+
+## Attempt 13 Results
+
+**Training:** 100% synthetic accuracy at 9,500 iterations (perfect convergence). 9,207 training images.
+
+**v2 Pipeline Result:**
+
+| Image | Lines | Exact | Char Acc | Confidence |
+|-------|-------|-------|----------|------------|
+| captain_suit | 23 | 3 | 57.0% | 0.184 |
+| dropbell | 36 (GT:38) | 0 | 40.8% | 0.195 |
+| lightarmor | 75 | 9 | 71.2% | 0.319 |
+| lobe | 22 | 2 | 55.1% | 0.260 |
+| titan_blade | 79 (GT:83) | 0 | 37.9% | 0.233 |
+| **TOTAL** | **235** | **14 (6.0%)** | **52.4%** | **0.247** |
+
+**Improvement over Attempt 12:** Char accuracy 38.1% → 52.4% (+14.3pp, +37% relative). Confidence 0.120 → 0.247 (2x). First-ever exact matches: 14 lines.
+
+**Aligned vs misaligned:** The 3 images with correct line counts (captain_suit, lightarmor, lobe = 120 lines) average **65.5% char accuracy**. The 2 misaligned images (titan_blade 79 vs GT 83, dropbell 36 vs GT 38) average **39.2%** — but much of this is GT alignment drift, not actual OCR errors.
+
+### Attempt 13 Failure Analysis
+
+**Accuracy distribution across 235 lines:**
+- 95-100%: 27 lines (11.5%)
+- 80-94%: 47 lines (20.0%)
+- 60-79%: 38 lines (16.2%)
+- 30-59%: 36 lines (15.3%)
+- 0-29%: 87 lines (37.0%)
+
+Six distinct failure categories identified, ordered by impact:
+
+#### 1. GT Alignment Drift — 53 lines (biggest factor)
+
+titan_blade detects 79 lines (GT expects 83) and dropbell detects 36 (GT expects 38). Once line counts diverge, every subsequent line is compared against the wrong GT text. Analysis confirmed 53 of the 81 worst-scoring lines (<40% acc) are actually reasonable OCR output scored against the wrong GT line. Example: OCR reads "공격확 107 ~189" but it's compared against GT "특별 이벤트 장비(거래 불가)" — the OCR is actually reading GT line 14 ("공격 107~189") correctly.
+
+**This is a test harness issue, not an OCR quality issue.** Fixing GT alignment would raise the overall score by an estimated 10-15pp.
+
+#### 2. Color Part Lines — 18 lines, avg 13.8% accuracy
+
+`- 파트 A    R:0  G:0  B:0` → crops are h=7px, w=210px with huge gaps between text groups. Three separate text clusters (`파트 A`, `R:0`, `G:0`, `B:0`) spread across 210px with wide blank separations. The model has never seen this sparse multi-cluster layout. OCR outputs near-empty results.
+
+**Root cause:** Training data has no color part templates with proper wide spacing. All training images are tight-cropped with no internal gaps.
+
+#### 3. Leading `-` Stripped — 27 lines, avg 81.1% accuracy
+
+Lines starting with `- ` lose the dash prefix. `- 수리비 200% 증가` → ` 수리비 200% 증가`. The rest of the text is correct. The border filter may be stripping leading single-character dashes, or the model simply doesn't output the leading dash.
+
+#### 4. Short Text (h<10) — 6 lines, avg 12.5% accuracy
+
+`천옷` (h=6, w=18), `세공` (h=6-8, w=29-39), `등급` (h=11, w=29). Crops at h=6 are below the training data minimum (h=10). The 5.3x upscaling to h=32 creates heavy artifacts. These are section labels in the tooltip — very short, very small.
+
+#### 5. `%` Misread as `9` — 5 lines, avg 85.7% accuracy
+
+Consistent pattern: `3% 감소` → `39 감소`, `72 % 증가` → `72 9 증가`. The `%` glyph at small sizes resembles `9`. Very fixable with more `%`-heavy training samples.
+
+#### 6. Price/Bottom Lines — 3 lines, avg 18% accuracy
+
+`상점판매가 : 4597 골드` → `(327 7 질복효`. Always at tooltip bottom, h=13. The consistent `(327` garbage prefix across all 3 images suggests a systematic issue — possibly the crop includes part of the tooltip border or the text rendering differs at the bottom.
+
+### Path to 80%
+
+| Fix | Lines Affected | Estimated Gain |
+|-----|---------------|----------------|
+| Fix GT alignment (titan_blade + dropbell) | 115 lines | +10-15pp |
+| Color part templates in training data | 18 lines | +2-3pp |
+| Fix leading `-` stripping | 27 lines | +2-3pp |
+| Handle short text (h<10) | 6 lines | +1pp |
+| More `%` training samples | 5 lines | +1pp |
+| Investigate price line crops | 3 lines | +0.5pp |
+
+Conservative estimate with all fixes: **68-78% char accuracy**. The GT alignment fix alone is the single biggest win.

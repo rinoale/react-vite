@@ -150,8 +150,9 @@ Three root causes were identified after Attempt 6 (0% real accuracy despite 97-1
 | Attempt 8b (15k) | 93.5% | 27.0% | 0.014 | Continue from checkpoint — domain gap confirmed |
 | Attempt 9 | 90.0% | 36.2% | 0.044 | Reverted canvas to ~260px, bimodal font sizes 6-7/10-11 |
 | Attempt 12 | 84.4% | 38.1% | 0.120 | Inference imgW patch, squash factors match |
+| Attempt 13 | 100% | 52.4% | 0.247 | Tight-crop, font 10-11, splitter border filter |
 
-Pipeline mechanics confirmed working. Line detection perfect. Recognition is the sole bottleneck. Attempt 13 addresses remaining domain gaps: tight-crop training, splitter border filtering, quality gates.
+Pipeline mechanics confirmed working. Line detection perfect. Recognition is the sole bottleneck. Attempt 13 achieved 65.5% on aligned images; overall 52.4% is dragged down by GT alignment drift on titan_blade/dropbell. Six failure categories identified — see `OCR_TRAINING_HISTORY.md`.
 
 ## 6. General Guidelines
 - Ask before making changes.

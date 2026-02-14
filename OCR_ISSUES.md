@@ -67,10 +67,20 @@ Proportional canvas width caused 57% of training at wrong squash factors. Fixed 
 | Attempt 8b (15k) | 0 (0%) | 27.0% | 0.014 | Continue from checkpoint — domain gap confirmed |
 | Attempt 9 | 0 (0%) | 36.2% | 0.044 | Reverted canvas to ~260px, bimodal font sizes 6-7/10-11 |
 | Attempt 12 | 0 (0%) | 38.1% | 0.120 | Inference imgW patch, squash factors now match |
+| Attempt 13 | 14 (6.0%) | 52.4% | 0.247 | Tight-crop, font 10-11, splitter border filter |
 
 **Stage 1 gate:** 80% real char accuracy on synthetic-only training → then move to Stage 2 (fine-tune with real GT line crops). At 80%+, fuzzy matching only needs to fix minor character errors rather than reconstructing garbled output.
 
-Pipeline mechanics confirmed working (line detection perfect, `recognize()` API functional). Recognition is the sole bottleneck. Attempt 13 addresses the remaining domain gaps: tight-crop training data, splitter border filtering, quality gates.
+**Current status (Attempt 13):** 52.4% overall, but 65.5% on aligned images. Six failure categories identified — GT alignment drift is the biggest factor (53 lines scored against wrong GT). See `OCR_TRAINING_HISTORY.md` for full analysis.
+
+### Current Issues Blocking 80%
+
+1. **GT alignment drift** — titan_blade (79 detected vs 83 GT) and dropbell (36 vs 38) cause comparison against wrong GT lines. Biggest single factor (~10-15pp impact).
+2. **Color part lines** — `파트 A R:0 G:0 B:0` have sparse multi-cluster layout (h=7, w=210) never seen in training. 18 lines at 13.8% avg accuracy.
+3. **Leading `-` stripped** — Border filter may remove leading dash characters. 27 lines lose the `- ` prefix (81.1% avg, would be ~95% with dash).
+4. **Short text h<10** — `천옷`(h=6), `세공`(h=6-8) are below training minimum (h=10). 6 lines at 12.5%.
+5. **`%` misread as `9`** — Consistent glyph confusion at small sizes. 5 lines at 85.7%.
+6. **Price/bottom lines** — `상점판매가` always garbled with `(327` prefix. 3 lines at 18%.
 
 ---
 
