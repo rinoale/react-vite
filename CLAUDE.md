@@ -54,6 +54,7 @@ The data flow for item registration:
 - Character set (509 chars) defined in `backend/unique_chars.txt` and mirrored in `backend/models/custom_mabinogi.yaml`
 - Model weights: `backend/models/custom_mabinogi.pth`
 - Model architecture for EasyOCR integration: `backend/models/custom_mabinogi.py`
+- Inference patch: `backend/ocr_utils.py` — fixes EasyOCR's dynamic imgW to use yaml's fixed value
 - Training history and known issues: `OCR_TRAINING_HISTORY.md`
 
 ### Line Splitter (`backend/tooltip_line_splitter.py`)
@@ -65,7 +66,15 @@ Splits tooltip images into individual text line crops using horizontal projectio
 - Proportional padding: `pad_x = max(2, h//3)`, `pad_y = max(1, h//5)`
 - Parameters: `min_height=6, max_height=25, min_width=10`
 - Horizontal separators are intentionally kept (they don't bridge sections, and removing them destroys adjacent headers like "개조", "세공")
+- `_add_line()` filters UI border elements from line crops:
+  - Thin vertical borders (≤2px clusters far from text) — `|` pipe characters at box edges
+  - Wide horizontal bars (w > `line_h*3`, avg column density < 2.0) — `ㅡㅡㅡ` bar borders
 - Ground truth test images in `data/sample_images/` with matching `.txt` files
+
+### Inference Patch (`backend/ocr_utils.py`)
+- `patch_reader_imgw()`: Monkey-patches EasyOCR's `recognize()` to use fixed imgW from yaml
+- Solves: EasyOCR computes dynamic `max_width = ceil(w/h) * 32` per image (576-1056px), mismatching training's fixed imgW
+- Applied in `backend/main.py` and `scripts/test_v2_pipeline.py` after reader init
 
 ### Training Configuration
 All training parameters are centralized in **`configs/training_config.yaml`**. This is the single source of truth for model architecture, hyperparameters, and paths.
@@ -85,13 +94,12 @@ Key parameters and why (see `configs/training_config.yaml` for full list):
 
 ### Training Data Requirements
 Synthetic training images must match real line crops from the splitter:
-- **Dimensions**: Bimodal font sizes `[6,7,7,7,10,10,10,10,10,10,11,11,11,11]` (~28% size 6-7, ~72% size 10-11). Do NOT pre-resize to 32px; let model inference handle that.
-  - Font sizes 6-7 → total h=8-9px (matches real 7px ink cluster + splitter padding)
-  - Font sizes 10-11 → total h=14-15px (matches real 10px ink cluster + splitter padding)
-  - **Avoid font sizes 8-9** — they produce h=10-13px which doesn't exist in real data
-- **Canvas width**: Always ~260px (`CANVAS_WIDTH + randint(-10,10)`). Do NOT tight-crop short text. Real crops are 95.4% full-width regardless of text length.
+- **Font sizes**: `[10, 10, 10, 11, 11, 11]` only. Font 6-7 produces illegible tiny text; real h=8-9 crops are legible because the game renders at normal size. Do NOT pre-resize to 32px; let model inference handle that.
+- **Tight-crop to ink bounds**: Crop to text width + padding, NOT full 260px canvas. Real splitter crops are tight (35-65px for short text). Full-canvas training causes hallucination.
 - **Padding**: Match splitter formula: `pad_y = max(1, text_h // 5)`, `pad_x = max(2, text_h // 3)`
 - **Binary only**: Pixel values strictly 0 and 255. Re-threshold after any resize.
+- **No augmentation**: No blur, erode/dilate, or noise. Clean binary only. Augmentation produced 25% faint/unreadable images.
+- **Quality gates on every image**: `MIN_INK_RATIO=0.02`, `MIN_WIDTH=10`, `MIN_HEIGHT=8`. Reject and retry any image that fails.
 - **Frontend threshold**: Base value 80 with small random variation, matching `sell.jsx`.
 - **Content**: Template-based full tooltip lines (not just dictionary words):
   - Stat lines: `방어력 {N}`, `내구력 {N}/{N}`, `공격 {N}~{N}`
@@ -121,7 +129,7 @@ print(f"n={len(files)}, width>220={100*(w>220).mean():.0f}%")
 for lo,hi in [(8,9),(10,11),(12,13),(14,15),(16,20)]:
     c=int(((h>=lo)&(h<=hi)).sum()); print(f"  h={lo}-{hi}: {c} ({100*c/len(h):.1f}%)")
 PY
-# Expected: width>220 ~100%, h=8-9 ~24-28%, h=12-13 ~0%, h=14-15 ~55-63%
+# Expected: h=10-11 ~5-10%, h=14-15 ~70-80%, h=16-20 ~10-20%, no h=8-9 or h=12-13
 
 # Step 3: Generate model config (reads from configs/training_config.yaml)
 # REQUIRED when: imgW, imgH, network params, or unique_chars.txt changed

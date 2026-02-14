@@ -35,7 +35,7 @@ LABELS_DIR = os.path.join(OUTPUT_DIR, "labels")
 #   Font size 8 → 8-9px height (matches 7px cluster after padding)
 #   Font size 9-11 → 9-13px height (matches 10px cluster)
 #   Weighted to include both clusters proportionally
-FONT_SIZES = [6, 7, 7, 7, 10, 10, 10, 10, 10, 10, 11, 11, 11, 11]  # ~28% size 6-7, ~72% size 10-11
+FONT_SIZES = [10, 10, 10, 11, 11, 11]  # Only legible sizes. Height varies by character content.
 CANVAS_WIDTH = 260  # Match real tooltip width
 
 # Frontend threshold (from sell.jsx)
@@ -387,7 +387,10 @@ def load_dictionaries():
 
 
 def render_line(text, font_size, canvas_width):
-    """Render a single text line on a canvas matching real tooltip dimensions.
+    """Render a single text line, tight-cropped to ink bounds + padding.
+
+    Matches how TooltipLineSplitter crops real images: horizontal ink bounds
+    with pad_x = max(2, h//3), pad_y = max(1, h//5).
 
     Returns (PIL Image in mode 'L', bool success).
     Image height is natural (not resized to 32px).
@@ -404,52 +407,30 @@ def render_line(text, font_size, canvas_width):
     if text_w <= 0 or text_h <= 0:
         return None, False
 
-    # Slight color variation before thresholding
-    text_color = random.choice([(0,), (10,), (30,)])
-    bg_color = random.choice([(255,), (250,)])
-
-    # Canvas: height = text + small padding, width always ~260px (matching real tooltip)
-    # Real crops are 95.4% full-width (~261px) regardless of text length.
     # Padding matches splitter formula: pad_y = max(1, h//5), pad_x = max(2, h//3)
     pad_y = max(1, text_h // 5)
     pad_x = max(2, text_h // 3)
     img_h = text_h + 2 * pad_y
 
-    text_w_padded = text_w + 2 * pad_x
-    if text_w_padded >= canvas_width:
-        # Long text: use natural width
-        img_w = text_w_padded
-    else:
-        # Always use full canvas width to match real tooltip crops
-        img_w = canvas_width
+    # Tight-crop to text width + padding, matching splitter's ink-bounds cropping.
+    # Real crops: short text like "천옷" → crop_w=22px, long text → crop_w=258px.
+    img_w = text_w + 2 * pad_x
 
-    img = Image.new('L', (img_w, img_h), color=bg_color[0])
+    img = Image.new('L', (img_w, img_h), color=255)
     draw = ImageDraw.Draw(img)
-    draw.text((pad_x, pad_y - bbox[1]), text, font=font, fill=text_color[0])
+    draw.text((pad_x, pad_y - bbox[1]), text, font=font, fill=0)
 
-    # Optional blur
-    if random.random() > 0.5:
-        blur_radius = random.uniform(0.1, 0.8)
-        img = img.filter(ImageFilter.GaussianBlur(radius=blur_radius))
-
-    # Binary thresholding
-    thresh = FRONTEND_THRESHOLD + random.randint(-10, 40)
+    # Binary thresholding (no blur — real crops are clean binary from frontend)
+    thresh = FRONTEND_THRESHOLD + random.randint(-5, 20)
     img = img.point(lambda x: 0 if x < thresh else 255, 'L')
 
-    # Optional dilate/erode
-    if random.random() > 0.7:
-        kernel = np.ones((random.randint(1, 2), random.randint(1, 2)), np.uint8)
-        np_img = np.array(img)
-        if random.random() > 0.5:
-            np_img = cv2.erode(np_img, kernel, iterations=1)
-        else:
-            np_img = cv2.dilate(np_img, kernel, iterations=1)
-        img = Image.fromarray(np_img)
-
-    # Re-threshold to guarantee binary
-    img = img.point(lambda x: 0 if x < 128 else 255, 'L')
-
     return img, True
+
+
+# --- Image quality gates (applied to every image) ---
+MIN_INK_RATIO = 0.02    # At least 2% of pixels must be ink (black)
+MIN_WIDTH = 10           # Minimum image width in pixels
+MIN_HEIGHT = 8           # Minimum image height in pixels
 
 
 def split_long_label(text, font, max_width):
@@ -537,9 +518,18 @@ def generate_data():
                 skipped += 1
                 continue
 
-            # Skip blank images (text invisible after thresholding)
+            # Quality gates: reject any image that isn't clearly readable
             arr = np.array(img)
+            ink_ratio = (arr == 0).sum() / arr.size if arr.size > 0 else 0
+            img_w_actual, img_h_actual = img.size
+
             if len(np.unique(arr)) < 2:
+                skipped += 1
+                continue
+            if ink_ratio < MIN_INK_RATIO:
+                skipped += 1
+                continue
+            if img_w_actual < MIN_WIDTH or img_h_actual < MIN_HEIGHT:
                 skipped += 1
                 continue
 
@@ -558,16 +548,33 @@ def generate_data():
     print(f"\nDone! Generated {count} images ({skipped} skipped)")
     print(f"Output: {OUTPUT_DIR}")
 
-    # Verify binary
-    sample_files = [f for f in os.listdir(IMAGES_DIR) if f.endswith('.png')][:100]
-    all_binary = True
-    for f in sample_files:
-        arr = np.array(Image.open(os.path.join(IMAGES_DIR, f)))
+    # Full verification on ALL images (not sampling)
+    print("\nVerifying ALL images...")
+    all_files = [f for f in os.listdir(IMAGES_DIR) if f.endswith('.png')]
+    failures = {'non_binary': 0, 'low_ink': 0, 'too_small': 0}
+    for f in all_files:
+        img = Image.open(os.path.join(IMAGES_DIR, f))
+        arr = np.array(img)
+        if len(arr.shape) == 3:
+            arr = arr[:, :, 0]
+
         unique = set(np.unique(arr))
         if unique - {0, 255}:
-            all_binary = False
-            break
-    print(f"Binary verification (sample 100): {'PASS' if all_binary else 'FAIL'}")
+            failures['non_binary'] += 1
+
+        ink_ratio = (arr == 0).sum() / arr.size if arr.size > 0 else 0
+        if ink_ratio < MIN_INK_RATIO:
+            failures['low_ink'] += 1
+
+        w, h = img.size
+        if w < MIN_WIDTH or h < MIN_HEIGHT:
+            failures['too_small'] += 1
+
+    total_failures = sum(failures.values())
+    if total_failures == 0:
+        print(f"  ALL {len(all_files)} images PASSED (binary, ink>{MIN_INK_RATIO:.0%}, w>={MIN_WIDTH}, h>={MIN_HEIGHT})")
+    else:
+        print(f"  FAILURES in {len(all_files)} images: {failures}")
 
 
 if __name__ == "__main__":

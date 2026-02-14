@@ -14,6 +14,11 @@
 - **Missing Section Headers** — Kept horizontal separators (removing them destroyed "개조", "세공" headers).
 - **Short Text Filtered** — Reduced `min_width` from 30 to 10 for short text like "천옷".
 - **CRAFT Detection** — Replaced with `TooltipLineSplitter` in v2 pipeline. CRAFT fragmented lines, merged adjacent text, and missed entire sections on structured tooltip layouts.
+- **Splitter Horizontal Border Inflation** — `_add_line()` now filters thin vertical borders (1-2px clusters far from text) and wide horizontal bars (ㅡㅡㅡ with density < 2.0). "보호 1" crop: 248→35px. "아이템 속성" crop: 256→69px.
+- **Training/Inference imgW Mismatch** — `ocr_utils.py` monkey-patches EasyOCR to use fixed imgW from yaml instead of dynamic per-image `max_width`. Squash factors now match exactly.
+- **Illegible Training Images** — Removed font sizes 6-7 (produced unreadable tiny text). Quality gates enforce ink ratio ≥2%, width ≥10px, height ≥8px on every generated image.
+- **Faint Training Images** — Removed augmentation (blur, erode/dilate) that produced 25% unreadable images. Clean binary only.
+- **Full-Canvas Whitespace** — Training images now tight-cropped to ink bounds, matching real splitter output. Eliminates hallucination from whitespace.
 
 ---
 
@@ -37,16 +42,18 @@ Proportional canvas width caused 57% of training at wrong squash factors. Fixed 
 
 ---
 
-## Current: Training imgW vs Inference imgW Mismatch (CRITICAL)
+## Resolved: Training imgW vs Inference imgW Mismatch
 
-**Root cause of remaining 36% → 60% gap.** Training `AlignCollate` squashes images to `imgW=200`, but EasyOCR inference pre-resizes to h=32 then uses `max_width = ceil(ratio) * 32` ≈ 554-576px. The model trains on 200px-wide squashed images but sees 554px-wide unsquashed images at inference — **2.77x wider**.
+**Fixed in Attempt 12.** EasyOCR's `recognize()` computed dynamic `max_width = ceil(w/h) * 32` per image (576-1056px), while training used fixed `imgW=200`. Attempts 10-11 tried matching by training with imgW=600 — failed because no single imgW matches all dynamic widths.
 
-Evidence:
-- Short headers worst: `세공` (2 chars) → 16 chars output (8x hallucination)
-- OCR output averages 1.6x more characters than GT
-- Performance correlates inversely with whitespace-to-text ratio
+**Real fix:** `backend/ocr_utils.py` patches inference to use fixed imgW from yaml, not dynamic per-image max_width. Training and inference now always match.
 
-**Fix (Attempt 10):** Train with `--imgW 600` to match inference width. No squashing during training = model sees same character spacing as inference.
+## Resolved: Training Data Quality Issues
+
+**Fixed pre-Attempt 13.** Three problems in synthetic training data:
+1. 25% faint images from blur/erode augmentation → removed all augmentation
+2. Font sizes 6-7 produced illegible tiny text → font 10-11 only
+3. 97.6% whitespace from full 260px canvas → tight-crop to ink bounds
 
 ---
 
@@ -59,7 +66,14 @@ Evidence:
 | Attempt 8 (5k) | 0 (0%) | 28.3% | 0.004 | +font size 8, proportional canvas (underfit) |
 | Attempt 8b (15k) | 0 (0%) | 27.0% | 0.014 | Continue from checkpoint — domain gap confirmed |
 | Attempt 9 | 0 (0%) | 36.2% | 0.044 | Reverted canvas to ~260px, bimodal font sizes 6-7/10-11 |
+| Attempt 12 | 0 (0%) | 38.1% | 0.120 | Inference imgW patch, squash factors now match |
 
-**Stage 1 gate:** 60% real char accuracy on synthetic-only training → then move to Stage 2 (fine-tune with real GT line crops).
+**Stage 1 gate:** 80% real char accuracy on synthetic-only training → then move to Stage 2 (fine-tune with real GT line crops). At 80%+, fuzzy matching only needs to fix minor character errors rather than reconstructing garbled output.
 
-Pipeline mechanics confirmed working (line detection perfect, `recognize()` API functional). Recognition is the sole bottleneck.
+Pipeline mechanics confirmed working (line detection perfect, `recognize()` API functional). Recognition is the sole bottleneck. Attempt 13 addresses the remaining domain gaps: tight-crop training data, splitter border filtering, quality gates.
+
+---
+
+## Future: Frontend Tasks
+
+- **User-editable OCR results** — After OCR processes a tooltip image, display the recognized text per line with editable fields so users can correct any mistakes before submitting. This is a practical fallback: OCR doesn't need 100% accuracy if users can fix errors inline.

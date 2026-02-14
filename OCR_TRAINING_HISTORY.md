@@ -16,8 +16,9 @@ Each attempt has identified and fixed a specific bottleneck, steadily raising re
 | 10 | — | — | — | OOM (imgW=600, batch_size=64 maxed 8GB VRAM). No training completed. |
 | 11 | 5.8% | — | ~0 | imgW=600, batch_size=16 → only 18 epochs in 10k iters. Underfitting. |
 | 12 | 84.4% | 38.1% | 0.120 | Patched inference to use fixed imgW. Squash factors now match. |
+| 13 (prep) | — | — | — | Tight-crop training data, font 10-11 only, splitter border filtering |
 
-Real-world char accuracy: **0% → 19.5% → 35.8% → 27.0% (regression) → 36.2% → 38.1%**. Attempts 10-11 failed due to imgW=600 approach. Attempt 12 patched EasyOCR inference to use fixed imgW, confirming squash factor alignment. Confidence jumped 2.7x (0.044 → 0.120).
+Real-world char accuracy: **0% → 19.5% → 35.8% → 27.0% (regression) → 36.2% → 38.1%**. Attempts 10-11 failed due to imgW=600 approach. Attempt 12 patched EasyOCR inference to use fixed imgW. Attempt 13 shifts focus from training hyperparameters to infrastructure: fixing how images are generated, analyzed, and cropped.
 
 ---
 
@@ -442,3 +443,93 @@ No single fixed imgW can match all image heights. The h=8-9 cluster (28% of data
 2. **Synthetic accuracy plateau at 84.4%:** Model hasn't fully converged. Loss was still decreasing at iter 10000 (train: 0.09, val: 0.11). More iterations may help.
 
 3. **Short line hallucination persists:** "천옷" → "- 다토 인챈 이브 만손 스검". Short text (2-4 chars) on 260px canvas is heavily squashed (2.8-5.2x), with 80%+ whitespace. The model fills blank regions with hallucinated characters.
+
+4. **Faint/illegible training images (25%):** Augmentation (blur + erode/dilate) produced images that are unreadable to humans. If a human can't read it, the model can't learn from it.
+
+5. **Font 6-7 produces illegible text:** Synthetic images at font sizes 6-7 produce tiny, unreadable characters. Real h=8-9 crops are legible because the game renders at normal font size — the small crop height comes from tight vertical cropping, not from small font rendering.
+
+6. **Full canvas waste:** 97.6% of training images had text filling <75% of canvas width. Training on mostly-whitespace images teaches the model that whitespace is normal, encouraging hallucination.
+
+7. **Splitter border artifacts inflate crop width:** Vertical pipes (`|`) and horizontal bars (`ㅡㅡㅡ`) from UI box borders extend line crops to full tooltip width even for short text like "보호 1" (248px → should be 35px).
+
+---
+
+## Attempt 13 Preparation: Training Data + Splitter + Inference Overhaul
+
+Unlike previous attempts that adjusted training hyperparameters (imgW, batch_size, iterations), Attempt 13 focuses on **three fundamental infrastructure improvements**: fixing how images are analyzed at inference, how training images are generated, and how line crops are extracted.
+
+### Change 1: Inference Patch — Fixed imgW (`backend/ocr_utils.py`)
+
+**Problem:** EasyOCR's `recognize()` computes a dynamic `max_width` per image via `ceil(w/h) * 32`, which varies from 576 to 1056px depending on image height. Training uses a fixed `imgW` (200 or 600), so there's always a mismatch. No single training imgW can match all inference widths.
+
+**Solution:** `patch_reader_imgw()` monkey-patches the reader's `recognize()` to pass the yaml's fixed `imgW` to `get_text()`, replacing the dynamic `max_width`. Training and inference now use identical imgW regardless of input image dimensions.
+
+**Files:**
+- `backend/ocr_utils.py` — New file, implements the patch
+- `backend/main.py` — Applies patch after reader init
+- `scripts/test_v2_pipeline.py` — Applies patch after reader init
+
+**Verification:** Squash factors now match exactly between synthetic and real data at every height.
+
+### Change 2: Training Data Overhaul (`scripts/generate_training_data.py`)
+
+Seven changes to eliminate domain gap between synthetic and real line crops:
+
+| Problem | Before | After |
+|---------|--------|-------|
+| Image width | Full ~260px canvas (97.6% whitespace) | Tight-crop to ink bounds + padding |
+| Font sizes | Bimodal 6-7/10-11 (28% illegible) | 10-11 only (all human-readable) |
+| Augmentation | Blur, erode/dilate (25% faint) | None — clean binary only |
+| Quality check | None | Every image: ink ratio ≥2%, width ≥10px, height ≥8px |
+| Crop formula | `pad_y = max(1, h//5)`, `pad_x = max(2, h//3)` on fixed canvas | Same padding but crop to text bounds |
+| Image count | 8,671 | 9,193 (more pass quality gates) |
+| Width distribution | 100% >220px | median=89px, varies with text length |
+
+**Key insight:** Real short-text crops from the splitter are narrow (35-65px for "보호 1", "내구력 20/20"), not full tooltip width. Training on tight-cropped images matches this, and eliminates whitespace-induced hallucination.
+
+### Change 3: Splitter Horizontal Trimming (`backend/tooltip_line_splitter.py`)
+
+Two filters added to `_add_line()` to remove UI border elements from line crops:
+
+**Filter 1 — Thin vertical borders:** Clusters ≤2px wide that are far from the nearest text cluster (distance > `line_h * 2`) are filtered out. These are `|` pipe characters at the box edges.
+
+| Line | Before | After |
+|------|--------|-------|
+| "보호 1" | w=248 | w=35 |
+| "내구력 20/20" | w=257 | w=65 |
+
+**Filter 2 — Horizontal bar borders:** Clusters wider than `line_h * 3` with average column density < 2.0 are filtered out. These are `ㅡㅡㅡ` horizontal bars in section box borders.
+
+| Line | Before | After |
+|------|--------|-------|
+| "아이템 속성" (with ㅡㅡㅡ bar) | w=256 | w=69 |
+| "아이템 색상" (with ㅡㅡㅡ bar) | w=261 | w=75 |
+
+**Why this matters:** Tighter crops → less whitespace at inference → less hallucination. The splitter now produces crops whose width distribution better matches the tight-cropped training data.
+
+**No regressions:** All 5 GT images still detect the correct line counts (75, 23, 22, 79, 36 = 235 total).
+
+### Combined Effect
+
+The three changes work together to close the training/inference gap from both sides:
+
+```
+Before:  Training(260px canvas, imgW=200) ≠ Inference(dynamic imgW=576-1056)
+After:   Training(tight-crop, imgW=200) = Inference(patched imgW=200)
+         Splitter crops(tight, no borders) ≈ Training images(tight-crop)
+```
+
+### Training Config (Attempt 13)
+
+```yaml
+model:
+  imgH: 32
+  imgW: 200   # Fixed via patched inference (ocr_utils.py)
+training:
+  batch_size: 64
+  num_iter: 10000
+  batch_max_length: 55
+  workers: 0
+  sensitive: true
+  PAD: true
+```

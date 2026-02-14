@@ -139,21 +139,85 @@ class TooltipLineSplitter:
         return lines
 
     def _add_line(self, binary_img, lines, y_start, y_end, min_width):
-        """Add a detected line, computing its horizontal extent from the original binary image."""
+        """Add a detected line, computing its horizontal extent from the original binary image.
+
+        Filters out UI border elements:
+        1. Thin clusters (1-2px wide) far from text — vertical border lines
+        2. Wide clusters with low column density — horizontal bar borders (ㅡㅡㅡ)
+        Then trims to the actual text bounds.
+        """
+        line_h = y_end - y_start
         row_slice = binary_img[y_start:y_end, :]
         col_projection = np.sum(row_slice > 0, axis=0)
-        text_cols = np.where(col_projection > 0)[0]
-        if len(text_cols) > 0:
-            x_start = int(text_cols[0])
-            x_end = int(text_cols[-1]) + 1
-            line_w = x_end - x_start
-            if line_w >= min_width:
-                lines.append({
-                    'x': x_start,
-                    'y': int(y_start),
-                    'width': line_w,
-                    'height': int(y_end - y_start),
-                })
+
+        # Find contiguous ink clusters
+        ink_cols = col_projection > 0
+        clusters = []
+        in_cluster = False
+        start = 0
+        for c in range(len(ink_cols)):
+            if ink_cols[c] and not in_cluster:
+                start = c
+                in_cluster = True
+            elif not ink_cols[c] and in_cluster:
+                clusters.append((start, c - 1))
+                in_cluster = False
+        if in_cluster:
+            clusters.append((start, len(ink_cols) - 1))
+
+        if not clusters:
+            return
+
+        # Filter out border artifacts
+        if len(clusters) > 1:
+            gap_threshold = line_h * 2
+            # A cluster is "text" if it's wider than 2px AND has sufficient
+            # column density (avg ink rows per column >= 2.0).
+            # Wide clusters with density < 2.0 are horizontal bars (ㅡㅡㅡ).
+            text_clusters = []
+            for cs, ce in clusters:
+                cw = ce - cs + 1
+                if cw <= 2:
+                    continue
+                avg_density = float(np.mean(col_projection[cs:ce + 1]))
+                # Wide + low density = horizontal bar border
+                if cw > line_h * 3 and avg_density < 2.0:
+                    continue
+                text_clusters.append((cs, ce))
+
+            if text_clusters:
+                filtered = []
+                for cs, ce in clusters:
+                    cw = ce - cs + 1
+                    avg_density = float(np.mean(col_projection[cs:ce + 1]))
+
+                    # Skip horizontal bar borders
+                    if cw > line_h * 3 and avg_density < 2.0:
+                        continue
+
+                    if cw > 2:
+                        filtered.append((cs, ce))
+                        continue
+
+                    # Thin cluster: check distance to nearest text cluster
+                    min_dist = min(
+                        min(abs(cs - tce), abs(ce - tcs))
+                        for tcs, tce in text_clusters
+                    )
+                    if min_dist <= gap_threshold:
+                        filtered.append((cs, ce))
+                clusters = filtered if filtered else clusters
+
+        x_start = int(clusters[0][0])
+        x_end = int(clusters[-1][1]) + 1
+        line_w = x_end - x_start
+        if line_w >= min_width:
+            lines.append({
+                'x': x_start,
+                'y': int(y_start),
+                'width': line_w,
+                'height': int(y_end - y_start),
+            })
 
     def _split_tall_block(self, binary_img, cleaned, lines,
                           y_start, y_end, min_height, max_height, min_width):

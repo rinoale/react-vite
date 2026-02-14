@@ -74,7 +74,15 @@ The custom `TooltipLineSplitter` uses horizontal projection profiling tailored f
 - Proportional padding: `pad_x = max(2, h//3)`, `pad_y = max(1, h//5)`
 - Parameters: `min_height=6, max_height=25, min_width=10`
 - Does NOT remove horizontal separators (they sit adjacent to section headers)
+- `_add_line()` filters UI border elements from line crops:
+  - **Thin clusters** (≤2px wide) far from text clusters → vertical `|` pipe borders
+  - **Wide low-density clusters** (w > `line_h*3`, avg density < 2.0) → horizontal `ㅡㅡㅡ` bar borders
 - Ground truth test pairs in `data/sample_images/` (`*_processed.png` + `*_processed.txt`)
+
+### Inference Patch (`backend/ocr_utils.py`)
+- `patch_reader_imgw()` monkey-patches EasyOCR's `recognize()` to use fixed imgW from yaml
+- Fixes the fundamental mismatch: training uses fixed imgW, but EasyOCR inference computes dynamic `max_width = ceil(w/h) * 32` per image (576-1056px)
+- Applied in both `backend/main.py` and `scripts/test_v2_pipeline.py` after reader init
 
 ### Ground Truth Data
 Located in `data/sample_images/` (5 pairs, 235 total lines):
@@ -116,12 +124,13 @@ Three root causes were identified after Attempt 6 (0% real accuracy despite 97-1
 - Tooltip width: consistently 262-271px across all images
 - All images are strictly binary (0, 255) after frontend thresholding at 80
 
-### Synthetic Training Data Statistics (Attempt 8)
-- Generated: **8,702 images** (509-char set, 3 variations per label)
-- Height: 9-19px (font sizes 8-11, covers both 7px and 10px real clusters)
-- Width: 22-280px (proportional to text length, matches real 22-269px range)
-  - <50px: 8%, 50-100px: 33%, 100-200px: 21%, 200-270px: 38%
-- All images strictly binary (0, 255)
+### Synthetic Training Data Statistics (Attempt 13)
+- Generated: **9,193 images** (509-char set, font 10-11 only)
+- Height: 10-17px (median 15px), no illegible images
+- Width: 10-260px (median 89px, tight-cropped to ink bounds)
+- Quality gates on every image: ink ratio ≥2%, width ≥10px, height ≥8px
+- No augmentation — clean binary only (0 and 255 pixel values)
+- All images verified human-readable
 
 ### EasyOCR Internals
 - `readtext()` = CRAFT detection + recognition (we don't use this in v2)
@@ -130,6 +139,7 @@ Three root causes were identified after Attempt 6 (0% real accuracy despite 97-1
 - The `PAD` field in yaml is ignored during inference
 - When both `horizontal_list` and `free_list` are None, it uses the entire image as one bbox
 - Must pass `free_list=[]` (not None) when `horizontal_list` is set, otherwise TypeError
+- **Dynamic imgW pitfall:** `recognize()` passes `int(max_width)` to `get_text()` where `max_width = ceil(w/h) * 32` — varies per image. Fixed by `ocr_utils.py` patch.
 
 ### v2 Pipeline Results
 | Attempt | Exact (of 235) | Char Acc | Confidence | Key Change |
@@ -139,8 +149,9 @@ Three root causes were identified after Attempt 6 (0% real accuracy despite 97-1
 | Attempt 8 (5k) | 56.2% | 28.3% | 0.004 | +font size 8, proportional canvas (regression) |
 | Attempt 8b (15k) | 93.5% | 27.0% | 0.014 | Continue from checkpoint — domain gap confirmed |
 | Attempt 9 | 90.0% | 36.2% | 0.044 | Reverted canvas to ~260px, bimodal font sizes 6-7/10-11 |
+| Attempt 12 | 84.4% | 38.1% | 0.120 | Inference imgW patch, squash factors match |
 
-Pipeline mechanics confirmed working. Line detection perfect. Recognition is the sole bottleneck.
+Pipeline mechanics confirmed working. Line detection perfect. Recognition is the sole bottleneck. Attempt 13 addresses remaining domain gaps: tight-crop training, splitter border filtering, quality gates.
 
 ## 6. General Guidelines
 - Ask before making changes.
