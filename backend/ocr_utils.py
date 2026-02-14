@@ -7,7 +7,8 @@ uses the same imgW as training, eliminating squash factor mismatch.
 
 import os
 import yaml
-from easyocr.recognition import get_text, get_image_list
+from easyocr.recognition import get_text
+from easyocr.utils import get_image_list
 
 
 def patch_reader_imgw(reader, models_dir, recog_network='custom_mabinogi'):

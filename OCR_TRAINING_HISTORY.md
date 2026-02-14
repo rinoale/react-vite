@@ -15,9 +15,9 @@ Each attempt has identified and fixed a specific bottleneck, steadily raising re
 | 9 | 90.0% | 36.2% | 0.044 | Reverted canvas to ~260px, bimodal font sizes 6-7/10-11 |
 | 10 | — | — | — | OOM (imgW=600, batch_size=64 maxed 8GB VRAM). No training completed. |
 | 11 | 5.8% | — | ~0 | imgW=600, batch_size=16 → only 18 epochs in 10k iters. Underfitting. |
-| 12 | pending | — | — | Patched inference to use fixed imgW. Back to imgW=200, batch_size=64. |
+| 12 | 84.4% | 38.1% | 0.120 | Patched inference to use fixed imgW. Squash factors now match. |
 
-Real-world char accuracy: **0% → 19.5% → 35.8% → 27.0% (regression) → 36.2% (recovered)**. Attempts 10-11 failed due to imgW=600 approach (OOM/underfitting). Attempt 12 patches EasyOCR inference instead.
+Real-world char accuracy: **0% → 19.5% → 35.8% → 27.0% (regression) → 36.2% → 38.1%**. Attempts 10-11 failed due to imgW=600 approach. Attempt 12 patched EasyOCR inference to use fixed imgW, confirming squash factor alignment. Confidence jumped 2.7x (0.044 → 0.120).
 
 ---
 
@@ -413,4 +413,32 @@ No single fixed imgW can match all image heights. The h=8-9 cluster (28% of data
 
 **Training data:** Same 8,671 images from Attempt 11 (bimodal fonts, splitter padding, full canvas, label splitting).
 
-**Training:** 10,000 iterations, batch_size=64, imgW=200. Pending results.
+**Training:** 10,000 iterations, batch_size=64, imgW=200. Best synthetic accuracy: **84.4%** at iter 9500.
+
+**v2 Pipeline Result:**
+
+| Image | Lines | Exact | Char Acc | Confidence |
+|-------|-------|-------|----------|------------|
+| captain_suit | 23 | 0 | 33.4% | 0.064 |
+| dropbell | 36 | 0 | 28.7% | 0.107 |
+| lightarmor | 75 | 0 | 51.3% | 0.143 |
+| lobe | 22 | 0 | 33.2% | 0.088 |
+| titan_blade | 79 | 0 | 32.7% | 0.164 |
+| **TOTAL** | **235** | **0** | **38.1%** | **0.120** |
+
+**Improvement:** Char accuracy 36.2% → 38.1%, confidence 0.044 → 0.120 (2.7x). The inference patch confirmed working — squash factors between real and synthetic now match exactly:
+
+| Height | Real squash | Synthetic squash |
+|--------|------------|-----------------|
+| h=8 | 5.2x | 5.2x |
+| h=9 | 4.6x | 4.6x |
+| h=14 | 3.0x | 3.0x |
+| h=15 | 2.8x | 2.8x |
+
+### Attempt 12 Analysis: Remaining Domain Gaps
+
+1. **h=16-17 training noise (9.1%):** Characters with descenders (parentheses, commas) at font size 11 produce text_h=12-13, totalling h=16-17 with padding. This height range doesn't exist in real data (0% of real crops). The model wastes capacity learning squash factors (2.4-2.6x) it never encounters at inference.
+
+2. **Synthetic accuracy plateau at 84.4%:** Model hasn't fully converged. Loss was still decreasing at iter 10000 (train: 0.09, val: 0.11). More iterations may help.
+
+3. **Short line hallucination persists:** "천옷" → "- 다토 인챈 이브 만손 스검". Short text (2-4 chars) on 260px canvas is heavily squashed (2.8-5.2x), with 80%+ whitespace. The model fills blank regions with hallucinated characters.
