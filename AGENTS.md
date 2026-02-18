@@ -173,6 +173,22 @@ Three root causes were identified after Attempt 6 (0% real accuracy despite 97-1
 
 Pipeline mechanics confirmed working. Line detection perfect. Recognition is the sole bottleneck. Attempt 13 achieved 65.5% on aligned images; overall 52.4% is dragged down by GT alignment drift on titan_blade/dropbell. Six failure categories identified — see `OCR_TRAINING_HISTORY.md`.
 
+## 5.5 Future: Stage 2 — Human-in-the-Loop Fine-Tuning
+
+Once the synthetic model clears the 80% accuracy gate, fine-tune with real user images via a correction pipeline:
+
+1. User uploads tooltip → OCR produces per-line results
+2. Frontend shows each line crop (as a small image) alongside its OCR text in an editable field
+3. User corrects only the wrong lines and submits
+4. Backend runs splitter on the original image, pairs each crop with the confirmed label, applies quality gates, stores as a real training sample
+5. Accumulated real samples form a Stage 2 LMDB; fine-tune from the Stage 1 checkpoint
+
+Key design decisions:
+- Per-line UI (not full-text block) ensures 1:1 crop-to-label alignment with no drift
+- Color part sub-segments (`R:N`, `G:N`, `B:N`) are regex-parsed — exclude from correction UI and training
+- Validate user corrections against dictionaries before accepting (flag outliers to catch typos)
+- See `OCR_ISSUES.md` → "Stage 2" section for full design notes
+
 ## 6. General Guidelines
 - Ask before making changes.
 - Maintain existing code styles.

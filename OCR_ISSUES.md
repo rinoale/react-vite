@@ -91,3 +91,22 @@ Proportional canvas width caused 57% of training at wrong squash factors. Fixed 
 ## Future: Frontend Tasks
 
 - **User-editable OCR results** — After OCR processes a tooltip image, display the recognized text per line with editable fields so users can correct any mistakes before submitting. This is a practical fallback: OCR doesn't need 100% accuracy if users can fix errors inline.
+
+## Future: Stage 2 — Human-in-the-Loop Fine-Tuning
+
+Once the synthetic-trained model reaches the 80% accuracy gate, fine-tune with real user-submitted images via a correction pipeline:
+
+**Flow:**
+1. User uploads tooltip image → OCR + fuzzy matching produces per-line results
+2. Frontend shows a line-by-line correction UI: each line crop (as a small image) next to its OCR text in an editable field
+3. User corrects only the wrong lines and submits
+4. Server receives the original image + per-line corrections
+5. Server runs the splitter on the image, pairs each line crop with the confirmed label, applies quality gates, and stores the pair as a real training sample
+6. Accumulated real samples form a Stage 2 LMDB for fine-tuning
+
+**Design notes:**
+- Show corrections per-line (not full-text block) to guarantee 1:1 crop-to-label alignment — avoids alignment drift if splitter detects a different line count than user types
+- Color part sub-segments (`R:187`, `G:153`, `B:85`) are regex-parsed, not OCR — skip from correction UI and training
+- Skipped sections (flavor_text, shop_price) already excluded by parser — no correction needed
+- Light validation before accepting into training: fuzzy-match user input against dictionaries and flag outliers to catch typos in corrections
+- Store real crops separately from synthetic data; fine-tune from the Stage 1 checkpoint rather than training from scratch

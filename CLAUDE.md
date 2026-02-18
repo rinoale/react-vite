@@ -93,7 +93,7 @@ All training parameters are centralized in **`configs/training_config.yaml`**. T
 **Critical rule:** When changing `imgH`, `imgW`, or any `model:` param in `training_config.yaml`, you **MUST** re-run `python3 scripts/create_model_config.py` to regenerate `backend/models/custom_mabinogi.yaml`. Mismatched `imgW` between training and inference will cause TPS layer shape errors or garbage output.
 
 Key parameters and why (see `configs/training_config.yaml` for full list):
-- `imgW: 600` — Must match EasyOCR inference width. Was 200 (caused 2.77x squash mismatch).
+- `imgW: 200` — Fixed via `ocr_utils.py` patch. Attempts 10-11 tried imgW=600 but failed; Attempt 12 reverted to 200 and patched inference to use the yaml value instead of dynamic per-image width.
 - `workers: 0` — Required. LMDB can't be pickled for multiprocessing.
 - `sensitive: true` — Required. Prevents lowercasing (needed for R,G,B,L,A-F characters).
 - `PAD: true` — Required. Matches EasyOCR's hardcoded `keep_ratio_with_pad=True`.
