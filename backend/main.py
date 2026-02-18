@@ -6,6 +6,7 @@ import easyocr
 from recommendation import recommender, ITEMS_DB
 from text_corrector import TextCorrector
 from ocr_utils import patch_reader_imgw
+from mabinogi_tooltip_parser import MabinogiTooltipParser
 from pydantic import BaseModel
 from typing import List
 
@@ -41,6 +42,10 @@ reader = easyocr.Reader(
     recog_network='custom_mabinogi'
 )
 patch_reader_imgw(reader, MODELS_DIR)
+
+# Initialize Mabinogi tooltip parser
+CONFIG_PATH = os.path.join(BASE_DIR, '..', 'configs', 'mabinogi_tooltip.yaml')
+tooltip_parser = MabinogiTooltipParser(CONFIG_PATH)
 
 class UserHistory(BaseModel):
     history_ids: List[int]
@@ -108,6 +113,56 @@ async def upload_item(file: UploadFile = File(...)):
             "filename": file.filename,
             "detected_lines": results,
             "raw_text_summary": "\n".join([r['text'] for r in results])
+        }
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/upload-item-v2")
+async def upload_item_v2(file: UploadFile = File(...)):
+    """V2 endpoint: section-aware tooltip parsing.
+
+    Uses MabinogiTooltipParser to split, OCR, and categorize tooltip
+    lines into game-specific sections (item_attrs, reforge, enchant, etc.).
+    """
+    try:
+        temp_filename = f"temp_{file.filename}"
+        with open(temp_filename, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+
+        # Run section-aware parsing pipeline
+        result = tooltip_parser.parse_tooltip(temp_filename, reader)
+
+        # Apply text correction to each OCR line
+        for line in result.get('all_lines', []):
+            raw_text = line.get('text', '')
+            if raw_text.strip():
+                corrected_text, score = corrector.correct(raw_text)
+                line['corrected_text'] = corrected_text if score > 60 else raw_text
+                line['correction_score'] = float(score) / 100.0
+            else:
+                line['corrected_text'] = raw_text
+                line['correction_score'] = 0.0
+
+        # Also correct text within sections
+        for section_key, section_data in result.get('sections', {}).items():
+            if 'lines' in section_data:
+                for line in section_data['lines']:
+                    raw_text = line.get('text', '')
+                    if raw_text.strip():
+                        corrected_text, score = corrector.correct(raw_text)
+                        line['corrected_text'] = corrected_text if score > 60 else raw_text
+                        line['correction_score'] = float(score) / 100.0
+
+        os.remove(temp_filename)
+
+        return {
+            "filename": file.filename,
+            "sections": result['sections'],
+            "all_lines": result['all_lines'],
         }
 
     except Exception as e:

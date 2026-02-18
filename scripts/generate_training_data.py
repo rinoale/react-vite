@@ -79,13 +79,19 @@ def generate_template_lines():
     """Generate training labels from tooltip line templates."""
     lines = []
 
-    # --- Section headers ---
-    for h in ['아이템 속성', '인챈트', '개조', '세공', '세트아이템', '아이템 색상',
-              '장인 개조', '등급', '에픽', '전용 해제',
-              '- 아이템 속성 -', '- 인챈트 -', '- 개조 -', '- 세공 -',
-              '- 에르그 -', '- 세트아이템 -', '- 아이템 색상 -',
-              '기본 효과', '추가 효과', '최종 단계 개방 완료']:
-        lines.append(h)
+    # --- Section headers (repeated for weight — these are short, low-height crops) ---
+    short_headers = ['아이템 속성', '인챈트', '개조', '세공', '세트아이템', '아이템 색상',
+                     '장인 개조', '등급', '에픽', '레어', '마스터', '전용 해제',
+                     '기본 효과', '추가 효과', '최종 단계 개방 완료', '에르그']
+    decorated_headers = ['- 아이템 속성 -', '- 인챈트 -', '- 개조 -', '- 세공 -',
+                         '- 에르그 -', '- 세트아이템 -', '- 아이템 색상 -']
+    # Each header repeated 10x to boost training weight for these short crops
+    for h in short_headers:
+        for _ in range(10):
+            lines.append(h)
+    for h in decorated_headers:
+        for _ in range(5):
+            lines.append(h)
 
     # --- Stat lines ---
     for _ in range(200):
@@ -107,12 +113,20 @@ def generate_template_lines():
     for _ in range(50):
         lines.append(f"밸런스 {rand_int(10, 100)}%")
 
-    # --- Color parts ---
+    # --- Color part sub-segments (after horizontal splitting) ---
+    # The splitter splits "파트 B    R:187 G:153 B:85" into 4 crops:
+    #   "파트 B", "R:187", "G:153", "B:85"
+    # OCR never sees the full line, so only sub-segments are trained.
     for _ in range(100):
         part = random.choice(['A', 'B', 'C', 'D', 'E', 'F'])
-        prefix = random.choice(['- 파트', '파트'])
-        sep = random.choice(['    ', ' '])
-        lines.append(f"{prefix} {part}{sep}R:{rand_rgb()} G:{rand_rgb()} B:{rand_rgb()}")
+        lines.append(f"파트 {part}")
+    for _ in range(150):
+        channel = random.choice(['R', 'G', 'B'])
+        lines.append(f"{channel}:{rand_rgb()}")
+    # Also with colon-space variants OCR might see
+    for _ in range(50):
+        channel = random.choice(['R', 'G', 'B'])
+        lines.append(f"{channel}: {rand_rgb()}")
 
     # --- Enchant headers ---
     enchant_names = [
@@ -144,13 +158,6 @@ def generate_template_lines():
         hi = rand_int(lo, lo + 30)
         lines.append(f"- {effect} {hi} 증가 ({lo}~{hi})")
 
-    # --- Enchant effects (. prefix — some tooltips use dots) ---
-    for _ in range(100):
-        effect = random.choice(effect_words)
-        val = rand_int(1, 100)
-        change = random.choice(['증가', '감소'])
-        lines.append(f". {effect} {val} {change}")
-
     # --- Enchant with condition ---
     skills = ['회피', '파이널 히트', '윈드밀', '돌진', '다운 어택', '레이지 임팩트',
               '연금술 마스터리', '엘리멘탈 웨이브', '탐험 레벨이']
@@ -159,32 +166,33 @@ def generate_template_lines():
         rank = random.choice(['1', '6', '9', 'A', 'B', '15'])
         effect = random.choice(effect_words)
         val = rand_int(1, 60)
-        lines.append(f". {skill} 랭크 {rank} 이상일 때 {effect} {val} 증가")
+        lines.append(f"- {skill} 랭크 {rank} 이상일 때 {effect} {val} 증가")
 
     # --- Misc enchant lines ---
     for _ in range(30):
         lines.append(f"- 수리비 {rand_pct()} {random.choice(['증가', '감소'])}")
-    lines.extend(['. 인챈트 추출 불가', '- 약해보임',
-                  '. 불 속성', '. 얼음 속성', '. 번개 속성'])
+    lines.extend(['- 인챈트 추출 불가', '- 약해보임',
+                  '- 불 속성', '- 얼음 속성', '- 번개 속성'])
 
-    # --- Sub-bullets (ㄴ marker and L marker) ---
+    # --- Sub-bullets (ㄴ marker, no leading spaces) ---
     sub_effects = ['보호', '방어력', '최대 내구도', '최대 공격력', '크리티컬',
-                   '피어싱 레벨', '대미지 배율', '대미지', '쿨타임 감소']
+                   '피어싱 레벨', '대미지 배율', '대미지', '쿨타임 감소',
+                   '돌진 대미지', '돌진 사정 거리', '스매시 대미지',
+                   '윈드밀 대미지', '파이널 히트 최종 대미지',
+                   '파이널 스트라이크 분노 획득량', '윈드밀 최종 대미지',
+                   '최소부상률', '지속대미지']
     for _ in range(100):
-        marker = random.choice(['ㄴ', 'L'])
         effect = random.choice(sub_effects)
         val = rand_int(1, 100)
         sign = random.choice(['+', ''])
-        unit = random.choice(['', ' %'])
-        lines.append(f"  {marker} {effect} {sign}{val}{unit}")
+        unit = random.choice(['', ' %', '% 증가'])
+        lines.append(f"ㄴ {effect} {sign}{val}{unit}")
 
     # More sub-bullet patterns
     for _ in range(50):
-        marker = random.choice(['ㄴ', 'L'])
-        lines.append(f"  {marker} 대미지 배율 {rand_int(10, 150)} % 증가")
+        lines.append(f"ㄴ 대미지 배율 {rand_int(10, 150)} % 증가")
     for _ in range(50):
-        marker = random.choice(['ㄴ', 'L'])
-        lines.append(f"  {marker} 쿨타임 감소 {rand_int(1, 15)}.{rand_int(0, 99):02d} 초 감소")
+        lines.append(f"ㄴ 쿨타임 감소 {rand_int(1, 15)}.{rand_int(0, 99):02d} 초 감소")
 
     # --- Reforging headers ---
     for _ in range(30):
@@ -208,7 +216,7 @@ def generate_template_lines():
     for _ in range(50):
         name = random.choice(reforge_names)
         n = rand_int(1, 4)
-        lines.append(f". {name} {n}")
+        lines.append(f"- {name} {n}")
 
     # --- Crafting lines (세공) ---
     craft_skills = ['클로저 대미지 배율', '크로스 버스터 대미지 배율',
@@ -219,14 +227,14 @@ def generate_template_lines():
         lines.append(f"- {skill}({rand_level()} 레벨)")
     for _ in range(50):
         skill = random.choice(craft_skills)
-        lines.append(f". {skill}({rand_level()} 레벨)")
+        lines.append(f"- {skill}({rand_level()} 레벨)")
 
     # --- Set item lines ---
     set_skills = ['돌진', '스매시', '윈드밀', '파이널 히트', '파이널 스트라이크']
     for _ in range(50):
         skill = random.choice(set_skills)
         n = rand_int(1, 10)
-        lines.append(f". {skill} 강화 +{n}")
+        lines.append(f"- {skill} 강화 +{n}")
     for _ in range(50):
         skill = random.choice(set_skills)
         lines.append(f"- {skill} 강화 +{rand_int(1, 10)}")
@@ -242,7 +250,7 @@ def generate_template_lines():
     for _ in range(30):
         lvl = rand_int(1, 5)
         extra = random.choice(['', f'+ {rand_int(1,3)}'])
-        lines.append(f". 피어싱 레벨 {lvl}{extra}")
+        lines.append(f"- 피어싱 레벨 {lvl}{extra}")
     for _ in range(20):
         d, p = rand_int(5, 50), rand_int(5, 30)
         lines.append(f"- 방어 {d}, 보호 {p} 차감")
@@ -301,22 +309,19 @@ def generate_template_lines():
         lines.append(f"등급 {g} ({rand_int(1, 50)}/{rand_int(30, 50)} 레벨)")
     lines.extend(['(에르그 이전 불가)'])
     for _ in range(20):
-        lines.append(f". 무기 공격력 {rand_int(10, 100)} 증가")
+        lines.append(f"- 무기 공격력 {rand_int(10, 100)} 증가")
     for _ in range(10):
-        lines.append(f". 스플래시 반경 {rand_int(100, 500)}cm 증가")
+        lines.append(f"- 스플래시 반경 {rand_int(100, 500)}cm 증가")
 
     # --- Special reforging ---
     for _ in range(20):
-        lines.append(f". 크리티컬 대미지 : {rand_int(100, 200)} +{rand_int(10, 80)}%")
+        lines.append(f"- 크리티컬 대미지 : {rand_int(100, 200)} +{rand_int(10, 80)}%")
 
     # --- Artisan lines ---
     artisan_effects = ['방어', '보호', '최대스태미나', '최대생명력', '솜씨', '체력']
-    for _ in range(30):
+    for _ in range(60):
         effect = random.choice(artisan_effects)
         lines.append(f"- {effect} {rand_int(1, 30)} 증가")
-    for _ in range(30):
-        effect = random.choice(artisan_effects)
-        lines.append(f". {effect} {rand_int(1, 30)} 증가")
 
     # --- Holy water / special effects ---
     for _ in range(20):
@@ -324,6 +329,62 @@ def generate_template_lines():
         lines.append(f"- 성수 효과(거래 불가) : {stat} {rand_int(5, 30)} 증가")
     for _ in range(20):
         lines.append(f"- 근접공격 자동방어 확률 : {rand_int(1, 15)}.{rand_int(0, 99):02d}%")
+
+    # --- Prefix-stripped variants ---
+    # The splitter sometimes crops away leading "- " or "ㄴ ",
+    # so we train on content-only versions too.
+    for _ in range(100):
+        effect = random.choice(effect_words)
+        val = rand_int(1, 100)
+        change = random.choice(['증가', '감소'])
+        lines.append(f"{effect} {val} {change}")
+
+    for _ in range(50):
+        effect = random.choice(effect_words)
+        lo = rand_int(1, 50)
+        hi = rand_int(lo, lo + 30)
+        lines.append(f"{effect} {hi} 증가 ({lo}~{hi})")
+
+    for _ in range(50):
+        skill = random.choice(skills)
+        rank = random.choice(['1', '6', '9', 'A', 'B', '15'])
+        effect = random.choice(effect_words)
+        val = rand_int(1, 60)
+        lines.append(f"{skill} 랭크 {rank} 이상일 때 {effect} {val} 증가")
+
+    for _ in range(50):
+        name = random.choice(reforge_names)
+        n = rand_int(1, 4)
+        lines.append(f"{name}{n}")
+
+    for _ in range(30):
+        skill = random.choice(craft_skills)
+        lines.append(f"{skill}({rand_level()} 레벨)")
+
+    for _ in range(30):
+        skill = random.choice(set_skills)
+        n = rand_int(1, 10)
+        lines.append(f"{skill} 강화 +{n}")
+
+    for _ in range(30):
+        d, p = rand_int(5, 50), rand_int(5, 30)
+        lines.append(f"방어 {d}, 보호 {p} 차감")
+    for _ in range(30):
+        d, p = rand_int(5, 50), rand_int(5, 30)
+        lines.append(f"마법 방어 {d}, 마법 보호 {p} 차감")
+
+    for _ in range(20):
+        lvl = rand_int(1, 5)
+        lines.append(f"피어싱 레벨 {lvl}")
+
+    for _ in range(20):
+        lines.append(f"무기 공격력 {rand_int(10, 100)} 증가")
+    for _ in range(10):
+        lines.append(f"스플래시 반경 {rand_int(100, 500)}cm 증가")
+
+    for _ in range(20):
+        effect = random.choice(artisan_effects)
+        lines.append(f"{effect} {rand_int(1, 30)} 증가")
 
     # --- Misc tooltip lines ---
     misc = [
@@ -359,17 +420,34 @@ def generate_template_lines():
 
 
 def load_gt_lines():
-    """Load all non-empty lines from ground truth files."""
+    """Load all non-empty lines from *_expected.txt ground truth files.
+
+    Uses _expected.txt (user-maintained, clean prefixes, no bottom area) rather
+    than _processed.txt (has outdated . prefixes and full color part lines).
+
+    Color part lines (파트 X R:N G:N B:N) are excluded — the splitter breaks
+    these into sub-segments that OCR never sees as a full line. Sub-segment
+    templates (파트 A/B/C, R:N, G:N, B:N) are generated by generate_template_lines().
+    """
+    import re
     gt_lines = []
     if not os.path.exists(GT_DIR):
         return gt_lines
     for f in os.listdir(GT_DIR):
-        if f.endswith('.txt') and 'processed' in f and 'original' not in f:
-            with open(os.path.join(GT_DIR, f), 'r', encoding='utf-8') as fh:
-                for line in fh:
-                    line = line.strip()
-                    if line:
-                        gt_lines.append(line)
+        if not f.endswith('_expected.txt'):
+            continue
+        with open(os.path.join(GT_DIR, f), 'r', encoding='utf-8') as fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                # Skip full color part lines — OCR only ever sees sub-segments
+                if re.match(r'^-?\s*파트\s+[A-F]', line):
+                    continue
+                # Skip comment lines added by regenerate_gt.py
+                if line.startswith('#'):
+                    continue
+                gt_lines.append(line)
     return list(set(gt_lines))
 
 

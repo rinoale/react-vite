@@ -23,6 +23,7 @@ except ImportError as e:
 class TooltipLineSplitter:
     def __init__(self, output_dir="split_output"):
         self.output_dir = output_dir
+        self.horizontal_split_factor = 3  # gap > line_h * factor triggers split
         os.makedirs(output_dir, exist_ok=True)
         os.makedirs(os.path.join(output_dir, "images"), exist_ok=True)
         os.makedirs(os.path.join(output_dir, "labels"), exist_ok=True)
@@ -58,18 +59,34 @@ class TooltipLineSplitter:
         many rows). These contribute a few white pixels per row that prevent
         gap detection between text lines.
 
-        Horizontal separators are NOT removed because they are single rows
-        that don't bridge sections, and removing them can destroy section
-        headers like "개조" and "세공" that sit adjacent to box borders.
+        Only removes narrow runs (<=3px wide) of high-density columns.
+        Wider runs are aligned text content (e.g. repeated ㄴ, - prefixes),
+        not UI borders.
         """
         h, w = binary_img.shape
         cleaned = binary_img.copy()
 
-        # Mask out columns where >15% of rows are white (vertical borders)
+        # Find columns with high vertical density (>15% of rows have ink)
         col_density = np.sum(binary_img > 0, axis=0) / h
+        is_dense = col_density > 0.15
+
+        # Only mask narrow runs (<=3px wide) — actual UI border lines
+        in_run = False
+        run_start = 0
         for col in range(w):
-            if col_density[col] > 0.15:
-                cleaned[:, col] = 0
+            if is_dense[col] and not in_run:
+                run_start = col
+                in_run = True
+            elif not is_dense[col] and in_run:
+                run_width = col - run_start
+                if run_width <= 3:
+                    cleaned[:, run_start:col] = 0
+                in_run = False
+        # Handle run at image edge
+        if in_run:
+            run_width = w - run_start
+            if run_width <= 3:
+                cleaned[:, run_start:w] = 0
 
         return cleaned
 
@@ -111,6 +128,7 @@ class TooltipLineSplitter:
 
         # Step 5: Find contiguous runs of text rows
         lines = []
+        blocks = []  # (y_start, y_end) for gap rescue pass
         in_line = False
         line_start = 0
 
@@ -121,22 +139,126 @@ class TooltipLineSplitter:
             elif not has_text[y] and in_line:
                 line_h = y - line_start
                 if min_height <= line_h <= max_height:
-                    self._add_line(binary_img, lines, line_start, y, min_width)
+                    # Check for internal zero-gaps that indicate merged lines
+                    if self._has_internal_gap(projection, line_start, y):
+                        self._split_tall_block(binary_img, cleaned, lines,
+                                               line_start, y, min_height, max_height, min_width)
+                    else:
+                        self._add_line(binary_img, lines, line_start, y, min_width)
+                    blocks.append((line_start, y))
                 elif line_h > max_height:
                     self._split_tall_block(binary_img, cleaned, lines,
                                            line_start, y, min_height, max_height, min_width)
+                    blocks.append((line_start, y))
                 in_line = False
 
         # Handle last line if image ends with text
         if in_line:
             line_h = h - line_start
             if min_height <= line_h <= max_height:
-                self._add_line(binary_img, lines, line_start, h, min_width)
+                if self._has_internal_gap(projection, line_start, h):
+                    self._split_tall_block(binary_img, cleaned, lines,
+                                           line_start, h, min_height, max_height, min_width)
+                else:
+                    self._add_line(binary_img, lines, line_start, h, min_width)
+                blocks.append((line_start, h))
             elif line_h > max_height:
                 self._split_tall_block(binary_img, cleaned, lines,
                                        line_start, h, min_height, max_height, min_width)
+                blocks.append((line_start, h))
+
+        # Step 6: Rescue pass — re-scan large gaps with lower threshold
+        # Short continuation lines like 적용), (6~7), 제외) have sparse ink
+        # that falls below the main threshold after border removal.
+        self._rescue_gaps(binary_img, cleaned, projection, lines, blocks,
+                          min_height, max_height, min_width, w)
 
         return lines
+
+    def _has_internal_gap(self, projection, y_start, y_end):
+        """Check if a block has a clear internal gap (2+ consecutive zero rows).
+
+        Indicates two lines merged into one block by gap_tolerance.
+        """
+        consecutive_zeros = 0
+        for y in range(y_start, y_end):
+            if projection[y] == 0:
+                consecutive_zeros += 1
+                if consecutive_zeros >= 2:
+                    return True
+            else:
+                consecutive_zeros = 0
+        return False
+
+    def _rescue_gaps(self, binary_img, cleaned, projection, lines, blocks,
+                     min_height, max_height, min_width, img_w):
+        """Re-scan large gaps between detected blocks with a lower threshold.
+
+        Catches short continuation lines (적용), 제외), etc.) that have
+        sparse ink after border column removal.
+        """
+        if len(blocks) < 2:
+            return
+
+        rescue_threshold = max(2, img_w * 0.01)
+        # A gap is "large" if it could fit another line (> typical line height)
+        avg_h = sum(b[1] - b[0] for b in blocks) / len(blocks)
+        min_gap_for_rescue = avg_h * 1.5
+
+        rescued = []
+        for i in range(1, len(blocks)):
+            gap_start = blocks[i - 1][1]
+            gap_end = blocks[i][0]
+            gap_size = gap_end - gap_start
+
+            if gap_size < min_gap_for_rescue:
+                continue
+
+            # Re-scan this gap region with lower threshold
+            gap_proj = projection[gap_start:gap_end]
+            has_text = gap_proj > rescue_threshold
+
+            # Close tiny gaps (same tolerance)
+            j = 0
+            while j < len(has_text):
+                if not has_text[j] and j > 0 and has_text[j - 1]:
+                    gs = j
+                    while j < len(has_text) and not has_text[j]:
+                        j += 1
+                    if j - gs <= 2 and j < len(has_text) and has_text[j]:
+                        for g in range(gs, j):
+                            has_text[g] = True
+                else:
+                    j += 1
+
+            # Find blocks in the gap
+            in_block = False
+            block_start = 0
+            for y in range(len(has_text)):
+                if has_text[y] and not in_block:
+                    block_start = y
+                    in_block = True
+                elif not has_text[y] and in_block:
+                    bh = y - block_start
+                    if min_height <= bh <= max_height:
+                        abs_start = gap_start + block_start
+                        abs_end = gap_start + y
+                        rescued.append((abs_start, abs_end))
+                    in_block = False
+            if in_block:
+                bh = len(has_text) - block_start
+                if min_height <= bh <= max_height:
+                    abs_start = gap_start + block_start
+                    abs_end = gap_start + len(has_text)
+                    rescued.append((abs_start, abs_end))
+
+        # Add rescued lines
+        for y_start, y_end in rescued:
+            self._add_line(binary_img, lines, y_start, y_end, min_width)
+
+        # Re-sort by y position
+        if rescued:
+            lines.sort(key=lambda l: (l['y'], l['x']))
 
     def _add_line(self, binary_img, lines, y_start, y_end, min_width):
         """Add a detected line, computing its horizontal extent from the original binary image.
@@ -208,16 +330,30 @@ class TooltipLineSplitter:
                         filtered.append((cs, ce))
                 clusters = filtered if filtered else clusters
 
-        x_start = int(clusters[0][0])
-        x_end = int(clusters[-1][1]) + 1
-        line_w = x_end - x_start
-        if line_w >= min_width:
-            lines.append({
-                'x': x_start,
-                'y': int(y_start),
-                'width': line_w,
-                'height': int(y_end - y_start),
-            })
+        # Split horizontally if wide gaps exist between cluster groups.
+        # Normal inter-character gaps are 1-6px; large gaps indicate
+        # separate text segments (e.g. "파트 A    R:0    G:0    B:0").
+        split_threshold = line_h * self.horizontal_split_factor
+        segments = []  # list of cluster sub-lists
+        seg_start = 0
+        for i in range(1, len(clusters)):
+            gap = clusters[i][0] - clusters[i - 1][1] - 1
+            if gap > split_threshold:
+                segments.append(clusters[seg_start:i])
+                seg_start = i
+        segments.append(clusters[seg_start:])
+
+        for seg in segments:
+            x_start = int(seg[0][0])
+            x_end = int(seg[-1][1]) + 1
+            line_w = x_end - x_start
+            if line_w >= min_width:
+                lines.append({
+                    'x': x_start,
+                    'y': int(y_start),
+                    'width': line_w,
+                    'height': int(y_end - y_start),
+                })
 
     def _split_tall_block(self, binary_img, cleaned, lines,
                           y_start, y_end, min_height, max_height, min_width):

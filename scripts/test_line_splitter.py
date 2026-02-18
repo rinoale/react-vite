@@ -8,7 +8,10 @@ import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'backend'))
 
 import cv2
-from tooltip_line_splitter import TooltipLineSplitter
+from mabinogi_tooltip_parser import MabinogiTooltipParser
+
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+CONFIG_PATH = os.path.join(PROJECT_ROOT, 'configs', 'mabinogi_tooltip.yaml')
 
 
 def main():
@@ -23,7 +26,7 @@ def main():
 
     os.makedirs(args.output, exist_ok=True)
 
-    splitter = TooltipLineSplitter(output_dir=args.output)
+    splitter = MabinogiTooltipParser(CONFIG_PATH, output_dir=args.output)
 
     # Preprocess and detect
     img, gray, binary = splitter.preprocess_image(args.image)

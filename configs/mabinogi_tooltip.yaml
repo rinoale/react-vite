@@ -1,0 +1,112 @@
+# Mabinogi Tooltip Section Configuration
+# Defines how to detect and categorize sections in item tooltip images.
+# Used by MabinogiTooltipParser to produce structured item data.
+
+game: mabinogi
+version: 1
+
+# Section definitions, ordered by typical appearance in tooltips.
+# header_patterns: OCR text patterns that identify the section header line.
+#   Matched with fuzzy matching (contains check) since OCR may add/drop chars.
+# ocr: whether to OCR the lines in this section (false = structural parse or skip)
+# skip: whether to omit this section from output entirely
+# parse_mode: special parsing logic (e.g. "color_parts" for structured RGB extraction)
+sections:
+  item_name:
+    order: 1
+    description: "Full item name (first line)"
+    required: true
+    ocr: true
+
+  item_type:
+    order: 2
+    description: "Item category (천옷, 경갑옷, 양손 검, 액세서리, etc.)"
+    required: false
+    ocr: true
+
+  item_grade:
+    order: 5
+    description: "Item grade (에픽, 레어, 마스터, etc.) and grade bonus"
+    header_patterns:
+      - "등급"
+      - "에픽"
+      - "레어"
+    required: false
+    ocr: true
+
+  item_attrs:
+    order: 10
+    description: "Core stats: 방어력, 보호, 내구력, 공격, 부상률, 크리티컬, etc."
+    header_patterns:
+      - "아이템 속성"
+    required: true
+    ocr: true
+
+  enchant:
+    order: 20
+    description: "Enchantments: [접두] prefix and [접미] suffix enchants with effects"
+    header_patterns:
+      - "인챈트"
+    required: false
+    ocr: true
+
+  item_mod:
+    order: 30
+    description: "Modifications: 일반 개조, 장인 개조, 특별 개조, 담금질, 보석 개조"
+    header_patterns:
+      - "개조"
+    required: false
+    ocr: true
+
+  reforge:
+    order: 40
+    description: "Reforging stats with levels — important for marketplace search"
+    header_patterns:
+      - "세공"
+    required: false
+    ocr: true
+
+  erg:
+    order: 50
+    description: "Erg upgrade info: grade, level, effects"
+    header_patterns:
+      - "에르그"
+    required: false
+    ocr: true
+
+  set_item:
+    order: 60
+    description: "Set item effects and activation conditions"
+    header_patterns:
+      - "세트아이템"
+    required: false
+    ocr: true
+
+  item_color:
+    order: 70
+    description: "Item color parts (파트 A-F with RGB values)"
+    header_patterns:
+      - "아이템 색상"
+    required: false
+    ocr: false
+    parse_mode: color_parts
+
+  flavor_text:
+    order: 80
+    description: "Item description / flavor text — not needed for marketplace"
+    required: false
+    skip: true
+
+  shop_price:
+    order: 90
+    description: "Shop sell price — not needed for marketplace"
+    header_patterns:
+      - "상점판매가"
+    required: false
+    skip: true
+
+# Horizontal split threshold multiplier.
+# Gaps wider than line_height * this value trigger horizontal splitting.
+# Normal inter-character gaps are 1-8px; color part gaps are 15-85px.
+# Factor 1.5 reliably splits multi-digit RGB values across all line heights.
+horizontal_split_factor: 1.5

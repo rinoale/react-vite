@@ -12,9 +12,11 @@ Build a specialized marketplace for trading in-game items where the core data en
   - Output: strictly binary PNG (pixel values 0 and 255 only), black text on white background
   - Sends this processed image to the backend
 - **Backend Processing (`backend/main.py`):**
-  1. **Line Detection** — `TooltipLineSplitter` (`tooltip_line_splitter.py`) splits full tooltip image into individual line crops using horizontal projection profiling
-  2. **Recognition** — Each line crop is fed to EasyOCR's `recognize()` API (bypasses CRAFT detection entirely). Custom `TPS-ResNet-BiLSTM-CTC` model recognizes Korean text.
-  3. **Correction** — `TextCorrector` (`text_corrector.py`) applies RapidFuzz fuzzy matching against dictionaries (`reforging_options.txt` + `tooltip_general.txt`) to fix OCR errors
+  1. **Section-Aware Parsing** — `MabinogiTooltipParser` (`mabinogi_tooltip_parser.py`) wraps the line splitter and categorizes detected lines into game sections (item_name, item_attrs, enchant, reforge, etc.) using config from `configs/mabinogi_tooltip.yaml`
+  2. **Line Detection** — `TooltipLineSplitter` (`tooltip_line_splitter.py`) splits full tooltip image into individual line crops using horizontal projection profiling, with horizontal sub-splitting for color parts
+  3. **Recognition** — Each line crop is fed to EasyOCR's `recognize()` API (bypasses CRAFT detection entirely). Custom `TPS-ResNet-BiLSTM-CTC` model recognizes Korean text.
+  4. **Correction** — `TextCorrector` (`text_corrector.py`) applies RapidFuzz fuzzy matching against dictionaries (`reforging_options.txt` + `tooltip_general.txt`) to fix OCR errors
+- **Endpoints:** `POST /upload-item` (flat list), `POST /upload-item-v2` (structured sections)
 - **Goal:** Minimize manual typing and enable accurate stat-based searching.
 
 ### Why Line Splitter Instead of CRAFT?
@@ -25,10 +27,12 @@ CRAFT is EasyOCR's default text detector, designed for natural scene text (signs
 - CRAFT produces irregular polygonal crops that don't match training data format
 
 The custom `TooltipLineSplitter` uses horizontal projection profiling tailored for tooltip layout:
-- Removes vertical UI border columns that bridge inter-line gaps
-- Handles section headers adjacent to box decorations
+- Removes narrow (≤3px) high-density vertical border column runs
+- Two-pass detection: main threshold + `_rescue_gaps()` for sparse continuation lines
+- `_has_internal_gap()`: splits blocks with zero-projection gaps even within max_height
+- Configurable `horizontal_split_factor` for sub-splitting (color parts, etc.)
 - Proportional padding prevents bleed between adjacent lines
-- Proven accuracy: 75/75 (lightarmor), 22/22 (lobe), 23/23 (captain suit)
+- Proven accuracy: 80/80 (lightarmor), 22/22 (lobe), 23/23 (captain suit), 86/86 (titan blade), 33/33 (dropbell) — 244 total lines across 5 images
 
 ### B. Advanced Search & Database
 - **Storage:** Structured storage of item stats (e.g., "Fire Damage", "Durability", "Rarity").
@@ -66,11 +70,21 @@ The custom `TooltipLineSplitter` uses horizontal projection profiling tailored f
 - Converts images to binary (Black text / White bg) before upload.
 - Threshold value: 80. Output is strictly binary (0, 255 only).
 
+### Section-Aware Parser (`backend/mabinogi_tooltip_parser.py`)
+- Extends `TooltipLineSplitter` with game-specific section categorization
+- Config-driven via `configs/mabinogi_tooltip.yaml` — defines sections, header patterns, parse modes
+- Sections: item_name, item_type, item_grade, item_attrs, enchant, item_mod, reforge, erg, set_item, item_color, flavor_text, shop_price
+- Color parts (`parse_mode: color_parts`): RGB values parsed via regex from horizontal sub-segments
+- Sections with `skip: true` (flavor_text, shop_price) omitted from output
+
 ### Line Splitter (`backend/tooltip_line_splitter.py`)
 - Auto-detects background polarity (light vs dark)
-- `_remove_borders()`: Masks vertical border columns (>15% row density)
+- `_remove_borders()`: Masks narrow (≤3px) high-density vertical column runs (not all high-density columns — previous approach destroyed text alignment positions)
 - Gap tolerance: 2 rows (closes thin character stroke dips)
 - `_split_tall_block()`: Splits oversized blocks via local projection
+- `_rescue_gaps()`: Two-pass detection — re-scans large gaps with lower threshold (`max(2, w*0.01)`) to catch sparse continuation lines like `적용)`, `제외)`
+- `_has_internal_gap()`: Blocks with 2+ consecutive zero-projection rows get split even if within max_height
+- Configurable `horizontal_split_factor` (default 3 in base class, 1.5 for Mabinogi) — controls gap threshold for horizontal sub-splitting
 - Proportional padding: `pad_x = max(2, h//3)`, `pad_y = max(1, h//5)`
 - Parameters: `min_height=6, max_height=25, min_width=10`
 - Does NOT remove horizontal separators (they sit adjacent to section headers)
@@ -85,12 +99,17 @@ The custom `TooltipLineSplitter` uses horizontal projection profiling tailored f
 - Applied in both `backend/main.py` and `scripts/test_v2_pipeline.py` after reader init
 
 ### Ground Truth Data
-Located in `data/sample_images/` (5 pairs, 235 total lines):
-- `lightarmor_processed_3.png` + `.txt` — 75 lines, full tooltip with reforging/enchants/set items/colors
-- `titan_blade_processed.png` + `.txt` — 79 lines (longest), weapon with ergs/special reforging/set items
-- `dropbell_processed.png` + `.txt` — 36 lines, accessory with piercing/enchants/crafting
+Located in `data/sample_images/` (5 images, 244 total lines after splitter improvements):
+- `lightarmor_processed_3.png` + `.txt` — 80 lines, full tooltip with reforging/enchants/set items/colors
+- `titan_blade_processed.png` + `.txt` — 86 lines (longest), weapon with ergs/special reforging/set items
+- `dropbell_processed.png` + `.txt` — 33 lines, accessory with piercing/enchants/crafting
 - `lobe_processed.png` + `.txt` — 22 lines, armor with piercing stats and 6 color parts
 - `captain_suit_processed.png` + `.txt` — 23 lines, clothing with enchants and crafting info
+
+File types in `data/sample_images/`:
+- `*_processed.txt` — Full ground truth (all text in image)
+- `*_expected.txt` — Expected OCR output (may skip flavor text, bottom area)
+- `*_gt_candidate.txt` — Pipeline-generated candidates for manual review (created by `scripts/regenerate_gt.py`)
 
 ## 5. Key Technical Insights
 

@@ -1,17 +1,20 @@
 #!/usr/bin/env python3
 """
-Test the v2 OCR pipeline: TooltipLineSplitter → EasyOCR recognize()
+Test the v2 OCR pipeline: MabinogiTooltipParser (section-aware)
 
-Splits sample images into line crops, feeds each to the recognition model,
-and compares results against ground truth .txt files.
+Splits sample images into line crops, groups sub-lines, runs OCR,
+categorizes into sections, and compares against ground truth .txt files.
 
 Usage:
     python3 scripts/test_v2_pipeline.py                          # Test all GT pairs
     python3 scripts/test_v2_pipeline.py data/sample_images/captain_suit_processed.png  # Single image
+    python3 scripts/test_v2_pipeline.py -q                       # Summary only
+    python3 scripts/test_v2_pipeline.py --sections               # Show section breakdown
 """
 
 import os
 import sys
+import re
 import argparse
 import difflib
 
@@ -23,10 +26,16 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, PROJECT_ROOT)
 sys.path.insert(0, os.path.join(PROJECT_ROOT, 'backend'))
 
-from tooltip_line_splitter import TooltipLineSplitter
+from mabinogi_tooltip_parser import MabinogiTooltipParser
 
 MODELS_DIR = os.path.join(PROJECT_ROOT, 'backend', 'models')
 SAMPLE_DIR = os.path.join(PROJECT_ROOT, 'data', 'sample_images')
+CONFIG_PATH = os.path.join(PROJECT_ROOT, 'configs', 'mabinogi_tooltip.yaml')
+
+
+def normalize_line(text):
+    """Strip leading structural prefixes (-, ., ㄴ) and surrounding whitespace."""
+    return re.sub(r'^[\s\-\.ㄴ]+', '', text).strip()
 
 
 def load_ground_truth(txt_path):
@@ -51,43 +60,8 @@ def init_reader():
     return reader
 
 
-def recognize_line(reader, line_img_bgr):
-    """Recognize text from a single line crop image.
-
-    Args:
-        reader: EasyOCR Reader instance
-        line_img_bgr: BGR image (numpy array) of a single line crop
-
-    Returns:
-        (text, confidence) tuple
-    """
-    # Convert to grayscale for recognize()
-    if len(line_img_bgr.shape) == 3:
-        gray = cv2.cvtColor(line_img_bgr, cv2.COLOR_BGR2GRAY)
-    else:
-        gray = line_img_bgr
-
-    h, w = gray.shape
-    if h == 0 or w == 0:
-        return ('', 0.0)
-
-    # Call recognize() with a single bbox covering the entire image
-    results = reader.recognize(
-        gray,
-        horizontal_list=[[0, w, 0, h]],
-        free_list=[],
-        reformat=False,
-        detail=1
-    )
-
-    if results:
-        _, text, confidence = results[0]
-        return (text, confidence)
-    return ('', 0.0)
-
-
-def test_image(reader, image_path, gt_path, verbose=True):
-    """Test the v2 pipeline on a single image against ground truth.
+def test_image(reader, parser, image_path, gt_path, verbose=True, show_sections=False, normalize=False):
+    """Test the section-aware pipeline on a single image against ground truth.
 
     Returns:
         dict with results and metrics
@@ -95,65 +69,78 @@ def test_image(reader, image_path, gt_path, verbose=True):
     basename = os.path.basename(image_path)
     gt_lines = load_ground_truth(gt_path)
 
-    # Split image into lines
-    splitter = TooltipLineSplitter(output_dir='/tmp/v2_test')
-    img, gray, binary = splitter.preprocess_image(image_path)
-    detected_lines = splitter.detect_text_lines(binary)
+    # Run section-aware parsing pipeline
+    result = parser.parse_tooltip(image_path, reader)
+    ocr_lines = result['all_lines']
+    sections = result['sections']
+
+    # Compare only up to GT line count — extra OCR lines beyond GT are ignored
+    # (bottom area: flavor text, copyright, etc. not in GT)
+    compare_count = min(len(ocr_lines), len(gt_lines))
 
     if verbose:
         print(f"\n{'='*70}")
         print(f"  {basename}")
-        print(f"  GT lines: {len(gt_lines)}, Detected lines: {len(detected_lines)}")
+        print(f"  GT lines: {len(gt_lines)}, OCR lines: {len(ocr_lines)}, comparing: {compare_count}")
         print(f"{'='*70}")
 
-    # Extract line crops from the original image
     results = []
-    n_lines = min(len(detected_lines), len(gt_lines))
+    for i in range(compare_count):
+        line = ocr_lines[i]
+        text = line.get('text', '')
+        gt_text = gt_lines[i]
 
-    for i, line_info in enumerate(detected_lines):
-        x, y, w, h = line_info['x'], line_info['y'], line_info['width'], line_info['height']
+        cmp_gt = normalize_line(gt_text) if normalize else gt_text
+        cmp_ocr = normalize_line(text) if normalize else text
 
-        # Apply same proportional padding as extract_lines()
-        pad_x = max(2, h // 3)
-        pad_y = max(1, h // 5)
-        x_pad = max(0, x - pad_x)
-        y_pad = max(0, y - pad_y)
-        w_pad = min(img.shape[1] - x_pad, w + 2 * pad_x)
-        h_pad = min(img.shape[0] - y_pad, h + 2 * pad_y)
-
-        line_crop = img[y_pad:y_pad+h_pad, x_pad:x_pad+w_pad]
-
-        # Recognize
-        text, confidence = recognize_line(reader, line_crop)
-
-        gt_text = gt_lines[i] if i < len(gt_lines) else '???'
-
-        # Character-level accuracy (using SequenceMatcher)
-        matcher = difflib.SequenceMatcher(None, gt_text, text)
+        matcher = difflib.SequenceMatcher(None, cmp_gt, cmp_ocr)
         char_accuracy = matcher.ratio()
-
-        exact_match = (text.strip() == gt_text.strip())
+        exact_match = (cmp_ocr.strip() == cmp_gt.strip())
 
         results.append({
             'line_num': i + 1,
             'gt': gt_text,
             'ocr': text,
-            'confidence': confidence,
+            'confidence': line.get('confidence', 0.0),
             'char_accuracy': char_accuracy,
             'exact_match': exact_match,
+            'sub_count': line.get('sub_count', 1),
         })
 
         if verbose:
             status = 'OK' if exact_match else 'XX'
-            print(f"  [{status}] Line {i+1:2d} (conf={confidence:.3f}, acc={char_accuracy:.1%})")
+            sub_tag = f' [{line.get("sub_count", 1)} segs]' if line.get('sub_count', 1) > 1 else ''
+            print(f"  [{status}] Line {i+1:2d} (conf={line.get('confidence', 0):.3f}, acc={char_accuracy:.1%}){sub_tag}")
             if not exact_match:
                 print(f"       GT:  {gt_text}")
                 print(f"       OCR: {text}")
 
-    # Handle line count mismatch
-    if len(detected_lines) != len(gt_lines):
-        if verbose:
-            print(f"\n  WARNING: Line count mismatch (detected={len(detected_lines)}, gt={len(gt_lines)})")
+    # Show skipped OCR lines beyond GT
+    if len(ocr_lines) > len(gt_lines) and verbose:
+        skipped = len(ocr_lines) - len(gt_lines)
+        print(f"\n  ({skipped} extra OCR lines beyond GT — not scored)")
+
+    # Section breakdown
+    if show_sections and sections:
+        print(f"\n  {'─'*66}")
+        print(f"  SECTIONS DETECTED:")
+        for section_key, section_data in sections.items():
+            if section_data.get('skipped'):
+                print(f"    [{section_key}] (skipped, {section_data.get('line_count', 0)} lines)")
+            elif 'parts' in section_data:
+                parts = section_data['parts']
+                print(f"    [{section_key}] {len(parts)} color parts")
+                for p in parts:
+                    print(f"      Part {p['part']}: R={p.get('r')}, G={p.get('g')}, B={p.get('b')}")
+            elif 'lines' in section_data:
+                n = len(section_data['lines'])
+                print(f"    [{section_key}] {n} lines")
+                for line in section_data['lines'][:3]:
+                    print(f"      \"{line.get('text', '')[:60]}\"")
+                if n > 3:
+                    print(f"      ... ({n - 3} more)")
+            elif 'text' in section_data:
+                print(f"    [{section_key}] \"{section_data['text'][:60]}\"")
 
     # Summary metrics
     if results:
@@ -168,12 +155,13 @@ def test_image(reader, image_path, gt_path, verbose=True):
     summary = {
         'image': basename,
         'gt_lines': len(gt_lines),
-        'detected_lines': len(detected_lines),
+        'detected_lines': len(ocr_lines),
         'exact_matches': exact_matches,
         'total_compared': len(results),
         'exact_match_rate': exact_matches / len(results) if results else 0,
         'avg_char_accuracy': avg_char_accuracy,
         'avg_confidence': avg_confidence,
+        'sections_detected': len(sections),
         'results': results,
     }
 
@@ -181,52 +169,63 @@ def test_image(reader, image_path, gt_path, verbose=True):
         print(f"\n  Summary: {exact_matches}/{len(results)} exact matches "
               f"({summary['exact_match_rate']:.1%}), "
               f"avg char accuracy: {avg_char_accuracy:.1%}, "
-              f"avg confidence: {avg_confidence:.3f}")
+              f"avg confidence: {avg_confidence:.3f}, "
+              f"sections: {len(sections)}")
 
     return summary
 
 
-def find_gt_pairs(sample_dir):
-    """Find all image + ground truth .txt pairs in sample_dir."""
+def find_gt_pairs(sample_dir, gt_suffix='.txt'):
+    """Find all image + ground truth pairs in sample_dir."""
     pairs = []
     for f in sorted(os.listdir(sample_dir)):
         if f.endswith('.png') and 'processed' in f and not f.endswith('_original.png'):
             base = os.path.splitext(f)[0]
-            txt = os.path.join(sample_dir, base + '.txt')
+            txt = os.path.join(sample_dir, base + gt_suffix)
             if os.path.exists(txt):
                 pairs.append((os.path.join(sample_dir, f), txt))
     return pairs
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Test v2 OCR pipeline (LineSplitter + recognize)')
-    parser.add_argument('image', nargs='?', help='Single image to test (optional)')
-    parser.add_argument('--quiet', '-q', action='store_true', help='Only show summary')
-    args = parser.parse_args()
+    argp = argparse.ArgumentParser(description='Test v2 OCR pipeline (section-aware)')
+    argp.add_argument('image', nargs='?', help='Single image to test (optional)')
+    argp.add_argument('--quiet', '-q', action='store_true', help='Only show summary')
+    argp.add_argument('--sections', '-s', action='store_true', help='Show section breakdown')
+    argp.add_argument('--gt-suffix', default='.txt',
+                       help='GT file suffix (default: .txt, use _expected.txt for expected-only)')
+    argp.add_argument('--normalize', '-n', action='store_true',
+                       help='Strip leading structural prefixes (-, ., ㄴ) before comparison')
+    args = argp.parse_args()
 
     print("Initializing EasyOCR reader with custom model...")
     reader = init_reader()
+    parser = MabinogiTooltipParser(CONFIG_PATH)
+
+    gt_suffix = args.gt_suffix
 
     if args.image:
-        # Single image mode
         image_path = args.image
-        gt_path = os.path.splitext(image_path)[0] + '.txt'
+        base = os.path.splitext(image_path)[0]
+        gt_path = base + gt_suffix
         if not os.path.exists(gt_path):
             print(f"Error: Ground truth file not found: {gt_path}")
             sys.exit(1)
-        test_image(reader, image_path, gt_path, verbose=not args.quiet)
+        test_image(reader, parser, image_path, gt_path,
+                   verbose=not args.quiet, show_sections=args.sections, normalize=args.normalize)
     else:
-        # Test all GT pairs
-        pairs = find_gt_pairs(SAMPLE_DIR)
+        pairs = find_gt_pairs(SAMPLE_DIR, gt_suffix)
         if not pairs:
-            print(f"No ground truth pairs found in {SAMPLE_DIR}")
+            print(f"No ground truth pairs found in {SAMPLE_DIR} with suffix '{gt_suffix}'")
             sys.exit(1)
 
         print(f"Found {len(pairs)} ground truth pairs\n")
 
         all_summaries = []
         for image_path, gt_path in pairs:
-            summary = test_image(reader, image_path, gt_path, verbose=not args.quiet)
+            summary = test_image(reader, parser, image_path, gt_path,
+                                 verbose=not args.quiet, show_sections=args.sections,
+                                 normalize=args.normalize)
             all_summaries.append(summary)
 
         # Overall summary
@@ -239,7 +238,8 @@ def main():
         print(f"{'='*70}")
         for s in all_summaries:
             print(f"  {s['image']:40s}  {s['exact_matches']:3d}/{s['total_compared']:<3d} exact  "
-                  f"char_acc={s['avg_char_accuracy']:.1%}  conf={s['avg_confidence']:.3f}")
+                  f"char_acc={s['avg_char_accuracy']:.1%}  conf={s['avg_confidence']:.3f}  "
+                  f"sections={s['sections_detected']}")
         print(f"  {'─'*66}")
         if total_compared > 0:
             print(f"  {'TOTAL':40s}  {total_exact:3d}/{total_compared:<3d} exact  "

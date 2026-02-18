@@ -40,13 +40,14 @@ After training, deploy model by copying `.pth` to `backend/models/custom_mabinog
 ### OCR Pipeline (core feature)
 The data flow for item registration:
 1. **Frontend** (`src/pages/sell.jsx`): Browser preprocesses uploaded image (grayscale → thresholding) to produce black-text-on-white-background PNG (contrast=1.0, brightness=1.0, threshold=80)
-2. **Backend** (`backend/main.py` → `POST /upload-item`): Receives image, runs the v2 pipeline:
-   - `TooltipLineSplitter` (`tooltip_line_splitter.py`): Horizontal projection profiling splits the tooltip into individual line crops. Handles vertical border removal, gap tolerance, and proportional padding.
+2. **Backend** (`backend/main.py` → `POST /upload-item-v2`): Receives image, runs the v2 pipeline:
+   - `MabinogiTooltipParser` (`mabinogi_tooltip_parser.py`): Section-aware wrapper that categorizes lines into game sections using `configs/mabinogi_tooltip.yaml`
+   - `TooltipLineSplitter` (`tooltip_line_splitter.py`): Horizontal projection profiling splits the tooltip into individual line crops. Handles border removal, gap rescue, internal gap splitting, and horizontal sub-splitting.
    - `EasyOCR recognize()` on each line crop: Bypasses CRAFT detection entirely, runs custom TPS-ResNet-BiLSTM-CTC model directly on pre-cropped line images.
    - `TextCorrector` (`text_corrector.py`): RapidFuzz fuzzy matching against game dictionaries (`data/dictionary/reforging_options.txt` + `tooltip_general.txt`) to fix OCR errors
-3. Results returned as JSON with corrected text, raw text, confidence, correction score, and line positions
+3. Results returned as JSON with structured sections, corrected text, raw text, confidence, correction score, and line positions
 
-**Why not CRAFT?** CRAFT is designed for natural scene text detection (signs, labels in photos). On structured tooltip layouts, it fragments lines, merges adjacent text, and misses entire sections. The `TooltipLineSplitter` achieves perfect detection on all test images (75/75, 22/22, 23/23 lines).
+**Why not CRAFT?** CRAFT is designed for natural scene text detection (signs, labels in photos). On structured tooltip layouts, it fragments lines, merges adjacent text, and misses entire sections. The `TooltipLineSplitter` achieves perfect detection on all test images (244 total lines across 5 images).
 
 ### Custom OCR Model
 - Architecture: `TPS-ResNet-BiLSTM-CTC` (from `deep-text-recognition-benchmark/`)
@@ -57,12 +58,22 @@ The data flow for item registration:
 - Inference patch: `backend/ocr_utils.py` — fixes EasyOCR's dynamic imgW to use yaml's fixed value
 - Training history and known issues: `OCR_TRAINING_HISTORY.md`
 
+### Section-Aware Parser (`backend/mabinogi_tooltip_parser.py`)
+- Extends `TooltipLineSplitter` with Mabinogi-specific section categorization
+- Config: `configs/mabinogi_tooltip.yaml` — defines sections (item_name, item_attrs, enchant, reforge, erg, set_item, item_color, etc.), header patterns, parse modes, skip flags
+- Color parts (`parse_mode: color_parts`): RGB values parsed via regex from horizontal sub-segments, bypassing general OCR
+- Sections with `skip: true` (flavor_text, shop_price) omitted from output
+- `horizontal_split_factor: 1.5` configured for Mabinogi's color part gap sizes
+
 ### Line Splitter (`backend/tooltip_line_splitter.py`)
 Splits tooltip images into individual text line crops using horizontal projection profiling:
 - Auto-detects background polarity (light vs dark)
-- `_remove_borders()`: Masks vertical UI border columns (>15% row density) that bridge gaps between lines
+- `_remove_borders()`: Masks narrow (≤3px wide) high-density vertical column runs. Only masks actual border pipes, not text alignment positions.
 - Gap tolerance of 2 rows closes thin character stroke dips without merging separate lines
 - `_split_tall_block()`: Handles oversized merged blocks by local projection analysis
+- `_rescue_gaps()`: Two-pass detection — re-scans large gaps with lower threshold to catch sparse continuation lines (e.g., `적용)`, `제외)`)
+- `_has_internal_gap()`: Blocks with 2+ consecutive zero-projection rows get split even if within max_height
+- Configurable `horizontal_split_factor` (default 3) — gaps wider than `line_height * factor` trigger horizontal sub-splitting
 - Proportional padding: `pad_x = max(2, h//3)`, `pad_y = max(1, h//5)`
 - Parameters: `min_height=6, max_height=25, min_width=10`
 - Horizontal separators are intentionally kept (they don't bridge sections, and removing them destroys adjacent headers like "개조", "세공")
@@ -159,9 +170,10 @@ python3 scripts/test_v2_pipeline.py -q     # Summary only
 **When to re-run `create_model_config.py`:** Anytime you change `model:` section in `configs/training_config.yaml` (especially `imgW`, `imgH`), or update `unique_chars.txt`. The yaml must match training args exactly — the TPS Spatial Transformer is built with `I_size=(imgH, imgW)` and mismatched weights will crash or produce garbage.
 
 ### Testing
-- `scripts/test_v2_pipeline.py` — Splits GT images → `recognize()` → compares against GT `.txt` files
-- `scripts/test_line_splitter.py <image> <output_dir>` — Visual line detection verification
-- Ground truth pairs in `data/sample_images/`: 5 images, 235 total lines
+- `scripts/test_v2_pipeline.py` — Uses `MabinogiTooltipParser` to split GT images → `recognize()` → compares against GT `.txt` files. Supports `--sections`/`-s` flag for section breakdown.
+- `scripts/test_line_splitter.py <image> <output_dir>` — Visual line detection verification using `MabinogiTooltipParser`
+- `scripts/regenerate_gt.py` — Runs parser on GT images, outputs `_gt_candidate.txt` files for manual review. `--apply` strips comments and overwrites `.txt` GT files.
+- Ground truth in `data/sample_images/`: 5 images, 244 total lines. File types: `*.txt` (full GT), `*_expected.txt` (expected OCR output), `*_gt_candidate.txt` (pipeline candidates)
 
 ### Recommendation System
 - `backend/recommendation.py`: TF-IDF vectorization of item descriptions + cosine similarity
@@ -191,6 +203,6 @@ Documents to keep in sync: `CLAUDE.md`, `AGENTS.md`, `OCR_TRAINING_HISTORY.md`, 
 - EasyOCR always uses `keep_ratio_with_pad=True` during inference (hardcoded in `recognition.py` lines 199, 213), regardless of yaml PAD setting. Training must use `--PAD` to match.
 - Item database is currently mocked in `backend/recommendation.py` (`ITEMS_DB`); no persistent storage yet
 - The `data/` directory (fonts, dictionary, sample images) is not fully committed to git
-- Ground truth files (`data/sample_images/*.txt`) exist for: `lightarmor_processed_3`, `captain_suit_processed`, `lobe_processed`, `titan_blade_processed`, `dropbell_processed`
+- Ground truth files (`data/sample_images/*.txt`) exist for: `lightarmor_processed_3`, `captain_suit_processed`, `lobe_processed`, `titan_blade_processed`, `dropbell_processed`. Additional `*_expected.txt` files track expected OCR output (may differ from full GT due to skipped sections).
 - Character set expanded to 509 chars (was 442) — all GT characters now covered
 - Training must run independently (not as subprocess of Claude Code) to avoid OOM kills — use `nohup` in a separate terminal

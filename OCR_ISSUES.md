@@ -9,7 +9,7 @@
 - **Low OCR Confidence** — Fixed `--sensitive` flag bug that silently dropped all Korean training samples.
 - **PAD Mismatch** — Added `--PAD` flag to match EasyOCR's hardcoded `keep_ratio_with_pad=True`.
 - **Grayscale Domain Gap** — Enforced 100% binary thresholding and re-thresholding after resize.
-- **Line Splitter Border Artifacts** — `_remove_borders()` masks vertical border columns (>15% row density).
+- **Line Splitter Border Artifacts** — `_remove_borders()` masks narrow (≤3px) high-density vertical column runs. Previous approach masked ALL columns >15% density, which removed 34 columns including text alignment positions (ㄴ, - prefixes), causing lines like `담금질 2/3/4` to disappear.
 - **Line Splitter Padding Bleed** — Proportional padding: `pad_x = max(2, h//3)`, `pad_y = max(1, h//5)`.
 - **Missing Section Headers** — Kept horizontal separators (removing them destroyed "개조", "세공" headers).
 - **Short Text Filtered** — Reduced `min_width` from 30 to 10 for short text like "천옷".
@@ -19,6 +19,11 @@
 - **Illegible Training Images** — Removed font sizes 6-7 (produced unreadable tiny text). Quality gates enforce ink ratio ≥2%, width ≥10px, height ≥8px on every generated image.
 - **Faint Training Images** — Removed augmentation (blur, erode/dilate) that produced 25% unreadable images. Clean binary only.
 - **Full-Canvas Whitespace** — Training images now tight-cropped to ink bounds, matching real splitter output. Eliminates hallucination from whitespace.
+- **Missing Sparse Continuation Lines** — Lines like `적용)`, `제외)` were missed because their sparse ink fell below the main projection threshold. Added `_rescue_gaps()` two-pass detection: main threshold for normal lines, then lower threshold (`max(2, w*0.01)`) re-scans large gaps to catch sparse continuation lines without causing merging.
+- **Merged Blocks Within max_height** — Blocks like `기본 효과` + `무기 공격력 50 증가` merged as h=23 (within max_height=25) despite having a clear zero-projection gap. Added `_has_internal_gap()` check: blocks with 2+ consecutive zero-projection rows get sent to `_split_tall_block()` even if within max_height.
+- **Color Parts Not Split Horizontally** — Multi-digit RGB values (e.g., `R:187 G:153 B:85`) merged into one segment because gap sizes (15-16px) were below the split threshold. Made `horizontal_split_factor` configurable (default 3 in base, 1.5 for Mabinogi via `configs/mabinogi_tooltip.yaml`). For h=8 color lines: threshold=12, gaps 15-16 > 12 → correct 4-way split.
+- **Section-Aware Parsing** — Created `MabinogiTooltipParser` (`backend/mabinogi_tooltip_parser.py`) that categorizes lines into game sections (item_attrs, enchant, reforge, etc.) using config from `configs/mabinogi_tooltip.yaml`. Enables structured output and section-specific handling (e.g., color parts parsed via regex, flavor text skipped).
+- **GT Alignment Drift** — Old GT files didn't match pipeline output (different line counts from horizontal splitting, skip logic changes). Created `scripts/regenerate_gt.py` to produce GT candidates from actual pipeline output. Added `*_expected.txt` files for expected OCR output (separate from full GT).
 
 ---
 
@@ -75,12 +80,11 @@ Proportional canvas width caused 57% of training at wrong squash factors. Fixed 
 
 ### Current Issues Blocking 80%
 
-1. **GT alignment drift** — titan_blade (79 detected vs 83 GT) and dropbell (36 vs 38) cause comparison against wrong GT lines. Biggest single factor (~10-15pp impact).
-2. **Color part lines** — `파트 A R:0 G:0 B:0` have sparse multi-cluster layout (h=7, w=210) never seen in training. 18 lines at 13.8% avg accuracy.
-3. **Leading `-` stripped** — Border filter may remove leading dash characters. 27 lines lose the `- ` prefix (81.1% avg, would be ~95% with dash).
-4. **Short text h<10** — `천옷`(h=6), `세공`(h=6-8) are below training minimum (h=10). 6 lines at 12.5%.
-5. **`%` misread as `9`** — Consistent glyph confusion at small sizes. 5 lines at 85.7%.
-6. **Price/bottom lines** — `상점판매가` always garbled with `(327` prefix. 3 lines at 18%.
+1. **Color part lines** — `파트 A R:0 G:0 B:0` have sparse multi-cluster layout (h=7, w=210) never seen in training. Now split horizontally into sub-segments, but individual segments still need OCR accuracy improvement.
+2. **Leading `-` stripped** — Border filter may remove leading dash characters. 27 lines lose the `- ` prefix (81.1% avg, would be ~95% with dash).
+3. **Short text h<10** — `천옷`(h=6), `세공`(h=6-8) are below training minimum (h=10). 6 lines at 12.5%.
+4. **`%` misread as `9`** — Consistent glyph confusion at small sizes. 5 lines at 85.7%.
+5. **Bottom area lines** — Flavor text, copyright, shop price at bottom of tooltip are garbled. These can be ignored via section-aware parser (skip sections in config).
 
 ---
 

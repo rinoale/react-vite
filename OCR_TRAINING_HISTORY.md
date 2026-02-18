@@ -606,3 +606,61 @@ Consistent pattern: `3% 감소` → `39 감소`, `72 % 증가` → `72 9 증가`
 | Investigate price line crops | 3 lines | +0.5pp |
 
 Conservative estimate with all fixes: **68-78% char accuracy**. The GT alignment fix alone is the single biggest win.
+
+---
+
+## Attempt 14 Preparation: Section-Aware Parser + Splitter Overhaul
+
+Attempt 14 takes a strategic shift: instead of pushing OCR to handle everything, make the pipeline **domain-aware**. The splitter and parser now understand Mabinogi tooltip structure — detecting sections, splitting color parts structurally, and skipping unnecessary areas (flavor text, copyright).
+
+### Change 1: Section-Aware Parser (`backend/mabinogi_tooltip_parser.py`)
+
+New `MabinogiTooltipParser` class extends `TooltipLineSplitter` with:
+- **Section detection**: Matches OCR text against header patterns (아이템 속성, 인챈트, 개조, 세공, 에르그, 세트아이템, 아이템 색상)
+- **Line categorization**: Groups lines into sections (item_name, item_attrs, enchant, reforge, erg, set_item, item_color, etc.)
+- **Structural color parsing**: RGB values parsed via regex from sub-segments, not general OCR
+- **Skip logic**: Flavor text and shop price sections marked as skip — detected but ignored in output
+- **Config-driven**: Section definitions in `configs/mabinogi_tooltip.yaml`, separating game-specific logic from base splitter
+
+### Change 2: Splitter Improvements (`backend/tooltip_line_splitter.py`)
+
+Four fixes to the base splitter, addressing lines missed in Attempt 13:
+
+**Fix 1 — Smarter border removal (`_remove_borders()`):**
+- Before: Masked ALL columns with >15% row density — removed 34 columns including text positions where `ㄴ`, `-` prefixes align vertically
+- After: Only masks narrow runs (≤3px wide) of high-density columns — actual UI borders
+- Impact: `- 담금질 2/3/4` now detected (raw projection 11-26 per row, was stripped to 1-6)
+
+**Fix 2 — Rescue pass (`_rescue_gaps()`):**
+- Re-scans large gaps between detected blocks using lower threshold (`max(2, w*0.01)` vs main `max(3, w*0.015)`)
+- Catches sparse continuation lines: `적용)`, `제외)`, `(6~7)` that have only 2-10 ink pixels per row after border removal
+- Only triggers in gaps > 1.5× average block height — doesn't affect normal inter-line gaps
+
+**Fix 3 — Internal gap splitting (`_has_internal_gap()`):**
+- Blocks with 2+ consecutive zero-projection rows internally are split via `_split_tall_block()`
+- Fixes: `기본 효과` + `- 무기 공격력 50 증가` merged as one h=23 block (clear zero gap at y=1087-1088)
+
+**Fix 4 — Configurable horizontal split factor:**
+- `horizontal_split_factor` attribute on base class (default 3), overridden by config
+- Set to 1.5 for Mabinogi: reliably splits multi-digit RGB values (`R:187 G:153 B:85`) where gaps are 15-16px and line heights are 7-9px
+
+### Line Detection Results
+
+| Image | Before (Att 13) | After | Change |
+|-------|-----------------|-------|--------|
+| captain_suit | 23 | 23 | — |
+| dropbell | 36 | 38 | +`적용)`, `(6~7)` |
+| lightarmor | 75 | 75 | — |
+| lobe | 22 | 22 | — |
+| titan_blade | 79 | 86 | +`담금질 2/3/4`, `적용)`, `제외)`, split `기본 효과` |
+| **TOTAL** | **235** | **244** | **+9 lines** |
+
+### New Infrastructure
+
+- **`configs/mabinogi_tooltip.yaml`** — Section definitions, horizontal_split_factor, game-specific config
+- **`backend/mabinogi_tooltip_parser.py`** — Section-aware parser with structural color parsing
+- **`POST /upload-item-v2`** — New API endpoint returning structured section data
+- **`scripts/regenerate_gt.py`** — GT regeneration helper (pipeline output → candidate → manual review → apply)
+- **GT file types**: `*_processed.txt` (full GT), `*_expected.txt` (expected OCR output, may skip areas)
+- **`scripts/test_v2_pipeline.py`** — Now uses MabinogiTooltipParser, `--sections` flag shows section breakdown
+- **`scripts/test_line_splitter.py`** — Now uses MabinogiTooltipParser for game-specific settings
