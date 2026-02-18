@@ -31,7 +31,7 @@ A specialized marketplace for trading in-game items with automated OCR (Optical 
 │   └── sample_images/             # Ground truth pairs (.png + .txt)
 ├── scripts/                       # Training data gen, testing, config
 ├── skills/                        # Gemini CLI Skills (OCR Trainer)
-├── src/                           # React Frontend
+├── frontend/                      # React/Vite frontend app
 ├── OCR_TRAINING_HISTORY.md        # Full training history (6 attempts)
 ├── OCR_ISSUES.md                  # Known issues and resolutions
 ├── AGENTS.md                      # Detailed project context for AI agents
@@ -51,11 +51,56 @@ uvicorn main:app --reload --port 8000
 ### 2. Frontend Setup
 
 ```bash
+cd frontend
 npm install
 npm run dev
 ```
 
 Visit `http://localhost:5173` to browse the marketplace.
+
+---
+
+## 🐳 Docker Setup
+
+This project includes:
+- `backend/Dockerfile` (Python `3.14.2`, FastAPI/uvicorn)
+- `frontend/Dockerfile` (Node `25.2.1`, Vite frontend)
+- `docker-compose.yml` (runs both services together)
+
+### Build Images
+
+```bash
+docker compose build
+```
+
+If backend dependency compilation fails or cache gets stale, rebuild backend without cache:
+
+```bash
+docker compose build backend --no-cache
+```
+
+### Start Services
+
+```bash
+docker compose up
+```
+
+Run detached:
+
+```bash
+docker compose up -d
+```
+
+### Service URLs
+
+- Frontend: `http://localhost:5173`
+- Backend API: `http://localhost:8000`
+
+### Stop Services
+
+```bash
+docker compose down
+```
 
 ---
 
