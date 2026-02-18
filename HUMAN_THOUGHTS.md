@@ -26,3 +26,16 @@ For measuring required variable factors, we need not just script but service ini
 ## History
 
 ### After attempt12, telling claude that the training data are consisted of almost faint image and contains unnecessary horizontally blank. ask to find the way how to match real world image
+
+
+## Notes
+During the early attempts, I asked only to implement OCR with game images. After few attempts, I realized that I could improve how they approach to solve the problem by explaining the solution in very human way.
+(Also, theey are capable of implementing what humans are thinking)
+I requested to analyze the training images to determine which parts are importants and which parts are not.
+With this abstract request, they implemented image split logic which worked like human's eyes did.
+It started not to recognize unwanted symbols as text and to generate splitting images without unnecessary wide blank.
+
+At this moment(2026-02-15 12:00PM), we are discussing how we categorize each splitted images and extract only required text.
+This strategy not only saves the resource of using OCR but also improves accuracy.
+
+Now I'm asking to implement Mabinogi-specified human-eye efficient OCR.
