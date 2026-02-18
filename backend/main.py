@@ -2,6 +2,7 @@ from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import shutil
 import os
+import tempfile
 import easyocr
 from recommendation import recommender, ITEMS_DB
 from text_corrector import TextCorrector
@@ -70,49 +71,43 @@ def recommend_for_user(user_history: UserHistory):
 
 @app.post("/upload-item")
 async def upload_item(file: UploadFile = File(...)):
-    try:
-        # 1. Save uploaded file temporarily
-        temp_filename = f"temp_{file.filename}"
-        with open(temp_filename, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+    """Upload tooltip image and return flat list of detected lines.
 
-        # 2. Run OCR directly on the full image (CRAFT handles text detection)
-        ocr_results = reader.readtext(temp_filename)
+    Uses the v2 pipeline (MabinogiTooltipParser) internally.
+    Returns detected_lines in the same format as before for frontend compatibility.
+    """
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+            shutil.copyfileobj(file.file, tmp)
+            temp_filename = tmp.name
+
+        try:
+            # Use v2 pipeline: section-aware splitter + EasyOCR recognize()
+            result = tooltip_parser.parse_tooltip(temp_filename, reader)
+        finally:
+            os.remove(temp_filename)
 
         results = []
-        for bbox, raw_text, confidence in ocr_results:
+        for line in result.get('all_lines', []):
+            raw_text = line.get('text', '')
             if not raw_text.strip():
                 continue
 
-            # 3. Apply Dictionary Correction
             corrected_text, score = corrector.correct(raw_text)
             final_text = corrected_text if score > 60 else raw_text
-
-            # Convert bbox to simple bounds
-            xs = [pt[0] for pt in bbox]
-            ys = [pt[1] for pt in bbox]
-            bounds = {
-                "x": int(min(xs)),
-                "y": int(min(ys)),
-                "width": int(max(xs) - min(xs)),
-                "height": int(max(ys) - min(ys)),
-            }
 
             results.append({
                 "text": final_text,
                 "raw_text": raw_text,
-                "confidence": float(confidence),
+                "confidence": float(line.get('confidence', 0.0)),
                 "correction_score": float(score) / 100.0,
-                "bounds": bounds,
+                "bounds": line.get('bounds', {}),
             })
-
-        # Cleanup temp file
-        os.remove(temp_filename)
 
         return {
             "filename": file.filename,
             "detected_lines": results,
-            "raw_text_summary": "\n".join([r['text'] for r in results])
+            "raw_text_summary": "\n".join([r['text'] for r in results]),
         }
 
     except Exception as e:
@@ -129,12 +124,15 @@ async def upload_item_v2(file: UploadFile = File(...)):
     lines into game-specific sections (item_attrs, reforge, enchant, etc.).
     """
     try:
-        temp_filename = f"temp_{file.filename}"
-        with open(temp_filename, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+            shutil.copyfileobj(file.file, tmp)
+            temp_filename = tmp.name
 
-        # Run section-aware parsing pipeline
-        result = tooltip_parser.parse_tooltip(temp_filename, reader)
+        try:
+            # Run section-aware parsing pipeline
+            result = tooltip_parser.parse_tooltip(temp_filename, reader)
+        finally:
+            os.remove(temp_filename)
 
         # Apply text correction to each OCR line
         for line in result.get('all_lines', []):
@@ -156,8 +154,6 @@ async def upload_item_v2(file: UploadFile = File(...)):
                         corrected_text, score = corrector.correct(raw_text)
                         line['corrected_text'] = corrected_text if score > 60 else raw_text
                         line['correction_score'] = float(score) / 100.0
-
-        os.remove(temp_filename)
 
         return {
             "filename": file.filename,

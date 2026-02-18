@@ -29,8 +29,6 @@ sections:
     description: "Item grade (에픽, 레어, 마스터, etc.) and grade bonus"
     header_patterns:
       - "등급"
-      - "에픽"
-      - "레어"
     required: false
     ocr: true
 
