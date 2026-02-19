@@ -1,54 +1,63 @@
 # Mabinogi Item Trade Website
 
-A specialized marketplace for trading in-game items with automated OCR (Optical Character Recognition) item registration and smart recommendation system.
+A specialized marketplace for trading in-game items with automated OCR item registration and a content-based recommendation system.
 
-## 🚀 Features
+## Features
 
-*   **OCR Item Registration:** Upload item screenshots to automatically fill in stats and details.
-*   **Smart Marketplace:** Search items by specific attributes (e.g., "Fire Damage > 50").
-*   **Recommendations:** Content-based filtering suggests items based on search and purchase history.
-*   **Custom OCR Training:** Tooling to train EasyOCR on Mabinogi's specific game font.
+- **OCR Item Registration** — Upload an item tooltip screenshot; stats and details are extracted automatically.
+- **Smart Marketplace** — Search items by specific attributes (e.g., "Fire Damage > 50").
+- **Recommendations** — Content-based filtering suggests items based on search and purchase history.
+- **Custom OCR Model** — Trained on the actual Mabinogi game font; fine-tuned for tooltip layout.
 
-## 🛠️ Tech Stack
+## Tech Stack
 
-*   **Frontend:** React, Vite, Tailwind CSS
-*   **Backend:** Python, FastAPI, EasyOCR, scikit-learn
-*   **Database:** (Mocked/SQLite)
-*   **OCR:** EasyOCR (with custom trained model capabilities)
+- **Frontend:** React, Vite, Tailwind CSS
+- **Backend:** Python, FastAPI, EasyOCR, scikit-learn
+- **OCR model:** TPS-ResNet-BiLSTM-CTC (custom-trained via deep-text-recognition-benchmark)
 
-## 📂 Project Structure
+---
+
+## Project Structure
 
 ```
 ├── backend/
-│   ├── main.py                    # FastAPI server, OCR pipeline endpoint
-│   ├── tooltip_line_splitter.py   # Line detection via horizontal projection
-│   ├── text_corrector.py          # Fuzzy matching post-correction
-│   ├── models/                    # Custom EasyOCR model (.pth, .yaml, .py)
-│   └── unique_chars.txt           # 442-char Korean character set
+│   ├── main.py                    # FastAPI server, POST /upload-item-v2
+│   ├── tooltip_line_splitter.py   # Line splitting via horizontal projection profiling
+│   ├── mabinogi_tooltip_parser.py # Section-aware parser (extends line splitter)
+│   ├── text_corrector.py          # RapidFuzz post-OCR correction
+│   ├── ocr_utils.py               # EasyOCR inference patch (fixed imgW)
+│   ├── models/                    # Custom model weights (.pth), config (.yaml, .py)
+│   └── unique_chars.txt           # 509-char character set for the OCR model
+├── configs/
+│   ├── training_config.yaml       # All training parameters (single source of truth)
+│   └── mabinogi_tooltip.yaml      # Section header patterns for the parser
 ├── data/
-│   ├── fonts/                     # Mabinogi game font
-│   ├── dictionary/                # Reforging + tooltip dictionaries
-│   └── sample_images/             # Ground truth pairs (.png + .txt)
-├── scripts/                       # Training data gen, testing, config
-├── skills/                        # Gemini CLI Skills (OCR Trainer)
-├── frontend/                      # React/Vite frontend app
-├── OCR_TRAINING_HISTORY.md        # Full training history (6 attempts)
-├── OCR_ISSUES.md                  # Known issues and resolutions
-├── AGENTS.md                      # Detailed project context for AI agents
-└── CLAUDE.md                      # Claude Code instructions
+│   ├── fonts/                     # Mabinogi game font (mabinogi_classic.ttf)
+│   ├── dictionary/                # reforging_options.txt, tooltip_general.txt
+│   └── sample_images/             # GT images (.png) + labels (.txt, _expected.txt)
+├── scripts/                       # Training pipeline, testing, config generation
+├── skills/ocr-trainer/            # LMDB creation + deep-text-recognition-benchmark
+├── frontend/                      # React/Vite app
+├── documents/
+│   ├── ARCHITECTURE.md            # OCR pipeline internals
+│   └── STRATEGY_MABINOGI.md       # Design decisions with porting guides (D1–D10)
+├── OCR_TRAINING_HISTORY.md        # Per-attempt training log and accuracy results
+├── OCR_ISSUES.md                  # Issue tracker (resolved + current blockers)
+└── CLAUDE.md                      # AI agent instructions and project conventions
 ```
 
-## ⚡ Quick Start
+---
 
-### 1. Backend Setup
+## Quick Start
+
+### Backend
 
 ```bash
-cd backend
-pip install -r requirements.txt
-uvicorn main:app --reload --port 8000
+pip install -r backend/requirements.txt
+cd backend && uvicorn main:app --reload --port 8000
 ```
 
-### 2. Frontend Setup
+### Frontend
 
 ```bash
 cd frontend
@@ -56,47 +65,23 @@ npm install
 npm run dev
 ```
 
-Visit `http://localhost:5173` to browse the marketplace.
+Visit `http://localhost:5173`.
 
 ---
 
-## 🐳 Docker Setup
-
-This project includes:
-- `backend/Dockerfile` (Python `3.14.2`, FastAPI/uvicorn)
-- `frontend/Dockerfile` (Node `25.2.1`, Vite frontend)
-- `docker-compose.yml` (runs both services together)
-
-### Build Images
+## Docker Setup
 
 ```bash
+# Build and start both services
 docker compose build
-```
+docker compose up
 
-If backend dependency compilation fails or cache gets stale, rebuild backend without cache:
-
-```bash
+# Rebuild backend without cache (if dependency compilation fails)
 docker compose build backend --no-cache
 ```
 
-### Start Services
-
-```bash
-docker compose up
-```
-
-Run detached:
-
-```bash
-docker compose up -d
-```
-
-### Service URLs
-
 - Frontend: `http://localhost:5173`
 - Backend API: `http://localhost:8000`
-
-### Stop Services
 
 ```bash
 docker compose down
@@ -104,85 +89,108 @@ docker compose down
 
 ---
 
-## 📜 Scripts & Utilities
+## OCR Pipeline
 
-This project includes several helper scripts in the `scripts/` directory to help with development and OCR model training.
-
-**Note:** Always run these scripts from the **project root directory**.
-
-### 1. Generate Training Data (`scripts/generate_training_data.py`)
-Generates synthetic training images using the Mabinogi font and a dictionary of item options.
-
-```bash
-# Generates images in backend/train_data/
-python3 scripts/generate_training_data.py
+```
+Screenshot → Frontend (threshold=80) → Line Splitter → Recognition → Correction → JSON
 ```
 
-### 2. Test OCR Pipeline (`scripts/test_ocr.py`)
-Runs EasyOCR with the custom trained model directly on a sample image. Useful for evaluating OCR accuracy.
+1. **Preprocessing** (`frontend/src/pages/sell.jsx`) — Browser converts screenshot to binary PNG (black text on white, threshold=80).
+2. **Line splitting** (`backend/tooltip_line_splitter.py`) — Horizontal projection profiling splits the tooltip into individual line crops. Replaces EasyOCR's CRAFT detector, which performs poorly on structured layouts.
+3. **Section parsing** (`backend/mabinogi_tooltip_parser.py`) — Categorizes each line into game sections (enchant, reforge, color parts, etc.) using `configs/mabinogi_tooltip.yaml`. Color part RGB values are parsed via regex and bypass OCR entirely.
+4. **Recognition** — Each crop goes to the custom `TPS-ResNet-BiLSTM-CTC` model via EasyOCR's `recognize()`, skipping CRAFT detection.
+5. **Correction** (`backend/text_corrector.py`) — RapidFuzz fuzzy matching against game dictionaries fixes common substitution errors.
 
-```bash
-python3 scripts/test_ocr.py
-```
-
-### 3. Check Image Stats (`scripts/check_image_stats.py`)
-Simple utility to print the dimensions and mean brightness of an image. Used to debug why OCR might be failing on dark screenshots.
-
-```bash
-python3 scripts/check_image_stats.py
-```
-
-### 4. Test Line Splitter (`scripts/test_line_splitter.py`)
-Splits a tooltip image into individual text line images using horizontal projection profiling. Useful for visually verifying that line detection is working correctly.
-
-```bash
-python3 scripts/test_line_splitter.py <image_path> <output_dir>
-
-# Example
-python3 scripts/test_line_splitter.py data/sample_images/lightarmor_processed_2.png test_split_output
-```
-
-The output directory will contain:
-- `*_line_001.png`, `*_line_002.png`, ... — cropped line images
-- `*_visualization.png` — original image with detected line bounding boxes
-
-### 5. Create Model Config (`scripts/create_model_config.py`)
-Generates the YAML configuration file required by EasyOCR to load a custom trained model. Reads characters from `backend/unique_chars.txt`.
-
-```bash
-python3 scripts/create_model_config.py
-```
+See `documents/ARCHITECTURE.md` for full internals and `documents/STRATEGY_MABINOGI.md` for design decisions.
 
 ---
 
-## 🔍 OCR Pipeline (v2)
+## Training Custom OCR Model
 
-The OCR pipeline uses a two-stage approach:
+All parameters are in `configs/training_config.yaml` (single source of truth). Run all commands from the **project root**.
 
-1. **Detection** — `TooltipLineSplitter` splits the tooltip image into individual text lines using horizontal projection profiling. This replaces EasyOCR's CRAFT detector, which is designed for natural scene text and performs poorly on structured tooltip layouts.
+### Steps
 
-2. **Recognition** — Each line crop is fed directly to the custom EasyOCR recognition model (`TPS-ResNet-BiLSTM-CTC`) via the `recognize()` API, bypassing CRAFT entirely.
-
-3. **Correction** — RapidFuzz fuzzy matching against game dictionaries fixes common OCR errors.
-
+**1. Generate synthetic training images**
+```bash
+rm -rf backend/train_data backend/train_data_lmdb
+python3 scripts/generate_training_data.py
+# Output: backend/train_data/  (~11k images)
 ```
-Screenshot → Frontend (binary threshold) → Line Splitter → Recognition → Correction → Structured JSON
+
+**2. Generate model config**
+
+Required when `imgW`, `imgH`, network params, or `unique_chars.txt` change.
+```bash
+python3 scripts/create_model_config.py
+# Output: backend/models/custom_mabinogi.yaml
 ```
 
-## 🧠 Training Custom OCR Model
+**3. Create LMDB dataset**
+```bash
+python3 skills/ocr-trainer/scripts/create_lmdb_dataset.py \
+  --input backend/train_data --output backend/train_data_lmdb
+```
 
-All training parameters are centralized in **`configs/training_config.yaml`**.
+**4. Train**
 
-1.  **Generate Data:** `python3 scripts/generate_training_data.py`
-2.  **Generate Model Config:** `python3 scripts/create_model_config.py` — Reads `training_config.yaml` → generates `backend/models/custom_mabinogi.yaml`. **Required** when `imgW`, `imgH`, network params, or `unique_chars.txt` change.
-3.  **Create LMDB:** `python3 skills/ocr-trainer/scripts/create_lmdb_dataset.py --input backend/train_data --output backend/train_data_lmdb`
-4.  **Train** (use `nohup` — reads `configs/training_config.yaml`):
-    ```bash
-    nohup python3 -u scripts/train.py > logs/training.log 2>&1 &
-    # Resume from checkpoint: nohup python3 -u scripts/train.py --resume > logs/training.log 2>&1 &
-    # Override iterations: nohup python3 -u scripts/train.py --num_iter 20000 > logs/training.log 2>&1 &
-    ```
-5.  **Deploy:** `cp saved_models/TPS-ResNet-BiLSTM-CTC-Seed1111/best_accuracy.pth backend/models/custom_mabinogi.pth`
-6.  **Validate:** `python3 scripts/test_v2_pipeline.py -q`
+Use `nohup` — training must not be a subprocess (OOM risk).
+```bash
+nohup python3 -u scripts/train.py > logs/training_attemptN.log 2>&1 &
 
-For training history and known pitfalls, see `OCR_TRAINING_HISTORY.md`.
+# Resume from checkpoint
+nohup python3 -u scripts/train.py --resume > logs/training_attemptN.log 2>&1 &
+
+# Monitor
+tail -f logs/training_attemptN.log
+```
+
+**5. Deploy**
+
+Back up the current model before replacing it:
+```bash
+cp backend/models/custom_mabinogi.pth backend/models/custom_mabinogi_aN.pth   # version backup
+cp saved_models/TPS-ResNet-BiLSTM-CTC-Seed1111/best_accuracy.pth \
+   backend/models/custom_mabinogi.pth                                          # deploy
+```
+
+**6. Validate**
+```bash
+# Full output
+python3 scripts/test_v2_pipeline.py --normalize --gt-suffix _expected.txt
+
+# Summary only
+python3 scripts/test_v2_pipeline.py -q --normalize --gt-suffix _expected.txt
+```
+
+`--normalize` strips punctuation differences; `--gt-suffix _expected.txt` uses the expected-OCR GT files (not full item GT). Omitting these flags produces artificially low scores.
+
+For training history and known pitfalls, see `OCR_TRAINING_HISTORY.md` and `OCR_ISSUES.md`.
+
+---
+
+## Scripts Reference
+
+All scripts run from the **project root**.
+
+| Script | Purpose |
+|---|---|
+| `scripts/generate_training_data.py` | Generate synthetic training images |
+| `scripts/create_model_config.py` | Generate `custom_mabinogi.yaml` from `unique_chars.txt` |
+| `scripts/train.py` | Training launcher (reads `configs/training_config.yaml`) |
+| `scripts/test_v2_pipeline.py` | Evaluate pipeline on GT images (`--include-fuzzy` for FM results) |
+| `scripts/test_line_splitter.py <img> <out>` | Visual line detection verification |
+| `scripts/regenerate_gt.py` | Regenerate GT candidates from pipeline output |
+| `skills/ocr-trainer/scripts/create_lmdb_dataset.py` | Convert image/label pairs to LMDB |
+
+---
+
+## Documentation
+
+| Document | Contents |
+|---|---|
+| `documents/ARCHITECTURE.md` | OCR pipeline internals: how each stage works |
+| `documents/STRATEGY_MABINOGI.md` | Design decisions D1–D10 with porting guides |
+| `OCR_TRAINING_HISTORY.md` | Per-attempt accuracy results and analysis |
+| `OCR_ISSUES.md` | Resolved issues and current blockers |
+| `CLAUDE.md` | AI agent instructions and project conventions |
