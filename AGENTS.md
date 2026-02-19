@@ -189,7 +189,37 @@ Key design decisions:
 - Validate user corrections against dictionaries before accepting (flag outliers to catch typos)
 - See `OCR_ISSUES.md` → "Stage 2" section for full design notes
 
-## 6. General Guidelines
+## 6. Known Agent Pitfalls
+
+### 6.1 Always use the correct flags when running `test_v2_pipeline.py`
+
+**Canonical evaluation command:**
+```
+python3 scripts/test_v2_pipeline.py -q --normalize --gt-suffix _expected.txt
+```
+
+Flags explained:
+- `--normalize` (`-n`): strips leading structural prefixes (`-`, `.`, `ㄴ`) before comparing.
+  GT files contain `. 수리비 100% 증가` but OCR outputs `수리비 100% 증가`.
+  Without this flag, every bullet line scores as a mismatch.
+- `--gt-suffix _expected.txt`: uses `*_expected.txt` GT files, which exclude sections the
+  pipeline intentionally skips (`flavor_text`, `shop_price`). The full `.txt` files include
+  those sections, causing spurious mismatches when OCR correctly omits them.
+
+Omitting either flag produces misleadingly low scores. Example: Attempt 14 on current images:
+| Command | Exact | Char acc |
+|---|---|---|
+| `-q` (wrong) | 16/239 | 55.9% |
+| `-q --normalize` (partial) | 28/239 | 57.1% |
+| `-q --normalize --gt-suffix _expected.txt` (correct) | **45/230** | **75.5%** |
+
+### 6.2 GT index drift from `.` bullet detection
+The line splitter sometimes detects a leading `.` bullet point as a separate 1-char crop,
+which the OCR reads as `7`. This inserts a phantom line, shifting all subsequent GT
+comparisons by 1. Symptom: OCR output matches GT but is consistently one line ahead.
+`--normalize` alone does not fix this — it only helps the exact-match comparison.
+
+## 7. General Guidelines
 - Ask before making changes.
 - Maintain existing code styles.
 - **Always update documentation when a notable change occurs** — training attempts/results → `OCR_TRAINING_HISTORY.md`, issue status → `OCR_ISSUES.md`, architecture/pipeline changes → `CLAUDE.md` + `AGENTS.md`.

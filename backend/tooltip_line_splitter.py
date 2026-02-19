@@ -309,7 +309,7 @@ class TooltipLineSplitter:
 
             if text_clusters:
                 filtered = []
-                for cs, ce in clusters:
+                for idx, (cs, ce) in enumerate(clusters):
                     cw = ce - cs + 1
                     avg_density = float(np.mean(col_projection[cs:ce + 1]))
 
@@ -318,6 +318,14 @@ class TooltipLineSplitter:
                         continue
 
                     if cw > 2:
+                        # Corner bracket artifact (e.g. 「 before section headers):
+                        # First cluster only, with low ink density and clear gap to main text.
+                        # Real text characters have avg_density >= 3.5; the 「 bracket is ~1.8.
+                        if idx == 0 and avg_density < 3.5:
+                            if idx + 1 < len(clusters):
+                                gap_to_next = clusters[idx + 1][0] - ce - 1
+                                if gap_to_next >= 4:
+                                    continue  # drop corner bracket
                         filtered.append((cs, ce))
                         continue
 
@@ -327,6 +335,10 @@ class TooltipLineSplitter:
                         for tcs, tce in text_clusters
                     )
                     if min_dist <= gap_threshold:
+                        # Full-height border stripe (│): spans nearly all rows → remove.
+                        # Legitimate thin character strokes never span the full line height.
+                        if avg_density >= line_h * 0.85:
+                            continue
                         filtered.append((cs, ce))
                 clusters = filtered if filtered else clusters
 

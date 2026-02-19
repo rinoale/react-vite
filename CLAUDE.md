@@ -163,14 +163,14 @@ cp saved_models/TPS-ResNet-BiLSTM-CTC-Seed1111/best_accuracy.pth \
   backend/models/custom_mabinogi.pth
 
 # Step 7: Validate on real GT images
-python3 scripts/test_v2_pipeline.py        # Full output
-python3 scripts/test_v2_pipeline.py -q     # Summary only
+python3 scripts/test_v2_pipeline.py --normalize --gt-suffix _expected.txt        # Full output
+python3 scripts/test_v2_pipeline.py -q --normalize --gt-suffix _expected.txt     # Summary only
 ```
 
 **When to re-run `create_model_config.py`:** Anytime you change `model:` section in `configs/training_config.yaml` (especially `imgW`, `imgH`), or update `unique_chars.txt`. The yaml must match training args exactly — the TPS Spatial Transformer is built with `I_size=(imgH, imgW)` and mismatched weights will crash or produce garbage.
 
 ### Testing
-- `scripts/test_v2_pipeline.py` — Uses `MabinogiTooltipParser` to split GT images → `recognize()` → compares against GT `.txt` files. Supports `--sections`/`-s` flag for section breakdown.
+- `scripts/test_v2_pipeline.py` — Uses `MabinogiTooltipParser` to split GT images → `recognize()` → compares against GT `.txt` files. **Always run with `--normalize --gt-suffix _expected.txt`** — without these flags scores are artificially low (`.` bullet prefix mismatches + skipped sections inflate error count). Supports `--sections`/`-s` flag for section breakdown.
 - `scripts/test_line_splitter.py <image> <output_dir>` — Visual line detection verification using `MabinogiTooltipParser`
 - `scripts/regenerate_gt.py` — Runs parser on GT images, outputs `_gt_candidate.txt` files for manual review. `--apply` strips comments and overwrites `.txt` GT files.
 - Ground truth in `data/sample_images/`: 5 images, 244 total lines. File types: `*.txt` (full GT), `*_expected.txt` (expected OCR output), `*_gt_candidate.txt` (pipeline candidates)
