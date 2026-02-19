@@ -18,6 +18,7 @@ Each attempt has identified and fixed a specific bottleneck, steadily raising re
 | 12 | 84.4% | 38.1% | 0.120 | Patched inference to use fixed imgW. Squash factors now match. |
 | 13 | 100% | 52.4% | 0.247 | Tight-crop, font 10-11, splitter border filter, inference patch |
 | 14 | — | 75.5% | 0.327 | Training data cleanup + splitter left-edge artifact removal |
+| 15 | — | TBD | TBD | % spacing fix, 내구력 6×, section headers 4×, 개조 3×, grade colon fix, dash 2.5× |
 
 Real-world char accuracy: **0% → 19.5% → 35.8% → 27.0% (regression) → 36.2% → 38.1% → 52.4% → 75.5%**. Attempt 14 cleaned up training data quality (prefix corrections, color part handling, GT source switch to `_expected.txt`) and added two post-hoc splitter fixes to remove left-edge UI artifacts from crops. Exact matches jumped from 14/235 to 45/230. GT count changed to 230 due to titan_blade image update and use of `_expected.txt`. lightarmor at 79.0%, titan_blade at 77.9%, approaching 80% gate.
 
@@ -764,3 +765,62 @@ lightarmor (79.0%) and titan_blade (77.9%) are within 1–3pp of the 80% gate. c
 | Fix number confusion in similar-looking digits | ~7 | +0.5pp |
 
 Conservative estimate with these fixes: **78-82% char accuracy**.
+
+---
+
+## Attempt 15
+
+**Baseline**: 45/230 exact (19.6%), 75.5% char acc (from Attempt 14)
+
+### Root Cause Analysis
+
+Full verbose test run categorized 185 failing lines:
+
+| Failure type | Lines | Root cause |
+|---|---|---|
+| Leading char artifact | ~15 | `- 수리비` → `소수리비`: game renders `-` as 2px wide at ~10px text height; PIL renders it 3-5px wide → model trained on wider dash, misidentifies narrow game dash as `소`, `#`, etc. |
+| Section headers | ~4 | `아이템 속성` → `아이템 색성` (`속`↔`색` confusion); cascades to color part section miss (파트 A-F all fail when `아이템 색상` not detected) |
+| 개조 variants | ~10 | `일반 개조(4/4)` → `등별 개조(44`, `특별 개조 R` → garbled; 20-30 training reps insufficient |
+| `내구력 N/N` | 5 | ALL 5 fail (0% exact); `내구력` → `보 석력`/`보 비석률`; only 50 training reps |
+| `% / 초` spacing | ~6 | Training has `' %'` in unit list + `' 초'` in patterns → model adds space before `%` and `초` for lines that shouldn't have it |
+| Grade format | 1 | `마스터 (장비 레벨 65)` vs GT `마스터 (장비 레벨: 65)` — missing colon in training |
+
+### Splitter Fix Attempted and Reverted
+
+**Attempted**: Pass `cleaned` (border-masked) binary to `_add_line()` to prevent border column at x=10 from anchoring x_start.
+
+**Result**: Catastrophic — `_remove_borders()` also masks TEXT alignment columns in dropbell (x=22,25,29,32..54 etc have >15% global density from repeated character alignment). dropbell went from 9/35 to 0/35. Reverted immediately.
+
+**Root cause of leading char artifact remains unresolved** at splitter level. The game's `-` at ~10px text height is rendered as 2px wide × 1 row, while PIL renders it 3-5px wide. TPS warping doesn't fully compensate for this stroke-width mismatch. Training data boost (200→500 reps) is the only available mitigation.
+
+### Training Data Changes (generate_training_data.py)
+
+| Change | Before | After | Target issue |
+|---|---|---|---|
+| `아이템 속성` header reps | 10 | 40 | `속`↔`색` confusion |
+| `아이템 색상` header reps | 10 | 40 | Color section miss |
+| `내구력 N/N` reps | 50 | 300 | Consistent 0% exact |
+| `- {effect}` reps | 200 | 500 | Dash misread as `소` |
+| `일반 개조(N/N)` reps | 30 | 100 | Garbled 개조 patterns |
+| `일반 개조(N/N), 보석 강화` | 20 | 60 | Same |
+| `특별 개조 R/S (N단계)` | 20 each | 60 each | Same |
+| `grade (장비 레벨 N)` | 30, no colon | 60, **with colon** | GT has `:` format |
+| `unit = random.choice(...)` | `['', ' %', '% 증가']` | `['', '%', '% 증가']` | Remove space-before-% |
+| `대미지 배율 N % 증가` | WITH space | `N% 증가` no space | lightarmor GT: `72% 증가` |
+| `쿨타임 감소 N.NN 초 감소` | WITH space | `N.NN초 감소` no space | lightarmor GT: `7.60초 감소` |
+| Added: `{effect} N % 증가` | — | 50 reps (대미지/최소부상률/지속대미지) | Preserve space-before-% where GT uses it |
+
+**Training data stats**: 11,580 images generated (up from ~10k), all pass quality gates. Dimension distribution: h=14-15 74%, h=16-20 16%, h=10-11 10%.
+
+### Expected Improvements
+
+| Fix | Est. lines gained |
+|---|---|
+| `내구력` weight 6× | +3-5 |
+| `아이템 속성/색상` weight 4× → indirect color parts fix | +2-4 |
+| `개조` variants 3-5× | +4-8 |
+| % spacing / 초 spacing fix | +4-6 |
+| Grade colon fix | +1 |
+| Dash misread (500 reps) | +2-5 (uncertain) |
+
+**Target**: 60-75/230 exact (26-33%), **80%+** char accuracy.

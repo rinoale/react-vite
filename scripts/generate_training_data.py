@@ -80,7 +80,7 @@ def generate_template_lines():
     lines = []
 
     # --- Section headers (repeated for weight — these are short, low-height crops) ---
-    short_headers = ['아이템 속성', '인챈트', '개조', '세공', '세트아이템', '아이템 색상',
+    short_headers = ['인챈트', '개조', '세공', '세트아이템',
                      '장인 개조', '등급', '에픽', '레어', '마스터', '전용 해제',
                      '기본 효과', '추가 효과', '최종 단계 개방 완료', '에르그']
     decorated_headers = ['- 아이템 속성 -', '- 인챈트 -', '- 개조 -', '- 세공 -',
@@ -92,13 +92,18 @@ def generate_template_lines():
     for h in decorated_headers:
         for _ in range(5):
             lines.append(h)
+    # Extra weight for frequently misread headers — '속' vs '색' confusion, cascading color part failure
+    for _ in range(40):
+        lines.append('아이템 속성')
+    for _ in range(40):
+        lines.append('아이템 색상')
 
     # --- Stat lines ---
     for _ in range(200):
         stat = random.choice(['방어력', '보호', '공격', '크리티컬', '밸런스', '최대대미지', '최소대미지'])
         lines.append(f"{stat} {rand_stat()}")
 
-    for _ in range(50):
+    for _ in range(300):
         lines.append(f"내구력 {rand_durability()}")
 
     for _ in range(50):
@@ -142,10 +147,12 @@ def generate_template_lines():
         lines.append(f"[{prefix}] {name} (랭크 {rank})")
 
     # --- Enchant effects (- prefix) ---
+    # Boosted to 500 reps — '- ' prefix consistently misread as '소' in inference.
+    # More examples give the model more exposure to the dash character in context.
     effect_words = ['수리비', '보호', '방어', '최대생명력', '최대마나', '최대스태미나',
                     '최대대미지', '최소대미지', '대미지밸런스', '마법 공격력',
                     '마법 보호', '크리티컬', '마리오네트 최대 대미지']
-    for _ in range(200):
+    for _ in range(500):
         effect = random.choice(effect_words)
         val = rand_int(1, 100)
         change = random.choice(['증가', '감소'])
@@ -185,25 +192,31 @@ def generate_template_lines():
         effect = random.choice(sub_effects)
         val = rand_int(1, 100)
         sign = random.choice(['+', ''])
-        unit = random.choice(['', ' %', '% 증가'])
+        unit = random.choice(['', '%', '% 증가'])
         lines.append(f"ㄴ {effect} {sign}{val}{unit}")
 
     # More sub-bullet patterns
+    # Note: '대미지 배율' uses no space before % (confirmed from GT: "72% 증가")
     for _ in range(50):
-        lines.append(f"ㄴ 대미지 배율 {rand_int(10, 150)} % 증가")
+        lines.append(f"ㄴ 대미지 배율 {rand_int(10, 150)}% 증가")
+    # Note: '쿨타임 감소' uses no space before 초 (confirmed from GT: "7.60초 감소")
     for _ in range(50):
-        lines.append(f"ㄴ 쿨타임 감소 {rand_int(1, 15)}.{rand_int(0, 99):02d} 초 감소")
+        lines.append(f"ㄴ 쿨타임 감소 {rand_int(1, 15)}.{rand_int(0, 99):02d}초 감소")
+    # Some enchant effects DO use space before % (대미지, 최소부상률, 지속대미지)
+    for _ in range(50):
+        effect = random.choice(['대미지', '최소부상률', '지속대미지'])
+        lines.append(f"ㄴ {effect} {rand_int(1, 200)} % 증가")
 
     # --- Reforging headers ---
-    for _ in range(30):
+    for _ in range(100):
         n = rand_int(1, 5)
         lines.append(f"일반 개조({n}/{n})")
-    for _ in range(20):
+    for _ in range(60):
         lines.append(f"일반 개조({rand_int(1,5)}/{rand_int(3,5)}), 보석 강화")
-    for _ in range(20):
+    for _ in range(60):
         stage = rand_int(1, 8)
         lines.append(f"특별 개조 R ({stage}단계)")
-    for _ in range(20):
+    for _ in range(60):
         stage = rand_int(1, 8)
         lines.append(f"특별 개조 S ({stage}단계)")
 
@@ -287,11 +300,12 @@ def generate_template_lines():
         lines.append(f"상점판매가 : {price}")
 
     # --- Grade lines ---
+    # GT format uses colon: "마스터 (장비 레벨: 65)" — must match with colon
     grades = ['마스터', '그랜드마스터', '챔피언', '히어로', '일반', '고급', '레어', '엘리트']
-    for _ in range(30):
+    for _ in range(60):
         grade = random.choice(grades)
         lvl = random.choice([10, 20, 30, 40, 50, 60, 65, 70, 80, 90, 100])
-        lines.append(f"{grade} (장비 레벨 {lvl})")
+        lines.append(f"{grade} (장비 레벨: {lvl})")
 
     # --- Grade bonus ---
     for _ in range(30):

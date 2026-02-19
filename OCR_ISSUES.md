@@ -80,11 +80,19 @@ Proportional canvas width caused 57% of training at wrong squash factors. Fixed 
 
 ### Current Issues Blocking 80%
 
-1. **Color part lines** — `파트 A R:0 G:0 B:0` have sparse multi-cluster layout (h=7, w=210) never seen in training. Now split horizontally into sub-segments, but individual segments still need OCR accuracy improvement.
-2. **Leading `-` stripped** — Border filter may remove leading dash characters. 27 lines lose the `- ` prefix (81.1% avg, would be ~95% with dash).
-3. **Short text h<10** — `천옷`(h=6), `세공`(h=6-8) are below training minimum (h=10). 6 lines at 12.5%.
-4. **`%` misread as `9`** — Consistent glyph confusion at small sizes. 5 lines at 85.7%.
-5. **Bottom area lines** — Flavor text, copyright, shop price at bottom of tooltip are garbled. These can be ignored via section-aware parser (skip sections in config).
+1. **Leading `-` misread as `소` / `#`** — `- 수리비` → `소수리비` across ALL images. Root cause: game's rendering engine produces a 2px wide dash at ~10px text height; PIL renders the same font as 3-5px wide. Model trained on wider dash fails to recognize narrow game dash. TPS warping doesn't fully compensate for the 2.5× stroke-width mismatch. Mitigation: training boosted to 500 reps (was 200); splitter fix NOT viable (masking cleaned binary zeroed text alignment columns in dropbell, collapsing 9/35→0/35).
+
+2. **`아이템 속성` → `아이템 색성`** (`속`↔`색` confusion) — Cascades to color part failure: when `아이템 색상` header is misread, section parser doesn't detect color section start, so all 파트 A-F lines go through OCR instead of regex. Fixed in Attempt 15: 10→40 reps for both headers.
+
+3. **`내구력 N/N` always fails** — All 5 test lines fail (0% exact). `내구력` → `보 석력`/`보 비석률`. Fixed in Attempt 15: 50→300 reps.
+
+4. **개조 variants garbled** — `일반 개조(4/4)` → `등별 개조(44`, `특별 개조 R (6단계)` → garbled. Fixed in Attempt 15: 20-30→60-100 reps.
+
+5. **`% / 초` spacing** — Model outputs `72 %` (with space) for GT `72%`, and `7.60 초` for GT `7.60초`. Fixed in Attempt 15: removed `' %'` from training unit choices; fixed `대미지 배율` and `쿨타임 감소` patterns.
+
+6. **Grade line missing colon** — Training had `마스터 (장비 레벨 65)` but GT requires `마스터 (장비 레벨: 65)`. Fixed in Attempt 15.
+
+7. **Color part sub-segments** — `파트 A` → `1호`, `R:0` → `4`. These may resolve if `아이템 색상` header is correctly recognized (indirect fix via issue #2 above).
 
 ---
 
