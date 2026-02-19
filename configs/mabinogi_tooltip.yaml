@@ -47,6 +47,7 @@ sections:
       - "인챈트"
     required: false
     ocr: true
+    parse_mode: enchant_options
 
   item_mod:
     order: 30
@@ -63,6 +64,7 @@ sections:
       - "세공"
     required: false
     ocr: true
+    parse_mode: reforge_options
 
   erg:
     order: 50

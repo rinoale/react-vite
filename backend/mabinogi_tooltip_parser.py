@@ -20,6 +20,20 @@ import yaml
 
 from tooltip_line_splitter import TooltipLineSplitter
 
+# Lines that appear above the item name in the pre-header block.
+# Extend this set if new top-level status lines are discovered.
+_PRE_NAME_PATTERNS = {'전용 해제'}
+
+# Reforge section patterns
+# Header: '- 스매시 대미지(15/20 레벨)' — name before '(', level/max_level inside
+_REFORGE_HEADER_RE = re.compile(r'^[-\s]*(.+?)\s*\((\d+)/(\d+)\s*레벨\)')
+# Sub-bullet: 'ㄴ 대미지 150 % 증가' — describes effect at current level
+_REFORGE_SUB_RE    = re.compile(r'^\s*ㄴ')
+
+# Enchant section patterns
+# Header: '[접두] 충격을 (랭크 F)' or '[접미] 관리자 (랭크 6)' — ranks: A-F or 1-9
+_ENCHANT_HEADER_RE = re.compile(r'^\[?(접두|접미)\]?\s+(.+?)\s*\(랭크\s*([A-F0-9]+)\)')
+
 
 class MabinogiTooltipParser(TooltipLineSplitter):
 
@@ -178,13 +192,20 @@ class MabinogiTooltipParser(TooltipLineSplitter):
         Uses contains-check since OCR may add/drop characters
         (e.g. "바이템 속성" should still match "아이템 속성").
 
+        A ratio guard rejects matches where the pattern is buried in a much
+        longer line — real headers are short standalone words, so the pattern
+        must occupy at least 50% of the cleaned text length.
+
         Returns:
             section key string or None
         """
         cleaned = text.strip().strip('-').strip()
+        if not cleaned:
+            return None
         for pattern, section_key in self._header_patterns.items():
             if pattern in cleaned:
-                return section_key
+                if len(pattern) / len(cleaned) >= 0.5:
+                    return section_key
         return None
 
     def _categorize_sections(self, ocr_results):
@@ -220,22 +241,34 @@ class MabinogiTooltipParser(TooltipLineSplitter):
                     section_lines[current_section] = []
                 # Don't add the header line itself to content
                 continue
+            line['section'] = current_section   # tag each line with its section key
             section_lines.setdefault(current_section, [])
             section_lines[current_section].append(line)
 
         # Process pre-header lines (item_name, item_type, craftsman)
         pre_header = section_lines.pop('_pre_header', [])
         if pre_header:
-            # First line is always item_name
-            sections['item_name'] = {
-                'lines': [pre_header[0]],
-                'text': pre_header[0]['text'],
-            }
-            # Remaining pre-header lines (item_type, craftsman, etc.)
-            if len(pre_header) > 1:
+            # Some items have a status line above the item name (e.g. '전용 해제').
+            # Skip those and find the true item_name as the first non-status line.
+            idx = 0
+            if pre_header[0]['text'].strip() in _PRE_NAME_PATTERNS:
+                pre_header[0]['section'] = 'item_flags'
+                idx = 1
+
+            if idx < len(pre_header):
+                pre_header[idx]['section'] = 'item_name'
+                sections['item_name'] = {
+                    'lines': [pre_header[idx]],
+                    'text': pre_header[idx]['text'],
+                }
+
+            # Remaining lines (item_type, craftsman, etc.)
+            if idx + 1 < len(pre_header):
+                for l in pre_header[idx + 1:]:
+                    l['section'] = 'item_type'
                 sections['item_type'] = {
-                    'lines': pre_header[1:],
-                    'text': ' '.join(l['text'] for l in pre_header[1:]),
+                    'lines': pre_header[idx + 1:],
+                    'text': ' '.join(l['text'] for l in pre_header[idx + 1:]),
                 }
 
         # Process each detected section
@@ -247,9 +280,16 @@ class MabinogiTooltipParser(TooltipLineSplitter):
                 sections[section_key] = {'skipped': True, 'line_count': len(lines)}
                 continue
 
-            # Structural parsing for color parts
-            if sec_config.get('parse_mode') == 'color_parts':
+            # Structural parsing by parse_mode
+            parse_mode = sec_config.get('parse_mode')
+            if parse_mode == 'color_parts':
                 sections[section_key] = self._parse_color_section(lines)
+                continue
+            if parse_mode == 'reforge_options':
+                sections[section_key] = self._parse_reforge_section(lines)
+                continue
+            if parse_mode == 'enchant_options':
+                sections[section_key] = self._parse_enchant_section(lines)
                 continue
 
             # Standard OCR section
@@ -298,6 +338,93 @@ class MabinogiTooltipParser(TooltipLineSplitter):
                     sections['shop_price'] = {'skipped': True, 'line_count': len(lines) - i}
                     sections[last_section_key]['lines'] = lines[:i]
                     break
+
+    def _parse_reforge_section(self, lines):
+        """Parse reforge section into structured option records.
+
+        Each reforge option is a header line 'NAME(current/max 레벨)' followed
+        by one ㄴ sub-bullet describing the effect at the current level.
+
+        Tags each line dict with metadata for FM and DB storage:
+          header line: reforge_name, reforge_level, reforge_max_level, is_reforge_sub=False
+          sub-bullet:  is_reforge_sub=True
+
+        Returns:
+            {'options': [{name, level, max_level, effect}], 'lines': lines}
+        """
+        options = []
+        current = None
+
+        for line in lines:
+            text = line.get('text', '')
+            m = _REFORGE_HEADER_RE.match(text)
+            if m:
+                name      = m.group(1).strip().lstrip('-').strip()
+                level     = int(m.group(2))
+                max_level = int(m.group(3))
+                current = {
+                    'name':      name,
+                    'level':     level,
+                    'max_level': max_level,
+                    'effect':    None,
+                }
+                options.append(current)
+                line['reforge_name']      = name
+                line['reforge_level']     = level
+                line['reforge_max_level'] = max_level
+                line['is_reforge_sub']    = False
+            elif _REFORGE_SUB_RE.match(text):
+                line['is_reforge_sub'] = True
+                if current is not None:
+                    effect = _REFORGE_SUB_RE.sub('', text).strip()
+                    current['effect'] = effect
+            else:
+                line['is_reforge_sub'] = False
+
+        return {'options': options, 'lines': lines}
+
+    def _parse_enchant_section(self, lines):
+        """Parse enchant section into slot-grouped records.
+
+        Each enchant is a header '[접두|접미] NAME (랭크 RANK)' followed by
+        effect lines starting with '-'.
+
+        Tags each line dict with metadata for FM and DB storage:
+          header line: enchant_slot, enchant_name, enchant_rank, is_enchant_hdr=True
+          effect line: is_enchant_hdr=False
+
+        Returns:
+            {'enchants': [{slot, name, rank, effects}], 'lines': lines}
+        """
+        enchants = []
+        current = None
+
+        for line in lines:
+            text = line.get('text', '')
+            m = _ENCHANT_HEADER_RE.match(text)
+            if m:
+                slot = m.group(1)
+                name = m.group(2).strip()
+                rank = m.group(3)
+                current = {
+                    'slot':    slot,
+                    'name':    name,
+                    'rank':    rank,
+                    'effects': [],
+                }
+                enchants.append(current)
+                line['enchant_slot']   = slot
+                line['enchant_name']   = name
+                line['enchant_rank']   = rank
+                line['is_enchant_hdr'] = True
+            else:
+                line['is_enchant_hdr'] = False
+                if current is not None:
+                    effect = text.strip().lstrip('-').strip()
+                    if effect:
+                        current['effects'].append(effect)
+
+        return {'enchants': enchants, 'lines': lines}
 
     def _parse_color_section(self, lines):
         """Parse color part lines structurally.

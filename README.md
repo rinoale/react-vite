@@ -33,7 +33,7 @@ A specialized marketplace for trading in-game items with automated OCR item regi
 │   └── mabinogi_tooltip.yaml      # Section header patterns for the parser
 ├── data/
 │   ├── fonts/                     # Mabinogi game font (mabinogi_classic.ttf)
-│   ├── dictionary/                # reforging_options.txt, tooltip_general.txt
+│   ├── dictionary/                # per-section .txt files (reforge.txt, tooltip_general.txt, ...)
 │   └── sample_images/             # GT images (.png) + labels (.txt, _expected.txt)
 ├── scripts/                       # Training pipeline, testing, config generation
 ├── skills/ocr-trainer/            # LMDB creation + deep-text-recognition-benchmark

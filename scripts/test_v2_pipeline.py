@@ -11,6 +11,8 @@ Usage:
     python3 scripts/test_v2_pipeline.py -q                       # Summary only
     python3 scripts/test_v2_pipeline.py --sections               # Show section breakdown
     python3 scripts/test_v2_pipeline.py --include-fuzzy           # Show FM: line (post-fuzzy result)
+    python3 scripts/test_v2_pipeline.py --include-fuzzy --fm-threshold 0.85  # FM only when conf < 0.85
+    python3 scripts/test_v2_pipeline.py --include-fuzzy --use-gt-sections    # use GT text for section detection (verify FM quality)
 """
 
 import os
@@ -63,17 +65,19 @@ def init_reader():
 
 
 def init_corrector():
-    """Load TextCorrector with both game dictionaries."""
+    """Load TextCorrector from dictionary directory (one file per section)."""
     from text_corrector import TextCorrector
-    corrector = TextCorrector()
-    corrector.load_dictionary(os.path.join(DICT_DIR, 'reforging_options.txt'))
-    corrector.load_dictionary(os.path.join(DICT_DIR, 'tooltip_general.txt'))
-    return corrector
+    return TextCorrector(dict_dir=DICT_DIR)
 
 
 def test_image(reader, parser, image_path, gt_path, verbose=True, show_sections=False,
-               normalize=False, corrector=None):
+               normalize=False, corrector=None, fm_conf_threshold=None,
+               use_gt_sections=False):
     """Test the section-aware pipeline on a single image against ground truth.
+
+    Args:
+        use_gt_sections: If True, re-run section detection using GT text instead of OCR text.
+                         This isolates FM quality from section detection errors.
 
     Returns:
         dict with results and metrics
@@ -89,13 +93,27 @@ def test_image(reader, parser, image_path, gt_path, verbose=True, show_sections=
     # Compare only up to GT line count — extra OCR lines beyond GT are ignored
     compare_count = min(len(ocr_lines), len(gt_lines))
 
+    # Optional: re-categorize sections using GT text for perfect section assignment.
+    # Isolates FM dictionary quality from OCR section detection errors.
+    if use_gt_sections and compare_count > 0:
+        orig_texts = [l['text'] for l in ocr_lines]
+        for i in range(compare_count):
+            ocr_lines[i]['text'] = gt_lines[i]
+        sections = parser._categorize_sections(ocr_lines)   # re-tags line['section'] in-place
+        for i, t in enumerate(orig_texts):
+            ocr_lines[i]['text'] = t                        # restore OCR text, keep section tags
+
     if verbose:
         print(f"\n{'='*70}")
         print(f"  {basename}")
         print(f"  GT lines: {len(gt_lines)}, OCR lines: {len(ocr_lines)}, comparing: {compare_count}")
+        if use_gt_sections:
+            print(f"  [GT-SECTIONS MODE: section detection uses GT text]")
         print(f"{'='*70}")
 
     results = []
+    prev_section = None
+    current_enchant_entry = None   # tracks matched enchant entry for phase-2 effect matching
     for i in range(compare_count):
         line = ocr_lines[i]
         text = line.get('text', '')
@@ -113,9 +131,34 @@ def test_image(reader, parser, image_path, gt_path, verbose=True, show_sections=
         fm_score         = 0
         fm_exact         = False
         fm_char_accuracy = char_accuracy  # default to OCR accuracy if no FM
+        fm_gated         = False          # True when skipped due to confidence gate
+        skip_accuracy    = False          # True for reforge sub-bullets (ㄴ lines)
 
         if corrector is not None:
-            fm_text, fm_score = corrector.correct_normalized(text)
+            conf    = line.get('confidence', 0.0)
+            section = line.get('section', '')
+            fm_gated = fm_conf_threshold is not None and conf >= fm_conf_threshold
+
+            if not fm_gated:
+                is_enchant_hdr = line.get('is_enchant_hdr')
+                enchant_db_ready = bool(getattr(corrector, '_enchant_db', []))
+
+                if section == 'enchant' and enchant_db_ready and is_enchant_hdr is not None:
+                    if is_enchant_hdr:
+                        # Phase 1: match header → get enchant entry for this slot
+                        fm_text, fm_score, current_enchant_entry = corrector.match_enchant_header(text)
+                    else:
+                        # Phase 2: match effect against only this enchant's ~4-8 effects
+                        fm_text, fm_score = corrector.match_enchant_effect(text, current_enchant_entry)
+                else:
+                    fm_text, fm_score = corrector.correct_normalized(text, section=section)
+            else:
+                fm_text, fm_score = text, -1  # skipped: high-confidence OCR trusted
+
+            # Reforge ㄴ sub-bullets: skip from accuracy counting
+            if fm_score == -3:
+                skip_accuracy = True
+
             cmp_fm           = normalize_line(fm_text) if normalize else fm_text
             fm_exact         = (cmp_fm.strip() == cmp_gt.strip())
             fm_matcher       = difflib.SequenceMatcher(None, cmp_gt, cmp_fm)
@@ -133,26 +176,59 @@ def test_image(reader, parser, image_path, gt_path, verbose=True, show_sections=
             'fm_score':        fm_score,
             'fm_exact':        fm_exact,
             'fm_char_accuracy': fm_char_accuracy,
+            'fm_gated':        fm_gated,
+            'skip_accuracy':   skip_accuracy,
         })
 
         if verbose:
-            # Status tag: FM replaces XX when fuzzy matching fixed the line
-            if corrector is not None and not exact_match:
-                status = 'FM' if fm_exact else 'XX'
+            # Print category boundary when section changes
+            cur_section = line.get('section', '')
+            if cur_section != prev_section:
+                label = cur_section if cur_section else '(undetected)'
+                print(f"\n  {'─'*20} {label} {'─'*20}")
+                prev_section = cur_section
+
+            # Status tag
+            # FM: OCR wrong → FM correct  | XX: wrong, not fixed
+            # OK: OCR correct, FM neutral | RF: OCR correct → FM regressed
+            if corrector is not None:
+                if exact_match and not fm_exact and fm_score > 0:
+                    status = 'RF'   # FM regression: correct OCR → wrong FM
+                elif not exact_match:
+                    status = 'FM' if fm_exact else 'XX'
+                else:
+                    status = 'OK'
             else:
                 status = 'OK' if exact_match else 'XX'
 
             sub_tag = f' [{line.get("sub_count", 1)} segs]' if line.get('sub_count', 1) > 1 else ''
             print(f"  [{status}] Line {i+1:2d} (conf={line.get('confidence', 0):.3f}, acc={char_accuracy:.1%}){sub_tag}")
 
-            if not exact_match:
-                print(f"       GT:  {gt_text}")
-                print(f"       OCR: {text}")
-                if corrector is not None:
-                    if fm_score > 0:
-                        print(f"       FM:  {fm_text}  (score={fm_score})")
+            section     = line.get('section', '')
+            section_tag = f'  [section: {section}]' if section else ''
+            print(f"       GT:  {gt_text}")
+            print(f"       OCR: {text}{section_tag}")
+            if corrector is not None:
+                is_enchant_hdr = line.get('is_enchant_hdr')
+                enchant_db_ready = bool(getattr(corrector, '_enchant_db', []))
+                if section == 'enchant' and enchant_db_ready and is_enchant_hdr is not None:
+                    dict_tag = 'enchant[hdr]' if is_enchant_hdr else 'enchant[eff]'
+                else:
+                    dict_tag = (f'{section}.txt'
+                                if section and section in corrector._section_norm_cache
+                                else 'combined')
+                show_fm = not exact_match or (exact_match and not fm_exact and fm_score > 0)
+                if show_fm:
+                    if fm_gated:
+                        print(f"       FM:  (skipped — conf={line.get('confidence', 0):.3f} >= {fm_conf_threshold})")
+                    elif fm_score == -3:
+                        print(f"       FM:  (sub-bullet skipped)")
+                    elif fm_score == -2:
+                        print(f"       FM:  (no dictionary for '{section}', skipped)")
+                    elif fm_score > 0:
+                        print(f"       FM:  {fm_text}  (score={fm_score:.1f}, searched: {dict_tag})")
                     else:
-                        print(f"       FM:  (no match)")
+                        print(f"       FM:  (no match, searched: {dict_tag})")
 
     # Show skipped OCR lines beyond GT
     if len(ocr_lines) > len(gt_lines) and verbose:
@@ -181,25 +257,31 @@ def test_image(reader, parser, image_path, gt_path, verbose=True, show_sections=
             elif 'text' in section_data:
                 print(f"    [{section_key}] \"{section_data['text'][:60]}\"")
 
-    # Summary metrics
-    if results:
-        exact_matches    = sum(1 for r in results if r['exact_match'])
-        avg_char_accuracy = sum(r['char_accuracy'] for r in results) / len(results)
-        avg_confidence   = sum(r['confidence'] for r in results) / len(results)
-        fm_exact_matches    = sum(1 for r in results if r['fm_exact'])    if corrector else None
-        fm_avg_char_accuracy = sum(r['fm_char_accuracy'] for r in results) / len(results) if corrector else None
+    # Summary metrics — exclude reforge sub-bullets (skip_accuracy=True) from counts
+    counted = [r for r in results if not r.get('skip_accuracy')]
+    skipped_count = len(results) - len(counted)
+
+    if counted:
+        exact_matches     = sum(1 for r in counted if r['exact_match'])
+        avg_char_accuracy = sum(r['char_accuracy'] for r in counted) / len(counted)
+        avg_confidence    = sum(r['confidence'] for r in counted) / len(counted)
+        fm_exact_matches     = sum(1 for r in counted if r['fm_exact'])     if corrector else None
+        fm_avg_char_accuracy = sum(r['fm_char_accuracy'] for r in counted) / len(counted) if corrector else None
+        fm_gated_count       = sum(1 for r in counted if r.get('fm_gated')) if corrector else 0
     else:
         exact_matches = fm_exact_matches = 0
         avg_char_accuracy = fm_avg_char_accuracy = 0.0
         avg_confidence = 0.0
+        fm_gated_count = 0
 
     summary = {
         'image':             basename,
         'gt_lines':          len(gt_lines),
         'detected_lines':    len(ocr_lines),
         'exact_matches':     exact_matches,
-        'total_compared':    len(results),
-        'exact_match_rate':  exact_matches / len(results) if results else 0,
+        'total_compared':    len(counted),
+        'skipped_count':     skipped_count,
+        'exact_match_rate':  exact_matches / len(counted) if counted else 0,
         'avg_char_accuracy': avg_char_accuracy,
         'avg_confidence':    avg_confidence,
         'sections_detected': len(sections),
@@ -209,13 +291,15 @@ def test_image(reader, parser, image_path, gt_path, verbose=True, show_sections=
     }
 
     if verbose:
+        skip_note = f', skipped={skipped_count}' if skipped_count else ''
         fm_part = ''
         if corrector is not None:
             recovered = fm_exact_matches - exact_matches
-            fm_part = (f", FM: {fm_exact_matches}/{len(results)} exact "
-                       f"(+{recovered} recovered, char_acc={fm_avg_char_accuracy:.1%})")
-        print(f"\n  Summary: {exact_matches}/{len(results)} exact matches "
-              f"({summary['exact_match_rate']:.1%}), "
+            gate_note = f', gated={fm_gated_count}' if fm_conf_threshold is not None else ''
+            fm_part = (f", FM: {fm_exact_matches}/{len(counted)} exact "
+                       f"(+{recovered} recovered, char_acc={fm_avg_char_accuracy:.1%}{gate_note})")
+        print(f"\n  Summary: {exact_matches}/{len(counted)} exact matches "
+              f"({summary['exact_match_rate']:.1%}){skip_note}, "
               f"avg char accuracy: {avg_char_accuracy:.1%}, "
               f"avg confidence: {avg_confidence:.3f}, "
               f"sections: {len(sections)}{fm_part}")
@@ -246,6 +330,12 @@ def main():
                        help='Strip leading structural prefixes (-, ., ㄴ) before comparison')
     argp.add_argument('--include-fuzzy', '-f', action='store_true',
                        help='Show FM: line with number-normalized fuzzy matching result')
+    argp.add_argument('--fm-threshold', type=float, default=None, metavar='CONF',
+                       help='Confidence gate: apply FM only when OCR conf < CONF (e.g. 0.85). '
+                            'Only effective with --include-fuzzy.')
+    argp.add_argument('--use-gt-sections', '-g', action='store_true',
+                       help='Use GT text for section detection (perfect categorization). '
+                            'Isolates FM dictionary quality from OCR recognition errors.')
     args = argp.parse_args()
 
     print("Initializing EasyOCR reader with custom model...")
@@ -268,7 +358,9 @@ def main():
             sys.exit(1)
         test_image(reader, parser, image_path, gt_path,
                    verbose=not args.quiet, show_sections=args.sections,
-                   normalize=args.normalize, corrector=corrector)
+                   normalize=args.normalize, corrector=corrector,
+                   fm_conf_threshold=args.fm_threshold,
+                   use_gt_sections=args.use_gt_sections)
     else:
         pairs = find_gt_pairs(SAMPLE_DIR, gt_suffix)
         if not pairs:
@@ -281,15 +373,18 @@ def main():
         for image_path, gt_path in pairs:
             summary = test_image(reader, parser, image_path, gt_path,
                                  verbose=not args.quiet, show_sections=args.sections,
-                                 normalize=args.normalize, corrector=corrector)
+                                 normalize=args.normalize, corrector=corrector,
+                                 fm_conf_threshold=args.fm_threshold,
+                                 use_gt_sections=args.use_gt_sections)
             all_summaries.append(summary)
 
         # Overall summary
         total_exact    = sum(s['exact_matches'] for s in all_summaries)
         total_compared = sum(s['total_compared'] for s in all_summaries)
+        total_skipped  = sum(s.get('skipped_count', 0) for s in all_summaries)
         total_char_acc = sum(s['avg_char_accuracy'] * s['total_compared'] for s in all_summaries)
-        total_fm_exact    = sum(s['fm_exact_matches'] for s in all_summaries) if corrector else None
-        total_fm_char_acc = sum(s['fm_avg_char_accuracy'] * s['total_compared'] for s in all_summaries) if corrector else None
+        total_fm_exact    = sum(s['fm_exact_matches'] for s in all_summaries if s['fm_exact_matches'] is not None) if corrector else None
+        total_fm_char_acc = sum(s['fm_avg_char_accuracy'] * s['total_compared'] for s in all_summaries if s['fm_avg_char_accuracy'] is not None) if corrector else None
 
         print(f"\n{'='*70}")
         print(f"  OVERALL RESULTS")
@@ -304,13 +399,14 @@ def main():
                   f"sections={s['sections_detected']}{fm_col}")
         print(f"  {'─'*66}")
         if total_compared > 0:
+            skip_col = f"  skipped={total_skipped}" if total_skipped else ''
             fm_total_col = ''
             if corrector is not None:
                 recovered = total_fm_exact - total_exact
                 fm_total_col = (f"  FM={total_fm_exact:3d}/{total_compared} "
                                 f"(+{recovered} recovered, char_acc={total_fm_char_acc/total_compared:.1%})")
             print(f"  {'TOTAL':40s}  {total_exact:3d}/{total_compared:<3d} exact  "
-                  f"char_acc={total_char_acc/total_compared:.1%}{fm_total_col}")
+                  f"char_acc={total_char_acc/total_compared:.1%}{skip_col}{fm_total_col}")
         print()
 
 

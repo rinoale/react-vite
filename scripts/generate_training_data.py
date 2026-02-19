@@ -21,7 +21,9 @@ import cv2
 # === Configuration ===
 FONT_PATH = "data/fonts/mabinogi_classic.ttf"
 DICT_PATHS = [
-    "data/dictionary/reforging_options.txt",
+    "data/dictionary/reforge.txt",
+    "data/dictionary/enchant.txt",
+    "data/dictionary/item_name.txt",
     "data/dictionary/tooltip_general.txt",
 ]
 GT_DIR = "data/sample_images"
@@ -80,23 +82,47 @@ def generate_template_lines():
     lines = []
 
     # --- Section headers (repeated for weight — these are short, low-height crops) ---
-    short_headers = ['인챈트', '개조', '세공', '세트아이템',
-                     '장인 개조', '등급', '에픽', '레어', '마스터', '전용 해제',
-                     '기본 효과', '추가 효과', '최종 단계 개방 완료', '에르그']
-    decorated_headers = ['- 아이템 속성 -', '- 인챈트 -', '- 개조 -', '- 세공 -',
-                         '- 에르그 -', '- 세트아이템 -', '- 아이템 색상 -']
-    # Each header repeated 10x to boost training weight for these short crops
-    for h in short_headers:
-        for _ in range(10):
-            lines.append(h)
-    for h in decorated_headers:
-        for _ in range(5):
-            lines.append(h)
-    # Extra weight for frequently misread headers — '속' vs '색' confusion, cascading color part failure
+    # Reps are tuned per header based on observed recognition failure rate.
+
+    # Critical: '세공' fails on 3/4 test images → heavy boost
+    for _ in range(100):
+        lines.append('세공')
+    for _ in range(30):
+        lines.append('- 세공 -')
+
+    # Critical: '에르그' shows 0 lines despite being detected → boost
+    for _ in range(60):
+        lines.append('에르그')
+    for _ in range(20):
+        lines.append('- 에르그 -')
+
+    # Already boosted in A15 — keep
     for _ in range(40):
         lines.append('아이템 속성')
+    for _ in range(5):
+        lines.append('- 아이템 속성 -')
     for _ in range(40):
         lines.append('아이템 색상')
+    for _ in range(5):
+        lines.append('- 아이템 색상 -')
+
+    # Moderate boost for remaining headers (currently 10 reps, detection decent)
+    for _ in range(30):
+        lines.append('인챈트')
+    for _ in range(10):
+        lines.append('- 인챈트 -')
+    for _ in range(30):
+        lines.append('개조')
+    for _ in range(10):
+        lines.append('- 개조 -')
+
+    # Low-frequency headers — keep at baseline
+    misc_headers = ['세트아이템', '장인 개조', '등급', '에픽', '레어', '마스터',
+                    '전용 해제', '기본 효과', '추가 효과', '최종 단계 개방 완료',
+                    '- 세트아이템 -']
+    for h in misc_headers:
+        for _ in range(10):
+            lines.append(h)
 
     # --- Stat lines ---
     for _ in range(200):

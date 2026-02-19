@@ -30,8 +30,7 @@ app.add_middleware(
 # Initialize Text Corrector with both dictionaries
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DICT_DIR = os.path.join(BASE_DIR, '..', 'data', 'dictionary')
-corrector = TextCorrector(os.path.join(DICT_DIR, 'reforging_options.txt'))
-corrector.load_dictionary(os.path.join(DICT_DIR, 'tooltip_general.txt'))
+corrector = TextCorrector(dict_dir=DICT_DIR)
 
 # Initialize EasyOCR Reader with custom trained model
 MODELS_DIR = os.path.join(BASE_DIR, 'models')

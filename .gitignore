@@ -36,4 +36,5 @@ backend/__pycache__/
 *.pyc
 split_output/
 scripts/__pycache__/
+scripts/hidden/
 saved_models

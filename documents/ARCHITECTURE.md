@@ -137,7 +137,7 @@ To deploy a version: `cp custom_mabinogi_aN.pth custom_mabinogi.pth`
 ## 5. Text Correction
 
 **File:** `backend/text_corrector.py`
-**Dictionaries:** `data/dictionary/reforging_options.txt`, `tooltip_general.txt`
+**Dictionaries:** `data/dictionary/` — one `.txt` file per section (e.g. `reforge.txt`, `tooltip_general.txt`). File stem maps to section name for targeted lookup.
 
 After OCR, each recognized string is fuzzy-matched against game dictionaries using RapidFuzz (`fuzz.ratio`, cutoff 80). This corrects common OCR errors like character substitutions (`속` → `색`) that are visually plausible but semantically wrong in the game context.
 

@@ -44,7 +44,7 @@ The data flow for item registration:
    - `MabinogiTooltipParser` (`mabinogi_tooltip_parser.py`): Section-aware wrapper that categorizes lines into game sections using `configs/mabinogi_tooltip.yaml`
    - `TooltipLineSplitter` (`tooltip_line_splitter.py`): Horizontal projection profiling splits the tooltip into individual line crops. Handles border removal, gap rescue, internal gap splitting, and horizontal sub-splitting.
    - `EasyOCR recognize()` on each line crop: Bypasses CRAFT detection entirely, runs custom TPS-ResNet-BiLSTM-CTC model directly on pre-cropped line images.
-   - `TextCorrector` (`text_corrector.py`): RapidFuzz fuzzy matching against game dictionaries (`data/dictionary/reforging_options.txt` + `tooltip_general.txt`) to fix OCR errors
+   - `TextCorrector` (`text_corrector.py`): RapidFuzz fuzzy matching against per-section dictionary files in `data/dictionary/` (e.g. `reforge.txt`, `tooltip_general.txt`). Section name maps directly to filename stem.
 3. Results returned as JSON with structured sections, corrected text, raw text, confidence, correction score, and line positions
 
 **Why not CRAFT?** CRAFT is designed for natural scene text detection (signs, labels in photos). On structured tooltip layouts, it fragments lines, merges adjacent text, and misses entire sections. The `TooltipLineSplitter` achieves perfect detection on all test images (244 total lines across 5 images).
