@@ -1,55 +1,64 @@
-import sys
+#!/usr/bin/env python3
+"""
+Run the v2 OCR pipeline on a single image and print recognized text.
+
+Usage:
+    python3 scripts/test_ocr.py <image_path>
+    python3 scripts/test_ocr.py data/sample_images/lightarmor_processed_3.png
+"""
+
 import os
+import sys
 import argparse
-# Add backend to path so we can import the splitter
-sys.path.append(os.path.join(os.getcwd(), 'backend'))
 
-from tooltip_line_splitter import TooltipLineSplitter
-import easyocr
-import shutil
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, PROJECT_ROOT)
+sys.path.insert(0, os.path.join(PROJECT_ROOT, 'backend'))
 
-def test_pipeline(image_path):
-    if not os.path.exists(image_path):
-        print(f"Error: Image not found at {image_path}")
-        return
+from mabinogi_tooltip_parser import MabinogiTooltipParser
+from ocr_utils import patch_reader_imgw
 
-    print(f"Testing OCR on: {image_path}")
+MODELS_DIR  = os.path.join(PROJECT_ROOT, 'backend', 'models')
+CONFIG_PATH = os.path.join(PROJECT_ROOT, 'configs', 'mabinogi_tooltip.yaml')
 
-    # Initialize EasyOCR
-    print("Loading EasyOCR model...")
-    BASE_DIR = os.path.join(os.getcwd(), 'backend')
-    MODELS_DIR = os.path.join(BASE_DIR, 'models')
 
+def main():
+    parser = argparse.ArgumentParser(description='Run v2 OCR pipeline on a single image')
+    parser.add_argument('image', help='Path to tooltip image (preprocessed binary PNG)')
+    args = parser.parse_args()
+
+    if not os.path.exists(args.image):
+        print(f"Error: image not found: {args.image}")
+        sys.exit(1)
+
+    import easyocr
     reader = easyocr.Reader(
         ['ko'],
         model_storage_directory=MODELS_DIR,
         user_network_directory=MODELS_DIR,
-        recog_network='custom_mabinogi'
+        recog_network='custom_mabinogi',
+        verbose=False,
     )
+    patch_reader_imgw(reader, MODELS_DIR)
 
-    # Run OCR
-    print("Running readtext on image...")
-    results = reader.readtext(image_path)
+    import cv2
+    import numpy as np
+    img = cv2.imread(args.image)
+    h, w = img.shape[:2]
 
-    print(f"\nDetected {len(results)} text regions.")
-    print("\n--- Expected Text ---")
+    # Small single-line crop (synthetic training image or splitter output):
+    # skip the line splitter and recognize the whole image directly.
+    if h < 40 or w < 100:
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        results = reader.recognize(gray, horizontal_list=[[0, w, 0, h]], free_list=[])
+        for _, text, conf in results:
+            print(f"{text}  (conf={conf:.3f})")
+    else:
+        tooltip = MabinogiTooltipParser(config_path=CONFIG_PATH)
+        result = tooltip.parse_tooltip(args.image, reader)
+        for line in result['all_lines']:
+            print(f"{line['text']}  (conf={line['confidence']:.3f})")
 
-    # Load ground truth for comparison
-    gt_path = image_path.replace('.png', '.txt').replace('images', 'labels')
-    gt_lines = []
-    if os.path.exists(gt_path):
-        with open(gt_path, 'r', encoding='utf-8') as f:
-            for i, line in enumerate(f):
-                print(f"  [{i+1:2d}] '{line.strip()}'")
 
-    print("\n--- Extracted Text ---")
-    for i, (bbox, text, prob) in enumerate(results):
-        print(f"  [{i+1:2d}] '{text}' (Conf: {prob:.4f})")
-
-    print("\n----------------------")
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Test OCR on a specific image')
-    parser.add_argument('image_path', help='Path to the image file to test')
-    args = parser.parse_args()
-    test_pipeline(args.image_path)
+if __name__ == '__main__':
+    main()
