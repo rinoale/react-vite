@@ -84,10 +84,12 @@ Proportional canvas width caused 57% of training at wrong squash factors. Fixed 
 | Attempt 13 | 14 (6.0%) | 52.4% | 0.247 | Tight-crop, font 10-11, splitter border filter |
 | Attempt 14 | 45 (19.6%) | 75.5% | 0.327 | Training data cleanup, GT source switch, splitter left-edge fix |
 | **Attempt 15** | **64 (27.8%)** | **77.0%** | **~0.352** | **% spacing, 내구력 6×, 개조 3×, headers 4×, grade colon** |
+| Attempt 16 | 28 (12.2%) | 71.3% | TBD | Charset 509→1201 — regression |
+| Attempt 17 | REVERTED | — | — | Game-like rendering reverted; new pipeline adopted |
 
-**Stage 1 gate:** 80% real char accuracy on synthetic-only training → then move to Stage 2 (fine-tune with real GT line crops). At 80%+, fuzzy matching only needs to fix minor character errors rather than reconstructing garbled output.
+**Current best:** Attempt 15 — 77.0% char acc, 64/230 exact. lightarmor (80.1%) and titan_blade (80.0%) crossed the 80% gate.
 
-**Current status (Attempt 15):** 77.0% overall, 64/230 exact matches. lightarmor (80.1%) and titan_blade (80.0%) crossed the 80% gate. captain_suit (66.2%) and lobe (73.9%) still below gate due to enchant header garbling and section detection failures. FM layer adds +3 exact matches in GT-sections mode with zero regressions.
+**Pipeline redesign in progress:** New segment-first approach changes when section labels are assigned. See "New Pipeline Plan" section below.
 
 ### Resolved in Attempt 15
 
@@ -138,6 +140,56 @@ Measured from actual PADDED crops fed to `recognize()` (5 GT images) vs syntheti
 5. **lobe below 75%** — Piercing description lines (`피어싱이 부여된 장비를 양 쪽에 착용 시`) still garbled. Long sentence without many natural training reps.
 
 7. **Color part sub-segments** — `파트 A` → `1호`, `R:0` → `4`. These may resolve if `아이템 색상` header is correctly recognized (indirect fix via issue #2 above).
+
+---
+
+## New Pipeline Plan: Segment-First, OCR-Second
+
+### Root problem with the old pipeline
+
+The old pipeline OCR'd all lines in a flat stream and tried to identify section headers from OCR output. If `세공` was garbled (e.g., `제채두 고급`), the entire reforge section was misclassified and FM fired against the wrong dictionary. This is a structural cascade failure that training improvements alone cannot fully eliminate — the section header words are short, surrounded by UI box borders, and can always be confused at ~10px height.
+
+### New pipeline
+
+```
+Original color image
+    ↓
+detect_headers() — near-black connected components (t=5, min_h=16, min_w=25)
+    ↓
+Segment into labeled regions (pre-header + header+content pairs)
+    ↓
+OCR each header crop → identify section (short text, ~10 possible labels)
+    ↓
+OCR each content region lines (section label pre-determined)
+    ↓
+FM with correct dictionary (already known, no post-hoc detection needed)
+```
+
+### Key advantages
+
+- Section labels are determined from header OCR (short, simple text) separately from content OCR (long, complex text)
+- Content OCR always has the correct FM dictionary — no cascade failure possible
+- Original color image preserved for header detection — tooltip theme themes that produce clean black bands
+- Fallback: orange text detection (proved reliable across all 26 theme images) for the 4 dark-background themes where black-band detection fails
+
+### Implementation status
+
+| Step | Status | Script/File |
+|------|--------|-------------|
+| Header detection | ✓ Done | `scripts/test_segmentation.py` |
+| Segmentation output | ✓ Done | `data/segmentation/<image>/` |
+| 22/26 themes work | ✓ Verified | t=5, min_h=16, min_w=25 |
+| 4 dark themes | Fallback TBD | orange detection or user guidance |
+| Header OCR → label | Pending | — |
+| Content OCR per segment | Pending | — |
+| Backend API update | Pending | `backend/main.py` |
+
+### Remaining known issues (carry forward)
+
+1. **Leading `-` misread** — `- 수리비` → `소수리비`. Still unresolved at splitter/training level.
+2. **Enchant sub-headers garbled** — `[접두]`/`[접미]` (42% char acc). Structural fix: enchant headers detected per-segment, not in-stream.
+3. **Ink ratio domain gap** — Synthetic 0.144 vs real 0.201. Carry forward from Attempt 17 analysis.
+4. **lobe/captain_suit below 75%** — Enchant descriptions, piercing lines.
 
 ---
 

@@ -38,13 +38,22 @@ After training, deploy model by copying `.pth` to `backend/models/custom_mabinog
 ## Architecture
 
 ### OCR Pipeline (core feature)
-The data flow for item registration:
-1. **Frontend** (`src/pages/sell.jsx`): Browser preprocesses uploaded image (grayscale → thresholding) to produce black-text-on-white-background PNG (contrast=1.0, brightness=1.0, threshold=80)
-2. **Backend** (`backend/main.py` → `POST /upload-item-v2`): Receives image, runs the v2 pipeline:
-   - `MabinogiTooltipParser` (`mabinogi_tooltip_parser.py`): Section-aware wrapper that categorizes lines into game sections using `configs/mabinogi_tooltip.yaml`
-   - `TooltipLineSplitter` (`tooltip_line_splitter.py`): Horizontal projection profiling splits the tooltip into individual line crops. Handles border removal, gap rescue, internal gap splitting, and horizontal sub-splitting.
-   - `EasyOCR recognize()` on each line crop: Bypasses CRAFT detection entirely, runs custom TPS-ResNet-BiLSTM-CTC model directly on pre-cropped line images.
-   - `TextCorrector` (`text_corrector.py`): RapidFuzz fuzzy matching against per-section dictionary files in `data/dictionary/` (e.g. `reforge.txt`, `tooltip_general.txt`). Section name maps directly to filename stem.
+
+**New pipeline (segment-first — in development):**
+Determines section labels BEFORE running content OCR, eliminating cascade section-detection failures.
+1. **Backend receives original color screenshot**
+2. **Header detection** (`scripts/test_segmentation.py` logic): Near-black connected components (`max(R,G,B) < 5`, `min_h=16`, `min_w=25`) locate the jet-black section header bands. Works for 22/26 known theme images; 4 ultra-dark-background themes need orange-text fallback.
+3. **Segmentation**: Pre-header region + N header+content pairs. Each content region has a positional section slot.
+4. **Header OCR**: Each header crop OCR'd independently (short text, ~10 fixed labels: 세공, 에르그, 인챈트, ...). Assigns canonical section name.
+5. **Content OCR per segment**: `TooltipLineSplitter` + EasyOCR `recognize()` per line. FM uses pre-determined section dictionary — no post-hoc header pattern matching in the content stream.
+
+**Current production pipeline (old — still in `backend/main.py`):**
+1. **Frontend** (`src/pages/sell.jsx`): Browser preprocesses uploaded image (BT.601 grayscale → threshold=80) → binary PNG (black text on white)
+2. **Backend** (`backend/main.py` → `POST /upload-item-v2`): Receives binary image, runs:
+   - `MabinogiTooltipParser` (`mabinogi_tooltip_parser.py`): Section-aware wrapper categorizing lines into game sections using `configs/mabinogi_tooltip.yaml`
+   - `TooltipLineSplitter` (`tooltip_line_splitter.py`): Horizontal projection profiling splits tooltip into line crops.
+   - `EasyOCR recognize()` on each line crop: Bypasses CRAFT entirely.
+   - `TextCorrector` (`text_corrector.py`): RapidFuzz FM against per-section dictionaries. Section labels assigned post-hoc from OCR output — cascade failure if header word is garbled.
 3. Results returned as JSON with structured sections, corrected text, raw text, confidence, correction score, and line positions
 
 **Why not CRAFT?** CRAFT is designed for natural scene text detection (signs, labels in photos). On structured tooltip layouts, it fragments lines, merges adjacent text, and misses entire sections. The `TooltipLineSplitter` achieves perfect detection on all test images (244 total lines across 5 images).

@@ -1006,6 +1006,68 @@ Synthetic training accuracy converged to 99.97% but real-world performance dropp
 
 ---
 
+## Attempt 17: REVERTED
+
+Attempt 17 (game-like rendering: dark bg + bright text → BT.601 → bright→black) was implemented based on ink ratio measurements from padded inference crops. Changes to `generate_training_data.py` were fully reverted before training completed.
+
+**Reason for revert:** A more fundamental pipeline redesign was adopted (see New Pipeline Plan below) that changes WHEN section labels are assigned, making individual OCR quality improvements premature. The ink ratio gap and charset expansion issues remain as future targets once the new pipeline is validated.
+
+---
+
+## New Pipeline Plan: Segment-First, OCR-Second
+
+### Strategic Shift
+
+The existing pipeline sends a binary preprocessed image to the backend, then OCR's ALL lines and attempts to infer section labels from OCR output. This creates a cascade failure: if `세공` is garbled, ALL downstream reforge lines lose their section label and FM fires against the wrong dictionary.
+
+**New plan: determine section labels BEFORE running OCR.**
+
+```
+Old:  Binary image → TooltipLineSplitter (all lines) → OCR all → pattern-match headers → section-label lines → FM per section
+New:  Original color image → detect header positions (black squares) → segment into labeled regions → OCR content per region (section already known) → FM with correct dictionary
+```
+
+### New Pipeline Steps
+
+1. **Header detection on original color image**
+   - Near-black connected components (`max(R,G,B) < 5`, `min_h=16`, `min_w=25`)
+   - Finds the jet-black header band backgrounds reliably
+   - 22/26 theme images work; 4 fail due to black game backgrounds (fallback: orange text scan, or user guidance)
+   - Script: `scripts/test_segmentation.py`
+
+2. **Segmentation with labels**
+   - Pre-header region (index 0): item name + item attrs
+   - Each header+content pair (index 1–N): header identifies the section
+   - Header crops saved separately (`_hdr_XX.png`); content crops saved separately (`_cnt_XX.png`)
+   - Results in `data/segmentation/<image_name>/`
+
+3. **Header OCR → section label assignment**
+   - OCR each header crop independently (short text, ~10 possible values: 세공, 에르그, 인챈트, 개조, etc.)
+   - Small vocabulary → high accuracy even with current model
+   - Assign canonical section name (maps to dictionary file) from OCR result
+
+4. **Content OCR with determined section**
+   - For each content region: preprocess (BT.601 → binary) → TooltipLineSplitter → EasyOCR recognize() per line
+   - Section label is known from step 3 → FM uses the correct dictionary immediately
+   - No post-hoc section detection needed
+
+### Why This Is Better
+
+| Problem | Old Pipeline | New Pipeline |
+|---------|-------------|-------------|
+| `세공` OCR garbled | Entire reforge section misclassified | Header OCR limited to ~10 words → less likely to fail |
+| Section FM fires on wrong lines | Content lines matched before section opens | Section known before content is OCR'd |
+| False positive section detection | Ratio guard + substring matching needed | No in-stream header detection needed |
+| Dark theme images | Preprocessed binary loses color info | Color image used for header detection |
+
+### Implementation Status
+
+- `scripts/test_segmentation.py` — header detection + segmentation complete (22/26 images work)
+- `configs/mabinogi_tooltip.yaml` — `ego` (정령) section added
+- Next: header OCR + section label assignment → content OCR with determined category
+
+---
+
 ## Attempt 17: Fix the Rendering Domain Gap (Ink Ratio)
 
 ### What the data actually shows
@@ -1072,17 +1134,8 @@ Thin (0.14) vs thick (0.20) strokes at similar scale factors still produce visib
 
 3. **No other changes**: Character set (1201), header boosts, GT lines, dictionary sampling — all kept from Attempt 16.
 
-### How to evaluate Attempt 17
+### Status: REVERTED before training
 
-Run with the canonical command: `python3 scripts/test_v2_pipeline.py -q --normalize --gt-suffix _expected.txt`
+Changes to `generate_training_data.py` (game-like rendering) were implemented but cleaned before training completed. The new pipeline redesign (segment-first, OCR-second) supersedes this attempt. Ink ratio gap remains a valid future target but is not the immediate priority.
 
-**Success criteria:** Real char accuracy ≥ 77.0% (Attempt 15 baseline) and exact matches ≥ 64/230.
-
-**If Attempt 17 succeeds** (char acc improves): Ink ratio domain gap was a real bottleneck. Continue with fine-tuning or human-in-the-loop Stage 2.
-
-**If Attempt 17 fails (char acc similar or lower):**
-- If synthetic acc is high but real drops: game-like rendering created a new gap (character shapes too different). Revert to black-on-white.
-- If both drop: 1201-char CTC space needs more training data/iterations before any rendering fix can show effect.
-- Next step: measure per-section accuracy to identify which section types improved/regressed.
-
-**One metric that would clarify:** Compare per-section accuracy before and after. If stat lines (long, frequent) improve but headers (short, rare) don't, ink ratio was the main factor.
+The analysis above (ink ratio 0.144 vs 0.201, height matching at h=14-15) remains valid and should be incorporated when resuming synthetic training under the new pipeline.

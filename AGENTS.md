@@ -5,17 +5,21 @@ Build a specialized marketplace for trading in-game items where the core data en
 
 ## 2. Key Features
 
-### A. OCR-based Item Registration (v2 Pipeline)
-- **User Action:** Uploads a screenshot of the game item tooltip.
-- **Frontend Processing (`src/pages/sell.jsx`):**
-  - Browser preprocesses the image: Grayscale (ITU-R BT.601) → Contrast/Brightness (default 1.0) → Binary thresholding (threshold=80, inverted: bright→black, dark→white)
-  - Output: strictly binary PNG (pixel values 0 and 255 only), black text on white background
-  - Sends this processed image to the backend
-- **Backend Processing (`backend/main.py`):**
-  1. **Section-Aware Parsing** — `MabinogiTooltipParser` (`mabinogi_tooltip_parser.py`) wraps the line splitter and categorizes detected lines into game sections (item_name, item_attrs, enchant, reforge, etc.) using config from `configs/mabinogi_tooltip.yaml`
-  2. **Line Detection** — `TooltipLineSplitter` (`tooltip_line_splitter.py`) splits full tooltip image into individual line crops using horizontal projection profiling, with horizontal sub-splitting for color parts
-  3. **Recognition** — Each line crop is fed to EasyOCR's `recognize()` API (bypasses CRAFT detection entirely). Custom `TPS-ResNet-BiLSTM-CTC` model recognizes Korean text.
-  4. **Correction** — `TextCorrector` (`text_corrector.py`) applies RapidFuzz fuzzy matching with section-specific dictionaries (`reforge.txt`, `enchant.txt`, `item_name.txt`, `tooltip_general.txt`). Two-phase enchant matching: phase 1 matches OCR header against 1172 canonical enchant entries, phase 2 matches effect lines against only that enchant's 4-8 effects. Reforge sub-bullets (`ㄴ`) skipped (values vary). Sections with no dictionary return skip sentinel instead of falling back to combined pool.
+### A. OCR-based Item Registration (v2 Pipeline — Redesign in Progress)
+
+**New pipeline (segment-first):**
+1. **User uploads original color screenshot** (no frontend preprocessing)
+2. **Header detection** — Backend detects section header bands on the original color image using near-black connected components (`max(R,G,B) < 5`, `min_h=16`, `min_w=25`). Works for the standard Mabinogi tooltip theme (22/26 tested images). Fallback: orange text scan for dark-background themes.
+3. **Segmentation** — Image split into labeled regions (pre-header content + per-section header+content pairs) using `scripts/test_segmentation.py` logic.
+4. **Header OCR** — Each header crop is OCR'd independently (short text, ~10 possible labels: 세공, 에르그, 인챈트, 개조, etc.) to assign the canonical section name.
+5. **Content OCR per segment** — `TooltipLineSplitter` + EasyOCR `recognize()` on each content region. Section label is already known from step 4 — FM uses the correct dictionary immediately, no post-hoc section detection.
+6. **Fuzzy matching** — `TextCorrector` with section-specific dictionaries. Two-phase enchant matching preserved.
+
+**Old pipeline (still in production at `backend/main.py`):**
+- Frontend preprocesses image: BT.601 grayscale → threshold(>80 → black) → binary PNG
+- Backend: `MabinogiTooltipParser` → `TooltipLineSplitter` → EasyOCR `recognize()` per line → section labels assigned by pattern-matching OCR output → FM
+- Problem: if a section header word is garbled, all downstream lines in that section are misclassified (cascade failure)
+
 - **Endpoints:** `POST /upload-item` (flat list), `POST /upload-item-v2` (structured sections)
 - **Goal:** Minimize manual typing and enable accurate stat-based searching.
 

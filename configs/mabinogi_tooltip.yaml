@@ -91,6 +91,14 @@ sections:
     ocr: false
     parse_mode: color_parts
 
+  ego:
+    order: 75
+    description: "정령 (ego/spirit) weapon stats and level"
+    header_patterns:
+      - "정령"
+    required: false
+    ocr: true
+
   flavor_text:
     order: 80
     description: "Item description / flavor text — not needed for marketplace"
