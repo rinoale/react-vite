@@ -26,6 +26,10 @@ DICT_PATHS = [
     "data/dictionary/item_name.txt",
     "data/dictionary/tooltip_general.txt",
 ]
+
+# item_name.txt has 20,284 entries — cap to prevent dataset inflation (~90k → ~30k images).
+# Critical section headers need proportional representation; sampling prevents dilution.
+ITEM_NAME_SAMPLE = 3000
 GT_DIR = "data/sample_images"
 OUTPUT_DIR = "backend/train_data"
 IMAGES_DIR = os.path.join(OUTPUT_DIR, "images")
@@ -500,7 +504,11 @@ def load_dictionaries():
             continue
         with open(dict_path, 'r', encoding='utf-8') as f:
             entries = [line.strip() for line in f if line.strip()]
+        if 'item_name' in dict_path and len(entries) > ITEM_NAME_SAMPLE:
+            print(f"  item_name.txt: sampling {ITEM_NAME_SAMPLE} from {len(entries)} entries")
+            entries = random.sample(entries, ITEM_NAME_SAMPLE)
         words.extend(entries)
+        print(f"  Loaded {len(entries):5d} entries from {os.path.basename(dict_path)}")
     return words
 
 
@@ -618,8 +626,33 @@ def generate_data():
     max_text_width = CANVAS_WIDTH - 2 * max(2, 11 // 3)  # canvas minus padding at largest font
     all_labels = split_all_labels(all_labels, FONT_PATH, max_font, max_text_width)
     all_labels = list(set(all_labels))  # deduplicate after splitting
+    print(f"Unique labels (pre-boost): {len(all_labels)}")
+
+    # Post-dedup boost for critical section headers.
+    # set() above collapses all repeated copies from generate_template_lines() to 1 unique entry.
+    # Re-add extra copies here so each header gets proportionally more training images.
+    # Formula: extra = ceil(target_images / VARIATIONS_PER_LABEL) - 1
+    # e.g. target=130 images → extra = ceil(130/3)-1 = 43 extra copies → 44×3=132 images
+    HEADER_BOOSTS = [
+        ('세공',         43),  # 44 total → ~132 images  (was 3)
+        ('- 세공 -',      9),  # 10 total → ~30 images
+        ('에르그',        26),  # 27 total → ~81 images  (was 3)
+        ('- 에르그 -',    6),  # 7 total  → ~21 images
+        ('인챈트',         9),  # 10 total → ~30 images
+        ('- 인챈트 -',    3),  # 4 total  → ~12 images
+        ('아이템 속성',   12),  # 13 total → ~39 images
+        ('아이템 색상',   12),  # 13 total → ~39 images
+        ('개조',           9),  # 10 total → ~30 images
+        ('- 개조 -',      3),  # 4 total  → ~12 images
+    ]
+    boost_count = 0
+    for header, extra in HEADER_BOOSTS:
+        all_labels.extend([header] * extra)
+        boost_count += extra
+    print(f"Post-dedup boost: +{boost_count} header copies → {len(all_labels)} total labels")
+
     random.shuffle(all_labels)
-    print(f"Unique labels: {len(all_labels)}")
+    print(f"Total labels (with boost): {len(all_labels)}")
 
     count = 0
     skipped = 0

@@ -15,7 +15,7 @@ Build a specialized marketplace for trading in-game items where the core data en
   1. **Section-Aware Parsing** — `MabinogiTooltipParser` (`mabinogi_tooltip_parser.py`) wraps the line splitter and categorizes detected lines into game sections (item_name, item_attrs, enchant, reforge, etc.) using config from `configs/mabinogi_tooltip.yaml`
   2. **Line Detection** — `TooltipLineSplitter` (`tooltip_line_splitter.py`) splits full tooltip image into individual line crops using horizontal projection profiling, with horizontal sub-splitting for color parts
   3. **Recognition** — Each line crop is fed to EasyOCR's `recognize()` API (bypasses CRAFT detection entirely). Custom `TPS-ResNet-BiLSTM-CTC` model recognizes Korean text.
-  4. **Correction** — `TextCorrector` (`text_corrector.py`) applies RapidFuzz fuzzy matching against dictionaries (`reforging_options.txt` + `tooltip_general.txt`) to fix OCR errors
+  4. **Correction** — `TextCorrector` (`text_corrector.py`) applies RapidFuzz fuzzy matching with section-specific dictionaries (`reforge.txt`, `enchant.txt`, `item_name.txt`, `tooltip_general.txt`). Two-phase enchant matching: phase 1 matches OCR header against 1172 canonical enchant entries, phase 2 matches effect lines against only that enchant's 4-8 effects. Reforge sub-bullets (`ㄴ`) skipped (values vary). Sections with no dictionary return skip sentinel instead of falling back to combined pool.
 - **Endpoints:** `POST /upload-item` (flat list), `POST /upload-item-v2` (structured sections)
 - **Goal:** Minimize manual typing and enable accurate stat-based searching.
 
@@ -49,6 +49,7 @@ The custom `TooltipLineSplitter` uses horizontal projection profiling tailored f
 - **OCR Detection:** Custom `TooltipLineSplitter` (horizontal projection profiling).
 - **OCR Recognition:** EasyOCR `recognize()` API with custom model (`TPS-ResNet-BiLSTM-CTC`).
 - **Font:** `data/fonts/mabinogi_classic.ttf` (official Mabinogi game font).
+- **Character set:** 1201 chars (expanded from 509 pre-Attempt 16; covers all chars in all dictionary files).
 - **Correction:** RapidFuzz (Levenshtein distance).
 - **Training:** `deep-text-recognition-benchmark` (PyTorch).
 
@@ -143,10 +144,10 @@ Three root causes were identified after Attempt 6 (0% real accuracy despite 97-1
 - Tooltip width: consistently 262-271px across all images
 - All images are strictly binary (0, 255) after frontend thresholding at 80
 
-### Synthetic Training Data Statistics (Attempt 13)
-- Generated: **9,193 images** (509-char set, font 10-11 only)
-- Height: 10-17px (median 15px), no illegible images
-- Width: 10-260px (median 89px, tight-cropped to ink bounds)
+### Synthetic Training Data Statistics (Attempt 15)
+- Generated: **11,580 images** (509-char set, font 10-11 only)
+- Height: h=14-15 (~74%), h=16-20 (~16%), h=10-11 (~10%)
+- Width: tight-cropped to ink bounds (median ~89px)
 - Quality gates on every image: ink ratio ≥2%, width ≥10px, height ≥8px
 - No augmentation — clean binary only (0 and 255 pixel values)
 - All images verified human-readable
@@ -161,17 +162,20 @@ Three root causes were identified after Attempt 6 (0% real accuracy despite 97-1
 - **Dynamic imgW pitfall:** `recognize()` passes `int(max_width)` to `get_text()` where `max_width = ceil(w/h) * 32` — varies per image. Fixed by `ocr_utils.py` patch.
 
 ### v2 Pipeline Results
-| Attempt | Exact (of 235) | Char Acc | Confidence | Key Change |
+| Attempt | Exact (of 230) | Char Acc | Confidence | Key Change |
 |---------|----------------|----------|------------|------------|
 | Baseline (Att 6) | 0 (0%) | 19.5% | 0.039 | Dictionary-only, 32px fixed, 442 chars |
 | Attempt 7 | 1 (0.4%) | 35.8% | 0.097 | +67 chars, templates, natural height |
-| Attempt 8 (5k) | 56.2% | 28.3% | 0.004 | +font size 8, proportional canvas (regression) |
-| Attempt 8b (15k) | 93.5% | 27.0% | 0.014 | Continue from checkpoint — domain gap confirmed |
-| Attempt 9 | 90.0% | 36.2% | 0.044 | Reverted canvas to ~260px, bimodal font sizes 6-7/10-11 |
-| Attempt 12 | 84.4% | 38.1% | 0.120 | Inference imgW patch, squash factors match |
-| Attempt 13 | 100% | 52.4% | 0.247 | Tight-crop, font 10-11, splitter border filter |
+| Attempt 8 (5k) | 0 (0%) | 28.3% | 0.004 | +font size 8, proportional canvas (underfit) |
+| Attempt 8b (15k) | 0 (0%) | 27.0% | 0.014 | Continue from checkpoint — domain gap confirmed |
+| Attempt 9 | 0 (0%) | 36.2% | 0.044 | Reverted canvas to ~260px, bimodal font sizes 6-7/10-11 |
+| Attempt 12 | 0 (0%) | 38.1% | 0.120 | Inference imgW patch, squash factors match |
+| Attempt 13 | 14 (6.0%) | 52.4% | 0.247 | Tight-crop, font 10-11, splitter border filter |
+| Attempt 14 | 45 (19.6%) | 75.5% | 0.327 | Training data cleanup, GT source switch, splitter left-edge fix |
+| **Attempt 15** | **64 (27.8%)** | **77.0%** | **~0.352** | **% spacing, 내구력 6×, 개조 3×, section headers 4×** |
+| Attempt 16 | TBD | TBD | TBD | Charset 509→1201, item_name 3k, post-dedup header boost, num_iter 20k |
 
-Pipeline mechanics confirmed working. Line detection perfect. Recognition is the sole bottleneck. Attempt 13 achieved 65.5% on aligned images; overall 52.4% is dragged down by GT alignment drift on titan_blade/dropbell. Six failure categories identified — see `OCR_TRAINING_HISTORY.md`.
+Pipeline mechanics confirmed working. Line detection perfect (244/244 across 5 images). Recognition is the sole bottleneck. Attempt 15 crossed the 80% gate on lightarmor (80.1%) and titan_blade (80.0%). captain_suit and lobe remain below 70%/75% due to enchant section detection failures and garbled short headers. FM layer (post-Attempt 15) adds +3 exact matches with zero regressions. See `OCR_TRAINING_HISTORY.md` for full analysis and Attempt 16 strategy.
 
 ## 5.5 Future: Stage 2 — Human-in-the-Loop Fine-Tuning
 
@@ -206,12 +210,11 @@ Flags explained:
   pipeline intentionally skips (`flavor_text`, `shop_price`). The full `.txt` files include
   those sections, causing spurious mismatches when OCR correctly omits them.
 
-Omitting either flag produces misleadingly low scores. Example: Attempt 14 on current images:
+Omitting either flag produces misleadingly low scores. Example: Attempt 15 on current images:
 | Command | Exact | Char acc |
 |---|---|---|
-| `-q` (wrong) | 16/239 | 55.9% |
-| `-q --normalize` (partial) | 28/239 | 57.1% |
-| `-q --normalize --gt-suffix _expected.txt` (correct) | **45/230** | **75.5%** |
+| `-q` (wrong) | ~30/230 | ~60% |
+| `-q --normalize --gt-suffix _expected.txt` (correct) | **64/230** | **77.0%** |
 
 ### 6.2 GT index drift from `.` bullet detection
 The line splitter sometimes detects a leading `.` bullet point as a separate 1-char crop,

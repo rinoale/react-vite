@@ -18,9 +18,10 @@ Each attempt has identified and fixed a specific bottleneck, steadily raising re
 | 12 | 84.4% | 38.1% | 0.120 | Patched inference to use fixed imgW. Squash factors now match. |
 | 13 | 100% | 52.4% | 0.247 | Tight-crop, font 10-11, splitter border filter, inference patch |
 | 14 | — | 75.5% | 0.327 | Training data cleanup + splitter left-edge artifact removal |
-| 15 | — | TBD | TBD | % spacing fix, 내구력 6×, section headers 4×, 개조 3×, grade colon fix, dash 2.5× |
+| 15 | — | 77.0% | 0.352 | % spacing fix, 내구력 6×, section headers 4×, 개조 3×, grade colon fix, dash 2.5× |
+| 16 | TBD | TBD | TBD | Charset 509→1201, item_name sampled 3k, post-dedup header boost, num_iter 20k |
 
-Real-world char accuracy: **0% → 19.5% → 35.8% → 27.0% (regression) → 36.2% → 38.1% → 52.4% → 75.5%**. Attempt 14 cleaned up training data quality (prefix corrections, color part handling, GT source switch to `_expected.txt`) and added two post-hoc splitter fixes to remove left-edge UI artifacts from crops. Exact matches jumped from 14/235 to 45/230. GT count changed to 230 due to titan_blade image update and use of `_expected.txt`. lightarmor at 79.0%, titan_blade at 77.9%, approaching 80% gate.
+Real-world char accuracy: **0% → 19.5% → 35.8% → 27.0% (regression) → 36.2% → 38.1% → 52.4% → 75.5% → 77.0%**. Attempt 14 cleaned up training data quality (prefix corrections, color part handling, GT source switch to `_expected.txt`) and added two post-hoc splitter fixes to remove left-edge UI artifacts from crops. Exact matches jumped from 14/235 to 45/230. Attempt 15 targeted the most common failure patterns (내구력, 개조, % spacing, section headers) and raised char acc to 77.0% and exact matches to 64/230. GT count changed to 230 due to titan_blade image update and use of `_expected.txt`. lightarmor at 80.1%, titan_blade at 80.0%, crossing the 80% gate on both large images.
 
 ---
 
@@ -824,3 +825,172 @@ Full verbose test run categorized 185 failing lines:
 | Dash misread (500 reps) | +2-5 (uncertain) |
 
 **Target**: 60-75/230 exact (26-33%), **80%+** char accuracy.
+
+---
+
+## Attempt 15 Results
+
+**Training:** Same config as Attempt 14 (imgW=200, batch_size=64, 10k iters). 11,580 training images.
+
+**v2 Pipeline Result (with `--normalize --gt-suffix _expected.txt`):**
+
+| Image | GT Lines | Exact | Char Acc | Confidence | Sections |
+|-------|----------|-------|----------|------------|----------|
+| captain_suit | 21 | 5 | 66.2% | 0.323 | 4 |
+| dropbell | 35 | 12 | 71.8% | 0.330 | 3 |
+| lightarmor | 71 | 24 | **80.1%** | 0.465 | 3 |
+| lobe | 19 | 2 | 73.9% | 0.392 | 3 |
+| titan_blade | 84 | 21 | **80.0%** | 0.379 | 4 |
+| **TOTAL** | **230** | **64 (27.8%)** | **77.0%** | **~0.352** | — |
+
+**Improvement over Attempt 14:** Char accuracy 75.5% → 77.0% (+1.5pp). Exact matches 45 → 64 (+19). lightarmor and titan_blade crossed the **80% gate** for the first time.
+
+### Attempt 15 Analysis
+
+**Resolved by Attempt 15:**
+- `내구력 N/N` — Previously 0% exact on all 5 lines; now mostly recognized.
+- `개조` variants — `일반 개조(N/N)`, `특별 개조 R/S` now largely correct.
+- `% / 초` spacing — `72%` no longer becomes `72 %`.
+- Grade colon — `마스터 (장비 레벨: 65)` now matches GT format.
+
+**Remaining issues blocking 80% overall:**
+
+| Issue | Affected Images | Impact |
+|-------|----------------|--------|
+| Section header misrecognition (`세공` → `제채두 고급`, `에르그` → `44 르 수`) | titan_blade | False negatives: wrong section tags cascade to FM failure |
+| `[접두]`/`[접미]` enchant headers highly garbled | all | ~42% char acc on enchant headers; two-phase FM can't recover below ~80% raw OCR |
+| captain_suit still below 70% | captain_suit | Complex enchant descriptions; enchant section not detected |
+| lobe still below 75% | lobe | Piercing description lines still garbled |
+
+**Root cause of section header false-negatives:** `세공` and `에르그` are very short (2-3 chars) and appear only at the start of a section block, surrounded by UI borders. The model conflates them with artifact characters. Underrepresented in training (only 10 reps each). The ratio guard added to `_match_section_header` prevents false positives, but false negatives (headers OCR'd as noise) remain unresolved until training improves.
+
+---
+
+## Post-Attempt 15: Fuzzy Matching Pipeline Improvements
+
+After confirming Attempt 15 results, significant improvements were made to the fuzzy matching (FM) layer without changing the OCR model. These changes are in effect for Attempt 16+ evaluation.
+
+### Section-Aware FM Architecture
+
+**Before:** FM always searched the combined dictionary (all sections merged). A high-confidence correct line like `72` could be "corrected" to `72` (from dictionary) — but a wrong section's FM lookup could change `수리비 200% 증가` to an unrelated reforge entry.
+
+**After:**
+- **Section-specific search:** FM looks only in the dictionary matching the detected section (e.g., `reforge.txt` for reforge lines, `enchant.txt` for enchant lines).
+- **Sentinel values:** `-2` = section known but no dictionary (FM skipped entirely), `-3` = reforge `ㄴ` sub-bullet (always skipped — effect values vary and aren't in the dictionary).
+- **Sub-bullet exclusion:** Reforge `ㄴ` sub-bullet lines are excluded from accuracy counting (scores represent OCR-correctable lines only).
+- **FM regression detection:** New `[RF]` status in verbose output shows when FM changes a correct OCR line to wrong — made regressions visible rather than silent.
+
+### Section Header Ratio Guard
+
+`_match_section_header` now applies a ratio guard: `len(pattern)/len(cleaned) >= 0.5`. Prevents content lines that contain a section keyword as a substring from being promoted to section headers.
+
+Examples fixed:
+- `너 상 개조55, 보석 비` contains `개조` → was promoted to `item_mod`. Now rejected (2/12 = 0.17 < 0.5).
+- `(에르그 이전 불가)` contains `에르그` → was promoted to `erg`. Now rejected (3/9 = 0.33 < 0.5).
+
+### Reforge Section-Specific Processing
+
+- **Level suffix strip + re-attach:** `_REFORGE_LEVEL_PAT` strips `(15/20 레벨)` before FM name matching (so `막: 스매시 대미지(15/20 레벨)` matches `스매시 대미지` in reforge.txt), then re-attaches the original suffix to the FM result. Without re-attach, FM was replacing the full OCR line with just the name — a regression for already-correct lines.
+- **Parse mode `reforge_options`** in `mabinogi_tooltip_parser.py`: tags each reforge line with `reforge_name`, `reforge_level`, `reforge_max_level`, `is_reforge_sub`.
+
+### Two-Phase Enchant Matching
+
+Enchant matching now works in two phases instead of a flat dictionary search:
+
+**Phase 1 (header):** OCR text like `[접두] 충격을 (랭크 F)` → FM against all 1172 canonical enchant headers in `_enchant_headers_norm`. Returns the matched `entry` containing the enchant's effect list.
+
+**Phase 2 (effects):** OCR effect lines → FM against only that enchant's 4–8 effects, not the full 6116-entry flat list. Reduces false positive risk drastically.
+
+**Enchant dictionary transformation:** `data/dictionary/enchant.txt` reformatted from:
+```
+접미 6
+관리자
+아르카나 스킬 보너스 대미지 1% 증가
+...
+```
+to:
+```
+[접미] 관리자 (랭크 6)
+아르카나 스킬 보너스 대미지 1% 증가
+...
+```
+6223 → 5232 lines (991 old-format headers merged + 181 already-correct headers = 1172 total canonical headers). Ranks cover both letter (A-F) and numeric (1-9) formats.
+
+**TextCorrector additions (`backend/text_corrector.py`):**
+- `_load_enchant_structured(path)` — builds `_enchant_db` (1172 entries) and `_enchant_headers_norm`
+- `match_enchant_header(text, cutoff=80)` → `(header, score, entry)`
+- `match_enchant_effect(text, entry, cutoff=75)` → `(corrected_text, score)`
+
+### FM Results (GT-sections mode, all 5 images)
+
+With `--include-fuzzy --use-gt-sections --normalize --gt-suffix _expected.txt`:
+
+| Image | OCR Exact | FM Exact | Recovered | Skipped (sub-bullets) |
+|-------|-----------|----------|-----------|----------------------|
+| captain_suit | 5 | 5 | 0 | 0 |
+| dropbell | 10 | 10 | 0 | 3 |
+| lightarmor | 24 | 26 | +2 | 1 |
+| lobe | 2 | 2 | 0 | 0 |
+| titan_blade | 21 | 22 | +1 | 3 |
+| **TOTAL** | **62/223** | **65/223** | **+3** | **7** |
+
+Char accuracy: 76.5% → 76.6% after FM (FM net positive, 0 regressions after reforge level suffix fix).
+
+---
+
+## Attempt 16: Boost Section Header Recognition
+
+### Strategy
+
+**Goal:** Fix the false-negative section header recognition that causes cascade failures. When `세공` is OCR'd as `제채두 고급`, the parser fails to open the `reforge` section — all subsequent reforge lines are misclassified, and section-specific FM cannot search the right dictionary.
+
+**Root cause:** Section header words (`세공`, `에르그`) are very short (2-3 chars), surrounded by UI box art, and only occurred 10 times each in Attempt 15 training. This is insufficient for the model to reliably distinguish them from similar-looking artifact patterns.
+
+**Key insight from ratio guard analysis:** The ratio guard now prevents content lines from being false-positive promoted to headers. This means the only remaining section-detection errors are false negatives from garbled OCR. These are fully attributable to training coverage, not pipeline logic.
+
+### Pre-training Fixes (before generating data)
+
+Three bugs discovered and fixed before Attempt 16 training data generation:
+
+**1. Charset gap: 509 → 1201 characters**
+Dictionary coverage audit revealed 692 characters in `enchant.txt` and `item_name.txt` that were NOT in `unique_chars.txt`. These included common Korean syllables (`국`, `눈`, `말`, `안`, `않`, `왕`, `옵`, ...) that appear in real enchant effects. Because the model's CTC output layer is fixed at training time, it could NEVER output these characters — they would be permanently garbled regardless of how well the model trained. Additionally, training labels containing uncovered characters are silently skipped by the training code, wasting those dictionary entries.
+
+Fix: Expanded `unique_chars.txt` from 509 → 1201 chars (all characters present in any dictionary file, including ASCII specials from item names). Re-ran `create_model_config.py` to regenerate `backend/models/custom_mabinogi.yaml`.
+
+**2. `set()` dedup killed all weighted repetitions**
+`generate_data()` used `list(set(template_lines + ...))` which collapsed all N copies of a header down to 1 unique entry → only `VARIATIONS_PER_LABEL=3` images per header. The 130× boost for `세공` in `generate_template_lines()` produced exactly 3 training images — same as the 10× baseline.
+
+Fix: After the `list(set(...))` dedup, explicitly add extra copies of critical headers to `all_labels` (post-dedup boost). Effect: `세공` → 44 copies → ~132 images; `에르그` → 27 copies → ~81 images.
+
+**3. item_name.txt dilution (20,284 → 3,000 sampled)**
+`item_name.txt` had 20,284 entries. Unsampled, this would produce ~84k total images with critical headers at 3/84k = 0.004% of training data. Sampled to 3,000 entries to keep dataset at ~30k images, maintaining proportional representation of all patterns.
+
+### Training Data Statistics (Attempt 16)
+
+| Stat | Attempt 15 | Attempt 16 |
+|---|---|---|
+| Charset | 509 chars | **1201 chars** |
+| Template unique labels | ~2,852 | ~2,852 (unchanged) |
+| Dict entries (after sampling) | ~11,580 total | ~10,979 raw / 7,088 unique |
+| Total unique labels | ~3,860 | ~9,981 |
+| Post-dedup header boost | 0 (broken) | +132 copies |
+| **Total training images** | **11,580** | **~30,339** |
+| num_iter | 10,000 | **20,000** (scaled for 2.6× larger dataset) |
+
+Critical header image counts:
+| Header | Attempt 15 (actual) | Attempt 16 (actual) |
+|---|---|---|
+| `세공` | 3 | **~132** |
+| `에르그` | 3 | **~81** |
+| `인챈트` | 3 | **~30** |
+| `아이템 속성` | 3 | **~39** |
+
+### Expected Improvement
+
+Fixing `세공` and `에르그` recognition cascades to:
+- titan_blade reforge section: correctly categorized → reforge FM fires → `스매시 대미지(15/20 레벨)` corrected
+- titan_blade erg section: lines correctly tagged → section-specific handling
+- Broader charset coverage enables recognition of previously impossible characters in enchant effects
+- Overall estimated gain: +5-10 exact matches
+
+**Target:** 70+/230 exact (30%+), **79%+** char accuracy.

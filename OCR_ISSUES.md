@@ -24,6 +24,15 @@
 - **Color Parts Not Split Horizontally** — Multi-digit RGB values (e.g., `R:187 G:153 B:85`) merged into one segment because gap sizes (15-16px) were below the split threshold. Made `horizontal_split_factor` configurable (default 3 in base, 1.5 for Mabinogi via `configs/mabinogi_tooltip.yaml`). For h=8 color lines: threshold=12, gaps 15-16 > 12 → correct 4-way split.
 - **Section-Aware Parsing** — Created `MabinogiTooltipParser` (`backend/mabinogi_tooltip_parser.py`) that categorizes lines into game sections (item_attrs, enchant, reforge, etc.) using config from `configs/mabinogi_tooltip.yaml`. Enables structured output and section-specific handling (e.g., color parts parsed via regex, flavor text skipped).
 - **GT Alignment Drift** — Old GT files didn't match pipeline output (different line counts from horizontal splitting, skip logic changes). Created `scripts/regenerate_gt.py` to produce GT candidates from actual pipeline output. Added `*_expected.txt` files for expected OCR output (separate from full GT).
+- **FM False Positive Section Detection** — Content lines containing a section keyword as substring were promoted to section headers (e.g., `너 상 개조55, 보석 비` → promoted to `item_mod`). Fixed by ratio guard in `_match_section_header`: `len(pattern)/len(cleaned) >= 0.5` — a keyword must occupy at least 50% of the cleaned line to qualify as a header.
+- **FM Overcorrection (combined dictionary fallback)** — When a section had no dedicated dictionary, FM fell back to the combined 28k-entry pool and could wrongly change correct lines. Fixed: known sections with no dictionary now return sentinel `-2` (FM skipped entirely); only unknown sections fall back to combined.
+- **FM Regression on Reforge Headers (level suffix stripped)** — `correct_normalized` for reforge stripped the level suffix `(15/20 레벨)` before FM name matching, but returned only the name — changing already-correct `스매시 대미지(15/20 레벨)` to `스매시 대미지`. Fixed by saving the suffix and re-attaching after name matching.
+- **Reforge Sub-bullet FM Overcorrection** — `ㄴ 대미지 150 % 증가` sub-bullets were searched in the reforge dictionary and could be changed to unrelated entries. Fixed: reforge `ㄴ` lines return sentinel `-3` (FM skipped, line excluded from accuracy counting).
+- **Enchant Flat-Dictionary False Positives** — FM against 6116-entry flat enchant list could match any random enchant effect to an unrelated line. Fixed by two-phase structured matching: phase 1 identifies the enchant by header (1172 entries), phase 2 searches only that enchant's 4-8 effects.
+- **Enchant.txt Format Mismatch** — Dictionary used `접두 6\n관리자` (slot+rank on line 1, name on line 2) but tooltip shows `[접두] 관리자 (랭크 6)`. Transformed 991 old-format header pairs to canonical `[slot] NAME (랭크 RANK)` format. Dictionary now has 1172 structured entries (some were already in correct format).
+- **Charset Gap (509 → 1201 chars)** — Dictionary audit found 692 characters in `enchant.txt` and `item_name.txt` not in `unique_chars.txt`. These included common Korean syllables (`국`, `눈`, `말`, `왕`, `옵`, ...) that appear in real enchant effects. The model could never output these characters, and training labels containing them were silently skipped. Fixed by expanding `unique_chars.txt` from 509 → 1201 chars and regenerating `backend/models/custom_mabinogi.yaml`.
+- **`set()` Dedup Killed Header Boosts** — `generate_data()` used `list(set(template_lines + ...))` which collapsed all N copies of any header to 1 unique entry → only 3 training images regardless of boost count. Fixed by adding a post-dedup explicit boost block in `generate_data()` after the final `list(set(...))` call.
+- **item_name.txt Dataset Dilution** — 20,284 entries in `item_name.txt` would produce ~84k training images, making critical headers 0.004% of the dataset. Fixed by sampling 3,000 entries from `item_name.txt` in `load_dictionaries()`.
 
 ---
 
@@ -73,24 +82,36 @@ Proportional canvas width caused 57% of training at wrong squash factors. Fixed 
 | Attempt 9 | 0 (0%) | 36.2% | 0.044 | Reverted canvas to ~260px, bimodal font sizes 6-7/10-11 |
 | Attempt 12 | 0 (0%) | 38.1% | 0.120 | Inference imgW patch, squash factors now match |
 | Attempt 13 | 14 (6.0%) | 52.4% | 0.247 | Tight-crop, font 10-11, splitter border filter |
+| Attempt 14 | 45 (19.6%) | 75.5% | 0.327 | Training data cleanup, GT source switch, splitter left-edge fix |
+| **Attempt 15** | **64 (27.8%)** | **77.0%** | **~0.352** | **% spacing, 내구력 6×, 개조 3×, headers 4×, grade colon** |
 
 **Stage 1 gate:** 80% real char accuracy on synthetic-only training → then move to Stage 2 (fine-tune with real GT line crops). At 80%+, fuzzy matching only needs to fix minor character errors rather than reconstructing garbled output.
 
-**Current status (Attempt 13):** 52.4% overall, but 65.5% on aligned images. Six failure categories identified — GT alignment drift is the biggest factor (53 lines scored against wrong GT). See `OCR_TRAINING_HISTORY.md` for full analysis.
+**Current status (Attempt 15):** 77.0% overall, 64/230 exact matches. lightarmor (80.1%) and titan_blade (80.0%) crossed the 80% gate. captain_suit (66.2%) and lobe (73.9%) still below gate due to enchant header garbling and section detection failures. FM layer adds +3 exact matches in GT-sections mode with zero regressions.
 
-### Current Issues Blocking 80%
+### Resolved in Attempt 15
 
-1. **Leading `-` misread as `소` / `#`** — `- 수리비` → `소수리비` across ALL images. Root cause: game's rendering engine produces a 2px wide dash at ~10px text height; PIL renders the same font as 3-5px wide. Model trained on wider dash fails to recognize narrow game dash. TPS warping doesn't fully compensate for the 2.5× stroke-width mismatch. Mitigation: training boosted to 500 reps (was 200); splitter fix NOT viable (masking cleaned binary zeroed text alignment columns in dropbell, collapsing 9/35→0/35).
+2. ~~**`아이템 속성` → `아이템 색성`** (`속`↔`색` confusion)~~ — Fixed: 10→40 reps for both headers.
 
-2. **`아이템 속성` → `아이템 색성`** (`속`↔`색` confusion) — Cascades to color part failure: when `아이템 색상` header is misread, section parser doesn't detect color section start, so all 파트 A-F lines go through OCR instead of regex. Fixed in Attempt 15: 10→40 reps for both headers.
+3. ~~**`내구력 N/N` always fails**~~ — Fixed: 50→300 reps. Now mostly correct.
 
-3. **`내구력 N/N` always fails** — All 5 test lines fail (0% exact). `내구력` → `보 석력`/`보 비석률`. Fixed in Attempt 15: 50→300 reps.
+4. ~~**개조 variants garbled**~~ — Fixed: 20-30→60-100 reps for all `일반/특별 개조` patterns.
 
-4. **개조 variants garbled** — `일반 개조(4/4)` → `등별 개조(44`, `특별 개조 R (6단계)` → garbled. Fixed in Attempt 15: 20-30→60-100 reps.
+5. ~~**`% / 초` spacing**~~ — Fixed: removed `' %'`; fixed `대미지 배율` and `쿨타임 감소` patterns.
 
-5. **`% / 초` spacing** — Model outputs `72 %` (with space) for GT `72%`, and `7.60 초` for GT `7.60초`. Fixed in Attempt 15: removed `' %'` from training unit choices; fixed `대미지 배율` and `쿨타임 감소` patterns.
+6. ~~**Grade line missing colon**~~ — Fixed: added `마스터 (장비 레벨: N)` with colon.
 
-6. **Grade line missing colon** — Training had `마스터 (장비 레벨 65)` but GT requires `마스터 (장비 레벨: 65)`. Fixed in Attempt 15.
+### Current Issues Blocking 80% (post-Attempt 15)
+
+1. **Leading `-` misread as `소` / `#`** — `- 수리비` → `소수리비` across all images. Root cause: game dash is 2px wide at ~10px height; PIL renders 3-5px wide. TPS warping doesn't fully compensate. Mitigation: 500 reps in training (was 200). Splitter fix NOT viable — masking cleaned binary destroyed text alignment columns (dropbell: 9→0 exact matches). **Still unresolved.**
+
+2. **`세공` / `에르그` section headers garbled** — `세공` → `제채두 고급`; `에르그` → `44 르 수`. Very short words (2-3 chars) adjacent to UI box art, only 10 training reps each. Cascade failure: when header is not recognized, parser misses section start → all subsequent lines get wrong section tag → section-specific FM can't fire. **Target for Attempt 16:** boost to 130 / 80 reps respectively.
+
+3. **Enchant headers heavily garbled** — `[접두] 충격을 (랭크 F)` → `상빛] 타적을 마런량 )` (42% char acc). Brackets, slot word, and rank all confused simultaneously. Two-phase FM requires ~80% raw OCR on the header to find a match; current quality is too low. Training impact: enchant headers are long and complex; more reps needed.
+
+4. **captain_suit below 70%** — Primarily driven by enchant section not being detected (header `인챈트` often missed or its subsequent `[접두]`/`[접미]` sub-headers garbled). All enchant effect lines then fall through without section-specific FM.
+
+5. **lobe below 75%** — Piercing description lines (`피어싱이 부여된 장비를 양 쪽에 착용 시`) still garbled. Long sentence without many natural training reps.
 
 7. **Color part sub-segments** — `파트 A` → `1호`, `R:0` → `4`. These may resolve if `아이템 색상` header is correctly recognized (indirect fix via issue #2 above).
 
