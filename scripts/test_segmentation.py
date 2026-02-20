@@ -150,7 +150,7 @@ def main():
             cv2.putText(vis, f"HDR {idx}", (hdr['x'] + hdr['w'] + 4, hdr['y'] + hdr['h'] - 1),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0, 127, 255), 1)
             print(f"Segment {idx}  header : y={hdr['y']:4d} h={hdr['h']:2d}")
-            hdr_crop = img[hdr['y']:hdr['y'] + hdr['h'], :]
+            hdr_crop = img[hdr['y']:hdr['y'] + hdr['h'], hdr['x']:hdr['x'] + hdr['w']]
             cv2.imwrite(os.path.join(args.output, f"{base}_hdr_{idx:02d}.png"), hdr_crop)
         else:
             print(f"Segment {idx}  header : (none — pre-header content)")

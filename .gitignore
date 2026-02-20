@@ -27,9 +27,7 @@ dist-ssr
 data/
 deep-text-recognition-benchmark/
 test_output/
-backend/train_data/
-backend/train_data_lmdb/
-backend/models/*.pth
+backend/ocr/
 backend/temp_split/
 backend/unique_chars.txt
 backend/__pycache__/

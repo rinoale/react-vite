@@ -17,7 +17,7 @@ class ResizeNormalize(object):
         return img
 
 def compare():
-    syn_path = 'backend/train_data/images/syn_000000.png'
+    syn_path = 'backend/ocr/train_data/images/syn_000000.png'
     real_path = 'split_result/images/lightarmor_processed_2_line_001.png'
     
     transform = ResizeNormalize((200, 32))

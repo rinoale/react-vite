@@ -2,7 +2,7 @@ import sys
 import os
 import torch.nn as nn
 
-sys.path.append(os.path.abspath("backend/models"))
+sys.path.append(os.path.abspath("backend/ocr/models"))
 
 try:
     import custom_mabinogi

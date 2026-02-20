@@ -18,7 +18,7 @@ sys.path.insert(0, os.path.join(PROJECT_ROOT, 'backend'))
 from mabinogi_tooltip_parser import MabinogiTooltipParser
 from ocr_utils import patch_reader_imgw
 
-MODELS_DIR  = os.path.join(PROJECT_ROOT, 'backend', 'models')
+MODELS_DIR  = os.path.join(PROJECT_ROOT, 'backend', 'ocr', 'models')
 CONFIG_PATH = os.path.join(PROJECT_ROOT, 'configs', 'mabinogi_tooltip.yaml')
 
 

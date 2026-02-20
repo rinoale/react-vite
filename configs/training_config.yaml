@@ -4,7 +4,7 @@
 #
 # IMPORTANT: When changing imgH, imgW, or network_params here,
 # you MUST re-run: python3 scripts/create_model_config.py
-# This regenerates backend/models/custom_mabinogi.yaml so inference
+# This regenerates backend/ocr/models/custom_mabinogi.yaml so inference
 # matches training. Mismatched imgW will cause TPS layer shape errors.
 
 # --- Model Architecture (must match between training and inference) ---
@@ -32,11 +32,11 @@ training:
 
 # --- Data Paths (relative to project root) ---
 paths:
-  train_data: backend/train_data_lmdb
-  valid_data: backend/train_data_lmdb
+  train_data: backend/ocr/train_data_lmdb
+  valid_data: backend/ocr/train_data_lmdb
   character_file: backend/unique_chars.txt
-  model_config: backend/models/custom_mabinogi.yaml
-  model_weights: backend/models/custom_mabinogi.pth
+  model_config: backend/ocr/models/custom_mabinogi.yaml
+  model_weights: backend/ocr/models/custom_mabinogi.pth
   saved_models_dir: saved_models
 
 # --- Inference (EasyOCR) ---

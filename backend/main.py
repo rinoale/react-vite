@@ -33,7 +33,7 @@ DICT_DIR = os.path.join(BASE_DIR, '..', 'data', 'dictionary')
 corrector = TextCorrector(dict_dir=DICT_DIR)
 
 # Initialize EasyOCR Reader with custom trained model
-MODELS_DIR = os.path.join(BASE_DIR, 'models')
+MODELS_DIR = os.path.join(BASE_DIR, 'ocr', 'models')
 
 reader = easyocr.Reader(
     ['ko'],

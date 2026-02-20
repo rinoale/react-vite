@@ -39,3 +39,12 @@ At this moment(2026-02-15 12:00PM), we are discussing how we categorize each spl
 This strategy not only saves the resource of using OCR but also improves accuracy.
 
 Now I'm asking to implement Mabinogi-specified human-eye efficient OCR.
+
+### demand explicitly rather than abstractly. Always find better instruction even you believe you did
+Asking to find header sections lead the AI to search certain fixed coordinates or fixed shape.
+The header sections were having black square so I indicated to implement the logic finding black squares and told 'they are headers'.
+
+## Commands
+
+### generate segmentation
+for f in data/themes/screenshot_*.png; do base=$(basename "$f" .png); outdir="data/segmentation/$base"; mkdir -p "$outdir"; result=$(python3 scripts/test_segmentation.py "$f" "$outdir/" 2>&1 | grep "^Found"); echo "$base: $result"; done

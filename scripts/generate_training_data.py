@@ -31,7 +31,7 @@ DICT_PATHS = [
 # Critical section headers need proportional representation; sampling prevents dilution.
 ITEM_NAME_SAMPLE = 3000
 GT_DIR = "data/sample_images"
-OUTPUT_DIR = "backend/train_data"
+OUTPUT_DIR = "backend/ocr/train_data"
 IMAGES_DIR = os.path.join(OUTPUT_DIR, "images")
 LABELS_DIR = os.path.join(OUTPUT_DIR, "labels")
 

@@ -31,7 +31,7 @@ sys.path.insert(0, os.path.join(PROJECT_ROOT, 'backend'))
 
 from mabinogi_tooltip_parser import MabinogiTooltipParser
 
-MODELS_DIR = os.path.join(PROJECT_ROOT, 'backend', 'models')
+MODELS_DIR = os.path.join(PROJECT_ROOT, 'backend', 'ocr', 'models')
 SAMPLE_DIR = os.path.join(PROJECT_ROOT, 'data', 'sample_images')
 CONFIG_PATH = os.path.join(PROJECT_ROOT, 'configs', 'mabinogi_tooltip.yaml')
 DICT_DIR   = os.path.join(PROJECT_ROOT, 'data', 'dictionary')
