@@ -19,7 +19,8 @@ Each attempt has identified and fixed a specific bottleneck, steadily raising re
 | 13 | 100% | 52.4% | 0.247 | Tight-crop, font 10-11, splitter border filter, inference patch |
 | 14 | — | 75.5% | 0.327 | Training data cleanup + splitter left-edge artifact removal |
 | 15 | — | 77.0% | 0.352 | % spacing fix, 내구력 6×, section headers 4×, 개조 3×, grade colon fix, dash 2.5× |
-| 16 | TBD | TBD | TBD | Charset 509→1201, item_name sampled 3k, post-dedup header boost, num_iter 20k |
+| 16 | 99.97% | 71.3% | TBD | Charset 509→1201, item_name sampled 3k, post-dedup header boost, num_iter 20k — **regression** |
+| 17 | TBD | TBD | TBD | Game-like rendering (dark bg+bright text→BT.601→bright→black), font sizes 10-11 (unchanged) |
 
 Real-world char accuracy: **0% → 19.5% → 35.8% → 27.0% (regression) → 36.2% → 38.1% → 52.4% → 75.5% → 77.0%**. Attempt 14 cleaned up training data quality (prefix corrections, color part handling, GT source switch to `_expected.txt`) and added two post-hoc splitter fixes to remove left-edge UI artifacts from crops. Exact matches jumped from 14/235 to 45/230. Attempt 15 targeted the most common failure patterns (내구력, 개조, % spacing, section headers) and raised char acc to 77.0% and exact matches to 64/230. GT count changed to 230 due to titan_blade image update and use of `_expected.txt`. lightarmor at 80.1%, titan_blade at 80.0%, crossing the 80% gate on both large images.
 
@@ -994,3 +995,94 @@ Fixing `세공` and `에르그` recognition cascades to:
 - Overall estimated gain: +5-10 exact matches
 
 **Target:** 70+/230 exact (30%+), **79%+** char accuracy.
+
+### Attempt 16 Results
+
+**Outcome: Regression — 28/230 exact (12.2%), 71.3% char acc (vs 64/230, 77.0% in Attempt 15)**
+
+Synthetic training accuracy converged to 99.97% but real-world performance dropped sharply. The charset expansion (509→1201) enlarged the CTC output space by 2.4× without proportionally increasing training data, degrading the model's ability to discriminate between similar characters at inference.
+
+**Post-mortem analysis revealed a deeper, more fundamental domain gap** (see Attempt 17 section below for full analysis). The charset expansion and header boost were correct fixes but did not address the root rendering mismatch between synthetic and real crops.
+
+---
+
+## Attempt 17: Fix the Rendering Domain Gap (Ink Ratio)
+
+### What the data actually shows
+
+After Attempt 16's regression, we measured the actual PADDED crops fed to `recognize()` (5 GT images) vs synthetic training images.
+
+**Critical measurement note:** `parse_tooltip()` applies padding before calling `recognize()`:
+`pad_y = max(1, h//5)`, `pad_x = max(2, h//3)`. Raw bounding box heights (median h=10) are NOT what the model sees. Actual padded inference crops: **h median = 14px**.
+
+**Gap 1 — Ink ratio (the real bottleneck):**
+
+| | Actual padded inference crops | Synthetic (Att 16, black-on-white) |
+|---|---|---|
+| Ink ratio median | **0.201** | **0.144** |
+
+Real strokes are ~1.4× thicker than synthetic. Root cause: real crops come from `game engine colored text on dark bg → BT.601 grayscale → threshold(bright→black)`, which captures the full anti-aliasing zone as ink. Synthetic uses `PIL black-on-white → threshold(dark→black)`, capturing only the dark core → thinner strokes.
+
+**Gap 2 — Height (smaller than initially estimated):**
+
+| | Actual padded inference crops | Synthetic (Att 16) |
+|---|---|---|
+| h median | **14px** | **15px** |
+
+These **already match** — the font sizes 10-11 were already producing the right height. Initial analysis used raw bounding boxes (h=10) and concluded a large height gap existed; this was an error.
+
+**Early incorrect Attempt 17 run** changed `FONT_SIZES` to `[8,8,8,9,9,10]` → synthetic h=11 (undershoots padded inference h=14 by 3px). Training was killed before completion. The correct fix is game-like rendering at font sizes 10-11.
+
+### Why ink ratio matters: AlignCollate
+
+EasyOCR scales every crop to imgH=32 via bilinear interpolation. Scale factor = `32 / crop_height`. For actual padded inference crops (h=14):
+
+| Crop type | h | Scale factor | Ink ratio before scaling |
+|---|---|---|---|
+| Real padded crop | 14px | ×2.28 | 0.201 (thick strokes) |
+| Synthetic (Att 16) | 15px | ×2.13 | 0.144 (thin strokes) |
+| Synthetic (Att 17) | 14-15px | ×2.13-2.28 | ~0.20 (game-like) |
+
+Thin (0.14) vs thick (0.20) strokes at similar scale factors still produce visibly different character shapes. This explains why the model could recognize syntethic training images (99.97%) but fail on real crops — it learned thin-stroke glyph shapes.
+
+### Hypothesis for Attempt 17
+
+**Hypothesis:** Switching to game-like rendering with the same font sizes (10-11) will fix the ink ratio gap without any height regression.
+
+**Mechanism:**
+- `PIL font 10-11 + dark bg + bright text → BT.601 → bright→black threshold` produces:
+  - h=14-15px (same as Att 16, correct for padded inference crops)
+  - ink_ratio ~0.20 (matches real padded crop ink ratio 0.201)
+- Font sizes unchanged from Att 16 — preserves correct height distribution
+- Only ink ratio changes — this isolates the rendering effect
+
+**What we measured in sample images** (`sample_train_images/final_comparison.png`):
+- Game-like rendering visually more similar to real game crops (thicker strokes)
+- Downscaling rejected: font 8 at h=7 is illegible for Korean text
+
+### Changes for Attempt 17
+
+1. **`render_line()` in `generate_training_data.py`**: Switch from black-on-white to game-like rendering:
+   - `Image.new('RGB', bg=(15-45, 10-40, 15-50))` + bright text `(210-255, 210-255, 200-255)`
+   - `.convert('L')` (BT.601) + `point(x > thresh → 0, else 255)` (bright→black)
+
+2. **`FONT_SIZES`**: Keep `[10,10,10,11,11,11]` (unchanged from Att 16)
+   - f10: text_h ≈ 10 → pad_y=2 → img_h=14 ✓ matches padded inference h=14
+   - f11: text_h ≈ 11 → pad_y=2 → img_h=15 ✓ matches padded inference h=14-15
+
+3. **No other changes**: Character set (1201), header boosts, GT lines, dictionary sampling — all kept from Attempt 16.
+
+### How to evaluate Attempt 17
+
+Run with the canonical command: `python3 scripts/test_v2_pipeline.py -q --normalize --gt-suffix _expected.txt`
+
+**Success criteria:** Real char accuracy ≥ 77.0% (Attempt 15 baseline) and exact matches ≥ 64/230.
+
+**If Attempt 17 succeeds** (char acc improves): Ink ratio domain gap was a real bottleneck. Continue with fine-tuning or human-in-the-loop Stage 2.
+
+**If Attempt 17 fails (char acc similar or lower):**
+- If synthetic acc is high but real drops: game-like rendering created a new gap (character shapes too different). Revert to black-on-white.
+- If both drop: 1201-char CTC space needs more training data/iterations before any rendering fix can show effect.
+- Next step: measure per-section accuracy to identify which section types improved/regressed.
+
+**One metric that would clarify:** Compare per-section accuracy before and after. If stat lines (long, frequent) improve but headers (short, rare) don't, ink ratio was the main factor.

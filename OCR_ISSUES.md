@@ -101,6 +101,30 @@ Proportional canvas width caused 57% of training at wrong squash factors. Fixed 
 
 6. ~~**Grade line missing colon**~~ — Fixed: added `마스터 (장비 레벨: N)` with colon.
 
+### Attempt 16 Regression
+
+Attempt 16 regressed to 28/230 exact (71.3% char acc) despite correct preprocessing fixes. Post-mortem identified that the charset expansion (509→1201) alone is insufficient — the rendering domain gap is the deeper bottleneck (see below).
+
+---
+
+## Identified: Rendering Domain Gap (target for Attempt 17)
+
+Measured from actual PADDED crops fed to `recognize()` (5 GT images) vs synthetic training images.
+
+**Critical distinction — raw bounding box vs padded crop:** `parse_tooltip()` applies padding before calling `recognize()`: `pad_y = max(1, h//5)`, `pad_x = max(2, h//3)`. Raw bounding box heights from `detect_text_lines()` (median h=10) do NOT reflect what the model actually sees. Actual padded inference crops: **median h=14px**.
+
+**Gap 1 — Ink ratio (the real bottleneck):** Actual padded crops: median ink=0.201. Synthetic (Att 16, black-on-white): median ink=0.144. Strokes are ~1.4× thicker in real crops. Root cause: real game rendering = colored text on dark bg → BT.601 grayscale → threshold(bright→black). PIL black-on-white → threshold(dark→black). The bright→black threshold captures anti-aliasing as ink; dark→black captures only the dark core.
+
+**Gap 2 — Height (smaller than initially measured):** Actual padded crops: h=14 median. Att 16 synthetic (font 10-11): h=14-15. These **already match** — the height gap was overestimated by measuring raw bounding boxes (h=10) instead of padded inference crops (h=14).
+
+**Why ink ratio matters:** EasyOCR AlignCollate scales every crop to imgH=32. A crop with thin strokes (ink=0.14) at ×2.13 scale looks like a completely different glyph than a crop with thick strokes (ink=0.20) at ×2.28 scale. The shape difference after upscaling is systematic and cannot be compensated by TPS.
+
+**Fix for Attempt 17:** Game-like rendering (dark bg + bright text → BT.601 → bright→black) with font sizes 10-11 (unchanged from Att 16). Font 10 → pad_y=2 → total h=14 ✓; font 11 → pad_y=2 → total h=15 ✓. This fixes ink ratio (0.144 → ~0.20) without any height regression.
+
+**Early incorrect run of Attempt 17** used font sizes 8-9-10 → h=11 (undershoots padded inference h=14 by 3px). This was stopped and corrected to font sizes 10-11.
+
+---
+
 ### Current Issues Blocking 80% (post-Attempt 15)
 
 1. **Leading `-` misread as `소` / `#`** — `- 수리비` → `소수리비` across all images. Root cause: game dash is 2px wide at ~10px height; PIL renders 3-5px wide. TPS warping doesn't fully compensate. Mitigation: 500 reps in training (was 200). Splitter fix NOT viable — masking cleaned binary destroyed text alignment columns (dropbell: 9→0 exact matches). **Still unresolved.**

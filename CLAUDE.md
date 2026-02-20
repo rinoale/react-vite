@@ -105,11 +105,12 @@ Key parameters and why (see `configs/training_config.yaml` for full list):
 
 ### Training Data Requirements
 Synthetic training images must match real line crops from the splitter:
-- **Font sizes**: `[10, 10, 10, 11, 11, 11]` only. Font 6-7 produces illegible tiny text; real h=8-9 crops are legible because the game renders at normal size. Do NOT pre-resize to 32px; let model inference handle that.
-- **Tight-crop to ink bounds**: Crop to text width + padding, NOT full 260px canvas. Real splitter crops are tight (35-65px for short text). Full-canvas training causes hallucination.
+- **Font sizes**: `[10, 10, 10, 11, 11, 11]` only. Font 10 → img_h≈14px; font 11 → img_h≈15px. These match actual padded inference crops (h median=14). Do NOT pre-resize to 32px; let model inference handle that. Note: raw bounding box heights from detect_text_lines() (median 10px) are misleading — parse_tooltip() adds pad_y before recognize(), raising actual inference height to median 14px.
+- **Rendering pipeline** (Attempt 17+): Game-like dark-bg + bright-text → BT.601 → threshold(bright→black). Matches the frontend's exact pipeline (verified: 0% pixel diff on 5 GT images). Fixes ink ratio: synthetic 0.144 → ~0.20, matching real padded inference crops (ink median 0.201), vs 0.14 with old black-on-white. See `OCR_TRAINING_HISTORY.md` Attempt 17 for full analysis.
+- **Tight-crop to ink bounds**: Crop to text width + padding, NOT full 260px canvas. Real splitter crops are tight (22-80px for short text). Full-canvas training causes hallucination.
 - **Padding**: Match splitter formula: `pad_y = max(1, text_h // 5)`, `pad_x = max(2, text_h // 3)`
 - **Binary only**: Pixel values strictly 0 and 255. Re-threshold after any resize.
-- **No augmentation**: No blur, erode/dilate, or noise. Clean binary only. Augmentation produced 25% faint/unreadable images.
+- **No augmentation**: No blur, erode/dilate, or noise. Clean binary only.
 - **Quality gates on every image**: `MIN_INK_RATIO=0.02`, `MIN_WIDTH=10`, `MIN_HEIGHT=8`. Reject and retry any image that fails.
 - **Frontend threshold**: Base value 80 with small random variation, matching `sell.jsx`.
 - **Content**: Template-based full tooltip lines (not just dictionary words):
@@ -118,7 +119,7 @@ Synthetic training images must match real line crops from the splitter:
   - Enchant headers/effects, hashtag lines, price lines, piercing text
   - Item names, flavor text, sub-bullets with `ㄴ` marker
   - All GT lines included verbatim
-- **Character set**: `backend/unique_chars.txt` (509 chars) must cover all characters in GT
+- **Character set**: `backend/unique_chars.txt` (1201 chars as of Attempt 16) must cover all characters in GT and dictionaries
 - **Font**: `data/fonts/mabinogi_classic.ttf` (actual game font)
 
 ### Full Training Pipeline (run from project root)

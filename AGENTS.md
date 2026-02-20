@@ -173,7 +173,7 @@ Three root causes were identified after Attempt 6 (0% real accuracy despite 97-1
 | Attempt 13 | 14 (6.0%) | 52.4% | 0.247 | Tight-crop, font 10-11, splitter border filter |
 | Attempt 14 | 45 (19.6%) | 75.5% | 0.327 | Training data cleanup, GT source switch, splitter left-edge fix |
 | **Attempt 15** | **64 (27.8%)** | **77.0%** | **~0.352** | **% spacing, 내구력 6×, 개조 3×, section headers 4×** |
-| Attempt 16 | TBD | TBD | TBD | Charset 509→1201, item_name 3k, post-dedup header boost, num_iter 20k |
+| Attempt 16 | 28 (12.2%) | 71.3% | TBD | Charset 509→1201, item_name 3k, post-dedup header boost — regression from rendering gap |
 
 Pipeline mechanics confirmed working. Line detection perfect (244/244 across 5 images). Recognition is the sole bottleneck. Attempt 15 crossed the 80% gate on lightarmor (80.1%) and titan_blade (80.0%). captain_suit and lobe remain below 70%/75% due to enchant section detection failures and garbled short headers. FM layer (post-Attempt 15) adds +3 exact matches with zero regressions. See `OCR_TRAINING_HISTORY.md` for full analysis and Attempt 16 strategy.
 
