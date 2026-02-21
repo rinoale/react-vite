@@ -357,6 +357,12 @@ def classify_header(crop_bgr, header_reader, patterns, config, cutoff=None):
     if h == 0 or w == 0:
         return None, '', 0.0, 0
 
+    _save_dir = os.environ.get('SAVE_OCR_CROPS')
+    if _save_dir:
+        os.makedirs(_save_dir, exist_ok=True)
+        _n = len([f for f in os.listdir(_save_dir) if f.endswith('.png')])
+        cv2.imwrite(os.path.join(_save_dir, f'{_n:03d}_header.png'), binary)
+
     bgr = cv2.cvtColor(binary, cv2.COLOR_GRAY2BGR)
     results = header_reader.recognize(
         bgr,

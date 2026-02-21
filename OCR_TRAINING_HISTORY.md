@@ -20,9 +20,10 @@ Each attempt has identified and fixed a specific bottleneck, steadily raising re
 | 14 | — | 75.5% | 0.327 | Training data cleanup + splitter left-edge artifact removal |
 | 15 | — | 77.0% | 0.352 | % spacing fix, 내구력 6×, section headers 4×, 개조 3×, grade colon fix, dash 2.5× |
 | 16 | 99.97% | 71.3% | TBD | Charset 509→1201, item_name sampled 3k, post-dedup header boost, num_iter 20k — **regression** |
-| 17 | — | **87.5%** | — | No retraining — v3 pipeline (segment-first) + border removal fix. Same a15 model. |
+| 17 | — | 87.5% | — | No retraining — v3 pipeline (segment-first) + border removal fix. Same a15 model. |
+| 17b | — | **88.6%** | — | No retraining — prefix stripping + white-mask enchant header cropping + unified crop debug. Same a15 model. |
 
-Real-world char accuracy: **0% → 19.5% → 35.8% → 27.0% (regression) → 36.2% → 38.1% → 52.4% → 75.5% → 77.0% → 87.5%**. Attempts 1-15 improved the OCR model. Attempt 16 regressed (charset expansion). Attempt 17 kept the same model (a15) but redesigned the pipeline: segment-first architecture + orange-anchored header detection + border removal threshold fix → +10.5pp char accuracy without any retraining.
+Real-world char accuracy: **0% → 19.5% → 35.8% → 27.0% (regression) → 36.2% → 38.1% → 52.4% → 75.5% → 77.0% → 87.5% → 88.6%**. Attempts 1-15 improved the OCR model. Attempt 16 regressed (charset expansion). Attempts 17/17b kept the same model (a15) but redesigned the pipeline: segment-first architecture + orange-anchored header detection + border removal fix + prefix stripping + white-mask enchant header cropping → +11.6pp char accuracy without any retraining.
 
 ---
 
@@ -1085,6 +1086,47 @@ New (v3):  Color image → detect headers → segment → header OCR → section
 | `scripts/v3/segmentation/test_line_split.py` | Visual line detection validation per segment |
 | `scripts/v3/segmentation/test_segmentation.py` | Header detection + segmentation validation |
 | `scripts/v3/header_ocr/test_header_classification.py` | Header OCR accuracy |
+
+---
+
+## Attempt 17b: Pipeline Refinements (No Retraining)
+
+**Date:** 2026-02-22
+**Model:** Same a15 (custom_mabinogi.pth, 509 chars, imgW=200) — no retraining
+**Focus:** FM matching improvements + enchant header crop fix + debugging infrastructure
+
+### Changes
+
+1. **Prefix stripping before FM** (`backend/main.py`):
+   - OCR output often includes structural prefixes (`- `, `ㄴ `) that dictionary entries don't have
+   - Strip `^[-ㄴ]\s*` from content lines (not headers) before FM matching
+   - Impact: 55/203 → 94/203 exact matches, 86.6% → 88.6% char accuracy (biggest single improvement)
+
+2. **White-mask band cropping for enchant headers** (`backend/lib/mabinogi_tooltip_parser.py`):
+   - Previous: line-splitter bounds from binary image included UI border artifacts (2px pipe + 8px gap) and pink rank text
+   - Now: `_ocr_enchant_headers()` crops using white-mask band bounds (only white text visible), matching training data exactly
+   - Column density filter (`>= 3` white pixels per column) handles stray border pixels
+   - Verified: all crops now pixel-identical to reference training samples
+
+3. **Unified OCR crop saving** (`SAVE_OCR_CROPS` env var):
+   - Single env var saves crops from all 3 OCR models with descriptive filenames: `{seq:03d}_{label}.png`
+   - Labels: `header`, `enchant_hdr`, `content_{section}`
+   - Usage: `SAVE_OCR_CROPS=/tmp/crops python3 scripts/v3/test_v3_pipeline.py ...`
+
+### Results
+
+Eval command: `python3 scripts/v3/test_v3_pipeline.py 'data/sample_images/*_original.png' -q`
+
+| Image | Exact | Char Acc | Conf | Headers | FM |
+|-------|-------|----------|------|---------|-----|
+| captain_suit | 6/14 | 79.8% | 0.403 | 4 | 1 |
+| dropbell | 19/33 | 87.3% | 0.485 | 4 | 5 |
+| lightarmor | 38/64 | 92.8% | 0.601 | 7 | 5 |
+| lobe | 4/12 | 88.4% | 0.436 | 2 | — |
+| titan_blade | 27/80 | 87.4% | 0.431 | 8 | 3 |
+| **TOTAL** | **94/203** | **88.6%** | — | — | **14** |
+
+**Improvement over Attempt 17:** Exact matches 92/206 → 94/203, char accuracy 87.5% → 88.6% (+1.1pp). FM applications dropped from 39 to 14 (prefix stripping lets more raw OCR match GT directly without needing FM correction).
 
 ### Next Steps (Attempt 18)
 

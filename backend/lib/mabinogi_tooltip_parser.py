@@ -275,7 +275,10 @@ class MabinogiTooltipParser(TooltipLineSplitter):
                     enchant_header_reader=enchant_header_reader)
 
         # All other sections: OCR every line
-        ocr_results    = self._ocr_grouped_lines(binary, grouped, reader)
+        _save = os.environ.get('SAVE_OCR_CROPS')
+        ocr_results    = self._ocr_grouped_lines(binary, grouped, reader,
+                                                  save_crops_dir=_save,
+                                                  save_label=f'content_{section}')
 
         for line in ocr_results:
             line['section'] = section
@@ -332,7 +335,10 @@ class MabinogiTooltipParser(TooltipLineSplitter):
         grouped = self._group_by_y(detected_lines)
 
         # OCR each group
-        ocr_results = self._ocr_grouped_lines(img, grouped, reader)
+        _save = os.environ.get('SAVE_OCR_CROPS')
+        ocr_results = self._ocr_grouped_lines(img, grouped, reader,
+                                               save_crops_dir=_save,
+                                               save_label='content_v2')
 
         # Categorize into sections
         sections = self._categorize_sections(ocr_results)
@@ -364,13 +370,16 @@ class MabinogiTooltipParser(TooltipLineSplitter):
             result.append(sub_lines)
         return result
 
-    def _ocr_grouped_lines(self, img, grouped_lines, reader):
+    def _ocr_grouped_lines(self, img, grouped_lines, reader,
+                           save_crops_dir=None, save_label='content'):
         """Run OCR on each grouped line, merging sub-line results.
 
         Args:
             img: Original BGR image
             grouped_lines: list of sub-line groups from _group_by_y()
             reader: EasyOCR Reader instance
+            save_crops_dir: if set, save each crop to this directory before OCR
+            save_label: label embedded in saved filenames (e.g. 'content_reforge')
 
         Returns:
             list of dicts with 'text', 'confidence', 'sub_count', 'bounds', 'sub_lines'
@@ -406,6 +415,11 @@ class MabinogiTooltipParser(TooltipLineSplitter):
                     sub_confs.append(0.0)
                     sub_details.append({'text': '', 'confidence': 0.0, 'bounds': line_info})
                     continue
+
+                if save_crops_dir:
+                    os.makedirs(save_crops_dir, exist_ok=True)
+                    _n = len([f for f in os.listdir(save_crops_dir) if f.endswith('.png')])
+                    cv2.imwrite(os.path.join(save_crops_dir, f'{_n:03d}_{save_label}.png'), gray)
 
                 ocr_results = reader.recognize(
                     gray,
@@ -448,6 +462,127 @@ class MabinogiTooltipParser(TooltipLineSplitter):
                 'sub_count': len(group),
                 'bounds': merged_bounds,
                 'sub_lines': sub_details,
+            })
+
+        return results
+
+    def _ocr_enchant_headers(self, content_bgr, binary,
+                             header_classifications, bands, reader,
+                             save_crops_dir=None):
+        """OCR enchant slot headers using white-mask band bounds.
+
+        Instead of using line-splitter bounds (which include UI borders and
+        pink rank text), crops are derived from the white-mask bands that
+        originally detected the headers.  This produces tight crops matching
+        only the white text visible in the slot header.
+
+        Args:
+            content_bgr:  BGR enchant content region (for building white mask)
+            binary:       preprocessed binary (black text on white)
+            header_classifications: list of (group, bounds, 'header') tuples
+            bands:        list of (y_start, y_end) from detect_enchant_slot_headers()
+            reader:       EasyOCR reader for enchant headers
+            save_crops_dir: if set, save each crop before OCR
+
+        Returns:
+            list of dicts matching _ocr_grouped_lines output format
+        """
+        # Build white mask (same logic as detect_enchant_slot_headers)
+        r = content_bgr[:, :, 2].astype(np.float32)
+        g = content_bgr[:, :, 1].astype(np.float32)
+        b = content_bgr[:, :, 0].astype(np.float32)
+        max_ch = np.maximum(np.maximum(r, g), b)
+        min_ch = np.minimum(np.minimum(r, g), b)
+        white_mask = (max_ch > 150) & ((max_ch / (min_ch + 1)) < 1.4)
+
+        img_h, img_w = binary.shape[:2]
+        results = []
+
+        for group, bounds, _ in header_classifications:
+            y_line = bounds['y']
+            h_line = bounds['height']
+
+            # Find overlapping band
+            matched_band = None
+            for bs, be in bands:
+                if min(y_line + h_line, be) - max(y_line, bs) > 0:
+                    matched_band = (bs, be)
+                    break
+
+            if matched_band is None:
+                # Fallback: use line-splitter bounds (shouldn't happen)
+                batch = self._ocr_grouped_lines(binary, [group], reader,
+                                                save_crops_dir=save_crops_dir)
+                results.extend(batch)
+                continue
+
+            bs, be = matched_band
+
+            # Find x extent of white pixels within the band rows.
+            # Require >= 3 white pixels per column to filter stray border pixels.
+            band_mask = white_mask[bs:be, :]
+            col_counts = band_mask.sum(axis=0)
+            white_cols = np.where(col_counts >= 3)[0]
+            if len(white_cols) == 0:
+                # No white pixels found — fallback
+                batch = self._ocr_grouped_lines(binary, [group], reader,
+                                                save_crops_dir=save_crops_dir)
+                results.extend(batch)
+                continue
+
+            x_start = int(white_cols[0])
+            x_end = int(white_cols[-1]) + 1
+
+            # Apply proportional padding (matching _ocr_grouped_lines formula)
+            text_h = be - bs
+            pad_x = max(2, text_h // 3)
+            pad_y = max(1, text_h // 5)
+            x_pad = max(0, x_start - pad_x)
+            y_pad = max(0, bs - pad_y)
+            w_pad = min(img_w - x_pad, (x_end - x_start) + 2 * pad_x)
+            h_pad = min(img_h - y_pad, text_h + 2 * pad_y)
+
+            # Crop from binary
+            crop = binary[y_pad:y_pad + h_pad, x_pad:x_pad + w_pad]
+
+            # Convert to grayscale if needed
+            if len(crop.shape) == 3:
+                gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+            else:
+                gray = crop
+
+            ch, cw = gray.shape
+            if ch == 0 or cw == 0:
+                results.append({
+                    'text': '', 'confidence': 0.0,
+                    'sub_count': len(group), 'bounds': bounds, 'sub_lines': [],
+                })
+                continue
+
+            if save_crops_dir:
+                os.makedirs(save_crops_dir, exist_ok=True)
+                _n = len([f for f in os.listdir(save_crops_dir) if f.endswith('.png')])
+                cv2.imwrite(os.path.join(save_crops_dir, f'{_n:03d}_enchant_hdr.png'), gray)
+
+            ocr_results = reader.recognize(
+                gray,
+                horizontal_list=[[0, cw, 0, ch]],
+                free_list=[],
+                reformat=False,
+                detail=1,
+            )
+
+            if ocr_results:
+                _, text, confidence = ocr_results[0]
+            else:
+                text, confidence = '', 0.0
+
+            results.append({
+                'text': text,
+                'confidence': float(confidence),
+                'sub_count': len(group),
+                'bounds': bounds,
+                'sub_lines': [],
             })
 
         return results
@@ -717,13 +852,20 @@ class MabinogiTooltipParser(TooltipLineSplitter):
             classifications.append((group, merged_bounds, line_type))
 
         # 2. Batch OCR: headers and effects separately (may use different readers)
-        header_groups = [g for g, _, lt in classifications if lt == 'header']
+        #    Headers use white-mask band bounds for cropping (no border artifacts,
+        #    no pink rank text). Effects use line-splitter bounds from binary.
+        header_classifications = [(g, b, lt) for g, b, lt in classifications if lt == 'header']
         effect_groups = [g for g, _, lt in classifications if lt == 'effect']
 
         hdr_reader = enchant_header_reader if enchant_header_reader is not None else reader
-        header_batch = (self._ocr_grouped_lines(binary, header_groups, hdr_reader)
-                        if header_groups else [])
-        effect_batch = (self._ocr_grouped_lines(binary, effect_groups, reader)
+        _save = os.environ.get('SAVE_OCR_CROPS')
+        header_batch = (self._ocr_enchant_headers(
+                            content_bgr, binary, header_classifications, bands,
+                            hdr_reader, save_crops_dir=_save)
+                        if header_classifications else [])
+        effect_batch = (self._ocr_grouped_lines(binary, effect_groups, reader,
+                                                save_crops_dir=_save,
+                                                save_label='content_enchant')
                         if effect_groups else [])
 
         header_iter = iter(header_batch)
