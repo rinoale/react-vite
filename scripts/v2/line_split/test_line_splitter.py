@@ -8,7 +8,7 @@ import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'backend'))
 
 import cv2
-from mabinogi_tooltip_parser import MabinogiTooltipParser
+from lib.mabinogi_tooltip_parser import MabinogiTooltipParser
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 CONFIG_PATH = os.path.join(PROJECT_ROOT, 'configs', 'mabinogi_tooltip.yaml')

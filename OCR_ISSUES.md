@@ -22,7 +22,7 @@
 - **Missing Sparse Continuation Lines** — Lines like `적용)`, `제외)` were missed because their sparse ink fell below the main projection threshold. Added `_rescue_gaps()` two-pass detection: main threshold for normal lines, then lower threshold (`max(2, w*0.01)`) re-scans large gaps to catch sparse continuation lines without causing merging.
 - **Merged Blocks Within max_height** — Blocks like `기본 효과` + `무기 공격력 50 증가` merged as h=23 (within max_height=25) despite having a clear zero-projection gap. Added `_has_internal_gap()` check: blocks with 2+ consecutive zero-projection rows get sent to `_split_tall_block()` even if within max_height.
 - **Color Parts Not Split Horizontally** — Multi-digit RGB values (e.g., `R:187 G:153 B:85`) merged into one segment because gap sizes (15-16px) were below the split threshold. Made `horizontal_split_factor` configurable (default 3 in base, 1.5 for Mabinogi via `configs/mabinogi_tooltip.yaml`). For h=8 color lines: threshold=12, gaps 15-16 > 12 → correct 4-way split.
-- **Section-Aware Parsing** — Created `MabinogiTooltipParser` (`backend/mabinogi_tooltip_parser.py`) that categorizes lines into game sections (item_attrs, enchant, reforge, etc.) using config from `configs/mabinogi_tooltip.yaml`. Enables structured output and section-specific handling (e.g., color parts parsed via regex, flavor text skipped).
+- **Section-Aware Parsing** — Created `MabinogiTooltipParser` (`backend/lib/mabinogi_tooltip_parser.py`) that categorizes lines into game sections (item_attrs, enchant, reforge, etc.) using config from `configs/mabinogi_tooltip.yaml`. Enables structured output and section-specific handling (e.g., color parts parsed via regex, flavor text skipped).
 - **GT Alignment Drift** — Old GT files didn't match pipeline output (different line counts from horizontal splitting, skip logic changes). Created `scripts/regenerate_gt.py` to produce GT candidates from actual pipeline output. Added `*_expected.txt` files for expected OCR output (separate from full GT).
 - **FM False Positive Section Detection** — Content lines containing a section keyword as substring were promoted to section headers (e.g., `너 상 개조55, 보석 비` → promoted to `item_mod`). Fixed by ratio guard in `_match_section_header`: `len(pattern)/len(cleaned) >= 0.5` — a keyword must occupy at least 50% of the cleaned line to qualify as a header.
 - **FM Overcorrection (combined dictionary fallback)** — When a section had no dedicated dictionary, FM fell back to the combined 28k-entry pool and could wrongly change correct lines. Fixed: known sections with no dictionary now return sentinel `-2` (FM skipped entirely); only unknown sections fall back to combined.
@@ -60,7 +60,7 @@ Proportional canvas width caused 57% of training at wrong squash factors. Fixed 
 
 **Fixed in Attempt 12.** EasyOCR's `recognize()` computed dynamic `max_width = ceil(w/h) * 32` per image (576-1056px), while training used fixed `imgW=200`. Attempts 10-11 tried matching by training with imgW=600 — failed because no single imgW matches all dynamic widths.
 
-**Real fix:** `backend/ocr_utils.py` patches inference to use fixed imgW from yaml, not dynamic per-image max_width. Training and inference now always match.
+**Real fix:** `backend/lib/ocr_utils.py` patches inference to use fixed imgW from yaml, not dynamic per-image max_width. Training and inference now always match.
 
 ## Resolved: Training Data Quality Issues
 

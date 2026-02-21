@@ -20,7 +20,7 @@ CONFIG_PATH = os.path.join(PROJECT_ROOT, 'configs', 'mabinogi_tooltip.yaml')
 
 
 def init_reader():
-    from tooltip_segmenter import init_header_reader
+    from lib.tooltip_segmenter import init_header_reader
     return init_header_reader()
 
 
@@ -30,7 +30,7 @@ def test_image(image_path, reader, patterns, config):
         print(f"  ERROR: cannot read {image_path}")
         return
 
-    from tooltip_segmenter import segment_and_tag
+    from lib.tooltip_segmenter import segment_and_tag
     tagged = segment_and_tag(img, reader, patterns, config)
 
     name = os.path.basename(image_path)
@@ -68,7 +68,7 @@ def main():
     parser.add_argument('--cutoff', type=int, default=50)
     args = parser.parse_args()
 
-    from tooltip_segmenter import load_section_patterns, load_config
+    from lib.tooltip_segmenter import load_section_patterns, load_config
     patterns = load_section_patterns(CONFIG_PATH)
     config = load_config(CONFIG_PATH)
     print(f"Loaded {len(patterns)} header patterns")

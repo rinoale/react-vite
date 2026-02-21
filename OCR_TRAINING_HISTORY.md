@@ -411,7 +411,7 @@ No single fixed imgW can match all image heights. The h=8-9 cluster (28% of data
 **The real fix:** Instead of adjusting training imgW to match dynamic inference, patch inference to use fixed imgW from the yaml. This ensures training and inference always match at any imgW value.
 
 **Changes:**
-1. **`backend/ocr_utils.py`** (new) — `patch_reader_imgw()` monkey-patches EasyOCR's `recognize()` method to pass the yaml's `imgW` to `get_text()` instead of dynamic `max_width`
+1. **`backend/lib/ocr_utils.py`** (new) — `patch_reader_imgw()` monkey-patches EasyOCR's `recognize()` method to pass the yaml's `imgW` to `get_text()` instead of dynamic `max_width`
 2. **`scripts/test_v2_pipeline.py`** — applies the patch after reader init
 3. **`backend/main.py`** — applies the patch after reader init
 4. **Config reverted to imgW=200, batch_size=64, num_iter=10000** — no more VRAM constraints
@@ -462,14 +462,14 @@ No single fixed imgW can match all image heights. The h=8-9 cluster (28% of data
 
 Unlike previous attempts that adjusted training hyperparameters (imgW, batch_size, iterations), Attempt 13 focuses on **three fundamental infrastructure improvements**: fixing how images are analyzed at inference, how training images are generated, and how line crops are extracted.
 
-### Change 1: Inference Patch — Fixed imgW (`backend/ocr_utils.py`)
+### Change 1: Inference Patch — Fixed imgW (`backend/lib/ocr_utils.py`)
 
 **Problem:** EasyOCR's `recognize()` computes a dynamic `max_width` per image via `ceil(w/h) * 32`, which varies from 576 to 1056px depending on image height. Training uses a fixed `imgW` (200 or 600), so there's always a mismatch. No single training imgW can match all inference widths.
 
 **Solution:** `patch_reader_imgw()` monkey-patches the reader's `recognize()` to pass the yaml's fixed `imgW` to `get_text()`, replacing the dynamic `max_width`. Training and inference now use identical imgW regardless of input image dimensions.
 
 **Files:**
-- `backend/ocr_utils.py` — New file, implements the patch
+- `backend/lib/ocr_utils.py` — New file, implements the patch
 - `backend/main.py` — Applies patch after reader init
 - `scripts/test_v2_pipeline.py` — Applies patch after reader init
 
@@ -491,7 +491,7 @@ Seven changes to eliminate domain gap between synthetic and real line crops:
 
 **Key insight:** Real short-text crops from the splitter are narrow (35-65px for "보호 1", "내구력 20/20"), not full tooltip width. Training on tight-cropped images matches this, and eliminates whitespace-induced hallucination.
 
-### Change 3: Splitter Horizontal Trimming (`backend/tooltip_line_splitter.py`)
+### Change 3: Splitter Horizontal Trimming (`backend/lib/tooltip_line_splitter.py`)
 
 Two filters added to `_add_line()` to remove UI border elements from line crops:
 
@@ -617,7 +617,7 @@ Conservative estimate with all fixes: **68-78% char accuracy**. The GT alignment
 
 Attempt 14 takes a strategic shift: instead of pushing OCR to handle everything, make the pipeline **domain-aware**. The splitter and parser now understand Mabinogi tooltip structure — detecting sections, splitting color parts structurally, and skipping unnecessary areas (flavor text, copyright).
 
-### Change 1: Section-Aware Parser (`backend/mabinogi_tooltip_parser.py`)
+### Change 1: Section-Aware Parser (`backend/lib/mabinogi_tooltip_parser.py`)
 
 New `MabinogiTooltipParser` class extends `TooltipLineSplitter` with:
 - **Section detection**: Matches OCR text against header patterns (아이템 속성, 인챈트, 개조, 세공, 에르그, 세트아이템, 아이템 색상)
@@ -626,7 +626,7 @@ New `MabinogiTooltipParser` class extends `TooltipLineSplitter` with:
 - **Skip logic**: Flavor text and shop price sections marked as skip — detected but ignored in output
 - **Config-driven**: Section definitions in `configs/mabinogi_tooltip.yaml`, separating game-specific logic from base splitter
 
-### Change 2: Splitter Improvements (`backend/tooltip_line_splitter.py`)
+### Change 2: Splitter Improvements (`backend/lib/tooltip_line_splitter.py`)
 
 Four fixes to the base splitter, addressing lines missed in Attempt 13:
 
@@ -662,7 +662,7 @@ Four fixes to the base splitter, addressing lines missed in Attempt 13:
 ### New Infrastructure
 
 - **`configs/mabinogi_tooltip.yaml`** — Section definitions, horizontal_split_factor, game-specific config
-- **`backend/mabinogi_tooltip_parser.py`** — Section-aware parser with structural color parsing
+- **`backend/lib/mabinogi_tooltip_parser.py`** — Section-aware parser with structural color parsing
 - **`POST /upload-item-v2`** — New API endpoint returning structured section data
 - **`scripts/regenerate_gt.py`** — GT regeneration helper (pipeline output → candidate → manual review → apply)
 - **GT file types**: `*_processed.txt` (full GT), `*_expected.txt` (expected OCR output, may skip areas)
@@ -719,7 +719,7 @@ Visual inspection of line crops revealed two left-edge artifacts in certain tool
 - 1px vertical stroke of the section box `│` border, appearing at the leftmost crop column
 - OCR hallucinated a Korean character (`가`, `루`, `자`) from the stripe, e.g. `- 수리비` → `가수리비`
 
-**Fixes added to `_add_line()` in `backend/tooltip_line_splitter.py`:**
+**Fixes added to `_add_line()` in `backend/lib/tooltip_line_splitter.py`:**
 
 ```python
 # Artifact 1: corner bracket (first cluster, low density, gap ≥ 4px)
@@ -917,7 +917,7 @@ to:
 ```
 6223 → 5232 lines (991 old-format headers merged + 181 already-correct headers = 1172 total canonical headers). Ranks cover both letter (A-F) and numeric (1-9) formats.
 
-**TextCorrector additions (`backend/text_corrector.py`):**
+**TextCorrector additions (`backend/lib/text_corrector.py`):**
 - `_load_enchant_structured(path)` — builds `_enchant_db` (1172 entries) and `_enchant_headers_norm`
 - `match_enchant_header(text, cutoff=80)` → `(header, score, entry)`
 - `match_enchant_effect(text, entry, cutoff=75)` → `(corrected_text, score)`
@@ -1071,11 +1071,11 @@ New (v3):  Color image → detect headers → segment → header OCR → section
 
 | Step | What | File |
 |------|------|------|
-| 1. Header detection | Orange text + black-square boundary expansion | `backend/tooltip_segmenter.py` |
-| 2. Segmentation | Pre-header region + N header+content pairs | `backend/tooltip_segmenter.py` |
-| 3. Header OCR | Dedicated model → fuzzy-match to section name | `backend/tooltip_segmenter.py` |
-| 4. Content OCR | BT.601 → threshold=80 → line split → recognize() per segment | `backend/mabinogi_tooltip_parser.py` |
-| 5. Text correction | Section-specific FM (auto-discovered from dictionary files) | `backend/text_corrector.py` |
+| 1. Header detection | Orange text + black-square boundary expansion | `backend/lib/tooltip_segmenter.py` |
+| 2. Segmentation | Pre-header region + N header+content pairs | `backend/lib/tooltip_segmenter.py` |
+| 3. Header OCR | Dedicated model → fuzzy-match to section name | `backend/lib/tooltip_segmenter.py` |
+| 4. Content OCR | BT.601 → threshold=80 → line split → recognize() per segment | `backend/lib/mabinogi_tooltip_parser.py` |
+| 5. Text correction | Section-specific FM (auto-discovered from dictionary files) | `backend/lib/text_corrector.py` |
 
 ### Test Scripts
 

@@ -18,7 +18,7 @@ import cv2
 import numpy as np
 import yaml
 
-from tooltip_line_splitter import TooltipLineSplitter
+from lib.tooltip_line_splitter import TooltipLineSplitter
 
 # Lines that appear above the item name in the pre-header block.
 # Extend this set if new top-level status lines are discovered.

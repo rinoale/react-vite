@@ -128,9 +128,9 @@ Color Screenshot → Header Detection → Segmentation → Header OCR → Conten
 ```
 
 1. **V3 input** (`POST /upload-item-v3`) — Backend receives the original color screenshot.
-2. **Segmentation-first flow** (`backend/tooltip_segmenter.py`) — Detects section headers, segments header/content regions, OCRs short headers, and assigns canonical section labels before content OCR.
-3. **Content OCR** (`backend/mabinogi_tooltip_parser.py`) — Per-segment BT.601 + threshold preprocessing, line splitting with `TooltipLineSplitter`, and EasyOCR `recognize()` per line (no CRAFT).
-4. **FM + structured output** (`backend/text_corrector.py`) — Section-specific fuzzy matching, server-side FM decision (`text` + `fm_applied`), plus structured enchant/reforge reconstruction.
+2. **Segmentation-first flow** (`backend/lib/tooltip_segmenter.py`) — Detects section headers, segments header/content regions, OCRs short headers, and assigns canonical section labels before content OCR.
+3. **Content OCR** (`backend/lib/mabinogi_tooltip_parser.py`) — Per-segment BT.601 + threshold preprocessing, line splitting with `TooltipLineSplitter`, and EasyOCR `recognize()` per line (no CRAFT).
+4. **FM + structured output** (`backend/lib/text_corrector.py`) — Section-specific fuzzy matching, server-side FM decision (`text` + `fm_applied`), plus structured enchant/reforge reconstruction.
 
 Legacy v2 (`/upload-item-v2`) remains available but is not the primary pipeline.
 

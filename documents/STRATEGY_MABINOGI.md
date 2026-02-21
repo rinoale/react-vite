@@ -137,6 +137,6 @@ The 3:3 ratio of size-10 to size-11 was chosen to produce a unimodal distributio
 **Why:**
 EasyOCR computes a per-image dynamic imgW during inference, which produces values of 576–1056px for typical line crops — completely mismatching the training imgW=200. The TPS spatial transformer is built with `I_size=(imgH, imgW)` and produces garbage output when the input size differs from training.
 
-The patch is in `backend/ocr_utils.py` and must be applied after `easyocr.Reader()` is initialized.
+The patch is in `backend/lib/ocr_utils.py` and must be applied after `easyocr.Reader()` is initialized.
 
 **Porting guide:** Always verify that inference imgW matches training imgW before evaluating accuracy. This mismatch is silent — the model produces output but it will be garbage. Check `ocr_utils.py` is applied in any new inference script.

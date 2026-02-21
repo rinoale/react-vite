@@ -32,7 +32,7 @@ The result is a strictly binary PNG — black text on a white background. This e
 
 ## 2. Line Splitting
 
-**File:** `backend/tooltip_line_splitter.py`
+**File:** `backend/lib/tooltip_line_splitter.py`
 **Class:** `TooltipLineSplitter`
 
 Mabinogi tooltips are structured, fixed-layout boxes. Rather than using CRAFT (a general-purpose scene text detector), the pipeline uses horizontal projection profiling — a simpler, faster, and more reliable approach for this domain.
@@ -76,7 +76,7 @@ Some lines contain multiple columns separated by wide gaps (e.g., `파트 A    R
 
 ## 3. Section-Aware Parsing
 
-**File:** `backend/mabinogi_tooltip_parser.py`
+**File:** `backend/lib/mabinogi_tooltip_parser.py`
 **Class:** `MabinogiTooltipParser`
 **Config:** `configs/mabinogi_tooltip.yaml`
 
@@ -109,14 +109,14 @@ Each line crop is passed directly to EasyOCR's `recognize()` function, bypassing
 ### Key configuration
 
 - `imgH: 32` — all crops resized to 32px height before inference
-- `imgW: 200` — fixed width, applied via inference patch (`backend/ocr_utils.py`)
+- `imgW: 200` — fixed width, applied via inference patch (`backend/lib/ocr_utils.py`)
 - `sensitive: true` — preserves case (required for R, G, B, A-F characters)
 - `PAD: true` — matches EasyOCR's hardcoded `keep_ratio_with_pad=True`
 - Character set: 509 characters (`backend/unique_chars.txt`)
 
 ### Inference patch
 
-EasyOCR computes a dynamic `imgW = ceil(w/h) * 32` per image at runtime, which mismatches the fixed `imgW=200` the model was trained with. `backend/ocr_utils.py` monkey-patches `recognize()` to use the yaml-specified value instead.
+EasyOCR computes a dynamic `imgW = ceil(w/h) * 32` per image at runtime, which mismatches the fixed `imgW=200` the model was trained with. `backend/lib/ocr_utils.py` monkey-patches `recognize()` to use the yaml-specified value instead.
 
 ### Model versioning
 
@@ -136,7 +136,7 @@ To deploy a version: `cp custom_mabinogi_aN.pth custom_mabinogi.pth`
 
 ## 5. Text Correction
 
-**File:** `backend/text_corrector.py`
+**File:** `backend/lib/text_corrector.py`
 **Dictionaries:** `data/dictionary/` — one `.txt` file per section (e.g. `reforge.txt`, `tooltip_general.txt`). File stem maps to section name for targeted lookup.
 
 After OCR, each recognized string is fuzzy-matched against game dictionaries using RapidFuzz (`fuzz.ratio`, cutoff 80). This corrects common OCR errors like character substitutions (`속` → `색`) that are visually plausible but semantically wrong in the game context.

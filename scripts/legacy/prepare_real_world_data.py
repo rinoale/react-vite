@@ -6,7 +6,7 @@ import sys
 
 # Add backend to path for TooltipLineSplitter
 sys.path.append(os.path.join(os.getcwd(), 'backend'))
-from tooltip_line_splitter import TooltipLineSplitter
+from lib.tooltip_line_splitter import TooltipLineSplitter
 
 def preprocess_image(img, contrast=1.0, brightness=1.0, threshold=80):
     """Matches frontend logic: Black text on White background."""

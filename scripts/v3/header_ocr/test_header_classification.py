@@ -24,7 +24,7 @@ sys.path.insert(0, os.path.join(PROJECT_ROOT, 'backend'))
 
 CONFIG_PATH = os.path.join(PROJECT_ROOT, 'configs', 'mabinogi_tooltip.yaml')
 
-from tooltip_segmenter import (
+from lib.tooltip_segmenter import (
     load_config, load_section_patterns, detect_headers, build_segments,
     init_header_reader, classify_header,
 )

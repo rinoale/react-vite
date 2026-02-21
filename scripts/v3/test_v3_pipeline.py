@@ -27,8 +27,13 @@ PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..
 sys.path.insert(0, PROJECT_ROOT)
 sys.path.insert(0, os.path.join(PROJECT_ROOT, 'backend'))
 
-from mabinogi_tooltip_parser import MabinogiTooltipParser
-from tooltip_segmenter import init_header_reader, load_section_patterns, load_config, segment_and_tag
+from lib.mabinogi_tooltip_parser import MabinogiTooltipParser
+from lib.tooltip_segmenter import (
+    init_header_reader,
+    load_section_patterns,
+    load_config,
+    segment_and_tag,
+)
 
 MODELS_DIR  = os.path.join(PROJECT_ROOT, 'backend', 'ocr', 'models')
 CONFIG_PATH = os.path.join(PROJECT_ROOT, 'configs', 'mabinogi_tooltip.yaml')
@@ -65,7 +70,7 @@ def find_gt_file(image_path, gt_dir, gt_suffix):
 
 def init_readers():
     import easyocr
-    from ocr_utils import patch_reader_imgw
+    from lib.ocr_utils import patch_reader_imgw
 
     print("Initializing header OCR reader (custom_header)...")
     header_reader = init_header_reader(models_dir=MODELS_DIR)
@@ -83,7 +88,7 @@ def init_readers():
 
 
 def init_corrector():
-    from text_corrector import TextCorrector
+    from lib.text_corrector import TextCorrector
     return TextCorrector(dict_dir=DICT_DIR)
 
 

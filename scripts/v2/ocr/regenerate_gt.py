@@ -10,9 +10,9 @@ Output format per line:
   # conf=0.XXX section=XXXXX    ← metadata comment (ignored by loader)
 
 Usage:
-    python3 scripts/regenerate_gt.py                    # All GT images → _gt_candidate.txt
-    python3 scripts/regenerate_gt.py --image <path>     # Single image
-    python3 scripts/regenerate_gt.py --apply             # Copy verified candidates over .txt files
+    python3 scripts/v2/ocr/regenerate_gt.py                    # All GT images → _gt_candidate.txt
+    python3 scripts/v2/ocr/regenerate_gt.py --image <path>     # Single image
+    python3 scripts/v2/ocr/regenerate_gt.py --apply             # Copy verified candidates over .txt files
 """
 
 import os
@@ -24,7 +24,7 @@ PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..
 sys.path.insert(0, PROJECT_ROOT)
 sys.path.insert(0, os.path.join(PROJECT_ROOT, 'backend'))
 
-from mabinogi_tooltip_parser import MabinogiTooltipParser
+from lib.mabinogi_tooltip_parser import MabinogiTooltipParser
 
 MODELS_DIR = os.path.join(PROJECT_ROOT, 'backend', 'ocr', 'models')
 SAMPLE_DIR = os.path.join(PROJECT_ROOT, 'data', 'sample_images')
@@ -33,7 +33,7 @@ CONFIG_PATH = os.path.join(PROJECT_ROOT, 'configs', 'mabinogi_tooltip.yaml')
 
 def init_reader():
     import easyocr
-    from ocr_utils import patch_reader_imgw
+    from lib.ocr_utils import patch_reader_imgw
     reader = easyocr.Reader(
         ['ko'],
         model_storage_directory=MODELS_DIR,
@@ -127,7 +127,7 @@ def generate_candidate(reader, parser, image_path):
         f.write(f"#   1. Compare each line against the actual image\n")
         f.write(f"#   2. Fix OCR errors in the text after the line number\n")
         f.write(f"#   3. Delete lines that should be skipped (flavor text, etc.)\n")
-        f.write(f"#   4. When done, run: python3 scripts/regenerate_gt.py --apply\n")
+        f.write(f"#   4. When done, run: python3 scripts/v2/ocr/regenerate_gt.py --apply\n")
         f.write(f"#\n")
 
         for i, line in enumerate(ocr_lines):
@@ -213,7 +213,7 @@ def main():
             generate_candidate(reader, parser, image_path)
 
     print(f"\nDone. Review the _gt_candidate.txt files, fix OCR errors, then run:")
-    print(f"  python3 scripts/regenerate_gt.py --apply")
+    print(f"  python3 scripts/v2/ocr/regenerate_gt.py --apply")
 
 
 if __name__ == '__main__':

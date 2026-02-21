@@ -21,11 +21,11 @@ TooltipLineSplitter (base, unchanged)
 
 ### File Changes
 
-1. **NEW: `backend/mabinogi_tooltip_parser.py`** — `MabinogiTooltipParser` class
+1. **NEW: `backend/lib/mabinogi_tooltip_parser.py`** — `MabinogiTooltipParser` class
 2. **NEW: `configs/mabinogi_tooltip.yaml`** — Section definitions, header patterns
 3. **EDIT: `backend/main.py`** — Use `MabinogiTooltipParser` instead of `TooltipLineSplitter` in the v2 pipeline, return structured section data
 4. **EDIT: `scripts/test_v2_pipeline.py`** — Update to handle section-aware output, recombine horizontally-split lines
-5. **NO CHANGE: `backend/tooltip_line_splitter.py`** — Base class stays generic
+5. **NO CHANGE: `backend/lib/tooltip_line_splitter.py`** — Base class stays generic
 
 ## Section Definitions
 
@@ -163,7 +163,7 @@ sections:
 `configs/mabinogi_tooltip.yaml` with section definitions as above.
 
 ### Step 2: Create `MabinogiTooltipParser`
-`backend/mabinogi_tooltip_parser.py`:
+`backend/lib/mabinogi_tooltip_parser.py`:
 
 ```python
 class MabinogiTooltipParser(TooltipLineSplitter):

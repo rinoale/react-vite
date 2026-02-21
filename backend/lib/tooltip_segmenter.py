@@ -23,7 +23,6 @@ Each tagged segment:
 """
 
 import os
-import sys
 
 import cv2
 import numpy as np
@@ -31,7 +30,8 @@ import yaml
 from rapidfuzz import fuzz
 
 # Header model location (relative to this file's directory)
-_BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
+_LIB_DIR = os.path.dirname(os.path.abspath(__file__))
+_BACKEND_DIR = os.path.dirname(_LIB_DIR)
 _MODELS_DIR = os.path.join(_BACKEND_DIR, 'ocr', 'models')
 
 
@@ -272,9 +272,7 @@ def init_header_reader(models_dir=None, gpu=True):
         EasyOCR Reader with imgW patched to 128.
     """
     import easyocr
-    # ocr_utils.py lives in the same backend/ directory
-    sys.path.insert(0, _BACKEND_DIR)
-    from ocr_utils import patch_reader_imgw
+    from lib.ocr_utils import patch_reader_imgw
 
     if models_dir is None:
         models_dir = _MODELS_DIR

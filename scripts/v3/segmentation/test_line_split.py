@@ -41,8 +41,8 @@ sys.path.insert(0, os.path.join(PROJECT_ROOT, 'backend'))
 
 CONFIG_PATH = os.path.join(PROJECT_ROOT, 'configs', 'mabinogi_tooltip.yaml')
 
-from tooltip_segmenter import load_config, detect_headers, build_segments
-from tooltip_line_splitter import TooltipLineSplitter
+from lib.tooltip_segmenter import load_config, detect_headers, build_segments
+from lib.tooltip_line_splitter import TooltipLineSplitter
 
 
 SEGMENT_COLORS = [

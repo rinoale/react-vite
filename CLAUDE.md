@@ -79,10 +79,10 @@ Determines section labels BEFORE running content OCR, eliminating cascade sectio
 - Current deployed content model: a15 (509-char output space). Attempt 16 tested 1201 chars but regressed; future expansion should be done with stronger data coverage.
 - Model weights: `backend/models/custom_mabinogi.pth`
 - Model architecture for EasyOCR integration: `backend/models/custom_mabinogi.py`
-- Inference patch: `backend/ocr_utils.py` — fixes EasyOCR's dynamic imgW to use yaml's fixed value
+- Inference patch: `backend/lib/ocr_utils.py` — fixes EasyOCR's dynamic imgW to use yaml's fixed value
 - Training history and known issues: `OCR_TRAINING_HISTORY.md`
 
-### Section-Aware Parser (`backend/mabinogi_tooltip_parser.py`)
+### Section-Aware Parser (`backend/lib/mabinogi_tooltip_parser.py`)
 - Extends `TooltipLineSplitter` with Mabinogi-specific section categorization
 - Config: `configs/mabinogi_tooltip.yaml` — defines sections (item_name, item_attrs, enchant, reforge, erg, set_item, item_color, etc.), header patterns, parse modes, skip flags
 - Color parts (`parse_mode: color_parts`): RGB values parsed via regex from horizontal sub-segments, bypassing general OCR
@@ -92,7 +92,7 @@ Determines section labels BEFORE running content OCR, eliminating cascade sectio
 - Reforge section (`parse_mode: reforge_options`): Options include `option_name`/`option_level` as unified fields (aliases for `name`/`level`) for DB storage.
 - `build_enchant_structured(lines)` / `build_reforge_structured(lines)`: Rebuild structured data from tagged lines. Called after FM correction in `main.py` to propagate corrected text into section data. See `documents/API_SPEC.md` for full response schema.
 
-### Line Splitter (`backend/tooltip_line_splitter.py`)
+### Line Splitter (`backend/lib/tooltip_line_splitter.py`)
 Splits tooltip images into individual text line crops using horizontal projection profiling:
 - Auto-detects background polarity (light vs dark)
 - `_remove_borders()`: Masks narrow (≤3px wide) high-density vertical column runs. Only masks actual border pipes, not text alignment positions.
@@ -109,7 +109,7 @@ Splits tooltip images into individual text line crops using horizontal projectio
   - Wide horizontal bars (w > `line_h*3`, avg column density < 2.0) — `ㅡㅡㅡ` bar borders
 - Ground truth test images in `data/sample_images/` with matching `.txt` files
 
-### Inference Patch (`backend/ocr_utils.py`)
+### Inference Patch (`backend/lib/ocr_utils.py`)
 - `patch_reader_imgw()`: Monkey-patches EasyOCR's `recognize()` to use fixed imgW from yaml
 - Solves: EasyOCR computes dynamic `max_width = ceil(w/h) * 32` per image (576-1056px), mismatching training's fixed imgW
 - Applied in `backend/main.py` and `scripts/v2/test_v2_pipeline.py` after reader init
@@ -205,7 +205,7 @@ python3 scripts/v2/test_v2_pipeline.py -q --normalize --gt-suffix _expected.txt 
 - Ground truth in `data/sample_images/`: 5 images, 244 total lines. File types: `*.txt` (full GT), `*_expected.txt` (expected OCR output), `*_gt_candidate.txt` (pipeline candidates)
 
 ### Recommendation System
-- `backend/recommendation.py`: TF-IDF vectorization of item descriptions + cosine similarity
+- `backend/lib/recommendation.py`: TF-IDF vectorization of item descriptions + cosine similarity
 - Endpoints: `GET /recommend/item/{id}` and `POST /recommend/user` (history-based)
 
 ### Frontend Routes
@@ -230,7 +230,7 @@ Documents to keep in sync: `CLAUDE.md`, `AGENTS.md`, `OCR_TRAINING_HISTORY.md`, 
 - In both v2 and v3 content OCR, CRAFT is not used; `TooltipLineSplitter` + `recognize()` is used for line-level recognition.
 - The EasyOCR custom model can only recognize characters present in `backend/ocr/unique_chars.txt`; any characters not in this set will never be output
 - EasyOCR always uses `keep_ratio_with_pad=True` during inference (hardcoded in `recognition.py` lines 199, 213), regardless of yaml PAD setting. Training must use `--PAD` to match.
-- Item database is currently mocked in `backend/recommendation.py` (`ITEMS_DB`); no persistent storage yet
+- Item database is currently mocked in `backend/lib/recommendation.py` (`ITEMS_DB`); no persistent storage yet
 - The `data/` directory (fonts, dictionary, sample images) is not fully committed to git
 - Ground truth files (`data/sample_images/*.txt`) exist for: `lightarmor_processed_3`, `captain_suit_processed`, `lobe_processed`, `titan_blade_processed`, `dropbell_processed`. Additional `*_expected.txt` files track expected OCR output (may differ from full GT due to skipped sections).
 - Current deployed model charset is 509; known missing enchant characters remain and are tracked in `OCR_ISSUES.md`.

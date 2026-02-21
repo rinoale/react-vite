@@ -15,8 +15,8 @@ PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..
 sys.path.insert(0, PROJECT_ROOT)
 sys.path.insert(0, os.path.join(PROJECT_ROOT, 'backend'))
 
-from mabinogi_tooltip_parser import MabinogiTooltipParser
-from ocr_utils import patch_reader_imgw
+from lib.mabinogi_tooltip_parser import MabinogiTooltipParser
+from lib.ocr_utils import patch_reader_imgw
 
 MODELS_DIR  = os.path.join(PROJECT_ROOT, 'backend', 'ocr', 'models')
 CONFIG_PATH = os.path.join(PROJECT_ROOT, 'configs', 'mabinogi_tooltip.yaml')

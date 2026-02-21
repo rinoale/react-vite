@@ -5,11 +5,16 @@ import shutil
 import os
 import tempfile
 import easyocr
-from recommendation import recommender, ITEMS_DB
-from text_corrector import TextCorrector
-from ocr_utils import patch_reader_imgw
-from mabinogi_tooltip_parser import MabinogiTooltipParser
-from tooltip_segmenter import init_header_reader, load_section_patterns, load_config, segment_and_tag
+from lib.recommendation import recommender, ITEMS_DB
+from lib.text_corrector import TextCorrector
+from lib.ocr_utils import patch_reader_imgw
+from lib.mabinogi_tooltip_parser import MabinogiTooltipParser
+from lib.tooltip_segmenter import (
+    init_header_reader,
+    load_section_patterns,
+    load_config,
+    segment_and_tag,
+)
 from pydantic import BaseModel
 from typing import List
 

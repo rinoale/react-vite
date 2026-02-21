@@ -120,7 +120,7 @@ sections:
 horizontal_split_factor: 1.5
 
 # Header detection parameters (v3 segment-first pipeline)
-# Used by backend/tooltip_segmenter.py — single source of truth.
+# Used by backend/lib/tooltip_segmenter.py — single source of truth.
 header_detection:
   # Step 1: Find orange header text via color mask + horizontal projection
   orange:

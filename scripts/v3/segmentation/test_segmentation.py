@@ -42,10 +42,10 @@ def segment_one(img_path, output_dir, header_reader, patterns, config, use_ocr=T
     base = os.path.splitext(os.path.basename(img_path))[0]
 
     if use_ocr:
-        from tooltip_segmenter import segment_and_tag
+        from lib.tooltip_segmenter import segment_and_tag
         tagged = segment_and_tag(img, header_reader, patterns, config)
     else:
-        from tooltip_segmenter import detect_headers, build_segments
+        from lib.tooltip_segmenter import detect_headers, build_segments
         headers = detect_headers(img, config)
         segments = build_segments(img, headers)
         # Build minimal tagged list without OCR
@@ -120,11 +120,11 @@ def main():
 
     # Load models (once)
     header_reader = patterns = None
-    from tooltip_segmenter import load_config
+    from lib.tooltip_segmenter import load_config
     config = load_config(CONFIG_PATH)
 
     if not args.no_ocr:
-        from tooltip_segmenter import init_header_reader, load_section_patterns
+        from lib.tooltip_segmenter import init_header_reader, load_section_patterns
         header_reader = init_header_reader(models_dir=MODELS_DIR)
         patterns = load_section_patterns(CONFIG_PATH)
 

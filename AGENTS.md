@@ -90,7 +90,7 @@ The custom `TooltipLineSplitter` uses horizontal projection profiling tailored f
 - Converts images to binary (Black text / White bg) before upload.
 - Threshold value: 80. Output is strictly binary (0, 255 only).
 
-### Section-Aware Parser (`backend/mabinogi_tooltip_parser.py`)
+### Section-Aware Parser (`backend/lib/mabinogi_tooltip_parser.py`)
 - Extends `TooltipLineSplitter` with game-specific section categorization
 - Config-driven via `configs/mabinogi_tooltip.yaml` — defines sections, header patterns, parse modes
 - Sections: item_name, item_type, item_grade, item_attrs, enchant, item_mod, reforge, erg, set_item, item_color, flavor_text, shop_price
@@ -100,7 +100,7 @@ The custom `TooltipLineSplitter` uses horizontal projection profiling tailored f
 - Reforge (`parse_mode: reforge_options`): Options include `option_name`/`option_level` unified fields.
 - `build_enchant_structured()` / `build_reforge_structured()`: Rebuild structured data from FM-corrected lines (called post-FM in `main.py`).
 
-### Line Splitter (`backend/tooltip_line_splitter.py`)
+### Line Splitter (`backend/lib/tooltip_line_splitter.py`)
 - Auto-detects background polarity (light vs dark)
 - `_remove_borders()`: Masks narrow (≤3px) high-density vertical column runs (not all high-density columns — previous approach destroyed text alignment positions)
 - Gap tolerance: 2 rows (closes thin character stroke dips)
@@ -116,7 +116,7 @@ The custom `TooltipLineSplitter` uses horizontal projection profiling tailored f
   - **Wide low-density clusters** (w > `line_h*3`, avg density < 2.0) → horizontal `ㅡㅡㅡ` bar borders
 - Ground truth test pairs in `data/sample_images/` (`*_processed.png` + `*_processed.txt`)
 
-### Inference Patch (`backend/ocr_utils.py`)
+### Inference Patch (`backend/lib/ocr_utils.py`)
 - `patch_reader_imgw()` monkey-patches EasyOCR's `recognize()` to use fixed imgW from yaml
 - Fixes the fundamental mismatch: training uses fixed imgW, but EasyOCR inference computes dynamic `max_width = ceil(w/h) * 32` per image (576-1056px)
 - Applied in both `backend/main.py` and `scripts/v2/test_v2_pipeline.py` after reader init

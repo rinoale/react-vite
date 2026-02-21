@@ -29,7 +29,7 @@ PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..
 sys.path.insert(0, PROJECT_ROOT)
 sys.path.insert(0, os.path.join(PROJECT_ROOT, 'backend'))
 
-from mabinogi_tooltip_parser import MabinogiTooltipParser
+from lib.mabinogi_tooltip_parser import MabinogiTooltipParser
 
 MODELS_DIR = os.path.join(PROJECT_ROOT, 'backend', 'ocr', 'models')
 SAMPLE_DIR = os.path.join(PROJECT_ROOT, 'data', 'sample_images')
@@ -52,7 +52,7 @@ def load_ground_truth(txt_path):
 def init_reader():
     """Initialize EasyOCR reader with custom model and fixed imgW patch."""
     import easyocr
-    from ocr_utils import patch_reader_imgw
+    from lib.ocr_utils import patch_reader_imgw
     reader = easyocr.Reader(
         ['ko'],
         model_storage_directory=MODELS_DIR,
@@ -66,7 +66,7 @@ def init_reader():
 
 def init_corrector():
     """Load TextCorrector from dictionary directory (one file per section)."""
-    from text_corrector import TextCorrector
+    from lib.text_corrector import TextCorrector
     return TextCorrector(dict_dir=DICT_DIR)
 
 
