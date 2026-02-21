@@ -174,15 +174,17 @@ class MabinogiTooltipParser(TooltipLineSplitter):
             for pattern in sec.get('header_patterns', []):
                 self._header_patterns[pattern] = key
 
-    def parse_from_segments(self, tagged_segments, reader):
+    def parse_from_segments(self, tagged_segments, reader, enchant_header_reader=None):
         """Build full structured result from segment_and_tag() output.
 
         Drop-in replacement for parse_tooltip() in the new segment-first pipeline.
         Section labels come from header OCR — no post-hoc pattern matching needed.
 
         Args:
-            tagged_segments: list of dicts from tooltip_segmenter.segment_and_tag()
-            reader:          content OCR EasyOCR reader (custom_mabinogi, imgW patched)
+            tagged_segments:       list of dicts from tooltip_segmenter.segment_and_tag()
+            reader:                content OCR EasyOCR reader (custom_mabinogi, imgW patched)
+            enchant_header_reader: optional dedicated enchant slot header OCR reader
+                                   (custom_enchant_header). If None, falls back to content reader.
 
         Returns:
             dict with 'sections' (OrderedDict) and 'all_lines' — same format as
@@ -209,7 +211,9 @@ class MabinogiTooltipParser(TooltipLineSplitter):
                     'is_header':  True,
                 }
 
-            section_data = self._parse_segment_from_array(content_crop, section, reader)
+            section_data = self._parse_segment_from_array(
+                content_crop, section, reader,
+                enchant_header_reader=enchant_header_reader)
 
             if section == 'pre_header':
                 sections.update(section_data)
@@ -232,16 +236,18 @@ class MabinogiTooltipParser(TooltipLineSplitter):
 
         return {'sections': sections, 'all_lines': all_lines}
 
-    def _parse_segment_from_array(self, content_bgr, section, reader):
+    def _parse_segment_from_array(self, content_bgr, section, reader,
+                                    enchant_header_reader=None):
         """Parse one content region (BGR numpy array) with a pre-known section label.
 
         Preprocessing: BT.601 grayscale → threshold=80 (mirrors frontend pipeline).
         Passes the binary image directly to line detection and OCR.
 
         Args:
-            content_bgr: numpy BGR array (content_crop from segment_and_tag)
-            section:     section label string (e.g. 'enchant', 'reforge', 'pre_header')
-            reader:      content OCR reader (custom_mabinogi, imgW patched)
+            content_bgr:           numpy BGR array (content_crop from segment_and_tag)
+            section:               section label string (e.g. 'enchant', 'reforge', 'pre_header')
+            reader:                content OCR reader (custom_mabinogi, imgW patched)
+            enchant_header_reader: optional dedicated enchant slot header reader
 
         Returns:
             section data dict — same per-section format as _categorize_sections produces.
@@ -265,7 +271,8 @@ class MabinogiTooltipParser(TooltipLineSplitter):
             slot_bands = detect_enchant_slot_headers(content_bgr)
             if slot_bands:
                 return self._parse_enchant_with_bands(
-                    content_bgr, binary, grouped, slot_bands, section, reader)
+                    content_bgr, binary, grouped, slot_bands, section, reader,
+                    enchant_header_reader=enchant_header_reader)
 
         # All other sections: OCR every line
         ocr_results    = self._ocr_grouped_lines(binary, grouped, reader)
@@ -674,21 +681,23 @@ class MabinogiTooltipParser(TooltipLineSplitter):
         return {'options': options}
 
     def _parse_enchant_with_bands(self, content_bgr, binary, grouped,
-                                    bands, section, reader):
+                                    bands, section, reader,
+                                    enchant_header_reader=None):
         """Parse enchant section with white-mask bands.
 
         Classifies each line group as header/effect/grey BEFORE OCR.
         Grey lines are skipped entirely. Headers and effects are OCR'd.
-        Slot headers are parsed with regex to extract slot/name/rank
-        from the OCR text (e.g. '[접미] 새끼너구리 (랭크 3)').
+        Slot headers use the dedicated enchant_header_reader if available,
+        falling back to the general content reader.
 
         Args:
-            content_bgr: BGR numpy array of the enchant content region
-            binary:      preprocessed binary (black text on white)
-            grouped:     line groups from _group_by_y()
-            bands:       slot header bands from detect_enchant_slot_headers()
-            section:     section label ('enchant')
-            reader:      content OCR reader
+            content_bgr:           BGR numpy array of the enchant content region
+            binary:                preprocessed binary (black text on white)
+            grouped:               line groups from _group_by_y()
+            bands:                 slot header bands from detect_enchant_slot_headers()
+            section:               section label ('enchant')
+            reader:                content OCR reader
+            enchant_header_reader: optional dedicated enchant slot header reader
 
         Returns:
             section data dict with prefix/suffix + lines
@@ -707,13 +716,22 @@ class MabinogiTooltipParser(TooltipLineSplitter):
             line_type = classify_enchant_line(content_bgr, merged_bounds, bands)
             classifications.append((group, merged_bounds, line_type))
 
-        # 2. Batch OCR all non-grey groups (headers + effects)
-        ocr_groups = [g for g, _, lt in classifications if lt != 'grey']
-        ocr_batch = (self._ocr_grouped_lines(binary, ocr_groups, reader)
-                     if ocr_groups else [])
-        ocr_iter = iter(ocr_batch)
+        # 2. Batch OCR: headers and effects separately (may use different readers)
+        header_groups = [g for g, _, lt in classifications if lt == 'header']
+        effect_groups = [g for g, _, lt in classifications if lt == 'effect']
+
+        hdr_reader = enchant_header_reader if enchant_header_reader is not None else reader
+        header_batch = (self._ocr_grouped_lines(binary, header_groups, hdr_reader)
+                        if header_groups else [])
+        effect_batch = (self._ocr_grouped_lines(binary, effect_groups, reader)
+                        if effect_groups else [])
+
+        header_iter = iter(header_batch)
+        effect_iter = iter(effect_batch)
 
         # 3. Assemble results — parse header text for slot/name/rank
+        hdr_model_name = ('enchant_header' if enchant_header_reader is not None
+                          else 'general')
         ocr_results = []
         for group, bounds, line_type in classifications:
             if line_type == 'grey':
@@ -726,11 +744,13 @@ class MabinogiTooltipParser(TooltipLineSplitter):
                     'section': section,
                     'is_enchant_hdr': False,
                     'is_grey': True,
+                    'ocr_model': '',
                 })
             elif line_type == 'header':
-                line = next(ocr_iter)
+                line = next(header_iter)
                 line['section'] = section
                 line['is_enchant_hdr'] = True
+                line['ocr_model'] = hdr_model_name
                 text = line.get('text', '')
                 m = _ENCHANT_HEADER_RE.match(text)
                 if m:
@@ -743,9 +763,10 @@ class MabinogiTooltipParser(TooltipLineSplitter):
                     line['enchant_rank'] = ''
                 ocr_results.append(line)
             else:  # effect
-                line = next(ocr_iter)
+                line = next(effect_iter)
                 line['section'] = section
                 line['is_enchant_hdr'] = False
+                line['ocr_model'] = 'general'
                 ocr_results.append(line)
 
         result = self.build_enchant_structured(ocr_results)

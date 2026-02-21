@@ -289,6 +289,38 @@ def init_header_reader(models_dir=None, gpu=True):
     return reader
 
 
+def init_enchant_header_reader(models_dir=None, gpu=True):
+    """Create an EasyOCR reader for enchant slot header OCR.
+
+    Uses custom_enchant_header.pth (imgW=200, 627-char charset) trained on
+    enchant slot header lines like '[접두] 마법의 (랭크 A)'.
+
+    Args:
+        models_dir: Directory containing custom_enchant_header.{py,yaml,pth}.
+                    Defaults to backend/ocr/models/ next to this file.
+        gpu:        Whether to use GPU inference.
+
+    Returns:
+        EasyOCR Reader with imgW patched to 200.
+    """
+    import easyocr
+    from lib.ocr_utils import patch_reader_imgw
+
+    if models_dir is None:
+        models_dir = _MODELS_DIR
+
+    reader = easyocr.Reader(
+        ['ko'],
+        model_storage_directory=models_dir,
+        user_network_directory=models_dir,
+        recog_network='custom_enchant_header',
+        gpu=gpu,
+        verbose=False,
+    )
+    patch_reader_imgw(reader, models_dir, recog_network='custom_enchant_header')
+    return reader
+
+
 def _preprocess_header_crop(crop_bgr, config):
     """Convert color header crop to binary suitable for the header OCR model.
 

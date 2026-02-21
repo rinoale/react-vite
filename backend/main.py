@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import logging
 import shutil
 import os
+import re
 import tempfile
 import easyocr
 from lib.recommendation import recommender, ITEMS_DB
@@ -11,6 +12,7 @@ from lib.ocr_utils import patch_reader_imgw
 from lib.mabinogi_tooltip_parser import MabinogiTooltipParser
 from lib.tooltip_segmenter import (
     init_header_reader,
+    init_enchant_header_reader,
     load_section_patterns,
     load_config,
     segment_and_tag,
@@ -80,9 +82,10 @@ CONFIG_PATH = os.path.join(BASE_DIR, '..', 'configs', 'mabinogi_tooltip.yaml')
 tooltip_parser = MabinogiTooltipParser(CONFIG_PATH)
 
 # Initialize header reader + section patterns for the v3 segment-first pipeline
-header_reader    = init_header_reader(models_dir=MODELS_DIR)
-section_patterns = load_section_patterns(CONFIG_PATH)
-tooltip_config   = load_config(CONFIG_PATH)
+header_reader           = init_header_reader(models_dir=MODELS_DIR)
+enchant_header_reader   = init_enchant_header_reader(models_dir=MODELS_DIR)
+section_patterns        = load_section_patterns(CONFIG_PATH)
+tooltip_config          = load_config(CONFIG_PATH)
 
 class UserHistory(BaseModel):
     history_ids: List[int]
@@ -226,9 +229,22 @@ async def upload_item_v3(file: UploadFile = File(...)):
         tagged = segment_and_tag(img_bgr, header_reader, section_patterns, tooltip_config)
 
         # Step 2: content OCR per segment → assemble structured result
-        result = tooltip_parser.parse_from_segments(tagged, reader)
+        result = tooltip_parser.parse_from_segments(
+            tagged, reader, enchant_header_reader=enchant_header_reader)
 
-        # Step 3: section-aware text correction — FM decision
+        # Step 3: strip structural prefixes (- or ㄴ) from content lines.
+        # Dictionary entries don't have these prefixes, so stripping improves
+        # FM matching and produces cleaner output.
+        _PREFIX_RE = re.compile(r'^[-ㄴ]\s*')
+        for line in result.get('all_lines', []):
+            if line.get('is_header'):
+                continue
+            text = line.get('text', '')
+            m = _PREFIX_RE.match(text)
+            if m:
+                line['text'] = text[m.end():]
+
+        # Step 4: section-aware text correction — FM decision
         # all_lines and sections share the same line objects — correct once.
         # Server picks best text: if FM matches (score > 0), use FM result;
         # otherwise keep raw OCR.  No separate corrected_text field.
@@ -321,7 +337,7 @@ async def upload_item_v3(file: UploadFile = File(...)):
                             line['text'] = fm_text
                             line['fm_applied'] = True
 
-        # Step 4: rebuild structured data from FM-corrected lines
+        # Step 5: rebuild structured data from FM-corrected lines
         if 'enchant' in sections and sections['enchant'].get('lines'):
             enchant_updated = tooltip_parser.build_enchant_structured(sections['enchant']['lines'])
             sections['enchant'].update(enchant_updated)
