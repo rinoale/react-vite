@@ -1,5 +1,6 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+import logging
 import shutil
 import os
 import tempfile
@@ -11,6 +12,29 @@ from mabinogi_tooltip_parser import MabinogiTooltipParser
 from tooltip_segmenter import init_header_reader, load_section_patterns, load_config, segment_and_tag
 from pydantic import BaseModel
 from typing import List
+
+# ---------------------------------------------------------------------------
+# Logging
+# ---------------------------------------------------------------------------
+LOG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'logs')
+os.makedirs(LOG_DIR, exist_ok=True)
+LOG_PATH = os.path.join(LOG_DIR, 'backend.log')
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s  %(levelname)-8s  %(name)s  %(message)s',
+    handlers=[
+        logging.FileHandler(LOG_PATH, encoding='utf-8'),
+        logging.StreamHandler(),
+    ],
+)
+logger = logging.getLogger('mabinogi')
+
+# Route uvicorn's access & error logs to the same file
+for name in ('uvicorn', 'uvicorn.access', 'uvicorn.error'):
+    uv_logger = logging.getLogger(name)
+    uv_logger.handlers = logging.getLogger().handlers
+    uv_logger.propagate = False
 
 app = FastAPI()
 
@@ -116,8 +140,7 @@ async def upload_item(file: UploadFile = File(...)):
         }
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        logger.exception("upload-item failed")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -167,8 +190,7 @@ async def upload_item_v2(file: UploadFile = File(...)):
         }
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        logger.exception("upload-item-v2 failed")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -228,6 +250,5 @@ async def upload_item_v3(file: UploadFile = File(...)):
     except HTTPException:
         raise
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        logger.exception("upload-item-v3 failed")
         raise HTTPException(status_code=500, detail=str(e))

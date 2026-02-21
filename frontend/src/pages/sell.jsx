@@ -1,33 +1,58 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Upload, Loader2, Save, X, Settings, RotateCw } from 'lucide-react';
+import { Upload, Loader2, Save, X, Settings, RotateCw, AlertTriangle, CheckCircle2, ChevronDown, ChevronRight } from 'lucide-react';
+
+const CATEGORY_LABELS = {
+  item_name: "Item Name",
+  item_type: "Item Type",
+  item_grade: "Grade",
+  item_attrs: "Attributes (아이템 속성)",
+  enchant: "Enchant (인챈트)",
+  item_mod: "Upgrade (개조)",
+  reforge: "Reforge (세공)",
+  erg: "Erg (에르그)",
+  set_item: "Set Item (세트아이템)",
+  item_color: "Item Color (아이템 색상)",
+  ego: "Spirit (정령)"
+};
+
+const SectionCard = ({ title, children, isOpen = true, onToggle }) => (
+  <div className="bg-gray-800/50 rounded-xl border border-gray-700 overflow-hidden mb-4">
+    <div 
+      className="bg-gray-700/50 px-4 py-2 flex justify-between items-center cursor-pointer hover:bg-gray-700 transition-colors"
+      onClick={onToggle}
+    >
+      <h3 className="text-sm font-bold text-orange-400 uppercase tracking-wider flex items-center gap-2">
+        {isOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+        {title}
+      </h3>
+    </div>
+    {isOpen && <div className="p-4 space-y-3">{children}</div>}
+  </div>
+);
 
 const Sell = () => {
   const [file, setFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
-  const [processedUrl, setProcessedUrl] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingStep, setLoadingStep] = useState('');
+  const [ocrResult, setOcrResult] = useState(null);
   const [detectedLines, setDetectedLines] = useState([]);
-  const [showSettings, setShowSettings] = useState(false);
-  const [showProcessed, setShowProcessed] = useState(false);
-  
-  // Image Processing Settings
-  const [settings, setSettings] = useState({
-    contrast: 1.0,
-    brightness: 1.0,
-    threshold: 80,
-    useAdaptive: false,
-    colorChannel: 'grayscale'
+  const [openSections, setOpenSections] = useState({
+    item_attrs: true,
+    enchant: true,
+    reforge: true,
+    item_mod: true,
+    erg: true,
+    set_item: true,
+    item_color: true
   });
-
-  const canvasRef = useRef(null);
-
-  // Form Data
+  
   const [formData, setFormData] = useState({
     name: '',
     price: '',
-    category: 'weapon', // default
+    category: 'weapon',
     description: '',
-    stats: [] 
+    sections: {}
   });
 
   const handleFileChange = (e) => {
@@ -35,82 +60,28 @@ const Sell = () => {
     if (selectedFile) {
       setFile(selectedFile);
       setPreviewUrl(URL.createObjectURL(selectedFile));
+      setOcrResult(null);
       setDetectedLines([]);
-      setFormData(prev => ({ ...prev, description: '' }));
     }
   };
 
-  // Process Image Effect - Runs when file or settings change
-  useEffect(() => {
-    if (file) {
-      processImageOnCanvas(file);
-    }
-  }, [file, settings]);
-
-  const processImageOnCanvas = (fileObject) => {
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = canvasRef.current;
-        const ctx = canvas.getContext('2d');
-        
-        canvas.width = img.width;
-        canvas.height = img.height;
-        
-        ctx.drawImage(img, 0, 0);
-        let imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const data = imageData.data;
-
-        // 1. Grayscale Conversion (Standard weighted)
-        for (let i = 0; i < data.length; i += 4) {
-            const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
-            data[i] = data[i + 1] = data[i + 2] = gray;
-        }
-
-        // 2. Contrast & Brightness
-        for (let i = 0; i < data.length; i += 4) {
-            data[i] = Math.min(255, Math.max(0, settings.contrast * (data[i] - 128) + 128 + (settings.brightness - 1) * 128));
-            data[i + 1] = Math.min(255, Math.max(0, settings.contrast * (data[i + 1] - 128) + 128 + (settings.brightness - 1) * 128));
-            data[i + 2] = Math.min(255, Math.max(0, settings.contrast * (data[i + 2] - 128) + 128 + (settings.brightness - 1) * 128));
-        }
-
-        // 3. Thresholding (Simple or Adaptive)
-        for (let i = 0; i < data.length; i += 4) {
-            const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
-            // Thresholding: Text is Light, Background is Dark in original screenshot.
-            // We want Black Text (0) on White Background (255) for OCR.
-            // If pixel is BRIGHT (> threshold), it's TEXT -> Make it BLACK (0).
-            // Else (Background), set to WHITE (255).
-
-            const val = avg > settings.threshold ? 0 : 255;
-            
-            data[i] = data[i + 1] = data[i + 2] = val;
-        }
-
-        ctx.putImageData(imageData, 0, 0);
-        setProcessedUrl(canvas.toDataURL('image/png'));
-      };
-      img.src = event.target.result;
-    };
-    reader.readAsDataURL(fileObject);
+  const toggleSection = (key) => {
+    setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
   const handleScan = async () => {
-    if (!processedUrl) return;
+    if (!file) return;
 
     setIsLoading(true);
+    setLoadingStep('SEGMENTING');
     
-    // Convert DataURL to Blob
-    const response = await fetch(processedUrl);
-    const blob = await response.blob();
-    const processedFile = new File([blob], "processed_item.png", { type: "image/png" });
-
     const formDataUpload = new FormData();
-    formDataUpload.append('file', processedFile);
+    formDataUpload.append('file', file);
 
     try {
-      const res = await fetch('http://localhost:8000/upload-item', {
+      // Step 1: Segmentation and Initial OCR
+      setLoadingStep('RECOGNIZING');
+      const res = await fetch('http://localhost:8000/upload-item-v3', {
         method: 'POST',
         body: formDataUpload,
       });
@@ -118,27 +89,30 @@ const Sell = () => {
       if (!res.ok) throw new Error('Failed to process image');
 
       const data = await res.json();
-      setDetectedLines(data.detected_lines);
+      setOcrResult(data);
+      setDetectedLines(data.all_lines || []);
       
-      if (data.detected_lines.length > 0) {
-        // Use the raw_text_summary or build from corrected lines
-        // Ideally, we want the corrected text.
-        // My backend returns "text" (corrected) and "raw_text".
-        
-        const fullText = data.detected_lines.map(l => l.text).join('\n');
-        // Guess name (usually first line)
-        const guessedName = data.detected_lines[0].text;
-        
-        setFormData(prev => ({
-          ...prev,
-          name: guessedName,
-          description: fullText
-        }));
-      }
+      // Map sections to form data
+      const newSections = data.sections || {};
+      
+      // Auto-populate some core fields
+      const itemName = newSections.item_name?.text || '';
+      const allText = (data.all_lines || []).map(l => l.corrected_text || l.text).join('\n');
+      
+      setFormData(prev => ({
+        ...prev,
+        name: itemName,
+        description: allText,
+        sections: newSections
+      }));
+
+      setLoadingStep('COMPLETE');
+      setTimeout(() => setLoadingStep(''), 2000);
 
     } catch (error) {
       console.error("Error processing image:", error);
       alert("Error scanning image. Please try again.");
+      setLoadingStep('ERROR');
     } finally {
       setIsLoading(false);
     }
@@ -149,234 +123,295 @@ const Sell = () => {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  return (
-    <div className="min-h-screen bg-gray-900 text-gray-100 p-6">
-      <div className="max-w-6xl mx-auto">
-        <h1 className="text-3xl font-bold mb-8 text-cyan-400">List New Item</h1>
-        
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Left Column: Image Upload & Preview */}
-          <div className="space-y-6">
-            <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-semibold">Item Image</h2>
-                <button 
-                  onClick={() => setShowSettings(!showSettings)}
-                  className="text-gray-400 hover:text-white p-2 rounded-full hover:bg-gray-700"
-                  title="Advanced Processing Settings"
-                >
-                  <Settings className="w-5 h-5" />
-                </button>
+  const handleSectionTextChange = (sectionKey, lineIdx, newText) => {
+    setFormData(prev => {
+      const updatedSections = { ...prev.sections };
+      if (updatedSections[sectionKey] && updatedSections[sectionKey].lines) {
+        const updatedLines = [...updatedSections[sectionKey].lines];
+        updatedLines[lineIdx] = { ...updatedLines[lineIdx], corrected_text: newText };
+        updatedSections[sectionKey] = { ...updatedSections[sectionKey], lines: updatedLines };
+      }
+      return { ...prev, sections: updatedSections };
+    });
+  };
+
+  const renderSectionContent = (key, sectionData) => {
+    if (sectionData.skipped) return <p className="text-xs text-gray-500 italic">Section skipped by parser</p>;
+    
+    // Special handling for Color Parts
+    if (key === 'item_color' && sectionData.parts) {
+      return (
+        <div className="grid grid-cols-3 gap-2">
+          {sectionData.parts.map((p, idx) => (
+            <div key={idx} className="bg-gray-900 p-2 rounded border border-gray-700 flex items-center gap-3">
+              <div 
+                className="w-8 h-8 rounded border border-white/20" 
+                style={{ backgroundColor: `rgb(${p.r || 0}, ${p.g || 0}, ${p.b || 0})` }}
+                title={`R:${p.r} G:${p.g} B:${p.b}`}
+              />
+              <div>
+                <span className="text-xs font-bold text-gray-400">Part {p.part}</span>
+                <div className="text-[10px] text-gray-500">
+                  {p.r},{p.g},{p.b}
+                </div>
               </div>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    // Special handling for Reforge Options
+    if (key === 'reforge' && sectionData.options) {
+        return (
+            <div className="space-y-3">
+                {sectionData.options.map((opt, idx) => (
+                    <div key={idx} className="bg-gray-900/50 p-2 rounded border border-gray-700">
+                        <div className="flex justify-between items-center mb-1">
+                            <span className="text-sm font-medium text-cyan-300">{opt.name}</span>
+                            <span className="text-xs bg-cyan-900/50 text-cyan-300 px-2 py-0.5 rounded border border-cyan-700/50">
+                                Level {opt.level} / {opt.max_level}
+                            </span>
+                        </div>
+                        {opt.effect && <p className="text-xs text-gray-400">ㄴ {opt.effect}</p>}
+                    </div>
+                ))}
+                {/* Fallback to raw lines if options parsing failed */}
+                {!sectionData.options.length && sectionData.lines?.map((line, idx) => (
+                    <input
+                        key={idx}
+                        type="text"
+                        value={line.corrected_text || line.text}
+                        onChange={(e) => handleSectionTextChange(key, idx, e.target.value)}
+                        className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-sm text-gray-300 focus:ring-1 focus:ring-orange-500 outline-none"
+                    />
+                ))}
+            </div>
+        )
+    }
+
+    // Default: List of lines as inputs
+    return (
+      <div className="space-y-2">
+        {(sectionData.lines || [])
+          .filter(line => !line.is_header)
+          .map((line, idx) => (
+            <div key={idx} className="relative group">
+              <input
+                type="text"
+                value={line.corrected_text || line.text}
+                onChange={(e) => handleSectionTextChange(key, idx, e.target.value)}
+                className={`w-full bg-gray-900 border ${line.confidence < 0.7 ? 'border-red-900/50 focus:border-red-500' : 'border-gray-700 focus:border-orange-500'} rounded px-3 py-1.5 text-sm text-gray-300 outline-none transition-colors`}
+              />
+              {line.confidence < 0.7 && (
+                  <AlertTriangle className="w-3 h-3 text-red-500 absolute right-2 top-1/2 -translate-y-1/2 opacity-50 group-hover:opacity-100 transition-opacity" title={`Low Confidence: ${Math.round(line.confidence * 100)}%`} />
+              )}
+            </div>
+          ))}
+      </div>
+    );
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-900 text-gray-100 p-6 font-sans">
+      <div className="max-w-7xl mx-auto">
+        <header className="flex justify-between items-center mb-8 border-b border-gray-800 pb-4">
+          <div>
+            <h1 className="text-4xl font-black text-white tracking-tight">SELL <span className="text-orange-500">ITEM</span></h1>
+            <p className="text-gray-400 text-sm mt-1">Register your Mabinogi items via OCR</p>
+          </div>
+          <div className="flex gap-3">
+             {loadingStep === 'COMPLETE' && <span className="flex items-center gap-1 text-green-400 text-sm font-bold bg-green-950/30 px-3 py-1 rounded-full border border-green-900/50"><CheckCircle2 className="w-4 h-4" /> Scan Successful</span>}
+          </div>
+        </header>
+        
+        <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
+          {/* Left Column: Image Upload (4 cols) */}
+          <div className="xl:col-span-4 space-y-6">
+            <div className="bg-gray-800 rounded-2xl p-6 border border-gray-700 shadow-2xl">
+              <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
+                <Upload className="w-5 h-5 text-orange-500" />
+                Upload Tooltip
+              </h2>
               
               {!previewUrl ? (
-                <div className="border-2 border-dashed border-gray-600 rounded-lg h-64 flex flex-col items-center justify-center text-gray-400 hover:border-cyan-500 hover:text-cyan-500 transition-colors cursor-pointer relative">
+                <div className="border-2 border-dashed border-gray-700 rounded-xl h-80 flex flex-col items-center justify-center text-gray-500 hover:border-orange-500 hover:bg-orange-500/5 transition-all cursor-pointer relative group">
                   <input 
                     type="file" 
                     onChange={handleFileChange} 
                     accept="image/*"
                     className="absolute inset-0 opacity-0 cursor-pointer"
                   />
-                  <Upload className="w-12 h-12 mb-2" />
-                  <span>Click to upload screenshot</span>
+                  <div className="bg-gray-700 p-4 rounded-full mb-4 group-hover:scale-110 transition-transform">
+                    <Upload className="w-8 h-8 text-gray-400" />
+                  </div>
+                  <span className="font-bold">Drop Mabinogi Screenshot</span>
+                  <span className="text-xs mt-1 text-gray-600">Supports JPG, PNG</span>
                 </div>
               ) : (
                 <div className="space-y-4">
-                  <div className="relative">
-                    {/* Show Original Image for better UX, but upload processed */}
+                  <div className="relative group">
                     <img 
                       src={previewUrl} 
                       alt="Item Preview" 
-                      className="w-full rounded-lg shadow-lg border border-gray-700"
+                      className="w-full rounded-xl shadow-xl border border-gray-700"
                     />
-                    <button 
-                      onClick={() => {
-                          setFile(null);
-                          setPreviewUrl(null);
-                          setProcessedUrl(null);
-                          setDetectedLines([]);
-                      }}
-                      className="absolute top-2 right-2 bg-red-600 p-1 rounded-full hover:bg-red-700 text-white"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                  
-                  {/* Debug: Processed Image Preview */}
-                  <button
-                    onClick={() => setShowProcessed(!showProcessed)}
-                    className="text-xs text-gray-500 hover:text-gray-300 underline"
-                  >
-                    {showProcessed ? 'Hide' : 'Show'} processed image
-                  </button>
-                  {showProcessed && processedUrl && (
-                    <img
-                      src={processedUrl}
-                      alt="Processed Preview"
-                      className="w-full rounded-lg border border-gray-600"
-                    />
-                  )}
-
-                  {/* Settings Panel */}
-                  {showSettings && (
-                    <div className="bg-gray-700/50 p-4 rounded-lg text-sm space-y-3">
-                        <div>
-                            <label className="flex justify-between mb-1">
-                                <span>Contrast</span>
-                                <span>{settings.contrast}</span>
-                            </label>
-                            <input 
-                                type="range" min="0.5" max="5" step="0.1" 
-                                value={settings.contrast}
-                                onChange={(e) => setSettings({...settings, contrast: parseFloat(e.target.value)})}
-                                className="w-full"
-                            />
-                        </div>
-                        <div>
-                            <label className="flex justify-between mb-1">
-                                <span>Brightness</span>
-                                <span>{settings.brightness}</span>
-                            </label>
-                            <input 
-                                type="range" min="0.5" max="3" step="0.1" 
-                                value={settings.brightness}
-                                onChange={(e) => setSettings({...settings, brightness: parseFloat(e.target.value)})}
-                                className="w-full"
-                            />
-                        </div>
-                        <div>
-                            <label className="flex justify-between mb-1">
-                                <span>Threshold</span>
-                                <span>{settings.threshold}</span>
-                            </label>
-                            <input 
-                                type="range" min="0" max="255" step="1" 
-                                value={settings.threshold}
-                                onChange={(e) => setSettings({...settings, threshold: parseInt(e.target.value)})}
-                                className="w-full"
-                            />
-                        </div>
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-xl">
+                        <button 
+                            onClick={() => { setFile(null); setPreviewUrl(null); setOcrResult(null); setDetectedLines([]); }}
+                            className="bg-red-600 p-2 rounded-full hover:bg-red-700 text-white shadow-lg"
+                        >
+                            <X className="w-6 h-6" />
+                        </button>
                     </div>
-                  )}
+                  </div>
                 </div>
               )}
 
               {file && !isLoading && (
                 <button
                   onClick={handleScan}
-                  className="w-full mt-4 bg-cyan-600 hover:bg-cyan-700 text-white py-3 rounded-lg flex items-center justify-center gap-2 font-medium transition-colors"
+                  className="w-full mt-6 bg-orange-600 hover:bg-orange-500 text-white py-4 rounded-xl flex items-center justify-center gap-2 font-black uppercase tracking-widest transition-all shadow-lg active:scale-95"
                 >
-                  <Upload className="w-5 h-5" />
-                  Scan Processed Image
+                  <RotateCw className="w-5 h-5" />
+                  Scan Tooltip
                 </button>
               )}
 
               {isLoading && (
-                <div className="w-full mt-4 bg-gray-700 text-gray-300 py-3 rounded-lg flex items-center justify-center gap-2 cursor-wait">
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  Processing...
+                <div className="w-full mt-6 bg-gray-700/50 text-gray-300 py-4 rounded-xl flex flex-col items-center justify-center gap-3 cursor-wait border border-gray-600">
+                  <Loader2 className="w-8 h-8 text-orange-500 animate-spin" />
+                  <div className="text-center">
+                    <p className="font-bold text-sm tracking-wide">
+                        {loadingStep === 'SEGMENTING' ? 'DETECTING SECTIONS...' : 
+                         loadingStep === 'RECOGNIZING' ? 'READING TEXT STATS...' : 'PROCESSING...'}
+                    </p>
+                    <p className="text-[10px] text-gray-500 mt-1 uppercase">Attempt 17 (V3 Pipeline)</p>
+                  </div>
                 </div>
               )}
             </div>
 
-            {/* Debug View for Detected Lines */}
-            {detectedLines.length > 0 && (
-              <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
-                <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Detected Lines (Corrected)</h3>
-                <div className="space-y-2 max-h-64 overflow-y-auto pr-2 custom-scrollbar">
-                  {detectedLines.map((line, idx) => (
-                    <div key={idx} className="bg-gray-700/50 p-2 rounded text-sm text-gray-300 flex flex-col gap-1">
-                      <div className="flex justify-between">
-                        <span className="text-cyan-400 font-medium">{line.text}</span>
-                        <span className="text-xs text-gray-500">{Math.round(line.confidence * 100)}%</span>
-                      </div>
-                      {line.text !== line.raw_text && (
-                         <span className="text-xs text-gray-500 line-through">{line.raw_text}</span>
-                      )}
+            {/* Confidence Stats */}
+            {ocrResult && (
+                <div className="bg-gray-800 rounded-2xl p-6 border border-gray-700 shadow-xl">
+                    <h3 className="text-xs font-black text-gray-500 uppercase tracking-widest mb-4">OCR METRICS</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="bg-gray-900/50 p-3 rounded-xl border border-gray-700/50">
+                            <span className="text-[10px] text-gray-500 font-bold uppercase block mb-1">Total Lines</span>
+                            <span className="text-2xl font-black text-white">{detectedLines.length}</span>
+                        </div>
+                        <div className="bg-gray-900/50 p-3 rounded-xl border border-gray-700/50">
+                            <span className="text-[10px] text-gray-500 font-bold uppercase block mb-1">Sections</span>
+                            <span className="text-2xl font-black text-orange-500">{Object.keys(ocrResult.sections).length}</span>
+                        </div>
                     </div>
-                  ))}
                 </div>
-              </div>
             )}
           </div>
 
-          {/* Right Column: Item Details Form */}
-          <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
-            <h2 className="text-xl font-semibold mb-6">Item Details</h2>
-            
-            <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
-              <div>
-                <label className="block text-sm font-medium text-gray-400 mb-1">Item Name</label>
-                <input
-                  type="text"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleInputChange}
-                  placeholder="e.g. Dragon Blade"
-                  className="w-full bg-gray-900 border border-gray-600 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-cyan-500 focus:border-transparent outline-none"
-                />
-              </div>
+          {/* Right Column: Structured Form (8 cols) */}
+          <div className="xl:col-span-8">
+            <div className="bg-gray-800 rounded-2xl p-8 border border-gray-700 shadow-2xl relative overflow-hidden">
+              {/* Header Accent */}
+              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-right from-orange-600 via-yellow-500 to-orange-600"></div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-1">Price (Gold)</label>
-                  <input
-                    type="number"
-                    name="price"
-                    value={formData.price}
-                    onChange={handleInputChange}
-                    placeholder="0"
-                    className="w-full bg-gray-900 border border-gray-600 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-cyan-500 focus:border-transparent outline-none"
-                  />
+              <div className="flex justify-between items-center mb-8">
+                <h2 className="text-2xl font-black flex items-center gap-3">
+                   ITEM DETAILS
+                   {ocrResult && <span className="bg-green-500/10 text-green-500 text-[10px] px-2 py-1 rounded border border-green-500/20">SCANNED</span>}
+                </h2>
+                <div className="text-xs text-gray-500 font-bold">MABINOGI MARKETPLACE V1.0</div>
+              </div>
+              
+              <form className="space-y-6" onSubmit={(e) => e.preventDefault()}>
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+                    <div className="md:col-span-8">
+                        <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Item Name</label>
+                        <input
+                            type="text"
+                            name="name"
+                            value={formData.name}
+                            onChange={handleInputChange}
+                            placeholder="e.g. Dragon Blade"
+                            className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-lg font-bold text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all"
+                        />
+                    </div>
+                    <div className="md:col-span-4">
+                        <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Price (Gold)</label>
+                        <input
+                            type="number"
+                            name="price"
+                            value={formData.price}
+                            onChange={handleInputChange}
+                            placeholder="0"
+                            className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-lg font-bold text-orange-400 focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all"
+                        />
+                    </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-1">Category</label>
-                  <select
-                    name="category"
-                    value={formData.category}
-                    onChange={handleInputChange}
-                    className="w-full bg-gray-900 border border-gray-600 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-cyan-500 focus:border-transparent outline-none"
+
+                {/* Structured Sections Grid */}
+                {ocrResult ? (
+                    <div className="space-y-2 mt-8">
+                        <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-4">Detected Categories</label>
+                        
+                        {/* Render known sections in a specific order if possible */}
+                        {Object.keys(formData.sections).map((secKey) => {
+                            if (['item_name', 'item_type', 'flavor_text', 'shop_price'].includes(secKey)) return null;
+                            const sectionData = formData.sections[secKey];
+                            return (
+                                <SectionCard 
+                                    key={secKey} 
+                                    title={CATEGORY_LABELS[secKey] || secKey} 
+                                    isOpen={openSections[secKey]}
+                                    onToggle={() => toggleSection(secKey)}
+                                >
+                                    {renderSectionContent(secKey, sectionData)}
+                                </SectionCard>
+                            );
+                        })}
+
+                        {/* Special case for Item Type if not in card */}
+                        {formData.sections.item_type && (
+                            <div className="bg-gray-900/30 p-4 rounded-xl border border-gray-700/50 mt-4">
+                                <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Item Classification</label>
+                                <p className="text-sm text-gray-400 italic font-medium">{formData.sections.item_type.text}</p>
+                            </div>
+                        )}
+                    </div>
+                ) : (
+                    <div className="py-20 flex flex-col items-center justify-center border-2 border-dashed border-gray-700 rounded-2xl bg-gray-900/20 text-gray-500">
+                        <RotateCw className="w-12 h-12 mb-4 opacity-10" />
+                        <p className="font-bold tracking-tight">Upload and scan an item tooltip to populate details</p>
+                        <p className="text-xs mt-1">Structured parsing will automatically organize the data.</p>
+                    </div>
+                )}
+
+                <div className="pt-8 mt-8 border-t border-gray-700 flex gap-4">
+                  <button
+                    type="submit"
+                    className="flex-1 bg-green-600 hover:bg-green-500 text-white py-4 rounded-2xl flex items-center justify-center gap-2 font-black text-xl transition-all shadow-xl active:scale-95 uppercase tracking-widest"
                   >
-                    <option value="weapon">Weapon</option>
-                    <option value="armor">Armor</option>
-                    <option value="accessory">Accessory</option>
-                    <option value="consumable">Consumable</option>
-                    <option value="material">Material</option>
-                  </select>
+                    <Save className="w-6 h-6" />
+                    Register Item
+                  </button>
+                  <button
+                    type="button"
+                    className="px-6 bg-gray-700 hover:bg-gray-600 text-white rounded-2xl font-bold transition-all shadow-lg active:scale-95"
+                    title="Reset Form"
+                    onClick={() => {
+                        setOcrResult(null);
+                        setFormData({ name: '', price: '', category: 'weapon', description: '', sections: {} });
+                    }}
+                  >
+                    <RotateCw className="w-5 h-5" />
+                  </button>
                 </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-400 mb-1">Description / Stats</label>
-                <textarea
-                  name="description"
-                  value={formData.description}
-                  onChange={handleInputChange}
-                  rows={15}
-                  placeholder="Item stats and description..."
-                  className="w-full bg-gray-900 border border-gray-600 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-cyan-500 focus:border-transparent outline-none resize-none font-mono text-sm"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  * Automatically populated from image scan. Please verify accuracy.
-                </p>
-              </div>
-
-              <div className="pt-4 border-t border-gray-700">
-                <button
-                  type="submit"
-                  className="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg flex items-center justify-center gap-2 font-bold text-lg transition-transform active:scale-95"
-                >
-                  <Save className="w-5 h-5" />
-                  List Item for Sale
-                </button>
-              </div>
-            </form>
+              </form>
+            </div>
           </div>
         </div>
       </div>
-      
-      {/* Hidden Canvas for Processing */}
-      <canvas ref={canvasRef} className="hidden" />
     </div>
   );
 };
