@@ -39,6 +39,107 @@ _ENCHANT_HEADER_RE = re.compile(r'^\[?(접두|접미)\]?\s+(.+?)\s*\(랭크\s*([
 _EFFECT_NUM_RE = re.compile(r'^(.+?)\s+(\d+(?:\.\d+)?)\s*(%?)\s*(.*)$')
 
 
+def classify_enchant_line(content_bgr, bounds, bands):
+    """Classify an enchant line as 'header', 'effect', or 'grey'.
+
+    Uses band overlap for headers, mean text-pixel saturation for grey vs effect.
+    Grey lines (descriptions, "인챈트 추출 불가", empty-slot explanations) have
+    desaturated text (sat < 0.15) while effect lines are colored (sat > 0.2).
+
+    Args:
+        content_bgr: BGR numpy array of the enchant content region
+        bounds:      dict with 'x', 'y', 'width', 'height'
+        bands:       list of (y_start, y_end) from detect_enchant_slot_headers()
+
+    Returns:
+        'header', 'effect', or 'grey'
+    """
+    y, h = bounds['y'], bounds['height']
+    x, w = bounds['x'], bounds['width']
+
+    # Band overlap → header
+    if any(min(y + h, be) - max(y, bs) > 0 for bs, be in bands):
+        return 'header'
+
+    # Saturation of text pixels (foreground only, bg excluded)
+    roi = content_bgr[y:y + h, x:x + w]
+    roi_max = roi.max(axis=2)
+    text_mask = roi_max > 40
+    if text_mask.sum() == 0:
+        return 'grey'
+
+    text_px = roi[text_mask].astype(np.float32)
+    max_ch = text_px.max(axis=1)
+    min_ch = text_px.min(axis=1)
+    mean_sat = ((max_ch - min_ch) / (max_ch + 1)).mean()
+
+    return 'grey' if mean_sat < 0.15 else 'effect'
+
+
+def detect_enchant_slot_headers(content_bgr):
+    """Detect enchant slot header lines using white-text color mask.
+
+    Slot headers (e.g., '[접두] 충격을 (랭크 F)') use balanced white text
+    that is distinguishable from colored effect text on any background theme.
+
+    Algorithm:
+      1. Build white-pixel mask: bright (max_ch > 150) and balanced (ratio < 1.4)
+      2. Horizontal projection → run detection → merge with gap tolerance 2
+      3. Filter: 8 <= height <= 15 AND total_white_px >= 150
+
+    Args:
+        content_bgr: BGR numpy array of the enchant content region
+
+    Returns:
+        List of (y_start, y_end) tuples (y_end exclusive) for detected bands.
+    """
+    r = content_bgr[:, :, 2].astype(np.float32)
+    g = content_bgr[:, :, 1].astype(np.float32)
+    b = content_bgr[:, :, 0].astype(np.float32)
+    max_ch = np.maximum(np.maximum(r, g), b)
+    min_ch = np.minimum(np.minimum(r, g), b)
+    white_mask = (max_ch > 150) & ((max_ch / (min_ch + 1)) < 1.4)
+
+    wpr = white_mask.sum(axis=1)
+
+    ROW_THRESHOLD = 10
+    GAP_TOLERANCE = 2
+
+    # Find runs of rows with sufficient white pixels
+    runs = []
+    in_run = False
+    run_start = 0
+    for y in range(len(wpr)):
+        if wpr[y] >= ROW_THRESHOLD:
+            if not in_run:
+                run_start = y
+                in_run = True
+        else:
+            if in_run:
+                runs.append((run_start, y))
+                in_run = False
+    if in_run:
+        runs.append((run_start, len(wpr)))
+
+    # Merge runs separated by small gaps
+    merged = []
+    for start, end in runs:
+        if merged and start - merged[-1][1] <= GAP_TOLERANCE:
+            merged[-1] = (merged[-1][0], end)
+        else:
+            merged.append([start, end])
+
+    # Filter by height and total white pixel count
+    bands = []
+    for start, end in merged:
+        h = end - start
+        total_px = int(wpr[start:end].sum())
+        if 8 <= h <= 15 and total_px >= 150:
+            bands.append((start, end))
+
+    return bands
+
+
 def _parse_effect_number(text):
     """Extract option_name and option_level from an effect text.
 
@@ -155,6 +256,18 @@ class MabinogiTooltipParser(TooltipLineSplitter):
 
         detected_lines = self.detect_text_lines(binary_detect)
         grouped        = self._group_by_y(detected_lines)
+
+        # Enchant with white-mask bands: classify lines before OCR
+        # to skip grey/description lines and save inference cost.
+        sec_config = self.sections_config.get(section, {})
+        parse_mode = sec_config.get('parse_mode')
+        if parse_mode == 'enchant_options':
+            slot_bands = detect_enchant_slot_headers(content_bgr)
+            if slot_bands:
+                return self._parse_enchant_with_bands(
+                    content_bgr, binary, grouped, slot_bands, section, reader)
+
+        # All other sections: OCR every line
         ocr_results    = self._ocr_grouped_lines(binary, grouped, reader)
 
         for line in ocr_results:
@@ -163,16 +276,15 @@ class MabinogiTooltipParser(TooltipLineSplitter):
         if section == 'pre_header':
             return self._parse_pre_header(ocr_results)
 
-        sec_config = self.sections_config.get(section, {})
         if sec_config.get('skip', False):
             return {'skipped': True, 'line_count': len(ocr_results)}
 
-        parse_mode = sec_config.get('parse_mode')
         if parse_mode == 'color_parts':
             return self._parse_color_section(ocr_results)
         if parse_mode == 'reforge_options':
             return self._parse_reforge_section(ocr_results)
         if parse_mode == 'enchant_options':
+            # Fallback: no bands detected, regex-based header detection
             return self._parse_enchant_section(ocr_results)
 
         return {
@@ -560,6 +672,85 @@ class MabinogiTooltipParser(TooltipLineSplitter):
                 current['effect'] = effect
 
         return {'options': options}
+
+    def _parse_enchant_with_bands(self, content_bgr, binary, grouped,
+                                    bands, section, reader):
+        """Parse enchant section with white-mask bands.
+
+        Classifies each line group as header/effect/grey BEFORE OCR.
+        Grey lines are skipped entirely. Headers and effects are OCR'd.
+        Slot headers are parsed with regex to extract slot/name/rank
+        from the OCR text (e.g. '[접미] 새끼너구리 (랭크 3)').
+
+        Args:
+            content_bgr: BGR numpy array of the enchant content region
+            binary:      preprocessed binary (black text on white)
+            grouped:     line groups from _group_by_y()
+            bands:       slot header bands from detect_enchant_slot_headers()
+            section:     section label ('enchant')
+            reader:      content OCR reader
+
+        Returns:
+            section data dict with prefix/suffix + lines
+        """
+        # 1. Classify each group
+        classifications = []  # (group, merged_bounds, line_type)
+        for group in grouped:
+            first = group[0]
+            last = group[-1]
+            merged_bounds = {
+                'x': first['x'],
+                'y': first['y'],
+                'width': (last['x'] + last['width']) - first['x'],
+                'height': first['height'],
+            }
+            line_type = classify_enchant_line(content_bgr, merged_bounds, bands)
+            classifications.append((group, merged_bounds, line_type))
+
+        # 2. Batch OCR all non-grey groups (headers + effects)
+        ocr_groups = [g for g, _, lt in classifications if lt != 'grey']
+        ocr_batch = (self._ocr_grouped_lines(binary, ocr_groups, reader)
+                     if ocr_groups else [])
+        ocr_iter = iter(ocr_batch)
+
+        # 3. Assemble results — parse header text for slot/name/rank
+        ocr_results = []
+        for group, bounds, line_type in classifications:
+            if line_type == 'grey':
+                ocr_results.append({
+                    'text': '',
+                    'confidence': 0.0,
+                    'sub_count': len(group),
+                    'bounds': bounds,
+                    'sub_lines': [],
+                    'section': section,
+                    'is_enchant_hdr': False,
+                    'is_grey': True,
+                })
+            elif line_type == 'header':
+                line = next(ocr_iter)
+                line['section'] = section
+                line['is_enchant_hdr'] = True
+                text = line.get('text', '')
+                m = _ENCHANT_HEADER_RE.match(text)
+                if m:
+                    line['enchant_slot'] = m.group(1)
+                    line['enchant_name'] = m.group(2).strip()
+                    line['enchant_rank'] = m.group(3)
+                else:
+                    line['enchant_slot'] = ''
+                    line['enchant_name'] = ''
+                    line['enchant_rank'] = ''
+                ocr_results.append(line)
+            else:  # effect
+                line = next(ocr_iter)
+                line['section'] = section
+                line['is_enchant_hdr'] = False
+                ocr_results.append(line)
+
+        result = self.build_enchant_structured(ocr_results)
+        result['lines'] = ocr_results
+        return result
 
     def _parse_enchant_section(self, lines):
         """Parse enchant section into prefix/suffix slot records.

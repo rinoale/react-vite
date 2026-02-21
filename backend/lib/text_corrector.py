@@ -204,6 +204,69 @@ class TextCorrector:
 
         return text, 0
 
+    def identify_enchant_from_effects(self, effect_texts, slot_type=None):
+        """Identify an enchant entry by scoring OCR'd effect lines against all DB entries.
+
+        Used when slot headers are detected by white-mask (no OCR text available).
+        Matches effect lines against each enchant's known effects to find the best fit.
+
+        Args:
+            effect_texts: list of OCR'd effect strings (may include leading '- ')
+            slot_type: '접두' or '접미' to narrow search (optional, falls back to all)
+
+        Returns:
+            (entry, rank_score) on match — rank_score is per-effect avg, higher = better
+            (None, 0) on miss
+        """
+        if not effect_texts or not self._enchant_db:
+            return None, 0
+
+        def _score(candidates):
+            # Pre-normalize OCR texts once
+            norm_texts = []
+            for text in effect_texts:
+                core = _PREFIX_PAT.sub('', text).strip()
+                if core:
+                    norm_texts.append(_normalize_nums(core))
+
+            best_entry = None
+            best_rank = 0
+            for entry in candidates:
+                n_eff = len(entry['effects_norm'])
+                if n_eff == 0:
+                    continue
+                # 1:1 matching: each entry effect matched at most once
+                used = set()
+                total = 0
+                for norm in norm_texts:
+                    best_score, best_idx = 0, -1
+                    for idx, (norm_eff, _) in enumerate(entry['effects_norm']):
+                        if idx in used:
+                            continue
+                        score = fuzz.ratio(norm, norm_eff)
+                        if score > best_score:
+                            best_score = score
+                            best_idx = idx
+                    if best_score > 60 and best_idx >= 0:
+                        total += best_score
+                        used.add(best_idx)
+                # Normalize by entry effect count — bounded by 100
+                rank = total / n_eff
+                if rank > best_rank:
+                    best_rank = rank
+                    best_entry = entry
+            # Threshold: avg per-effect score >= 50
+            return (best_entry, best_rank) if best_rank >= 50 else (None, 0)
+
+        # Try with slot_type filter first, fall back to all entries
+        if slot_type:
+            filtered = [e for e in self._enchant_db if e['slot'] == slot_type]
+            entry, rank = _score(filtered)
+            if entry:
+                return entry, rank
+
+        return _score(self._enchant_db)
+
     def correct(self, text, cutoff_score=80):
         """
         Fuzzy match against the combined dictionary (no number normalization).

@@ -232,7 +232,6 @@ async def upload_item_v3(file: UploadFile = File(...)):
         # all_lines and sections share the same line objects — correct once.
         # Server picks best text: if FM matches (score > 0), use FM result;
         # otherwise keep raw OCR.  No separate corrected_text field.
-        current_enchant_entry = None
         enchant_db_ready = bool(corrector._enchant_db)
         fm_sections = set(corrector._section_norm_cache.keys())
 
@@ -249,16 +248,12 @@ async def upload_item_v3(file: UploadFile = File(...)):
                 line['fm_applied'] = False
                 continue
 
-            # Enchant: try header FM on every line — let the score decide,
-            # don't rely on regex tag (OCR garbles headers beyond regex recognition)
-            if section == 'enchant' and enchant_db_ready:
-                hdr_text, hdr_score, hdr_entry = corrector.match_enchant_header(raw_text)
-                if hdr_score > 0:
-                    fm_text, fm_score = hdr_text, hdr_score
-                    current_enchant_entry = hdr_entry
-                else:
-                    fm_text, fm_score = corrector.match_enchant_effect(raw_text, current_enchant_entry)
-            elif section in fm_sections:
+            # Enchant: handled separately below (identify from effects)
+            if section == 'enchant':
+                line['fm_applied'] = False
+                continue
+
+            if section in fm_sections:
                 fm_text, fm_score = corrector.correct_normalized(raw_text, section=section)
             else:
                 fm_text, fm_score = raw_text, 0
@@ -269,6 +264,61 @@ async def upload_item_v3(file: UploadFile = File(...)):
                 line['fm_applied'] = True
             else:
                 line['fm_applied'] = False
+
+        # Enchant FM: identify enchants from effect lines, then correct
+        if 'enchant' in sections and sections['enchant'].get('lines') and enchant_db_ready:
+            enchant_lines = [l for l in sections['enchant']['lines']
+                             if not l.get('is_header')]
+            has_slot_hdrs = any(l.get('is_enchant_hdr') for l in enchant_lines)
+
+            if has_slot_hdrs:
+                # Group lines by slot header (white-mask detected)
+                slots = []
+                current_hdr, current_effects = None, []
+                for line in enchant_lines:
+                    if line.get('is_enchant_hdr'):
+                        if current_hdr is not None:
+                            slots.append((current_hdr, current_effects))
+                        current_hdr = line
+                        current_effects = []
+                    elif current_hdr is not None:
+                        current_effects.append(line)
+                if current_hdr is not None:
+                    slots.append((current_hdr, current_effects))
+
+                for hdr_line, effect_lines in slots:
+                    slot_type = hdr_line.get('enchant_slot')
+                    effect_texts = [l['text'] for l in effect_lines
+                                    if l.get('text', '').strip()]
+                    entry, rank = corrector.identify_enchant_from_effects(
+                        effect_texts, slot_type)
+                    if entry:
+                        hdr_line['text'] = entry['header']
+                        hdr_line['enchant_name'] = entry['name']
+                        hdr_line['enchant_rank'] = entry['rank']
+                        hdr_line['fm_applied'] = True
+                        # Effects not FM'd here — identify_from_effects may
+                        # match wrong enchants for common effect patterns.
+                        # Effect FM only via fallback match_enchant_header path.
+            else:
+                # Fallback: old linear approach (regex-detected or no headers)
+                current_entry = None
+                for line in enchant_lines:
+                    raw_text = line.get('text', '')
+                    if not raw_text.strip():
+                        continue
+                    hdr_text, hdr_score, hdr_entry = corrector.match_enchant_header(
+                        raw_text)
+                    if hdr_score > 0:
+                        line['text'] = hdr_text
+                        line['fm_applied'] = True
+                        current_entry = hdr_entry
+                    else:
+                        fm_text, fm_score = corrector.match_enchant_effect(
+                            raw_text, current_entry)
+                        if fm_score > 0:
+                            line['text'] = fm_text
+                            line['fm_applied'] = True
 
         # Step 4: rebuild structured data from FM-corrected lines
         sections = result.get('sections', {})
