@@ -34,7 +34,8 @@ services:
       - "8000:8000"
     volumes:
       - ./backend:/app/backend
-      - ./data:/app/data
+      - /home/gbsong/workspace/ocr_training_data/mabinogi/ocr:/app/backend/ocr
+      - /home/gbsong/workspace/ocr_training_data/mabinogi/data:/app/data
       - ./configs:/app/configs
       - ./logs:/app/logs
     restart: unless-stopped

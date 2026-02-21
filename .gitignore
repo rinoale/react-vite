@@ -29,7 +29,6 @@ deep-text-recognition-benchmark/
 test_output/
 backend/ocr/
 backend/temp_split/
-backend/unique_chars.txt
 backend/__pycache__/
 *.pyc
 split_output/

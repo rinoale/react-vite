@@ -20,7 +20,6 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 
 # Mount source at runtime, but keep a baseline copy for image completeness.
 COPY backend /app/backend
-COPY data /app/data
 COPY configs /app/configs
 
 WORKDIR /app/backend
