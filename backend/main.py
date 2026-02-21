@@ -8,7 +8,7 @@ from recommendation import recommender, ITEMS_DB
 from text_corrector import TextCorrector
 from ocr_utils import patch_reader_imgw
 from mabinogi_tooltip_parser import MabinogiTooltipParser
-from tooltip_segmenter import init_header_reader, load_section_patterns, segment_and_tag
+from tooltip_segmenter import init_header_reader, load_section_patterns, load_config, segment_and_tag
 from pydantic import BaseModel
 from typing import List
 
@@ -49,8 +49,9 @@ CONFIG_PATH = os.path.join(BASE_DIR, '..', 'configs', 'mabinogi_tooltip.yaml')
 tooltip_parser = MabinogiTooltipParser(CONFIG_PATH)
 
 # Initialize header reader + section patterns for the v3 segment-first pipeline
-header_reader   = init_header_reader(models_dir=MODELS_DIR)
+header_reader    = init_header_reader(models_dir=MODELS_DIR)
 section_patterns = load_section_patterns(CONFIG_PATH)
+tooltip_config   = load_config(CONFIG_PATH)
 
 class UserHistory(BaseModel):
     history_ids: List[int]
@@ -193,7 +194,7 @@ async def upload_item_v3(file: UploadFile = File(...)):
             raise HTTPException(status_code=400, detail="Could not decode image")
 
         # Step 1: segment with header OCR labels
-        tagged = segment_and_tag(img_bgr, header_reader, section_patterns)
+        tagged = segment_and_tag(img_bgr, header_reader, section_patterns, tooltip_config)
 
         # Step 2: content OCR per segment → assemble structured result
         result = tooltip_parser.parse_from_segments(tagged, reader)

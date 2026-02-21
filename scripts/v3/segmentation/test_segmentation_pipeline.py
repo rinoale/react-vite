@@ -24,14 +24,14 @@ def init_reader():
     return init_header_reader()
 
 
-def test_image(image_path, reader, patterns):
+def test_image(image_path, reader, patterns, config):
     img = cv2.imread(image_path)
     if img is None:
         print(f"  ERROR: cannot read {image_path}")
         return
 
     from tooltip_segmenter import segment_and_tag
-    tagged = segment_and_tag(img, reader, patterns)
+    tagged = segment_and_tag(img, reader, patterns, config)
 
     name = os.path.basename(image_path)
     n_headers = sum(1 for s in tagged if s['header_crop'] is not None)
@@ -68,8 +68,9 @@ def main():
     parser.add_argument('--cutoff', type=int, default=50)
     args = parser.parse_args()
 
-    from tooltip_segmenter import load_section_patterns
+    from tooltip_segmenter import load_section_patterns, load_config
     patterns = load_section_patterns(CONFIG_PATH)
+    config = load_config(CONFIG_PATH)
     print(f"Loaded {len(patterns)} header patterns")
 
     print("Initializing OCR reader...")
@@ -86,7 +87,7 @@ def main():
         images = [args.path]
 
     for img_path in images:
-        test_image(img_path, reader, patterns)
+        test_image(img_path, reader, patterns, config)
 
 
 if __name__ == '__main__':

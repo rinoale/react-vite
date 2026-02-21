@@ -29,7 +29,7 @@ sys.path.insert(0, PROJECT_ROOT)
 sys.path.insert(0, os.path.join(PROJECT_ROOT, 'backend'))
 
 from mabinogi_tooltip_parser import MabinogiTooltipParser
-from tooltip_segmenter import init_header_reader, load_section_patterns, segment_and_tag
+from tooltip_segmenter import init_header_reader, load_section_patterns, load_config, segment_and_tag
 
 MODELS_DIR  = os.path.join(PROJECT_ROOT, 'backend', 'ocr', 'models')
 CONFIG_PATH = os.path.join(PROJECT_ROOT, 'configs', 'mabinogi_tooltip.yaml')
@@ -100,7 +100,8 @@ def test_image(header_reader, content_reader, parser, section_patterns,
         return None
 
     # Step 1: segment with header OCR
-    tagged = segment_and_tag(img_bgr, header_reader, section_patterns)
+    config = load_config(CONFIG_PATH)
+    tagged = segment_and_tag(img_bgr, header_reader, section_patterns, config)
 
     # Step 2: content OCR per segment
     result  = parser.parse_from_segments(tagged, content_reader)

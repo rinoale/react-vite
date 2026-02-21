@@ -118,3 +118,28 @@ sections:
 # Normal inter-character gaps are 1-8px; color part gaps are 15-85px.
 # Factor 1.5 reliably splits multi-digit RGB values across all line heights.
 horizontal_split_factor: 1.5
+
+# Header detection parameters (v3 segment-first pipeline)
+# Used by backend/tooltip_segmenter.py — single source of truth.
+header_detection:
+  # Step 1: Find orange header text via color mask + horizontal projection
+  orange:
+    r_min: 150           # R > this
+    g_min: 50            # G > this
+    g_max: 180           # G < this
+    b_max: 80            # B < this
+    min_band_height: 8   # minimum consecutive rows with orange pixels
+    min_band_pixels: 40  # minimum total orange pixels in the band
+
+  # Step 2: Expand from orange text outward until black square boundary ends
+  # Uses reference columns just right of the orange text (avoids left-border interference)
+  boundary:
+    pure_black_max: 0    # max(R,G,B) <= this counts as pure-black
+    ref_columns: 10      # number of columns to check right of orange x_max
+    density_threshold: 0.2  # fraction of ref columns that must be pure-black to continue expanding
+    max_expansion: 40    # max rows to search in each direction from orange band
+
+  # Header OCR preprocessing and section label matching
+  ocr:
+    threshold: 50        # grayscale > this → black (text), else white (bg)
+    match_cutoff: 50     # minimum fuzzy match score to accept section label
