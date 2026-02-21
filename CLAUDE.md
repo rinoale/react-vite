@@ -30,8 +30,8 @@ python3 scripts/generate_training_data.py                    # Synthetic trainin
 python3 scripts/create_model_config.py                       # Generate custom_mabinogi.yaml from unique_chars.txt
 python3 skills/ocr-trainer/scripts/create_lmdb_dataset.py \
   --input backend/train_data --output backend/train_data_lmdb # Convert to LMDB for training
-python3 scripts/test_ocr.py                                  # Test OCR on sample image (full-image readtext)
-python3 scripts/test_line_splitter.py <image> <output_dir>   # Test line splitter visually
+python3 scripts/v2/ocr/test_ocr.py                           # Test OCR on sample image (full-image readtext)
+python3 scripts/v2/line_split/test_line_splitter.py <image> <output_dir>   # Test line splitter visually
 ```
 After training, deploy model by copying `.pth` to `backend/models/custom_mabinogi.pth`.
 
@@ -42,7 +42,7 @@ After training, deploy model by copying `.pth` to `backend/models/custom_mabinog
 **New pipeline (segment-first — in development):**
 Determines section labels BEFORE running content OCR, eliminating cascade section-detection failures.
 1. **Backend receives original color screenshot**
-2. **Header detection** (`scripts/test_segmentation.py` logic): Near-black connected components (`max(R,G,B) < 5`, `min_h=16`, `min_w=25`) locate the jet-black section header bands. Works for 22/26 known theme images; 4 ultra-dark-background themes need orange-text fallback.
+2. **Header detection** (`scripts/v3/segmentation/test_segmentation.py` logic): Near-black connected components (`max(R,G,B) < 5`, `min_h=16`, `min_w=25`) locate the jet-black section header bands. Works for 22/26 known theme images; 4 ultra-dark-background themes need orange-text fallback.
 3. **Segmentation**: Pre-header region + N header+content pairs. Each content region has a positional section slot.
 4. **Header OCR**: Each header crop OCR'd independently (short text, ~10 fixed labels: 세공, 에르그, 인챈트, ...). Assigns canonical section name.
 5. **Content OCR per segment**: `TooltipLineSplitter` + EasyOCR `recognize()` per line. FM uses pre-determined section dictionary — no post-hoc header pattern matching in the content stream.
@@ -61,7 +61,7 @@ Determines section labels BEFORE running content OCR, eliminating cascade sectio
 ### Custom OCR Model
 - Architecture: `TPS-ResNet-BiLSTM-CTC` (from `deep-text-recognition-benchmark/`)
 - Font: `data/fonts/mabinogi_classic.ttf` (actual game font)
-- Character set (509 chars) defined in `backend/unique_chars.txt` and mirrored in `backend/models/custom_mabinogi.yaml`
+- Character set (509 chars) defined in `backend/ocr/unique_chars.txt` and mirrored in `backend/models/custom_mabinogi.yaml`
 - Model weights: `backend/models/custom_mabinogi.pth`
 - Model architecture for EasyOCR integration: `backend/models/custom_mabinogi.py`
 - Inference patch: `backend/ocr_utils.py` — fixes EasyOCR's dynamic imgW to use yaml's fixed value
@@ -94,7 +94,7 @@ Splits tooltip images into individual text line crops using horizontal projectio
 ### Inference Patch (`backend/ocr_utils.py`)
 - `patch_reader_imgw()`: Monkey-patches EasyOCR's `recognize()` to use fixed imgW from yaml
 - Solves: EasyOCR computes dynamic `max_width = ceil(w/h) * 32` per image (576-1056px), mismatching training's fixed imgW
-- Applied in `backend/main.py` and `scripts/test_v2_pipeline.py` after reader init
+- Applied in `backend/main.py` and `scripts/v2/test_v2_pipeline.py` after reader init
 
 ### Training Configuration
 All training parameters are centralized in **`configs/training_config.yaml`**. This is the single source of truth for model architecture, hyperparameters, and paths.
@@ -128,7 +128,7 @@ Synthetic training images must match real line crops from the splitter:
   - Enchant headers/effects, hashtag lines, price lines, piercing text
   - Item names, flavor text, sub-bullets with `ㄴ` marker
   - All GT lines included verbatim
-- **Character set**: `backend/unique_chars.txt` (1201 chars as of Attempt 16) must cover all characters in GT and dictionaries
+- **Character set**: `backend/ocr/unique_chars.txt` (1201 chars as of Attempt 16) must cover all characters in GT and dictionaries
 - **Font**: `data/fonts/mabinogi_classic.ttf` (actual game font)
 
 ### Full Training Pipeline (run from project root)
@@ -173,16 +173,17 @@ cp saved_models/TPS-ResNet-BiLSTM-CTC-Seed1111/best_accuracy.pth \
   backend/models/custom_mabinogi.pth
 
 # Step 7: Validate on real GT images
-python3 scripts/test_v2_pipeline.py --normalize --gt-suffix _expected.txt        # Full output
-python3 scripts/test_v2_pipeline.py -q --normalize --gt-suffix _expected.txt     # Summary only
+python3 scripts/v2/test_v2_pipeline.py --normalize --gt-suffix _expected.txt        # Full output
+python3 scripts/v2/test_v2_pipeline.py -q --normalize --gt-suffix _expected.txt     # Summary only
 ```
 
 **When to re-run `create_model_config.py`:** Anytime you change `model:` section in `configs/training_config.yaml` (especially `imgW`, `imgH`), or update `unique_chars.txt`. The yaml must match training args exactly — the TPS Spatial Transformer is built with `I_size=(imgH, imgW)` and mismatched weights will crash or produce garbage.
 
 ### Testing
-- `scripts/test_v2_pipeline.py` — Uses `MabinogiTooltipParser` to split GT images → `recognize()` → compares against GT `.txt` files. **Always run with `--normalize --gt-suffix _expected.txt`** — without these flags scores are artificially low (`.` bullet prefix mismatches + skipped sections inflate error count). Supports `--sections`/`-s` flag for section breakdown.
-- `scripts/test_line_splitter.py <image> <output_dir>` — Visual line detection verification using `MabinogiTooltipParser`
-- `scripts/regenerate_gt.py` — Runs parser on GT images, outputs `_gt_candidate.txt` files for manual review. `--apply` strips comments and overwrites `.txt` GT files.
+- `scripts/v2/test_v2_pipeline.py` — Uses `MabinogiTooltipParser` to split GT images → `recognize()` → compares against GT `.txt` files. **Always run with `--normalize --gt-suffix _expected.txt`** — without these flags scores are artificially low (`.` bullet prefix mismatches + skipped sections inflate error count). Supports `--sections`/`-s` flag for section breakdown.
+- `scripts/v2/line_split/test_line_splitter.py <image> <output_dir>` — Visual line detection verification using `MabinogiTooltipParser`
+- `scripts/v2/ocr/regenerate_gt.py` — Runs parser on GT images, outputs `_gt_candidate.txt` files for manual review. `--apply` strips comments and overwrites `.txt` GT files.
+- `scripts/v3/test_v3_pipeline.py` — V3 pipeline test: segment-first on original color screenshots, compares against GT. Supports same flags as v2.
 - Ground truth in `data/sample_images/`: 5 images, 244 total lines. File types: `*.txt` (full GT), `*_expected.txt` (expected OCR output), `*_gt_candidate.txt` (pipeline candidates)
 
 ### Recommendation System
@@ -209,7 +210,7 @@ Documents to keep in sync: `CLAUDE.md`, `AGENTS.md`, `OCR_TRAINING_HISTORY.md`, 
 
 - Frontend sends preprocessed (thresholded) images: black text on white background, pixel values strictly 0 or 255
 - The v2 pipeline uses `TooltipLineSplitter` for detection + EasyOCR `recognize()` for recognition. CRAFT is not used.
-- The EasyOCR custom model can only recognize characters present in `backend/unique_chars.txt`; any characters not in this set will never be output
+- The EasyOCR custom model can only recognize characters present in `backend/ocr/unique_chars.txt`; any characters not in this set will never be output
 - EasyOCR always uses `keep_ratio_with_pad=True` during inference (hardcoded in `recognition.py` lines 199, 213), regardless of yaml PAD setting. Training must use `--PAD` to match.
 - Item database is currently mocked in `backend/recommendation.py` (`ITEMS_DB`); no persistent storage yet
 - The `data/` directory (fonts, dictionary, sample images) is not fully committed to git

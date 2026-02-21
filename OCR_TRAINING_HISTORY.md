@@ -20,7 +20,7 @@ Each attempt has identified and fixed a specific bottleneck, steadily raising re
 | 14 | — | 75.5% | 0.327 | Training data cleanup + splitter left-edge artifact removal |
 | 15 | — | 77.0% | 0.352 | % spacing fix, 내구력 6×, section headers 4×, 개조 3×, grade colon fix, dash 2.5× |
 | 16 | 99.97% | 71.3% | TBD | Charset 509→1201, item_name sampled 3k, post-dedup header boost, num_iter 20k — **regression** |
-| 17 | TBD | TBD | TBD | Game-like rendering (dark bg+bright text→BT.601→bright→black), font sizes 10-11 (unchanged) |
+| 17 | — | — | — | REVERTED — game-like rendering analysis valid but new v3 pipeline adopted instead |
 
 Real-world char accuracy: **0% → 19.5% → 35.8% → 27.0% (regression) → 36.2% → 38.1% → 52.4% → 75.5% → 77.0%**. Attempt 14 cleaned up training data quality (prefix corrections, color part handling, GT source switch to `_expected.txt`) and added two post-hoc splitter fixes to remove left-edge UI artifacts from crops. Exact matches jumped from 14/235 to 45/230. Attempt 15 targeted the most common failure patterns (내구력, 개조, % spacing, section headers) and raised char acc to 77.0% and exact matches to 64/230. GT count changed to 230 due to titan_blade image update and use of `_expected.txt`. lightarmor at 80.1%, titan_blade at 80.0%, crossing the 80% gate on both large images.
 
@@ -58,7 +58,7 @@ python3 train.py --train_data ../backend/train_data_lmdb \
   --batch_max_length 30 --imgH 32 --imgW 100 \
   --num_iter 10000 --valInterval 500 \
   --batch_size 64 --workers 0 --sensitive \
-  --character "$(cat ../backend/unique_chars.txt | tr -d '\n')"
+  --character "$(cat ../backend/ocr/unique_chars.txt | tr -d '\n')"
 ```
 
 **Problem: `--workers 0` required** — LMDB dataset can't be pickled for multiprocessing. `TypeError: cannot pickle 'Environment' object`.
@@ -124,7 +124,7 @@ python3 train.py --train_data ../backend/train_data_lmdb \
   --batch_max_length 30 --imgH 32 --imgW 100 \
   --num_iter 10000 --valInterval 500 \
   --batch_size 64 --workers 0 --sensitive --PAD \
-  --character "$(cat ../backend/unique_chars.txt | tr -d '\n')"
+  --character "$(cat ../backend/ocr/unique_chars.txt | tr -d '\n')"
 ```
 
 **Result:** 99.246% best accuracy at 10,000 iterations. Notably faster convergence — 68% at iteration 500 (vs 15% without `--PAD`), confirming the preprocessing mismatch was a real problem.
@@ -159,7 +159,7 @@ python3 train.py --train_data ../backend/train_data_lmdb \
   --batch_max_length 55 --imgH 32 --imgW 200 \
   --num_iter 10000 --valInterval 2000 \
   --batch_size 64 --workers 0 --sensitive --PAD \
-  --character "$(cat ../backend/unique_chars.txt | tr -d '\n')"
+  --character "$(cat ../backend/ocr/unique_chars.txt | tr -d '\n')"
 ```
 
 **Result:** **100% accuracy** at 10,000 iterations (~43 min). Reached 96% by iteration 2000, 99.5% by 4000, 99.9% by 8000. Confidence scores also notably higher (0.5-0.9 range vs 0.1-0.5 in Attempt 4).
@@ -1006,136 +1006,82 @@ Synthetic training accuracy converged to 99.97% but real-world performance dropp
 
 ---
 
-## Attempt 17: REVERTED
+## Attempt 17: REVERTED — V3 Pipeline Adopted
 
-Attempt 17 (game-like rendering: dark bg + bright text → BT.601 → bright→black) was implemented based on ink ratio measurements from padded inference crops. Changes to `generate_training_data.py` were fully reverted before training completed.
+Attempt 17 originally planned game-like rendering (dark bg + bright text → BT.601 → bright→black) to fix the ink ratio gap (synthetic 0.144 vs real 0.201). Code changes to `generate_training_data.py` were reverted before training — a more fundamental pipeline redesign was adopted instead.
 
-**Reason for revert:** A more fundamental pipeline redesign was adopted (see New Pipeline Plan below) that changes WHEN section labels are assigned, making individual OCR quality improvements premature. The ink ratio gap and charset expansion issues remain as future targets once the new pipeline is validated.
+### Ink Ratio Analysis (valid, carry forward)
+
+Measured from actual PADDED inference crops (5 GT images) vs synthetic training images:
+
+| Metric | Real padded crops | Synthetic (Att 15/16) |
+|---|---|---|
+| Ink ratio median | **0.201** | **0.144** |
+| Height median | **14px** | **15px** (already matches) |
+
+Root cause: real crops = game's colored text on dark bg → BT.601 → threshold captures anti-aliasing halo as ink (thicker strokes). Synthetic = PIL black-on-white → threshold captures only dark core (thinner). Fix: game-like rendering at font 10-11. This remains a future training improvement target.
 
 ---
 
-## New Pipeline Plan: Segment-First, OCR-Second
+## V3 Pipeline: Segment-First, OCR-Second
 
-### Strategic Shift
+### Why the pipeline changed
 
-The existing pipeline sends a binary preprocessed image to the backend, then OCR's ALL lines and attempts to infer section labels from OCR output. This creates a cascade failure: if `세공` is garbled, ALL downstream reforge lines lose their section label and FM fires against the wrong dictionary.
+The old v2 pipeline OCR'd ALL lines in a flat stream, then tried to identify section headers from OCR output. If `세공` was garbled (e.g., `제채두 고급`), the entire reforge section was misclassified — all downstream lines lost their section label and FM fired against the wrong dictionary. This is a structural cascade failure.
 
-**New plan: determine section labels BEFORE running OCR.**
+**New approach: determine section labels BEFORE running content OCR.**
 
 ```
-Old:  Binary image → TooltipLineSplitter (all lines) → OCR all → pattern-match headers → section-label lines → FM per section
-New:  Original color image → detect header positions (black squares) → segment into labeled regions → OCR content per region (section already known) → FM with correct dictionary
+Old (v2):  Binary image → line split → OCR all → pattern-match headers → section labels → FM
+New (v3):  Color image → detect black-square headers → segment → header OCR → section labels → content OCR per segment → FM with correct dictionary
 ```
 
-### New Pipeline Steps
+### Pipeline Steps
 
-1. **Header detection on original color image**
-   - Near-black connected components (`max(R,G,B) < 5`, `min_h=16`, `min_w=25`)
-   - Finds the jet-black header band backgrounds reliably
-   - 22/26 theme images work; 4 fail due to black game backgrounds (fallback: orange text scan, or user guidance)
-   - Script: `scripts/test_segmentation.py`
-
-2. **Segmentation with labels**
-   - Pre-header region (index 0): item name + item attrs
-   - Each header+content pair (index 1–N): header identifies the section
-   - Header crops saved separately (`_hdr_XX.png`); content crops saved separately (`_cnt_XX.png`)
-   - Results in `data/segmentation/<image_name>/`
-
-3. **Header OCR → section label assignment**
-   - OCR each header crop independently (short text, ~10 possible values: 세공, 에르그, 인챈트, 개조, etc.)
-   - Small vocabulary → high accuracy even with current model
-   - Assign canonical section name (maps to dictionary file) from OCR result
-
-4. **Content OCR with determined section**
-   - For each content region: preprocess (BT.601 → binary) → TooltipLineSplitter → EasyOCR recognize() per line
-   - Section label is known from step 3 → FM uses the correct dictionary immediately
-   - No post-hoc section detection needed
-
-### Why This Is Better
-
-| Problem | Old Pipeline | New Pipeline |
-|---------|-------------|-------------|
-| `세공` OCR garbled | Entire reforge section misclassified | Header OCR limited to ~10 words → less likely to fail |
-| Section FM fires on wrong lines | Content lines matched before section opens | Section known before content is OCR'd |
-| False positive section detection | Ratio guard + substring matching needed | No in-stream header detection needed |
-| Dark theme images | Preprocessed binary loses color info | Color image used for header detection |
+| Step | What | How | File |
+|------|------|-----|------|
+| 1. Header detection | Find jet-black header band rectangles | `max(R,G,B) < 5`, connected components, `min_h=16`, `min_w=25`, `w/h ≤ 5` | `backend/tooltip_segmenter.py` |
+| 2. Segmentation | Pre-header region + N header+content pairs | Pair each header with content below until next header | `backend/tooltip_segmenter.py` |
+| 3. Header OCR | OCR each header crop → fuzzy-match to section name | Dedicated model (custom_header, 22-char charset, imgW=128) | `backend/tooltip_segmenter.py` |
+| 4. Content OCR | Per segment: BT.601 → threshold=80 → line split → recognize() | Content model (custom_mabinogi a15, 509 chars, imgW=200) | `backend/mabinogi_tooltip_parser.py` |
+| 5. Text correction | Section-specific FM with pre-determined dictionary | `TextCorrector` uses section label from step 3 | `backend/text_corrector.py` |
+| 6. API endpoint | `POST /upload-item-v3` accepts original color image | Wires steps 1-5 together | `backend/main.py` |
 
 ### Implementation Status
 
-- `scripts/test_segmentation.py` — header detection + segmentation complete (22/26 images work)
-- `configs/mabinogi_tooltip.yaml` — `ego` (정령) section added
-- Next: header OCR + section label assignment → content OCR with determined category
+| Component | Status | Notes |
+|-----------|--------|-------|
+| Header detection + `w/h` filter | Done | 22/26 themes work; 4 ultra-dark fail (fallback TBD) |
+| Segmentation | Done | `build_segments()` in `tooltip_segmenter.py` |
+| Header OCR model | Done, bugs remain | `등급` misread as `개조` — needs retraining |
+| `parse_from_segments()` | Done | Header text prepended as first line per segment |
+| `/upload-item-v3` endpoint | Done | In `backend/main.py` |
+| `test_v3_pipeline.py` | Done | Matches v2 output format, supports `-f`, `-q`, `--normalize` |
+| Original color GT images | **Only titan_blade** | Other 4 GT images only have `*_processed.png` |
 
----
+### Current Test Results (titan_blade_original, a15 model)
 
-## Attempt 17: Fix the Rendering Domain Gap (Ink Ratio)
+```
+titan_blade_original.png  10/80 exact  char_acc=75.7%  conf=0.337  hdrs=8  sections=8
+```
 
-### What the data actually shows
+Note: This is the content model (a15, 77% on v2) running through v3's preprocessing path (BT.601 → threshold=80 on the original color image, not frontend-preprocessed binary). The slightly lower accuracy vs v2 (75.7% vs 80.0%) is expected — v2 received frontend-preprocessed images that were optimized for this model.
 
-After Attempt 16's regression, we measured the actual PADDED crops fed to `recognize()` (5 GT images) vs synthetic training images.
+### Known Issues
 
-**Critical measurement note:** `parse_tooltip()` applies padding before calling `recognize()`:
-`pad_y = max(1, h//5)`, `pad_x = max(2, h//3)`. Raw bounding box heights (median h=10) are NOT what the model sees. Actual padded inference crops: **h median = 14px**.
+1. **Header `등급` → `개조` misclassification** — Header model reads the `등급` bar as `개조` with 100% confidence. Causes `item_grade` section to be labeled `item_mod`. Needs header model retraining with more diverse crops.
 
-**Gap 1 — Ink ratio (the real bottleneck):**
+2. **Only 1 original color GT image** — v3 needs original color screenshots (not preprocessed). Only `titan_blade_original.png` exists. The other 4 GT images (`lightarmor`, `captain_suit`, `lobe`, `dropbell`) only have `*_processed.png` versions.
 
-| | Actual padded inference crops | Synthetic (Att 16, black-on-white) |
-|---|---|---|
-| Ink ratio median | **0.201** | **0.144** |
+3. **Enchant charset gap (a15)** — `enchant.txt` has 273 chars not in the a15 charset (509). The model can't output these characters. Acceptable for now — v3 validation focuses on pipeline structure (correct segmentation + section labeling + FM routing), not peak OCR accuracy.
 
-Real strokes are ~1.4× thicker than synthetic. Root cause: real crops come from `game engine colored text on dark bg → BT.601 grayscale → threshold(bright→black)`, which captures the full anti-aliasing zone as ink. Synthetic uses `PIL black-on-white → threshold(dark→black)`, capturing only the dark core → thinner strokes.
+4. **Reforge charset** — Fully covered by a15 (0 missing chars). Clean validation target.
 
-**Gap 2 — Height (smaller than initially estimated):**
+### Validation Plan
 
-| | Actual padded inference crops | Synthetic (Att 16) |
-|---|---|---|
-| h median | **14px** | **15px** |
+Validate v3 pipeline with a15 content model (509 chars) on both **enchant** and **reforge** segments:
 
-These **already match** — the font sizes 10-11 were already producing the right height. Initial analysis used raw bounding boxes (h=10) and concluded a large height gap existed; this was an error.
+- **reforge**: Full charset coverage. Expect OCR accuracy comparable to v2. Validates that segment-first labeling eliminates the cascade failure where garbled `세공` header caused all reforge lines to be misclassified.
+- **enchant**: 273/727 chars missing from a15. Raw OCR limited, but validates pipeline structure: correct segment isolation, header OCR → `enchant` label, two-phase FM fires against enchant dictionary.
 
-**Early incorrect Attempt 17 run** changed `FONT_SIZES` to `[8,8,8,9,9,10]` → synthetic h=11 (undershoots padded inference h=14 by 3px). Training was killed before completion. The correct fix is game-like rendering at font sizes 10-11.
-
-### Why ink ratio matters: AlignCollate
-
-EasyOCR scales every crop to imgH=32 via bilinear interpolation. Scale factor = `32 / crop_height`. For actual padded inference crops (h=14):
-
-| Crop type | h | Scale factor | Ink ratio before scaling |
-|---|---|---|---|
-| Real padded crop | 14px | ×2.28 | 0.201 (thick strokes) |
-| Synthetic (Att 16) | 15px | ×2.13 | 0.144 (thin strokes) |
-| Synthetic (Att 17) | 14-15px | ×2.13-2.28 | ~0.20 (game-like) |
-
-Thin (0.14) vs thick (0.20) strokes at similar scale factors still produce visibly different character shapes. This explains why the model could recognize syntethic training images (99.97%) but fail on real crops — it learned thin-stroke glyph shapes.
-
-### Hypothesis for Attempt 17
-
-**Hypothesis:** Switching to game-like rendering with the same font sizes (10-11) will fix the ink ratio gap without any height regression.
-
-**Mechanism:**
-- `PIL font 10-11 + dark bg + bright text → BT.601 → bright→black threshold` produces:
-  - h=14-15px (same as Att 16, correct for padded inference crops)
-  - ink_ratio ~0.20 (matches real padded crop ink ratio 0.201)
-- Font sizes unchanged from Att 16 — preserves correct height distribution
-- Only ink ratio changes — this isolates the rendering effect
-
-**What we measured in sample images** (`sample_train_images/final_comparison.png`):
-- Game-like rendering visually more similar to real game crops (thicker strokes)
-- Downscaling rejected: font 8 at h=7 is illegible for Korean text
-
-### Changes for Attempt 17
-
-1. **`render_line()` in `generate_training_data.py`**: Switch from black-on-white to game-like rendering:
-   - `Image.new('RGB', bg=(15-45, 10-40, 15-50))` + bright text `(210-255, 210-255, 200-255)`
-   - `.convert('L')` (BT.601) + `point(x > thresh → 0, else 255)` (bright→black)
-
-2. **`FONT_SIZES`**: Keep `[10,10,10,11,11,11]` (unchanged from Att 16)
-   - f10: text_h ≈ 10 → pad_y=2 → img_h=14 ✓ matches padded inference h=14
-   - f11: text_h ≈ 11 → pad_y=2 → img_h=15 ✓ matches padded inference h=14-15
-
-3. **No other changes**: Character set (1201), header boosts, GT lines, dictionary sampling — all kept from Attempt 16.
-
-### Status: REVERTED before training
-
-Changes to `generate_training_data.py` (game-like rendering) were implemented but cleaned before training completed. The new pipeline redesign (segment-first, OCR-second) supersedes this attempt. Ink ratio gap remains a valid future target but is not the immediate priority.
-
-The analysis above (ink ratio 0.144 vs 0.201, height matching at h=14-15) remains valid and should be incorporated when resuming synthetic training under the new pipeline.
+Future content model training (attempt 18+) can address charset expansion and ink ratio gap independently, once v3 pipeline structure is validated.

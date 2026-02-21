@@ -38,7 +38,7 @@
 
 ## Resolved: 62 Missing Characters
 
-**Fixed in Attempt 7.** Character set expanded from 442 → 509 chars. Added 62 GT-missing characters (41 Korean syllables, 15 lowercase Latin, 4 uppercase Latin, ㄴ, comma) plus 5 template-required characters (민번센첩황). File: `backend/unique_chars.txt`.
+**Fixed in Attempt 7.** Character set expanded from 442 → 509 chars. Added 62 GT-missing characters (41 Korean syllables, 15 lowercase Latin, 4 uppercase Latin, ㄴ, comma) plus 5 template-required characters (민번센첩황). File: `backend/ocr/unique_chars.txt`.
 
 ## Resolved: Dimension Mismatch (Fixed Height)
 
@@ -87,9 +87,9 @@ Proportional canvas width caused 57% of training at wrong squash factors. Fixed 
 | Attempt 16 | 28 (12.2%) | 71.3% | TBD | Charset 509→1201 — regression |
 | Attempt 17 | REVERTED | — | — | Game-like rendering reverted; new pipeline adopted |
 
-**Current best:** Attempt 15 — 77.0% char acc, 64/230 exact. lightarmor (80.1%) and titan_blade (80.0%) crossed the 80% gate.
+**Current best (v2):** Attempt 15 — 77.0% char acc, 64/230 exact. lightarmor (80.1%) and titan_blade (80.0%) crossed the 80% gate.
 
-**Pipeline redesign in progress:** New segment-first approach changes when section labels are assigned. See "New Pipeline Plan" section below.
+**V3 pipeline (segment-first) is now active.** Content model remains a15 (509 chars). V3 validated on titan_blade_original: 10/80 exact, 75.7% char acc. See V3 section below.
 
 ### Resolved in Attempt 15
 
@@ -109,87 +109,35 @@ Attempt 16 regressed to 28/230 exact (71.3% char acc) despite correct preprocess
 
 ---
 
-## Identified: Rendering Domain Gap (target for Attempt 17)
+## Identified: Rendering Domain Gap (future training target)
 
-Measured from actual PADDED crops fed to `recognize()` (5 GT images) vs synthetic training images.
-
-**Critical distinction — raw bounding box vs padded crop:** `parse_tooltip()` applies padding before calling `recognize()`: `pad_y = max(1, h//5)`, `pad_x = max(2, h//3)`. Raw bounding box heights from `detect_text_lines()` (median h=10) do NOT reflect what the model actually sees. Actual padded inference crops: **median h=14px**.
-
-**Gap 1 — Ink ratio (the real bottleneck):** Actual padded crops: median ink=0.201. Synthetic (Att 16, black-on-white): median ink=0.144. Strokes are ~1.4× thicker in real crops. Root cause: real game rendering = colored text on dark bg → BT.601 grayscale → threshold(bright→black). PIL black-on-white → threshold(dark→black). The bright→black threshold captures anti-aliasing as ink; dark→black captures only the dark core.
-
-**Gap 2 — Height (smaller than initially measured):** Actual padded crops: h=14 median. Att 16 synthetic (font 10-11): h=14-15. These **already match** — the height gap was overestimated by measuring raw bounding boxes (h=10) instead of padded inference crops (h=14).
-
-**Why ink ratio matters:** EasyOCR AlignCollate scales every crop to imgH=32. A crop with thin strokes (ink=0.14) at ×2.13 scale looks like a completely different glyph than a crop with thick strokes (ink=0.20) at ×2.28 scale. The shape difference after upscaling is systematic and cannot be compensated by TPS.
-
-**Fix for Attempt 17:** Game-like rendering (dark bg + bright text → BT.601 → bright→black) with font sizes 10-11 (unchanged from Att 16). Font 10 → pad_y=2 → total h=14 ✓; font 11 → pad_y=2 → total h=15 ✓. This fixes ink ratio (0.144 → ~0.20) without any height regression.
-
-**Early incorrect run of Attempt 17** used font sizes 8-9-10 → h=11 (undershoots padded inference h=14 by 3px). This was stopped and corrected to font sizes 10-11.
+Ink ratio gap: real padded crops 0.201 vs synthetic 0.144 (strokes ~1.4× thicker in real). Root cause: game renders colored text on dark bg → BT.601 → threshold captures anti-aliasing halo. Synthetic renders black-on-white → threshold captures only dark core. Fix: game-like rendering at font 10-11. Height already matches (real h=14, synthetic h=14-15). Carry forward to future content model training.
 
 ---
 
-### Current Issues Blocking 80% (post-Attempt 15)
+## V3 Pipeline — Current Issues
 
-1. **Leading `-` misread as `소` / `#`** — `- 수리비` → `소수리비` across all images. Root cause: game dash is 2px wide at ~10px height; PIL renders 3-5px wide. TPS warping doesn't fully compensate. Mitigation: 500 reps in training (was 200). Splitter fix NOT viable — masking cleaned binary destroyed text alignment columns (dropbell: 9→0 exact matches). **Still unresolved.**
+### Blocking issues
 
-2. **`세공` / `에르그` section headers garbled** — `세공` → `제채두 고급`; `에르그` → `44 르 수`. Very short words (2-3 chars) adjacent to UI box art, only 10 training reps each. Cascade failure: when header is not recognized, parser misses section start → all subsequent lines get wrong section tag → section-specific FM can't fire. **Target for Attempt 16:** boost to 130 / 80 reps respectively.
+1. **Header `등급` → `개조` misclassification** — Header model reads the `등급` bar as `개조` (100% confidence). Causes `item_grade` → `item_mod` mislabeling. Needs header model retraining.
 
-3. **Enchant headers heavily garbled** — `[접두] 충격을 (랭크 F)` → `상빛] 타적을 마런량 )` (42% char acc). Brackets, slot word, and rank all confused simultaneously. Two-phase FM requires ~80% raw OCR on the header to find a match; current quality is too low. Training impact: enchant headers are long and complex; more reps needed.
+2. **Only 1 original color GT image** — v3 needs original color screenshots. Only `titan_blade_original.png` exists. Other 4 GT images have only `*_processed.png`.
 
-4. **captain_suit below 70%** — Primarily driven by enchant section not being detected (header `인챈트` often missed or its subsequent `[접두]`/`[접미]` sub-headers garbled). All enchant effect lines then fall through without section-specific FM.
+3. **Enchant charset gap (a15)** — `enchant.txt` has 273 chars not in the a15 charset (509). Model can't output these. Acceptable for pipeline structure validation; OCR accuracy on enchant will be limited.
 
-5. **lobe below 75%** — Piercing description lines (`피어싱이 부여된 장비를 양 쪽에 착용 시`) still garbled. Long sentence without many natural training reps.
+### Content OCR issues (carry forward from v2)
 
-7. **Color part sub-segments** — `파트 A` → `1호`, `R:0` → `4`. These may resolve if `아이템 색상` header is correctly recognized (indirect fix via issue #2 above).
+4. **Leading `-` misread as `소` / `#`** — Game dash is 2px wide; PIL renders 3-5px. Unresolved at splitter/training level.
 
----
+5. **Enchant sub-headers garbled** — `[접두]`/`[접미]` at 42% char acc. V3 helps structurally (enchant section pre-labeled), but raw OCR quality still limits two-phase FM matching.
 
-## New Pipeline Plan: Segment-First, OCR-Second
+6. **Ink ratio domain gap** — Synthetic 0.144 vs real 0.201. Future training target (game-like rendering).
 
-### Root problem with the old pipeline
+### Validation plan
 
-The old pipeline OCR'd all lines in a flat stream and tried to identify section headers from OCR output. If `세공` was garbled (e.g., `제채두 고급`), the entire reforge section was misclassified and FM fired against the wrong dictionary. This is a structural cascade failure that training improvements alone cannot fully eliminate — the section header words are short, surrounded by UI box borders, and can always be confused at ~10px height.
-
-### New pipeline
-
-```
-Original color image
-    ↓
-detect_headers() — near-black connected components (t=5, min_h=16, min_w=25)
-    ↓
-Segment into labeled regions (pre-header + header+content pairs)
-    ↓
-OCR each header crop → identify section (short text, ~10 possible labels)
-    ↓
-OCR each content region lines (section label pre-determined)
-    ↓
-FM with correct dictionary (already known, no post-hoc detection needed)
-```
-
-### Key advantages
-
-- Section labels are determined from header OCR (short, simple text) separately from content OCR (long, complex text)
-- Content OCR always has the correct FM dictionary — no cascade failure possible
-- Original color image preserved for header detection — tooltip theme themes that produce clean black bands
-- Fallback: orange text detection (proved reliable across all 26 theme images) for the 4 dark-background themes where black-band detection fails
-
-### Implementation status
-
-| Step | Status | Script/File |
-|------|--------|-------------|
-| Header detection | ✓ Done | `scripts/test_segmentation.py` |
-| Segmentation output | ✓ Done | `data/segmentation/<image>/` |
-| 22/26 themes work | ✓ Verified | t=5, min_h=16, min_w=25 |
-| 4 dark themes | Fallback TBD | orange detection or user guidance |
-| Header OCR → label | Pending | — |
-| Content OCR per segment | Pending | — |
-| Backend API update | Pending | `backend/main.py` |
-
-### Remaining known issues (carry forward)
-
-1. **Leading `-` misread** — `- 수리비` → `소수리비`. Still unresolved at splitter/training level.
-2. **Enchant sub-headers garbled** — `[접두]`/`[접미]` (42% char acc). Structural fix: enchant headers detected per-segment, not in-stream.
-3. **Ink ratio domain gap** — Synthetic 0.144 vs real 0.201. Carry forward from Attempt 17 analysis.
-4. **lobe/captain_suit below 75%** — Enchant descriptions, piercing lines.
+Validate v3 pipeline with a15 content model (509 chars) on **enchant** and **reforge** segments:
+- **reforge**: 0 missing chars → full charset coverage. Clean validation target.
+- **enchant**: 273 missing chars → pipeline structure validation only (correct segmentation, header label, FM routing).
 
 ---
 

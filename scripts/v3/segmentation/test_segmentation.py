@@ -17,7 +17,7 @@ import sys
 import cv2
 import numpy as np
 
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 
 NEAR_BLACK_THRESHOLD = 5   # max(R,G,B) < this → near black
 MIN_HEIGHT = 16            # minimum consecutive vertical run (matches header band height)

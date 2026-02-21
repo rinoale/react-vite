@@ -34,7 +34,7 @@ training:
 paths:
   train_data: backend/ocr/train_data_lmdb
   valid_data: backend/ocr/train_data_lmdb
-  character_file: backend/unique_chars.txt
+  character_file: backend/ocr/unique_chars.txt
   model_config: backend/ocr/models/custom_mabinogi.yaml
   model_weights: backend/ocr/models/custom_mabinogi.pth
   saved_models_dir: saved_models

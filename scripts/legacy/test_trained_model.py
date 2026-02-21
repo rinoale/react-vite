@@ -12,7 +12,7 @@ import cv2
 import numpy as np
 
 # Add the training repo to path so we can import its modules
-PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 TRAIN_REPO_PATH = os.path.join(PROJECT_ROOT, 'deep-text-recognition-benchmark')
 sys.path.append(TRAIN_REPO_PATH)
 
@@ -133,7 +133,7 @@ if __name__ == '__main__':
     opt = parser.parse_args()
 
     # Load characters from file if not provided
-    CHAR_FILE = os.path.join(PROJECT_ROOT, 'backend', 'unique_chars.txt')
+    CHAR_FILE = os.path.join(PROJECT_ROOT, 'backend', 'ocr', 'unique_chars.txt')
     if os.path.exists(CHAR_FILE):
         with open(CHAR_FILE, 'r', encoding='utf-8') as f:
              # Preserve space character!

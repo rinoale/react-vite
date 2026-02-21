@@ -33,6 +33,7 @@ from rapidfuzz import fuzz
 NEAR_BLACK_THRESHOLD = 5   # max(R,G,B) < this → near black
 MIN_HEIGHT           = 16  # minimum consecutive vertical run
 MIN_WIDTH            = 25  # minimum consecutive horizontal run
+MAX_ASPECT           = 5.0 # w/h upper bound — real headers ≤3.7; wider blobs are false positives
 
 # Preprocessing (orange text on black: threshold=50 captures 100% of text pixels)
 HEADER_THRESHOLD     = 50  # grayscale > this → black (text), else white (background)
@@ -64,7 +65,8 @@ def _max_consecutive(arr):
 def detect_headers(img,
                    threshold=NEAR_BLACK_THRESHOLD,
                    min_height=MIN_HEIGHT,
-                   min_width=MIN_WIDTH):
+                   min_width=MIN_WIDTH,
+                   max_aspect=MAX_ASPECT):
     """Find header bands as near-black rectangular connected components.
 
     Args:
@@ -85,6 +87,9 @@ def detect_headers(img,
         h = stats[i, cv2.CC_STAT_HEIGHT]
 
         if w < min_width or h < min_height:
+            continue
+
+        if w / h > max_aspect:
             continue
 
         region = mask[y:y + h, x:x + w]

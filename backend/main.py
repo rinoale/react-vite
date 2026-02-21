@@ -8,6 +8,7 @@ from recommendation import recommender, ITEMS_DB
 from text_corrector import TextCorrector
 from ocr_utils import patch_reader_imgw
 from mabinogi_tooltip_parser import MabinogiTooltipParser
+from tooltip_segmenter import init_header_reader, load_section_patterns, segment_and_tag
 from pydantic import BaseModel
 from typing import List
 
@@ -46,6 +47,10 @@ patch_reader_imgw(reader, MODELS_DIR)
 # Initialize Mabinogi tooltip parser
 CONFIG_PATH = os.path.join(BASE_DIR, '..', 'configs', 'mabinogi_tooltip.yaml')
 tooltip_parser = MabinogiTooltipParser(CONFIG_PATH)
+
+# Initialize header reader + section patterns for the v3 segment-first pipeline
+header_reader   = init_header_reader(models_dir=MODELS_DIR)
+section_patterns = load_section_patterns(CONFIG_PATH)
 
 class UserHistory(BaseModel):
     history_ids: List[int]
@@ -160,6 +165,67 @@ async def upload_item_v2(file: UploadFile = File(...)):
             "all_lines": result['all_lines'],
         }
 
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/upload-item-v3")
+async def upload_item_v3(file: UploadFile = File(...)):
+    """V3 endpoint: segment-first pipeline.
+
+    Accepts the original color screenshot (not preprocessed).
+    1. detect_headers() on color image → segment_and_tag() → section labels
+    2. For each segment: BT.601 + threshold → line split → content OCR
+    3. Text correction applied per line
+
+    Returns same JSON shape as /upload-item-v2.
+    """
+    try:
+        import cv2
+        import numpy as np
+
+        raw = await file.read()
+        arr = np.frombuffer(raw, np.uint8)
+        img_bgr = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+        if img_bgr is None:
+            raise HTTPException(status_code=400, detail="Could not decode image")
+
+        # Step 1: segment with header OCR labels
+        tagged = segment_and_tag(img_bgr, header_reader, section_patterns)
+
+        # Step 2: content OCR per segment → assemble structured result
+        result = tooltip_parser.parse_from_segments(tagged, reader)
+
+        # Step 3: text correction
+        for line in result.get('all_lines', []):
+            raw_text = line.get('text', '')
+            if raw_text.strip():
+                corrected, score = corrector.correct(raw_text)
+                line['corrected_text']   = corrected if score > 60 else raw_text
+                line['correction_score'] = float(score) / 100.0
+            else:
+                line['corrected_text']   = raw_text
+                line['correction_score'] = 0.0
+
+        for section_data in result.get('sections', {}).values():
+            if 'lines' in section_data:
+                for line in section_data['lines']:
+                    raw_text = line.get('text', '')
+                    if raw_text.strip():
+                        corrected, score = corrector.correct(raw_text)
+                        line['corrected_text']   = corrected if score > 60 else raw_text
+                        line['correction_score'] = float(score) / 100.0
+
+        return {
+            "filename": file.filename,
+            "sections": result['sections'],
+            "all_lines": result['all_lines'],
+        }
+
+    except HTTPException:
+        raise
     except Exception as e:
         import traceback
         traceback.print_exc()

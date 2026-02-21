@@ -68,7 +68,7 @@ python3 train.py \
     --workers 0 \
     --sensitive \
     --PAD \
-    --character "$(cat ../backend/unique_chars.txt | tr -d '\n')"
+    --character "$(cat ../backend/ocr/unique_chars.txt | tr -d '\n')"
 ```
 
 **Critical flags explained:**

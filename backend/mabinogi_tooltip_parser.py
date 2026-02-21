@@ -49,6 +49,145 @@ class MabinogiTooltipParser(TooltipLineSplitter):
             for pattern in sec.get('header_patterns', []):
                 self._header_patterns[pattern] = key
 
+    def parse_from_segments(self, tagged_segments, reader):
+        """Build full structured result from segment_and_tag() output.
+
+        Drop-in replacement for parse_tooltip() in the new segment-first pipeline.
+        Section labels come from header OCR — no post-hoc pattern matching needed.
+
+        Args:
+            tagged_segments: list of dicts from tooltip_segmenter.segment_and_tag()
+            reader:          content OCR EasyOCR reader (custom_mabinogi, imgW patched)
+
+        Returns:
+            dict with 'sections' (OrderedDict) and 'all_lines' — same format as
+            parse_tooltip() so callers need no changes.
+        """
+        sections = OrderedDict()
+        all_lines = []
+
+        for seg in tagged_segments:
+            section      = seg['section']
+            content_crop = seg['content_crop']
+
+            if content_crop is None or content_crop.shape[0] == 0:
+                continue
+
+            # Prepend header text as a line so line count matches GT
+            header_line = None
+            if seg['header_crop'] is not None and seg.get('header_ocr_text'):
+                header_line = {
+                    'text':       seg['header_ocr_text'],
+                    'confidence': seg['header_ocr_conf'],
+                    'bounds':     {},
+                    'section':    section,
+                    'is_header':  True,
+                }
+
+            section_data = self._parse_segment_from_array(content_crop, section, reader)
+
+            if section == 'pre_header':
+                # Returns sub-dict: {'item_name': {...}, 'item_type': {...}}
+                sections.update(section_data)
+                for sub in section_data.values():
+                    if isinstance(sub, dict) and 'lines' in sub:
+                        all_lines.extend(sub['lines'])
+            else:
+                # Insert header text as first line of this segment
+                if header_line is not None and 'lines' in section_data:
+                    section_data['lines'].insert(0, header_line)
+
+                if section and section not in sections:
+                    sections[section] = section_data
+                elif section:
+                    # Merge duplicate sections (multiple headers with same label)
+                    existing = sections[section]
+                    if 'lines' in existing and 'lines' in section_data:
+                        existing['lines'].extend(section_data['lines'])
+                if 'lines' in section_data:
+                    all_lines.extend(section_data['lines'])
+
+        return {'sections': sections, 'all_lines': all_lines}
+
+    def _parse_segment_from_array(self, content_bgr, section, reader):
+        """Parse one content region (BGR numpy array) with a pre-known section label.
+
+        Preprocessing: BT.601 grayscale → threshold=80 (mirrors frontend pipeline).
+        Passes the binary image directly to line detection and OCR.
+
+        Args:
+            content_bgr: numpy BGR array (content_crop from segment_and_tag)
+            section:     section label string (e.g. 'enchant', 'reforge', 'pre_header')
+            reader:      content OCR reader (custom_mabinogi, imgW patched)
+
+        Returns:
+            section data dict — same per-section format as _categorize_sections produces.
+            For 'pre_header' returns {'item_name': {...}, 'item_type': {...}}.
+        """
+        gray = cv2.cvtColor(content_bgr, cv2.COLOR_BGR2GRAY)
+        # black text on white — correct polarity for OCR (matches training data)
+        _, binary = cv2.threshold(gray, 80, 255, cv2.THRESH_BINARY_INV)
+        # detect_text_lines counts pixels > 0 as foreground, so it needs
+        # white text on black — invert the binary before line detection
+        binary_detect = cv2.bitwise_not(binary)
+
+        detected_lines = self.detect_text_lines(binary_detect)
+        grouped        = self._group_by_y(detected_lines)
+        ocr_results    = self._ocr_grouped_lines(binary, grouped, reader)
+
+        for line in ocr_results:
+            line['section'] = section
+
+        if section == 'pre_header':
+            return self._parse_pre_header(ocr_results)
+
+        sec_config = self.sections_config.get(section, {})
+        if sec_config.get('skip', False):
+            return {'skipped': True, 'line_count': len(ocr_results)}
+
+        parse_mode = sec_config.get('parse_mode')
+        if parse_mode == 'color_parts':
+            return self._parse_color_section(ocr_results)
+        if parse_mode == 'reforge_options':
+            return self._parse_reforge_section(ocr_results)
+        if parse_mode == 'enchant_options':
+            return self._parse_enchant_section(ocr_results)
+
+        return {
+            'lines': [
+                {'text': l['text'], 'confidence': l['confidence'],
+                 'bounds': l['bounds'], 'section': l.get('section', section)}
+                for l in ocr_results
+            ]
+        }
+
+    def _parse_pre_header(self, ocr_results):
+        """Extract item_name and item_type from the pre-header content lines.
+
+        Returns:
+            dict with 'item_name' and optionally 'item_type' sub-section dicts.
+        """
+        result = {}
+        idx = 0
+        if ocr_results and ocr_results[0]['text'].strip() in _PRE_NAME_PATTERNS:
+            idx = 1
+
+        if idx < len(ocr_results):
+            line = ocr_results[idx]
+            line['section'] = 'item_name'
+            result['item_name'] = {'lines': [line], 'text': line['text']}
+
+        if idx + 1 < len(ocr_results):
+            rest = ocr_results[idx + 1:]
+            for l in rest:
+                l['section'] = 'item_type'
+            result['item_type'] = {
+                'lines': rest,
+                'text': ' '.join(l['text'] for l in rest),
+            }
+
+        return result
+
     def parse_tooltip(self, image_path, reader):
         """Full pipeline: split → group → OCR → categorize → structure.
 

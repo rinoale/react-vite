@@ -62,7 +62,7 @@ The custom `TooltipLineSplitter` uses horizontal projection profiling tailored f
 ### OCR Training Pipeline
 1. **Generate Data:** `python3 scripts/generate_training_data.py` — Creates synthetic binary training images using the Mabinogi game font. Images must be strictly binary (0/255 only), matching frontend preprocessing.
 2. **Create LMDB:** `python3 skills/ocr-trainer/scripts/create_lmdb_dataset.py --input backend/train_data --output backend/train_data_lmdb`
-3. **Train:** Run `train.py` from `deep-text-recognition-benchmark` with flags: `--sensitive --PAD --workers 0 --batch_max_length 55 --character "$(cat ../backend/unique_chars.txt | tr -d '\n')"`. See `OCR_TRAINING_HISTORY.md` for details and past issues.
+3. **Train:** Run `train.py` from `deep-text-recognition-benchmark` with flags: `--sensitive --PAD --workers 0 --batch_max_length 55 --character "$(cat ../backend/ocr/unique_chars.txt | tr -d '\n')"`. See `OCR_TRAINING_HISTORY.md` for details and past issues.
 4. **Deploy:** Copy `best_accuracy.pth` to `backend/models/custom_mabinogi.pth`.
 
 ### Custom Model Configuration

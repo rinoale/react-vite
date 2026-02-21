@@ -23,7 +23,10 @@ import numpy as np
 
 MIN_HEIGHT = 5
 MIN_WIDTH = 10
-DEFAULT_THRESHOLD = 20  # max(R,G,B) < threshold → near black
+DEFAULT_THRESHOLD = 5   # max(R,G,B) < threshold → near black
+                        # Must stay in sync with tooltip_segmenter.NEAR_BLACK_THRESHOLD=5.
+                        # Threshold=20 causes dark tooltip backgrounds (max≈13) to merge
+                        # with the black square, producing oversized bounding boxes.
 
 
 def find_black_squares(img, threshold):
