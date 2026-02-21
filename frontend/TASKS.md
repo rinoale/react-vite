@@ -36,5 +36,8 @@ Implementation of a structured, category-aware UI for Mabinogi item registration
 - [ ] **Fuzzy Search Pickers:** Integrate an autocomplete/dropdown for Enchant names and Reforge options using the `data/dictionary/` content (can be fetched or pre-loaded).
 - [x] **Mabinogi Themeing:** Apply "Mabinogi-like" CSS (thin gray borders, orange legend text) to the category cards.
 
-## 5. Persistence
-- [ ] **Save to Marketplace:** Update the "Register Item" button to send the verified, structured JSON to the persistence layer.
+## 6. Admin Dashboard
+- [x] **Enchant List with Effects:** Create `/admin` page that lists all enchant entries.
+- [x] **Expandable Detail:** Clicking an enchant entry expands to show its associated effects, conditions, and metadata.
+- [ ] **Dynamic Link Filtering:** Update UI to fetch effects on-demand once the backend supports `?enchant_entry_id=N` filter. (Currently relies on 500-link cache).
+- [ ] **Reforge Validation:** Add a tab or view for validating all reforge options.

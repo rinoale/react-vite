@@ -170,5 +170,6 @@ Simple admin endpoints for validating DB records in browser/JSON.
   - Row fields: `id`, `normalized_text`
 - **`GET /admin/links?limit=100&offset=0`**
   - Row fields: `id`, `enchant_entry_id`, `enchant_effect_id`, `effect_order`, `condition_text`, `effect_value`, `effect_direction`, `raw_text`, `enchant_name`, `effect_text`
+  - **Proposed Filter:** `enchant_entry_id` (Integer). If provided, returns only links for that entry. Required for efficient expansion in Admin UI.
 - **`GET /admin/reforge-options?limit=100&offset=0`**
   - Row fields: `id`, `option_name`
