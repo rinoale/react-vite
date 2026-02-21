@@ -2,6 +2,8 @@ from rapidfuzz import process, fuzz
 import os
 import re
 
+import yaml
+
 # Number normalization patterns
 _NUM_PAT    = re.compile(r'\d+(?:\.\d+)?')   # digit sequences (incl. decimals)
 _TMPL_N     = re.compile(r'(?<!\w)n(?!\w)')  # standalone 'n' placeholder in dict entries
@@ -43,33 +45,45 @@ class TextCorrector:
             print("Warning: No dictionary source provided to TextCorrector")
 
     def load_dict_dir(self, dict_dir):
-        """Load all .txt files in dict_dir, keyed by filename stem.
+        """Load dictionary files in dict_dir, keyed by section name.
 
-        Each file becomes a named section dictionary. For example,
+        Each .txt file becomes a named section dictionary. For example,
         'reforge.txt' is loaded as section 'reforge', and fuzzy matching
         for a line in the reforge section will search only those entries.
 
-        'enchant.txt' is additionally loaded as a structured DB via
-        _load_enchant_structured() to support two-phase header+effect matching.
+        Special handling:
+        - 'enchant.yaml' → structured DB via _load_enchant_structured() (skip flat dict)
+        - 'enchant_*.txt' (enchant_slot_header.txt, enchant_effect.txt) → merged into section 'enchant'
         """
+        # First pass: load enchant.yaml for structured DB
+        yaml_path = os.path.join(dict_dir, 'enchant.yaml')
+        if os.path.exists(yaml_path):
+            self._load_enchant_structured(yaml_path)
+
         for fname in sorted(os.listdir(dict_dir)):
             if not fname.endswith('.txt'):
                 continue
-            section = fname[:-4]   # strip .txt → section name
             path = os.path.join(dict_dir, fname)
 
-            if fname == 'enchant.txt':
-                self._load_enchant_structured(path)
-                # Also build flat entries for the combined dictionary
-                entries = [line.strip() for line in open(path, encoding='utf-8') if line.strip()]
+            # enchant_*.txt files merge into section 'enchant'
+            if fname.startswith('enchant_'):
+                section = 'enchant'
             else:
-                with open(path, 'r', encoding='utf-8') as f:
-                    entries = [line.strip() for line in f if line.strip()]
+                section = fname[:-4]   # strip .txt → section name
 
-            self._section_dicts[section] = entries
-            self._section_norm_cache[section] = [(_normalize_nums(e), e) for e in entries]
+            with open(path, 'r', encoding='utf-8') as f:
+                entries = [line.strip() for line in f if line.strip()]
+
+            if section in self._section_dicts:
+                self._section_dicts[section].extend(entries)
+            else:
+                self._section_dicts[section] = entries
             self.dictionary.extend(entries)
             print(f"TextCorrector loaded {len(entries):4d} entries  [{section}]  ({fname})")
+
+        # Build norm caches after all files loaded (enchant section may have been merged)
+        for section, entries in self._section_dicts.items():
+            self._section_norm_cache[section] = [(_normalize_nums(e), e) for e in entries]
 
         self._norm_cache = [(_normalize_nums(e), e) for e in self.dictionary]
         print(f"TextCorrector total: {len(self.dictionary)} entries across "
@@ -85,45 +99,32 @@ class TextCorrector:
               f"(total: {len(self.dictionary)})")
 
     def _load_enchant_structured(self, path):
-        """Parse transformed enchant.txt into a structured two-phase match DB.
+        """Load enchant.yaml into a structured two-phase match DB.
 
-        Expected format (after enchant.txt transformation):
-            [접미] 관리자 (랭크 6)
-            무리아스의 유물에 인챈트 가능
-            활성화된 아르카나의 전용 옵션일 때 효과 발동
-            아르카나 스킬 보너스 대미지 1% 증가
-            ...
-            [접두] 소복한 (랭크 8)
-            ...
+        Reads YAML list of entries with slot/name/rank/effects fields.
+        Reconstructs header and normalized forms for FM matching.
 
         Builds:
             self._enchant_db           — list of entry dicts
             self._enchant_headers_norm — [(norm_header, entry)] for phase-1 header FM
         """
         with open(path, 'r', encoding='utf-8') as f:
-            lines = [l.rstrip('\n') for l in f]
+            data = yaml.safe_load(f)
 
         db = []
-        current = None
-        for line in lines:
-            stripped = line.strip()
-            if not stripped:
-                continue
-            m = _ENCHANT_FILE_HDR.match(stripped)
-            if m:
-                current = {
-                    'header':       stripped,
-                    'header_norm':  _normalize_nums(stripped),
-                    'slot':         m.group(1),
-                    'name':         m.group(2).strip(),
-                    'rank':         m.group(3),
-                    'effects':      [],
-                    'effects_norm': [],
-                }
-                db.append(current)
-            elif current is not None:
-                current['effects'].append(stripped)
-                current['effects_norm'].append((_normalize_nums(stripped), stripped))
+        for item in data:
+            header = f"[{item['slot']}] {item['name']} (랭크 {item['rank']})"
+            effects = item.get('effects', [])
+            entry = {
+                'header':       header,
+                'header_norm':  _normalize_nums(header),
+                'slot':         item['slot'],
+                'name':         item['name'],
+                'rank':         str(item['rank']),
+                'effects':      effects,
+                'effects_norm': [(_normalize_nums(e), e) for e in effects],
+            }
+            db.append(entry)
 
         self._enchant_db = db
         self._enchant_headers_norm = [(e['header_norm'], e) for e in db]
