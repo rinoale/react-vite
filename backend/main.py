@@ -15,6 +15,7 @@ from lib.tooltip_segmenter import (
     load_config,
     segment_and_tag,
 )
+from admin import router as admin_router
 from pydantic import BaseModel
 from typing import List
 
@@ -42,6 +43,7 @@ for name in ('uvicorn', 'uvicorn.access', 'uvicorn.error'):
     uv_logger.propagate = False
 
 app = FastAPI()
+app.include_router(admin_router)
 
 # Allow CORS for local development
 origins = [

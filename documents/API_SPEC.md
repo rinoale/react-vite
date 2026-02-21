@@ -137,3 +137,38 @@ Each option object:
 | `option_name` | `string` | Alias for `name` (unified field for DB storage). |
 | `option_level` | `integer` | Alias for `level` (unified field for DB storage). |
 | `effect` | `string \| null` | Effect description from the `ㄴ` sub-bullet, or `null`. |
+
+---
+
+## 2. Admin Validation APIs
+
+Simple admin endpoints for validating DB records in browser/JSON.
+
+### HTML Page
+- **Endpoint:** `/admin/validate`
+- **Method:** `GET`
+- **Query params:** `tab` (`entries|effects|links|reforge`), `limit`, `offset`
+- **Response:** server-rendered HTML table for manual validation
+
+### JSON Endpoints
+- **`GET /admin/health`**
+  - Response: `{ "ok": true }`
+- **`GET /admin/summary`**
+  - Response:
+    ```json
+    {
+      "enchant_entries": 1168,
+      "enchant_effects": 230,
+      "enchant_links": 4934,
+      "reforge_options": 527
+    }
+    ```
+- **`GET /admin/enchant-entries?limit=100&offset=0`**
+  - Response: `{ "limit": 100, "offset": 0, "rows": [...] }`
+  - Row fields: `id`, `slot` (0/1), `name`, `rank`, `header_text`, `effect_count`
+- **`GET /admin/effects?limit=100&offset=0`**
+  - Row fields: `id`, `normalized_text`
+- **`GET /admin/links?limit=100&offset=0`**
+  - Row fields: `id`, `enchant_entry_id`, `enchant_effect_id`, `effect_order`, `condition_text`, `effect_value`, `effect_direction`, `raw_text`, `enchant_name`, `effect_text`
+- **`GET /admin/reforge-options?limit=100&offset=0`**
+  - Row fields: `id`, `option_name`

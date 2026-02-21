@@ -21,7 +21,15 @@ services:
       dockerfile: backend/Dockerfile
     container_name: mabinogi-backend
     working_dir: /app/backend
-    command: uvicorn main:app --reload --port 8000 --host 0.0.0.0
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: mabinogi
+      DB_USER: mabinogi
+      DB_PASSWORD: mabinogi
+    command: >
+      sh -lc "pip install -r /app/backend/requirements.txt &&
+      uvicorn main:app --reload --port 8000 --host 0.0.0.0"
     ports:
       - "8000:8000"
     volumes:
