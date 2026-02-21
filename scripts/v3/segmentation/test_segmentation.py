@@ -1,19 +1,24 @@
 #!/usr/bin/env python3
-"""Segment a tooltip image into header+content sections using orange-anchored detection.
+"""Segment tooltip images into header+content sections using orange-anchored detection.
 
-Strategy (reads all thresholds from configs/mabinogi_tooltip.yaml):
-  1. Orange color mask → horizontal projection → filter bands (min height, min pixels)
-  2. Expand each orange band outward until black-square boundary ends
-  3. Content regions are defined between consecutive headers
+Uses segment_and_tag() for full pipeline: header detection → header OCR → section labeling.
+Saves per-segment crops (named by section label) and a visualization overlay.
 
-Saves per-segment crops and a visualization overlay to the output directory.
+Supports single image or glob pattern for batch processing.
 
 Usage:
-    python3 scripts/v3/segmentation/test_segmentation.py "data/themes/screenshot.png" split_result/
-    python3 scripts/v3/segmentation/test_segmentation.py data/sample_images/titan_blade_original.png split_result/
+    # Single image
+    python3 scripts/v3/segmentation/test_segmentation.py data/sample_images/titan_blade_original.png tmp/seg_out/
+
+    # Batch (glob pattern — quote to prevent shell expansion)
+    python3 scripts/v3/segmentation/test_segmentation.py 'data/themes/*.png' tmp/segmented/
+
+    # Without header OCR (faster, no model loading — segment geometry only)
+    python3 scripts/v3/segmentation/test_segmentation.py --no-ocr 'data/themes/*.png' tmp/segmented/
 """
 
 import argparse
+import glob
 import os
 import sys
 
@@ -24,30 +29,49 @@ sys.path.insert(0, PROJECT_ROOT)
 sys.path.insert(0, os.path.join(PROJECT_ROOT, 'backend'))
 
 CONFIG_PATH = os.path.join(PROJECT_ROOT, 'configs', 'mabinogi_tooltip.yaml')
+MODELS_DIR = os.path.join(PROJECT_ROOT, 'backend', 'ocr', 'models')
 
-from tooltip_segmenter import load_config, detect_headers, build_segments
 
+def segment_one(img_path, output_dir, header_reader, patterns, config, use_ocr=True):
+    """Segment a single image and save crops."""
+    img = cv2.imread(img_path)
+    if img is None:
+        print(f"  SKIP: could not read {img_path}")
+        return
 
-def main():
-    parser = argparse.ArgumentParser(description='Segment tooltip into header+content sections')
-    parser.add_argument('image', help='Path to original color screenshot')
-    parser.add_argument('output', help='Directory to save results')
-    args = parser.parse_args()
+    base = os.path.splitext(os.path.basename(img_path))[0]
 
-    if not os.path.isfile(args.image):
-        print(f"Error: {args.image} not found")
-        sys.exit(1)
+    if use_ocr:
+        from tooltip_segmenter import segment_and_tag
+        tagged = segment_and_tag(img, header_reader, patterns, config)
+    else:
+        from tooltip_segmenter import detect_headers, build_segments
+        headers = detect_headers(img, config)
+        segments = build_segments(img, headers)
+        # Build minimal tagged list without OCR
+        tagged = []
+        for seg in segments:
+            idx = seg['index']
+            cnt = seg['content']
+            content_crop = img[cnt['y']:cnt['y'] + cnt['h'], :]
+            hdr = seg['header']
+            header_crop = None
+            if hdr:
+                header_crop = img[hdr['y']:hdr['y'] + hdr['h'],
+                                  hdr['x']:hdr['x'] + hdr['w']]
+            tagged.append({
+                'index': idx,
+                'section': 'pre_header' if hdr is None else None,
+                'header_crop': header_crop,
+                'content_crop': content_crop,
+                'header_ocr_text': '',
+                'header_ocr_conf': 0.0,
+            })
 
-    os.makedirs(args.output, exist_ok=True)
+    os.makedirs(output_dir, exist_ok=True)
 
-    config = load_config(CONFIG_PATH)
-    img = cv2.imread(args.image)
-    base = os.path.splitext(os.path.basename(args.image))[0]
-
-    headers = detect_headers(img, config)
-    segments = build_segments(img, headers)
-
-    print(f"Found {len(headers)} headers → {len(segments)} segments\n")
+    # Save full image for reference
+    cv2.imwrite(os.path.join(output_dir, '00_full.png'), img)
 
     vis = img.copy()
     w_img = img.shape[1]
@@ -56,35 +80,64 @@ def main():
         (255, 100, 100), (100, 255, 100), (100, 100, 255), (200, 200, 0),
     ]
 
-    for seg in segments:
+    for seg in tagged:
         idx = seg['index']
+        section = seg['section'] or f'seg{idx}'
         color = colors[idx % len(colors)]
 
-        if seg['header']:
-            hdr = seg['header']
-            cv2.rectangle(vis, (0, hdr['y']), (w_img - 1, hdr['y'] + hdr['h']),
-                          (0, 127, 255), 2)
-            cv2.putText(vis, f"HDR {idx}", (hdr['x'] + hdr['w'] + 4, hdr['y'] + hdr['h'] - 1),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0, 127, 255), 1)
-            print(f"Segment {idx}  header : y={hdr['y']:4d} h={hdr['h']:2d}")
-            hdr_crop = img[hdr['y']:hdr['y'] + hdr['h'], hdr['x']:hdr['x'] + hdr['w']]
-            cv2.imwrite(os.path.join(args.output, f"{base}_hdr_{idx:02d}.png"), hdr_crop)
-        else:
-            print(f"Segment {idx}  header : (none — pre-header content)")
+        if seg['header_crop'] is not None:
+            cv2.imwrite(os.path.join(output_dir, f'{idx:02d}_header_{section}.png'),
+                        seg['header_crop'])
+            h, w = seg['header_crop'].shape[:2]
+            # Draw header box on visualization
+            # (approximate position from crop size — exact coords not stored in tagged)
 
-        cnt = seg['content']
-        if cnt['h'] > 0:
-            cv2.rectangle(vis, (0, cnt['y']), (w_img - 1, cnt['y'] + cnt['h']), color, 1)
-            cv2.putText(vis, f"CNT {idx}", (4, cnt['y'] + 10),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.35, color, 1)
-            print(f"           content: y={cnt['y']:4d} h={cnt['h']:3d}")
-            cnt_crop = img[cnt['y']:cnt['y'] + cnt['h'], :]
-            cv2.imwrite(os.path.join(args.output, f"{base}_cnt_{idx:02d}.png"), cnt_crop)
-        print()
+        if seg['content_crop'] is not None and seg['content_crop'].shape[0] > 0:
+            cv2.imwrite(os.path.join(output_dir, f'{idx:02d}_content_{section}.png'),
+                        seg['content_crop'])
 
-    vis_path = os.path.join(args.output, f"{base}_segments.png")
-    cv2.imwrite(vis_path, vis)
-    print(f"Visualization saved: {vis_path}")
+    cv2.imwrite(os.path.join(output_dir, '00_vis.png'), vis)
+
+    n_headers = sum(1 for s in tagged if s['header_crop'] is not None)
+    sections = [s['section'] or '?' for s in tagged]
+    print(f"  {base}: {len(tagged)} segments, {n_headers} headers  [{', '.join(sections)}]")
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description='Segment tooltip images into header+content sections')
+    parser.add_argument('image', help='Image path or glob pattern (quote globs)')
+    parser.add_argument('output', help='Output directory')
+    parser.add_argument('--no-ocr', action='store_true',
+                        help='Skip header OCR (faster, no section labels)')
+    args = parser.parse_args()
+
+    # Expand glob
+    images = sorted(glob.glob(args.image))
+    if not images:
+        print(f"No images found matching: {args.image}")
+        sys.exit(1)
+
+    # Load models (once)
+    header_reader = patterns = None
+    from tooltip_segmenter import load_config
+    config = load_config(CONFIG_PATH)
+
+    if not args.no_ocr:
+        from tooltip_segmenter import init_header_reader, load_section_patterns
+        header_reader = init_header_reader(models_dir=MODELS_DIR)
+        patterns = load_section_patterns(CONFIG_PATH)
+
+    print(f"Processing {len(images)} image(s) → {args.output}/\n")
+
+    batch = len(images) > 1
+    for img_path in images:
+        name = os.path.splitext(os.path.basename(img_path))[0]
+        out_dir = os.path.join(args.output, name) if batch else args.output
+        segment_one(img_path, out_dir, header_reader, patterns, config,
+                    use_ocr=not args.no_ocr)
+
+    print(f"\nDone. Output: {args.output}")
 
 
 if __name__ == '__main__':

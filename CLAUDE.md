@@ -23,6 +23,19 @@ pip install -r backend/requirements.txt
 cd backend && uvicorn main:app --reload --port 8000   # API at http://localhost:8000
 ```
 
+### Database (PostgreSQL via Docker)
+```bash
+docker compose up -d db
+docker compose logs -f db
+```
+
+Connection defaults (local dev): host `localhost`, port `5432`, db `mabinogi`, user `mabinogi`, password `mabinogi`.
+
+Dictionary import command:
+```bash
+python3 scripts/db/import_dictionaries.py
+```
+
 ### OCR Training Pipeline
 All scripts must be run from the **project root**:
 ```bash
@@ -39,10 +52,10 @@ After training, deploy model by copying `.pth` to `backend/models/custom_mabinog
 
 ### OCR Pipeline (core feature)
 
-**New pipeline (segment-first — in development):**
+**New pipeline (segment-first — active):**
 Determines section labels BEFORE running content OCR, eliminating cascade section-detection failures.
 1. **Backend receives original color screenshot**
-2. **Header detection** (`scripts/v3/segmentation/test_segmentation.py` logic): Near-black connected components (`max(R,G,B) < 5`, `min_h=16`, `min_w=25`) locate the jet-black section header bands. Works for 22/26 known theme images; 4 ultra-dark-background themes need orange-text fallback.
+2. **Header detection** (`scripts/v3/segmentation/test_segmentation.py` logic): Orange-anchored header detection + black-square boundary expansion. Documented 26/26 theme images in Attempt 17.
 3. **Segmentation**: Pre-header region + N header+content pairs. Each content region has a positional section slot.
 4. **Header OCR**: Each header crop OCR'd independently (short text, ~10 fixed labels: 세공, 에르그, 인챈트, ...). Assigns canonical section name.
 5. **Content OCR per segment**: `TooltipLineSplitter` + EasyOCR `recognize()` per line. FM uses pre-determined section dictionary — no post-hoc header pattern matching in the content stream.
@@ -63,7 +76,7 @@ Determines section labels BEFORE running content OCR, eliminating cascade sectio
 ### Custom OCR Model
 - Architecture: `TPS-ResNet-BiLSTM-CTC` (from `deep-text-recognition-benchmark/`)
 - Font: `data/fonts/mabinogi_classic.ttf` (actual game font)
-- Character set (509 chars) defined in `backend/ocr/unique_chars.txt` and mirrored in `backend/models/custom_mabinogi.yaml`
+- Current deployed content model: a15 (509-char output space). Attempt 16 tested 1201 chars but regressed; future expansion should be done with stronger data coverage.
 - Model weights: `backend/models/custom_mabinogi.pth`
 - Model architecture for EasyOCR integration: `backend/models/custom_mabinogi.py`
 - Inference patch: `backend/ocr_utils.py` — fixes EasyOCR's dynamic imgW to use yaml's fixed value
@@ -120,7 +133,7 @@ Key parameters and why (see `configs/training_config.yaml` for full list):
 ### Training Data Requirements
 Synthetic training images must match real line crops from the splitter:
 - **Font sizes**: `[10, 10, 10, 11, 11, 11]` only. Font 10 → img_h≈14px; font 11 → img_h≈15px. These match actual padded inference crops (h median=14). Do NOT pre-resize to 32px; let model inference handle that. Note: raw bounding box heights from detect_text_lines() (median 10px) are misleading — parse_tooltip() adds pad_y before recognize(), raising actual inference height to median 14px.
-- **Rendering pipeline** (Attempt 17+): Game-like dark-bg + bright-text → BT.601 → threshold(bright→black). Matches the frontend's exact pipeline (verified: 0% pixel diff on 5 GT images). Fixes ink ratio: synthetic 0.144 → ~0.20, matching real padded inference crops (ink median 0.201), vs 0.14 with old black-on-white. See `OCR_TRAINING_HISTORY.md` Attempt 17 for full analysis.
+- **Rendering pipeline** (next training target, Attempt 18): Game-like dark-bg + bright-text → BT.601 → threshold(bright→black) to close the ink-ratio gap (0.144 synthetic vs 0.201 real). Attempt 17 itself was a pipeline redesign with no retraining.
 - **Tight-crop to ink bounds**: Crop to text width + padding, NOT full 260px canvas. Real splitter crops are tight (22-80px for short text). Full-canvas training causes hallucination.
 - **Padding**: Match splitter formula: `pad_y = max(1, text_h // 5)`, `pad_x = max(2, text_h // 3)`
 - **Binary only**: Pixel values strictly 0 and 255. Re-threshold after any resize.
@@ -133,7 +146,7 @@ Synthetic training images must match real line crops from the splitter:
   - Enchant headers/effects, hashtag lines, price lines, piercing text
   - Item names, flavor text, sub-bullets with `ㄴ` marker
   - All GT lines included verbatim
-- **Character set**: `backend/ocr/unique_chars.txt` (1201 chars as of Attempt 16) must cover all characters in GT and dictionaries
+- **Character set**: Current deployed model is 509 chars (a15). Expand only with proportional data/iteration scaling to avoid Attempt 16-style regression.
 - **Font**: `data/fonts/mabinogi_classic.ttf` (actual game font)
 
 ### Full Training Pipeline (run from project root)
@@ -213,12 +226,12 @@ Documents to keep in sync: `CLAUDE.md`, `AGENTS.md`, `OCR_TRAINING_HISTORY.md`, 
 
 ## Key Constraints
 
-- Frontend sends preprocessed (thresholded) images: black text on white background, pixel values strictly 0 or 255
-- The v2 pipeline uses `TooltipLineSplitter` for detection + EasyOCR `recognize()` for recognition. CRAFT is not used.
+- Active API path is v3 (`/upload-item-v3`) with original color input and segment-first processing. Legacy v2 still exists for comparison.
+- In both v2 and v3 content OCR, CRAFT is not used; `TooltipLineSplitter` + `recognize()` is used for line-level recognition.
 - The EasyOCR custom model can only recognize characters present in `backend/ocr/unique_chars.txt`; any characters not in this set will never be output
 - EasyOCR always uses `keep_ratio_with_pad=True` during inference (hardcoded in `recognition.py` lines 199, 213), regardless of yaml PAD setting. Training must use `--PAD` to match.
 - Item database is currently mocked in `backend/recommendation.py` (`ITEMS_DB`); no persistent storage yet
 - The `data/` directory (fonts, dictionary, sample images) is not fully committed to git
 - Ground truth files (`data/sample_images/*.txt`) exist for: `lightarmor_processed_3`, `captain_suit_processed`, `lobe_processed`, `titan_blade_processed`, `dropbell_processed`. Additional `*_expected.txt` files track expected OCR output (may differ from full GT due to skipped sections).
-- Character set expanded to 509 chars (was 442) — all GT characters now covered
+- Current deployed model charset is 509; known missing enchant characters remain and are tracked in `OCR_ISSUES.md`.
 - Training must run independently (not as subprocess of Claude Code) to avoid OOM kills — use `nohup` in a separate terminal

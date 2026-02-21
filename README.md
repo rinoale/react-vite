@@ -21,13 +21,13 @@ A specialized marketplace for trading in-game items with automated OCR item regi
 
 ```
 ├── backend/
-│   ├── main.py                    # FastAPI server, POST /upload-item-v2
+│   ├── main.py                    # FastAPI server (v2 + v3 OCR endpoints)
 │   ├── tooltip_line_splitter.py   # Line splitting via horizontal projection profiling
 │   ├── mabinogi_tooltip_parser.py # Section-aware parser (extends line splitter)
 │   ├── text_corrector.py          # RapidFuzz post-OCR correction
 │   ├── ocr_utils.py               # EasyOCR inference patch (fixed imgW)
 │   ├── models/                    # Custom model weights (.pth), config (.yaml, .py)
-│   └── unique_chars.txt           # 509-char character set for the OCR model
+│   └── unique_chars.txt           # Current deployed content model charset (a15: 509 chars)
 ├── configs/
 │   ├── training_config.yaml       # All training parameters (single source of truth)
 │   └── mabinogi_tooltip.yaml      # Section header patterns for the parser
@@ -38,6 +38,11 @@ A specialized marketplace for trading in-game items with automated OCR item regi
 ├── scripts/                       # Training pipeline, testing, config generation
 ├── skills/ocr-trainer/            # LMDB creation + deep-text-recognition-benchmark
 ├── frontend/                      # React/Vite app
+├── infra/
+│   ├── README.md                  # Infra/service layout guide
+│   └── database/                  # PostgreSQL Docker assets
+│       ├── Dockerfile
+│       └── init/                  # Optional SQL bootstrap scripts
 ├── documents/
 │   ├── ARCHITECTURE.md            # OCR pipeline internals
 │   └── STRATEGY_MABINOGI.md       # Design decisions with porting guides (D1–D10)
@@ -72,7 +77,7 @@ Visit `http://localhost:5173`.
 ## Docker Setup
 
 ```bash
-# Build and start both services
+# Build and start all services (frontend, backend, db)
 docker compose build
 docker compose up
 
@@ -82,9 +87,36 @@ docker compose build backend --no-cache
 
 - Frontend: `http://localhost:5173`
 - Backend API: `http://localhost:8000`
+- PostgreSQL: `localhost:5432` (`db=mabinogi`, `user=mabinogi`, `password=mabinogi`)
 
 ```bash
 docker compose down
+```
+
+If you add `.sql` files under `infra/database/init/`, they will run automatically
+on first DB initialization.
+
+## Database Dictionary Import
+
+Import `enchant.txt` and `reforge.txt` into PostgreSQL:
+
+```bash
+# 1) Ensure db is running
+docker compose up -d db
+
+# 2) Install backend deps (includes SQLAlchemy + psycopg2)
+pip install -r backend/requirements.txt
+
+# 3) Run importer from project root
+python3 scripts/db/import_dictionaries.py
+```
+
+Optional explicit connection arguments:
+
+```bash
+python3 scripts/db/import_dictionaries.py \
+  --db-host localhost --db-port 5432 \
+  --db-name mabinogi --db-user mabinogi --db-password mabinogi
 ```
 
 ---
@@ -92,14 +124,15 @@ docker compose down
 ## OCR Pipeline
 
 ```
-Screenshot → Frontend (threshold=80) → Line Splitter → Recognition → Correction → JSON
+Color Screenshot → Header Detection → Segmentation → Header OCR → Content OCR → FM → JSON
 ```
 
-1. **Preprocessing** (`frontend/src/pages/sell.jsx`) — Browser converts screenshot to binary PNG (black text on white, threshold=80).
-2. **Line splitting** (`backend/tooltip_line_splitter.py`) — Horizontal projection profiling splits the tooltip into individual line crops. Replaces EasyOCR's CRAFT detector, which performs poorly on structured layouts.
-3. **Section parsing** (`backend/mabinogi_tooltip_parser.py`) — Categorizes each line into game sections (enchant, reforge, color parts, etc.) using `configs/mabinogi_tooltip.yaml`. Color part RGB values are parsed via regex and bypass OCR entirely.
-4. **Recognition** — Each crop goes to the custom `TPS-ResNet-BiLSTM-CTC` model via EasyOCR's `recognize()`, skipping CRAFT detection.
-5. **Correction** (`backend/text_corrector.py`) — RapidFuzz fuzzy matching against game dictionaries fixes common substitution errors.
+1. **V3 input** (`POST /upload-item-v3`) — Backend receives the original color screenshot.
+2. **Segmentation-first flow** (`backend/tooltip_segmenter.py`) — Detects section headers, segments header/content regions, OCRs short headers, and assigns canonical section labels before content OCR.
+3. **Content OCR** (`backend/mabinogi_tooltip_parser.py`) — Per-segment BT.601 + threshold preprocessing, line splitting with `TooltipLineSplitter`, and EasyOCR `recognize()` per line (no CRAFT).
+4. **FM + structured output** (`backend/text_corrector.py`) — Section-specific fuzzy matching, server-side FM decision (`text` + `fm_applied`), plus structured enchant/reforge reconstruction.
+
+Legacy v2 (`/upload-item-v2`) remains available but is not the primary pipeline.
 
 See `documents/ARCHITECTURE.md` for full internals and `documents/STRATEGY_MABINOGI.md` for design decisions.
 
@@ -157,15 +190,15 @@ cp saved_models/TPS-ResNet-BiLSTM-CTC-Seed1111/best_accuracy.pth \
 **6. Validate**
 ```bash
 # Full output
-python3 scripts/test_v2_pipeline.py --normalize --gt-suffix _expected.txt
+python3 scripts/v2/test_v2_pipeline.py --normalize --gt-suffix _expected.txt
 
 # Summary only
-python3 scripts/test_v2_pipeline.py -q --normalize --gt-suffix _expected.txt
+python3 scripts/v2/test_v2_pipeline.py -q --normalize --gt-suffix _expected.txt
 ```
 
 `--normalize` strips punctuation differences; `--gt-suffix _expected.txt` uses the expected-OCR GT files (not full item GT). Omitting these flags produces artificially low scores.
 
-For training history and known pitfalls, see `OCR_TRAINING_HISTORY.md` and `OCR_ISSUES.md`.
+Current benchmark status (docs): v2 best (Attempt 15) = 77.0% char acc, v3 (Attempt 17, no retraining) = 87.5% char acc. See `OCR_TRAINING_HISTORY.md` and `OCR_ISSUES.md`.
 
 ---
 
@@ -178,9 +211,10 @@ All scripts run from the **project root**.
 | `scripts/generate_training_data.py` | Generate synthetic training images |
 | `scripts/create_model_config.py` | Generate `custom_mabinogi.yaml` from `unique_chars.txt` |
 | `scripts/train.py` | Training launcher (reads `configs/training_config.yaml`) |
-| `scripts/test_v2_pipeline.py` | Evaluate pipeline on GT images (`--include-fuzzy` for FM results) |
-| `scripts/test_line_splitter.py <img> <out>` | Visual line detection verification |
-| `scripts/regenerate_gt.py` | Regenerate GT candidates from pipeline output |
+| `scripts/v3/test_v3_pipeline.py` | Evaluate v3 segment-first pipeline on original color GT images |
+| `scripts/v2/test_v2_pipeline.py` | Evaluate legacy v2 pipeline on processed GT images |
+| `scripts/v3/segmentation/test_line_split.py` | Visual line detection verification per segment |
+| `scripts/v2/ocr/regenerate_gt.py` | Regenerate GT candidates from v2 parser output |
 | `skills/ocr-trainer/scripts/create_lmdb_dataset.py` | Convert image/label pairs to LMDB |
 
 ---

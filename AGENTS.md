@@ -5,12 +5,12 @@ Build a specialized marketplace for trading in-game items where the core data en
 
 ## 2. Key Features
 
-### A. OCR-based Item Registration (v2 Pipeline — Redesign in Progress)
+### A. OCR-based Item Registration (v3 Segment-First Active, v2 Legacy)
 
 **New pipeline (segment-first):**
 1. **User uploads original color screenshot** (no frontend preprocessing)
-2. **Header detection** — Backend detects section header bands on the original color image using near-black connected components (`max(R,G,B) < 5`, `min_h=16`, `min_w=25`). Works for the standard Mabinogi tooltip theme (22/26 tested images). Fallback: orange text scan for dark-background themes.
-3. **Segmentation** — Image split into labeled regions (pre-header content + per-section header+content pairs) using `scripts/test_segmentation.py` logic.
+2. **Header detection** — Backend detects section headers using orange-anchored detection + boundary expansion on original color images. Documented coverage: 26/26 tested theme images.
+3. **Segmentation** — Image split into labeled regions (pre-header content + per-section header+content pairs) using `scripts/v3/segmentation/test_segmentation.py` logic.
 4. **Header OCR** — Each header crop is OCR'd independently (short text, ~10 possible labels: 세공, 에르그, 인챈트, 개조, etc.) to assign the canonical section name.
 5. **Content OCR per segment** — `TooltipLineSplitter` + EasyOCR `recognize()` on each content region. Section label is already known from step 4 — FM uses the correct dictionary immediately, no post-hoc section detection.
 6. **Fuzzy matching** — `TextCorrector` with section-specific dictionaries. Two-phase enchant matching preserved.
@@ -20,7 +20,7 @@ Build a specialized marketplace for trading in-game items where the core data en
 - Backend: `MabinogiTooltipParser` → `TooltipLineSplitter` → EasyOCR `recognize()` per line → section labels assigned by pattern-matching OCR output → FM
 - Problem: if a section header word is garbled, all downstream lines in that section are misclassified (cascade failure)
 
-- **Endpoints:** `POST /upload-item` (flat list), `POST /upload-item-v2` (structured sections)
+- **Endpoints:** `POST /upload-item` (flat list), `POST /upload-item-v2` (legacy structured), `POST /upload-item-v3` (segment-first structured JSON)
 - **Goal:** Minimize manual typing and enable accurate stat-based searching.
 
 ### Why Line Splitter Instead of CRAFT?
@@ -53,7 +53,7 @@ The custom `TooltipLineSplitter` uses horizontal projection profiling tailored f
 - **OCR Detection:** Custom `TooltipLineSplitter` (horizontal projection profiling).
 - **OCR Recognition:** EasyOCR `recognize()` API with custom model (`TPS-ResNet-BiLSTM-CTC`).
 - **Font:** `data/fonts/mabinogi_classic.ttf` (official Mabinogi game font).
-- **Character set:** 1201 chars (expanded from 509 pre-Attempt 16; covers all chars in all dictionary files).
+- **Character set:** Current deployed content model is a15 with 509 chars. Attempt 16 tested 1201 chars but regressed; controlled expansion remains a future training task.
 - **Correction:** RapidFuzz (Levenshtein distance).
 - **Training:** `deep-text-recognition-benchmark` (PyTorch).
 
@@ -66,6 +66,13 @@ The custom `TooltipLineSplitter` uses horizontal projection profiling tailored f
 - **FM Decision:** V3 response uses a single `text` field per line (server picks FM or raw OCR). `fm_applied: bool` indicates whether FM was used. No `corrected_text` field.
 - **Enchant structure:** `prefix`/`suffix` slot dicts with `name`, `rank`, `effects[]` (each effect has `text`, optional `option_name`/`option_level`).
 - **Reforge structure:** Options include `option_name`/`option_level` as unified fields for DB storage.
+
+### Infrastructure Layout
+- Infrastructure assets live under `infra/`.
+- Database container assets live under `infra/database/` (`Dockerfile`, `init/` SQL bootstrap dir).
+- Compose service name: `db` (PostgreSQL, default local port `5432`).
+- Schema bootstrap: `infra/database/init/001_schema.sql` (enchant/reforge dictionary tables).
+- Dictionary importer: `scripts/db/import_dictionaries.py`.
 
 ### OCR Training Pipeline
 1. **Generate Data:** `python3 scripts/generate_training_data.py` — Creates synthetic binary training images using the Mabinogi game font. Images must be strictly binary (0/255 only), matching frontend preprocessing.
@@ -112,7 +119,7 @@ The custom `TooltipLineSplitter` uses horizontal projection profiling tailored f
 ### Inference Patch (`backend/ocr_utils.py`)
 - `patch_reader_imgw()` monkey-patches EasyOCR's `recognize()` to use fixed imgW from yaml
 - Fixes the fundamental mismatch: training uses fixed imgW, but EasyOCR inference computes dynamic `max_width = ceil(w/h) * 32` per image (576-1056px)
-- Applied in both `backend/main.py` and `scripts/test_v2_pipeline.py` after reader init
+- Applied in both `backend/main.py` and `scripts/v2/test_v2_pipeline.py` after reader init
 
 ### Ground Truth Data
 Located in `data/sample_images/` (5 images, 244 total lines after splitter improvements):
@@ -125,7 +132,7 @@ Located in `data/sample_images/` (5 images, 244 total lines after splitter impro
 File types in `data/sample_images/`:
 - `*_processed.txt` — Full ground truth (all text in image)
 - `*_expected.txt` — Expected OCR output (may skip flavor text, bottom area)
-- `*_gt_candidate.txt` — Pipeline-generated candidates for manual review (created by `scripts/regenerate_gt.py`)
+- `*_gt_candidate.txt` — Pipeline-generated candidates for manual review (created by `scripts/v2/ocr/regenerate_gt.py`)
 
 ## 5. Key Technical Insights
 
@@ -189,8 +196,9 @@ Three root causes were identified after Attempt 6 (0% real accuracy despite 97-1
 | Attempt 14 | 45 (19.6%) | 75.5% | 0.327 | Training data cleanup, GT source switch, splitter left-edge fix |
 | **Attempt 15** | **64 (27.8%)** | **77.0%** | **~0.352** | **% spacing, 내구력 6×, 개조 3×, section headers 4×** |
 | Attempt 16 | 28 (12.2%) | 71.3% | TBD | Charset 509→1201, item_name 3k, post-dedup header boost — regression from rendering gap |
+| **Attempt 17 (v3, no retraining)** | **92/206** | **87.5%** | — | **Segment-first pipeline + header OCR + border threshold fix (same a15 model)** |
 
-Pipeline mechanics confirmed working. Line detection perfect (244/244 across 5 images). Recognition is the sole bottleneck. Attempt 15 crossed the 80% gate on lightarmor (80.1%) and titan_blade (80.0%). captain_suit and lobe remain below 70%/75% due to enchant section detection failures and garbled short headers. FM layer (post-Attempt 15) adds +3 exact matches with zero regressions. See `OCR_TRAINING_HISTORY.md` for full analysis and Attempt 16 strategy.
+Pipeline mechanics are validated. v2 best remains Attempt 15 at 77.0%, while active v3 reached 87.5% without retraining by removing section-classification cascade failures. Recognition quality (especially enchant-heavy text and dash glyph ambiguity) remains the main bottleneck for future model-training attempts. See `OCR_TRAINING_HISTORY.md` and `OCR_ISSUES.md` for full details.
 
 ## 5.5 Future: Stage 2 — Human-in-the-Loop Fine-Tuning
 
@@ -214,7 +222,7 @@ Key design decisions:
 
 **Canonical evaluation command:**
 ```
-python3 scripts/test_v2_pipeline.py -q --normalize --gt-suffix _expected.txt
+python3 scripts/v2/test_v2_pipeline.py -q --normalize --gt-suffix _expected.txt
 ```
 
 Flags explained:

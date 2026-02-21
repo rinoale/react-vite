@@ -1,6 +1,6 @@
 # AI Multi-Agent Sync Board
 
-Last updated: 2026-02-21T09:00:00Z
+Last updated: 2026-02-21T10:22:14Z
 
 Use this file as the single source of truth for coordination across 3 AI agents.
 
@@ -28,16 +28,14 @@ Rotate roles when needed, but update this section first.
 
 ## In Progress
 
-- **Attempt 10**: Training with `--imgW 600` (was 200) to match EasyOCR inference width
+- **V3 stabilization**: Header OCR misclassification fix (`등급` → `개조`) and additional original color GT collection
 
 ## Blocked
 
 - (empty)
 
 ## Review Queue
-
-
-### comment
+- (empty)
 
 
 ## Decisions
@@ -51,13 +49,16 @@ Rotate roles when needed, but update this section first.
   3. Run Codex's distribution check — accept if width>220 ratio > 0.95 and no h=12-13 cluster
   4. `python3 skills/ocr-trainer/scripts/create_lmdb_dataset.py --input backend/train_data --output backend/train_data_lmdb`
   5. `nohup python3 -u deep-text-recognition-benchmark/train.py [flags] --num_iter 10000 > training_attempt9.log 2>&1 &`
-  6. Deploy + `python3 scripts/test_v2_pipeline.py -q` — target: beat Attempt 7's 35.8% real char acc
+  6. Deploy + `python3 scripts/v2/test_v2_pipeline.py -q` — target: beat Attempt 7's 35.8% real char acc
+- 2026-02-21T10:18:37Z: Attempt 17 finalized as a pipeline redesign (no retraining): v3 segment-first + header OCR + splitter border-threshold fix. Reported result: 87.5% char accuracy (92/206 exact), up from v2 best 77.0%.
+- 2026-02-21T10:18:37Z: `/upload-item-v3` + `documents/API_SPEC.md` is the active integration contract. v2 remains legacy for comparison.
 
 ## Agent Lanes
 
 ### Codex Updates
 
 - 2026-02-13T00:00:00Z: Initialized workflow files (`AI_SYNC.md`, `tasks/TASK_TEMPLATE.md`, `tasks/HANDOFF_TEMPLATE.md`).
+- 2026-02-21T10:18:37Z: Synced project docs to current state (v3 active, Attempt 17 results, known blockers) and flagged stale v2-only references for cleanup.
 
 ### Gemini Updates
 

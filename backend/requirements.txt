@@ -7,3 +7,5 @@ numpy
 Pillow
 scikit-learn
 rapidfuzz
+SQLAlchemy
+psycopg2-binary

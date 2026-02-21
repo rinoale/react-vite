@@ -158,12 +158,15 @@ def test_image(header_reader, content_reader, parser, section_patterns,
         fm_text = fm_score = fm_exact = fm_char_accuracy = None
 
         if section in fm_sections:
-            is_enchant_hdr   = line.get('is_enchant_hdr')
             enchant_db_ready = bool(corrector._enchant_db)
 
-            if section == 'enchant' and enchant_db_ready and is_enchant_hdr is not None:
-                if is_enchant_hdr:
-                    fm_text, fm_score, current_enchant_entry = corrector.match_enchant_header(text)
+            if section == 'enchant' and enchant_db_ready:
+                # Try header FM on every line — let the score decide,
+                # don't rely on regex tag (OCR garbles headers beyond regex recognition)
+                hdr_text, hdr_score, hdr_entry = corrector.match_enchant_header(text)
+                if hdr_score > 0:
+                    fm_text, fm_score = hdr_text, hdr_score
+                    current_enchant_entry = hdr_entry
                 else:
                     fm_text, fm_score = corrector.match_enchant_effect(text, current_enchant_entry)
             else:

@@ -1,4 +1,20 @@
 services:
+  db:
+    build:
+      context: ./infra/database
+      dockerfile: Dockerfile
+    container_name: mabinogi-db
+    environment:
+      POSTGRES_DB: mabinogi
+      POSTGRES_USER: mabinogi
+      POSTGRES_PASSWORD: mabinogi
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ./infra/database/init:/docker-entrypoint-initdb.d
+    restart: unless-stopped
+
   backend:
     build:
       context: .
@@ -30,3 +46,6 @@ services:
     depends_on:
       - backend
     restart: unless-stopped
+
+volumes:
+  db_data:

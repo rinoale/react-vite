@@ -242,10 +242,13 @@ async def upload_item_v3(file: UploadFile = File(...)):
                 line['fm_applied'] = False
                 continue
 
-            # Enchant two-phase matching
+            # Enchant: try header FM on every line — let the score decide,
+            # don't rely on regex tag (OCR garbles headers beyond regex recognition)
             if section == 'enchant' and enchant_db_ready:
-                if line.get('is_enchant_hdr'):
-                    fm_text, fm_score, current_enchant_entry = corrector.match_enchant_header(raw_text)
+                hdr_text, hdr_score, hdr_entry = corrector.match_enchant_header(raw_text)
+                if hdr_score > 0:
+                    fm_text, fm_score = hdr_text, hdr_score
+                    current_enchant_entry = hdr_entry
                 else:
                     fm_text, fm_score = corrector.match_enchant_effect(raw_text, current_enchant_entry)
             elif section in fm_sections:
