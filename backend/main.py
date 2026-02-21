@@ -232,6 +232,7 @@ async def upload_item_v3(file: UploadFile = File(...)):
         # all_lines and sections share the same line objects — correct once.
         # Server picks best text: if FM matches (score > 0), use FM result;
         # otherwise keep raw OCR.  No separate corrected_text field.
+        sections = result.get('sections', {})
         enchant_db_ready = bool(corrector._enchant_db)
         fm_sections = set(corrector._section_norm_cache.keys())
 
@@ -321,8 +322,6 @@ async def upload_item_v3(file: UploadFile = File(...)):
                             line['fm_applied'] = True
 
         # Step 4: rebuild structured data from FM-corrected lines
-        sections = result.get('sections', {})
-
         if 'enchant' in sections and sections['enchant'].get('lines'):
             enchant_updated = tooltip_parser.build_enchant_structured(sections['enchant']['lines'])
             sections['enchant'].update(enchant_updated)

@@ -24,10 +24,10 @@ dist-ssr
 *.sw?
 
 # Project Specific
-data/
+data
 deep-text-recognition-benchmark/
 test_output/
-backend/ocr/
+backend/ocr
 backend/temp_split/
 backend/__pycache__/
 *.pyc

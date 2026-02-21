@@ -1,0 +1,43 @@
+# Enchant Slot Header OCR Training Configuration
+# Single source of truth for enchant header model parameters.
+#
+# IMPORTANT: When changing imgH, imgW, or network_params here,
+# you MUST re-run: python3 scripts/create_enchant_header_model_config.py
+# This regenerates the inference yaml so it matches training.
+
+# --- Model Architecture (must match between training and inference) ---
+model:
+  Transformation: TPS
+  FeatureExtraction: ResNet
+  SequenceModeling: BiLSTM
+  Prediction: CTC
+  input_channel: 1
+  output_channel: 512
+  hidden_size: 256
+  num_fiducial: 20
+  imgH: 32
+  imgW: 200           # Reference crops scale to 117-251px at h=32; 200 covers most without excess padding
+
+# --- Training Hyperparameters ---
+training:
+  batch_size: 32
+  num_iter: 10000
+  valInterval: 500
+  batch_max_length: 20  # Longest label ~'[접두] 쌓여가는 (랭크 A)' = 18 chars
+  workers: 0            # Required — LMDB can't be pickled for multiprocessing
+  sensitive: true       # Required — preserves case for rank letters A-F
+  PAD: true             # Required — matches EasyOCR's hardcoded keep_ratio_with_pad=True
+
+# --- Data Paths (relative to project root) ---
+paths:
+  train_data: backend/ocr/enchant_header_train_data_lmdb
+  valid_data: backend/ocr/enchant_header_train_data_lmdb
+  character_file: backend/ocr/enchant_header_chars.txt
+  model_config: backend/ocr/models/custom_enchant_header.yaml
+  model_weights: backend/ocr/models/custom_enchant_header.pth
+  saved_models_dir: saved_models
+
+# --- Inference (EasyOCR) ---
+inference:
+  lang_list: [ko]
+  rgb: false

@@ -22,7 +22,7 @@ import cv2
 FONT_PATH = "data/fonts/mabinogi_classic.ttf"
 DICT_PATHS = [
     "data/dictionary/reforge.txt",
-    "data/dictionary/enchant.txt",
+    "data/dictionary/enchant_effect.txt",
     "data/dictionary/item_name.txt",
     "data/dictionary/tooltip_general.txt",
 ]

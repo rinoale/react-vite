@@ -83,6 +83,9 @@ docker compose up
 
 # Rebuild backend without cache (if dependency compilation fails)
 docker compose build backend --no-cache
+
+# Open a bash shell in the backend container
+docker compose exec backend bash
 ```
 
 - Frontend: `http://localhost:5173`
