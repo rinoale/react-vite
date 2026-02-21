@@ -1,6 +1,6 @@
 # AI Multi-Agent Sync Board
 
-Last updated: 2026-02-13T21:15:00Z
+Last updated: 2026-02-21T09:00:00Z
 
 Use this file as the single source of truth for coordination across 3 AI agents.
 
@@ -11,7 +11,8 @@ Use this file as the single source of truth for coordination across 3 AI agents.
 3. No task is "Done" without:
    - acceptance checks listed in task file
    - at least one peer review pass
-4. Keep entries short and factual.
+4. **API Communication Rule:** Any change to backend API paths, methods, or JSON response structures MUST be documented in `documents/API_SPEC.md` before the Frontend Agent updates the UI logic.
+5. Keep entries short and factual.
 
 ## Agent Roles
 

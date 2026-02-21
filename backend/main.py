@@ -221,25 +221,55 @@ async def upload_item_v3(file: UploadFile = File(...)):
         # Step 2: content OCR per segment → assemble structured result
         result = tooltip_parser.parse_from_segments(tagged, reader)
 
-        # Step 3: text correction
+        # Step 3: section-aware text correction — FM decision
+        # all_lines and sections share the same line objects — correct once.
+        # Server picks best text: if FM matches (score > 0), use FM result;
+        # otherwise keep raw OCR.  No separate corrected_text field.
+        current_enchant_entry = None
+        enchant_db_ready = bool(corrector._enchant_db)
+        fm_sections = set(corrector._section_norm_cache.keys())
+
         for line in result.get('all_lines', []):
             raw_text = line.get('text', '')
-            if raw_text.strip():
-                corrected, score = corrector.correct(raw_text)
-                line['corrected_text']   = corrected if score > 60 else raw_text
-                line['correction_score'] = float(score) / 100.0
-            else:
-                line['corrected_text']   = raw_text
-                line['correction_score'] = 0.0
+            section  = line.get('section', '')
 
-        for section_data in result.get('sections', {}).values():
-            if 'lines' in section_data:
-                for line in section_data['lines']:
-                    raw_text = line.get('text', '')
-                    if raw_text.strip():
-                        corrected, score = corrector.correct(raw_text)
-                        line['corrected_text']   = corrected if score > 60 else raw_text
-                        line['correction_score'] = float(score) / 100.0
+            if not raw_text.strip():
+                line['fm_applied'] = False
+                continue
+
+            # Section headers (orange text) don't need FM
+            if line.get('is_header'):
+                line['fm_applied'] = False
+                continue
+
+            # Enchant two-phase matching
+            if section == 'enchant' and enchant_db_ready:
+                if line.get('is_enchant_hdr'):
+                    fm_text, fm_score, current_enchant_entry = corrector.match_enchant_header(raw_text)
+                else:
+                    fm_text, fm_score = corrector.match_enchant_effect(raw_text, current_enchant_entry)
+            elif section in fm_sections:
+                fm_text, fm_score = corrector.correct_normalized(raw_text, section=section)
+            else:
+                fm_text, fm_score = raw_text, 0
+
+            # FM decision: if match found, replace text
+            if fm_score > 0:
+                line['text'] = fm_text
+                line['fm_applied'] = True
+            else:
+                line['fm_applied'] = False
+
+        # Step 4: rebuild structured data from FM-corrected lines
+        sections = result.get('sections', {})
+
+        if 'enchant' in sections and sections['enchant'].get('lines'):
+            enchant_updated = tooltip_parser.build_enchant_structured(sections['enchant']['lines'])
+            sections['enchant'].update(enchant_updated)
+
+        if 'reforge' in sections and sections['reforge'].get('lines'):
+            reforge_updated = tooltip_parser.build_reforge_structured(sections['reforge']['lines'])
+            sections['reforge'].update(reforge_updated)
 
         return {
             "filename": file.filename,

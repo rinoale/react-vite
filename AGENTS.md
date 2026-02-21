@@ -59,6 +59,14 @@ The custom `TooltipLineSplitter` uses horizontal projection profiling tailored f
 
 ## 4. Workflows & Guides
 
+### API Integration
+- **Source of Truth:** `documents/API_SPEC.md`.
+- **Contract:** The Backend Agent updates the spec; the Frontend Agent implements based on the spec.
+- **V3 Pipeline Endpoint:** `/upload-item-v3` (Structured JSON).
+- **FM Decision:** V3 response uses a single `text` field per line (server picks FM or raw OCR). `fm_applied: bool` indicates whether FM was used. No `corrected_text` field.
+- **Enchant structure:** `prefix`/`suffix` slot dicts with `name`, `rank`, `effects[]` (each effect has `text`, optional `option_name`/`option_level`).
+- **Reforge structure:** Options include `option_name`/`option_level` as unified fields for DB storage.
+
 ### OCR Training Pipeline
 1. **Generate Data:** `python3 scripts/generate_training_data.py` — Creates synthetic binary training images using the Mabinogi game font. Images must be strictly binary (0/255 only), matching frontend preprocessing.
 2. **Create LMDB:** `python3 skills/ocr-trainer/scripts/create_lmdb_dataset.py --input backend/train_data --output backend/train_data_lmdb`
@@ -81,6 +89,9 @@ The custom `TooltipLineSplitter` uses horizontal projection profiling tailored f
 - Sections: item_name, item_type, item_grade, item_attrs, enchant, item_mod, reforge, erg, set_item, item_color, flavor_text, shop_price
 - Color parts (`parse_mode: color_parts`): RGB values parsed via regex from horizontal sub-segments
 - Sections with `skip: true` (flavor_text, shop_price) omitted from output
+- Enchant (`parse_mode: enchant_options`): Structured as `prefix`/`suffix` slot dicts. Effects parsed by `_parse_effect_number()` into `option_name`/`option_level`.
+- Reforge (`parse_mode: reforge_options`): Options include `option_name`/`option_level` unified fields.
+- `build_enchant_structured()` / `build_reforge_structured()`: Rebuild structured data from FM-corrected lines (called post-FM in `main.py`).
 
 ### Line Splitter (`backend/tooltip_line_splitter.py`)
 - Auto-detects background polarity (light vs dark)

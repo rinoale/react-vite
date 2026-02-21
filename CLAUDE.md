@@ -46,6 +46,8 @@ Determines section labels BEFORE running content OCR, eliminating cascade sectio
 3. **Segmentation**: Pre-header region + N header+content pairs. Each content region has a positional section slot.
 4. **Header OCR**: Each header crop OCR'd independently (short text, ~10 fixed labels: 세공, 에르그, 인챈트, ...). Assigns canonical section name.
 5. **Content OCR per segment**: `TooltipLineSplitter` + EasyOCR `recognize()` per line. FM uses pre-determined section dictionary — no post-hoc header pattern matching in the content stream.
+6. **FM decision**: Server picks best text per line — if FM matches (`fm_score > 0`), `text` is replaced with FM result and `fm_applied=true`. No separate `corrected_text` field.
+7. **Structured rebuild**: After FM, `build_enchant_structured()` and `build_reforge_structured()` rebuild section data from corrected lines.
 
 **Current production pipeline (old — still in `backend/main.py`):**
 1. **Frontend** (`src/pages/sell.jsx`): Browser preprocesses uploaded image (BT.601 grayscale → threshold=80) → binary PNG (black text on white)
@@ -54,7 +56,7 @@ Determines section labels BEFORE running content OCR, eliminating cascade sectio
    - `TooltipLineSplitter` (`tooltip_line_splitter.py`): Horizontal projection profiling splits tooltip into line crops.
    - `EasyOCR recognize()` on each line crop: Bypasses CRAFT entirely.
    - `TextCorrector` (`text_corrector.py`): RapidFuzz FM against per-section dictionaries. Section labels assigned post-hoc from OCR output — cascade failure if header word is garbled.
-3. Results returned as JSON with structured sections, corrected text, raw text, confidence, correction score, and line positions
+3. Results returned as JSON with structured sections, text, confidence, and line positions. V2 still uses `corrected_text`; V3 uses server-side FM decision (single `text` field).
 
 **Why not CRAFT?** CRAFT is designed for natural scene text detection (signs, labels in photos). On structured tooltip layouts, it fragments lines, merges adjacent text, and misses entire sections. The `TooltipLineSplitter` achieves perfect detection on all test images (244 total lines across 5 images).
 
@@ -73,6 +75,9 @@ Determines section labels BEFORE running content OCR, eliminating cascade sectio
 - Color parts (`parse_mode: color_parts`): RGB values parsed via regex from horizontal sub-segments, bypassing general OCR
 - Sections with `skip: true` (flavor_text, shop_price) omitted from output
 - `horizontal_split_factor: 1.5` configured for Mabinogi's color part gap sizes
+- Enchant section (`parse_mode: enchant_options`): Structured as `prefix`/`suffix` slot dicts (not a flat list). Each slot has `name`, `rank`, and `effects[]` where each effect has `text` and optional `option_name`/`option_level` extracted by `_parse_effect_number()`.
+- Reforge section (`parse_mode: reforge_options`): Options include `option_name`/`option_level` as unified fields (aliases for `name`/`level`) for DB storage.
+- `build_enchant_structured(lines)` / `build_reforge_structured(lines)`: Rebuild structured data from tagged lines. Called after FM correction in `main.py` to propagate corrected text into section data. See `documents/API_SPEC.md` for full response schema.
 
 ### Line Splitter (`backend/tooltip_line_splitter.py`)
 Splits tooltip images into individual text line crops using horizontal projection profiling:

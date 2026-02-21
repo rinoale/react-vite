@@ -97,7 +97,7 @@ const Sell = () => {
       
       // Auto-populate some core fields
       const itemName = newSections.item_name?.text || '';
-      const allText = (data.all_lines || []).map(l => l.corrected_text || l.text).join('\n');
+      const allText = (data.all_lines || []).map(l => l.text).join('\n');
       
       setFormData(prev => ({
         ...prev,
@@ -128,7 +128,7 @@ const Sell = () => {
       const updatedSections = { ...prev.sections };
       if (updatedSections[sectionKey] && updatedSections[sectionKey].lines) {
         const updatedLines = [...updatedSections[sectionKey].lines];
-        updatedLines[lineIdx] = { ...updatedLines[lineIdx], corrected_text: newText };
+        updatedLines[lineIdx] = { ...updatedLines[lineIdx], text: newText };
         updatedSections[sectionKey] = { ...updatedSections[sectionKey], lines: updatedLines };
       }
       return { ...prev, sections: updatedSections };
@@ -161,6 +161,58 @@ const Sell = () => {
       );
     }
 
+    // Special handling for Enchant (prefix/suffix structure)
+    if (key === 'enchant' && (sectionData.prefix || sectionData.suffix)) {
+        const renderSlot = (slot, slotLabel) => {
+            if (!slot) return null;
+            return (
+                <div className="bg-gray-900/50 p-3 rounded border border-gray-700">
+                    <div className="flex justify-between items-center mb-2">
+                        <span className="text-sm font-medium text-purple-300">{slot.name}</span>
+                        <span className="text-xs bg-purple-900/50 text-purple-300 px-2 py-0.5 rounded border border-purple-700/50">
+                            {slotLabel} · Rank {slot.rank}
+                        </span>
+                    </div>
+                    <div className="space-y-1.5 pl-3 border-l border-purple-900/30">
+                        {slot.effects.map((eff, i) => (
+                            <p key={i} className="text-xs text-gray-400">
+                                <span className="text-gray-600 mr-1">-</span>
+                                {eff.option_name != null ? (
+                                    <>
+                                        <span>{eff.option_name} </span>
+                                        <span className="text-orange-400 font-bold">{eff.option_level}</span>
+                                        {eff.text.slice(eff.text.indexOf(String(eff.option_level)) + String(eff.option_level).length).trim() && (
+                                            <span> {eff.text.slice(eff.text.indexOf(String(eff.option_level)) + String(eff.option_level).length).trim()}</span>
+                                        )}
+                                    </>
+                                ) : (
+                                    <span>{eff.text}</span>
+                                )}
+                            </p>
+                        ))}
+                    </div>
+                </div>
+            );
+        };
+
+        return (
+            <div className="space-y-3">
+                {renderSlot(sectionData.prefix, 'Prefix')}
+                {renderSlot(sectionData.suffix, 'Suffix')}
+                {/* Fallback to raw lines if no structured data */}
+                {!sectionData.prefix && !sectionData.suffix && sectionData.lines?.filter(l => !l.is_header).map((line, idx) => (
+                    <input
+                        key={idx}
+                        type="text"
+                        value={line.text}
+                        onChange={(e) => handleSectionTextChange(key, idx, e.target.value)}
+                        className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-sm text-gray-300 focus:ring-1 focus:ring-orange-500 outline-none"
+                    />
+                ))}
+            </div>
+        );
+    }
+
     // Special handling for Reforge Options
     if (key === 'reforge' && sectionData.options) {
         return (
@@ -168,9 +220,9 @@ const Sell = () => {
                 {sectionData.options.map((opt, idx) => (
                     <div key={idx} className="bg-gray-900/50 p-2 rounded border border-gray-700">
                         <div className="flex justify-between items-center mb-1">
-                            <span className="text-sm font-medium text-cyan-300">{opt.name}</span>
+                            <span className="text-sm font-medium text-cyan-300">{opt.option_name || opt.name}</span>
                             <span className="text-xs bg-cyan-900/50 text-cyan-300 px-2 py-0.5 rounded border border-cyan-700/50">
-                                Level {opt.level} / {opt.max_level}
+                                Level {opt.option_level || opt.level} / {opt.max_level}
                             </span>
                         </div>
                         {opt.effect && <p className="text-xs text-gray-400">ㄴ {opt.effect}</p>}
@@ -181,7 +233,7 @@ const Sell = () => {
                     <input
                         key={idx}
                         type="text"
-                        value={line.corrected_text || line.text}
+                        value={line.text}
                         onChange={(e) => handleSectionTextChange(key, idx, e.target.value)}
                         className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-sm text-gray-300 focus:ring-1 focus:ring-orange-500 outline-none"
                     />
@@ -199,7 +251,7 @@ const Sell = () => {
             <div key={idx} className="relative group">
               <input
                 type="text"
-                value={line.corrected_text || line.text}
+                value={line.text}
                 onChange={(e) => handleSectionTextChange(key, idx, e.target.value)}
                 className={`w-full bg-gray-900 border ${line.confidence < 0.7 ? 'border-red-900/50 focus:border-red-500' : 'border-gray-700 focus:border-orange-500'} rounded px-3 py-1.5 text-sm text-gray-300 outline-none transition-colors`}
               />

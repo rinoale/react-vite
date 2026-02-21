@@ -34,6 +34,30 @@ _REFORGE_SUB_RE    = re.compile(r'^\s*ㄴ')
 # Header: '[접두] 충격을 (랭크 F)' or '[접미] 관리자 (랭크 6)' — ranks: A-F or 1-9
 _ENCHANT_HEADER_RE = re.compile(r'^\[?(접두|접미)\]?\s+(.+?)\s*\(랭크\s*([A-F0-9]+)\)')
 
+# Effect number extraction: 'stat_name NUMBER[%] direction'
+# Group 1: stat name, Group 2: number, Group 3: optional %, Group 4: rest (증가/감소/etc.)
+_EFFECT_NUM_RE = re.compile(r'^(.+?)\s+(\d+(?:\.\d+)?)\s*(%?)\s*(.*)$')
+
+
+def _parse_effect_number(text):
+    """Extract option_name and option_level from an effect text.
+
+    Examples:
+        '최대대미지 53 증가'                       → ('최대대미지', 53)
+        '아르카나 스킬 보너스 대미지 1% 증가'      → ('아르카나 스킬 보너스 대미지', 1)
+        '활성화된 아르카나의 전용 옵션일 때 효과 발동' → (None, None)
+
+    Returns:
+        (option_name, option_level) or (None, None) if no number found.
+    """
+    m = _EFFECT_NUM_RE.match(text.strip())
+    if not m:
+        return None, None
+    name = m.group(1).strip()
+    num_str = m.group(2)
+    level = float(num_str) if '.' in num_str else int(num_str)
+    return name, level
+
 
 class MabinogiTooltipParser(TooltipLineSplitter):
 
@@ -473,41 +497,72 @@ class MabinogiTooltipParser(TooltipLineSplitter):
           sub-bullet:  is_reforge_sub=True
 
         Returns:
-            {'options': [{name, level, max_level, effect}], 'lines': lines}
+            {'options': [{name, level, max_level, option_name, option_level, effect}], 'lines': lines}
+        """
+        for line in lines:
+            text = line.get('text', '')
+            m = _REFORGE_HEADER_RE.match(text)
+            if m:
+                line['reforge_name']      = m.group(1).strip().lstrip('-').strip()
+                line['reforge_level']     = int(m.group(2))
+                line['reforge_max_level'] = int(m.group(3))
+                line['is_reforge_sub']    = False
+            elif _REFORGE_SUB_RE.match(text):
+                line['is_reforge_sub'] = True
+            else:
+                line['is_reforge_sub'] = False
+
+        result = self.build_reforge_structured(lines)
+        result['lines'] = lines
+        return result
+
+    def build_reforge_structured(self, lines):
+        """Build reforge options array from tagged lines.
+
+        Call after FM correction to get option_name from corrected text.
+        Lines must already be tagged by _parse_reforge_section.
+
+        Returns:
+            {'options': [{name, level, max_level, option_name, option_level, effect}]}
         """
         options = []
         current = None
 
         for line in lines:
+            if line.get('is_header'):
+                continue
+
             text = line.get('text', '')
-            m = _REFORGE_HEADER_RE.match(text)
-            if m:
-                name      = m.group(1).strip().lstrip('-').strip()
-                level     = int(m.group(2))
-                max_level = int(m.group(3))
+
+            if not line.get('is_reforge_sub', True) and 'reforge_name' in line:
+                m = _REFORGE_HEADER_RE.match(text)
+                if m:
+                    name      = m.group(1).strip().lstrip('-').strip()
+                    level     = int(m.group(2))
+                    max_level = int(m.group(3))
+                else:
+                    name      = line['reforge_name']
+                    level     = line['reforge_level']
+                    max_level = line['reforge_max_level']
+
                 current = {
-                    'name':      name,
-                    'level':     level,
-                    'max_level': max_level,
-                    'effect':    None,
+                    'name':         name,
+                    'level':        level,
+                    'max_level':    max_level,
+                    'option_name':  name,
+                    'option_level': level,
+                    'effect':       None,
                 }
                 options.append(current)
-                line['reforge_name']      = name
-                line['reforge_level']     = level
-                line['reforge_max_level'] = max_level
-                line['is_reforge_sub']    = False
-            elif _REFORGE_SUB_RE.match(text):
-                line['is_reforge_sub'] = True
-                if current is not None:
-                    effect = _REFORGE_SUB_RE.sub('', text).strip()
-                    current['effect'] = effect
-            else:
-                line['is_reforge_sub'] = False
 
-        return {'options': options, 'lines': lines}
+            elif line.get('is_reforge_sub') and current is not None:
+                effect = _REFORGE_SUB_RE.sub('', text).strip()
+                current['effect'] = effect
+
+        return {'options': options}
 
     def _parse_enchant_section(self, lines):
-        """Parse enchant section into slot-grouped records.
+        """Parse enchant section into prefix/suffix slot records.
 
         Each enchant is a header '[접두|접미] NAME (랭크 RANK)' followed by
         effect lines starting with '-'.
@@ -517,37 +572,74 @@ class MabinogiTooltipParser(TooltipLineSplitter):
           effect line: is_enchant_hdr=False
 
         Returns:
-            {'enchants': [{slot, name, rank, effects}], 'lines': lines}
+            {'prefix': {text, name, rank, effects} | None,
+             'suffix': {text, name, rank, effects} | None,
+             'lines': lines}
         """
-        enchants = []
-        current = None
-
         for line in lines:
             text = line.get('text', '')
             m = _ENCHANT_HEADER_RE.match(text)
             if m:
-                slot = m.group(1)
-                name = m.group(2).strip()
-                rank = m.group(3)
-                current = {
-                    'slot':    slot,
-                    'name':    name,
-                    'rank':    rank,
-                    'effects': [],
-                }
-                enchants.append(current)
-                line['enchant_slot']   = slot
-                line['enchant_name']   = name
-                line['enchant_rank']   = rank
+                line['enchant_slot']   = m.group(1)
+                line['enchant_name']   = m.group(2).strip()
+                line['enchant_rank']   = m.group(3)
                 line['is_enchant_hdr'] = True
             else:
                 line['is_enchant_hdr'] = False
-                if current is not None:
-                    effect = text.strip().lstrip('-').strip()
-                    if effect:
-                        current['effects'].append(effect)
 
-        return {'enchants': enchants, 'lines': lines}
+        result = self.build_enchant_structured(lines)
+        result['lines'] = lines
+        return result
+
+    def build_enchant_structured(self, lines):
+        """Build enchant prefix/suffix dicts from tagged lines.
+
+        Call after FM correction to get names/effects from corrected text.
+        Lines must already be tagged by _parse_enchant_section.
+
+        Each effect is a dict with 'text' and optional 'option_name'/'option_level'
+        extracted by _parse_effect_number().
+
+        Returns:
+            {'prefix': {text, name, rank, effects} | None,
+             'suffix': {text, name, rank, effects} | None}
+        """
+        prefix = None
+        suffix = None
+        current = None
+
+        for line in lines:
+            if line.get('is_header'):
+                continue
+
+            if line.get('is_enchant_hdr'):
+                text = line['text']
+                m = _ENCHANT_HEADER_RE.match(text)
+                if m:
+                    name = m.group(2).strip()
+                    rank = m.group(3)
+                else:
+                    name = line.get('enchant_name', '')
+                    rank = line.get('enchant_rank', '')
+
+                current = {'text': text, 'name': name, 'rank': rank, 'effects': []}
+                slot = line.get('enchant_slot', '')
+                if slot == '접두':
+                    prefix = current
+                elif slot == '접미':
+                    suffix = current
+
+            elif current is not None:
+                eff_text = line['text'].strip().lstrip('-').strip()
+                if eff_text:
+                    entry = {'text': eff_text}
+                    opt_name, opt_level = _parse_effect_number(eff_text)
+                    if opt_name is not None:
+                        entry['option_name']  = opt_name
+                        entry['option_level'] = opt_level
+                    current['effects'].append(entry)
+
+        return {'prefix': prefix, 'suffix': suffix}
 
     def _parse_color_section(self, lines):
         """Parse color part lines structurally.
