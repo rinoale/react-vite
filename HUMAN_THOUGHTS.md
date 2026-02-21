@@ -48,3 +48,10 @@ The header sections were having black square so I indicated to implement the log
 
 ### generate segmentation
 for f in data/themes/screenshot_*.png; do base=$(basename "$f" .png); outdir="data/segmentation/$base"; mkdir -p "$outdir"; result=$(python3 scripts/test_segmentation.py "$f" "$outdir/" 2>&1 | grep "^Found"); echo "$base: $result"; done
+
+### Try not to be submerged in the swamp of generalizing
+Generalizing is important. It would be super happy if I create an oneline game item trade website with only name of title, font and few configs
+But there are too many domain specific features that are not able to apply for all game titles.
+I'd rather say, specifying and implementing domain specific features are the actual core values of applications.
+
+Google map is good for in general. it shows everyplace in earth. But I'd rather use navermap in korea because it has a lot of korea specific features.
