@@ -66,9 +66,11 @@ class TooltipLineSplitter:
         h, w = binary_img.shape
         cleaned = binary_img.copy()
 
-        # Find columns with high vertical density (>15% of rows have ink)
+        # Find columns with high vertical density — genuine UI borders
+        # span >60% of rows. Too low (0.15) falsely removes text columns
+        # on small crops; too high (0.8) misses partial-height borders.
         col_density = np.sum(binary_img > 0, axis=0) / h
-        is_dense = col_density > 0.15
+        is_dense = col_density > 0.6
 
         # Only mask narrow runs (<=3px wide) — actual UI border lines
         in_run = False

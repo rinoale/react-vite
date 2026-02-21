@@ -87,11 +87,9 @@ class MabinogiTooltipParser(TooltipLineSplitter):
             section_data = self._parse_segment_from_array(content_crop, section, reader)
 
             if section == 'pre_header':
-                # Returns sub-dict: {'item_name': {...}, 'item_type': {...}}
                 sections.update(section_data)
-                for sub in section_data.values():
-                    if isinstance(sub, dict) and 'lines' in sub:
-                        all_lines.extend(sub['lines'])
+                if 'lines' in section_data.get('pre_header', {}):
+                    all_lines.extend(section_data['pre_header']['lines'])
             else:
                 # Insert header text as first line of this segment
                 if header_line is not None and 'lines' in section_data:
@@ -162,31 +160,17 @@ class MabinogiTooltipParser(TooltipLineSplitter):
         }
 
     def _parse_pre_header(self, ocr_results):
-        """Extract item_name and item_type from the pre-header content lines.
+        """Return all pre-header lines as a single 'pre_header' section.
 
-        Returns:
-            dict with 'item_name' and optionally 'item_type' sub-section dicts.
+        No special-case splitting — every line before the first orange header
+        is simply tagged 'pre_header' and passed through.
         """
-        result = {}
-        idx = 0
-        if ocr_results and ocr_results[0]['text'].strip() in _PRE_NAME_PATTERNS:
-            idx = 1
-
-        if idx < len(ocr_results):
-            line = ocr_results[idx]
-            line['section'] = 'item_name'
-            result['item_name'] = {'lines': [line], 'text': line['text']}
-
-        if idx + 1 < len(ocr_results):
-            rest = ocr_results[idx + 1:]
-            for l in rest:
-                l['section'] = 'item_type'
-            result['item_type'] = {
-                'lines': rest,
-                'text': ' '.join(l['text'] for l in rest),
-            }
-
-        return result
+        for line in ocr_results:
+            line['section'] = 'pre_header'
+        return {'pre_header': {
+            'lines': ocr_results,
+            'text': ' '.join(l['text'] for l in ocr_results),
+        }}
 
     def parse_tooltip(self, image_path, reader):
         """Full pipeline: split → group → OCR → categorize → structure.
