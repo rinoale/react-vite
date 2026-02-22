@@ -1174,10 +1174,35 @@ The same font mismatch likely affects content text in tooltips where users selec
 
 ---
 
-### Next Steps (Attempt 18)
+## Attempt 18: Dual-Font Training + Font Size Fix
 
-The v3 pipeline is validated and stable. Next training attempt should focus on:
-1. **Font support** — game uses NanumGothicBold for headers; content font depends on user setting. Training data may need both fonts.
-2. **Ink ratio gap** — game-like rendering (dark bg + bright text → threshold) to match real crop ink ratio
-3. **Charset expansion** — a15 has 509 chars; enchant.txt alone needs 273 more. Careful to avoid Attempt 16's regression (2.4× output space without proportional data)
-4. **One variable at a time** — change font OR rendering OR charset, not all at once
+**Date:** 2026-02-22
+**Baseline:** a15 model (509 chars), 94/203 exact, 88.6% char acc (v3 pipeline)
+
+### Changes
+
+1. **Dual-font rendering**: Each label rendered in both `mabinogi_classic.ttf` and `NanumGothicBold.ttf` to handle both user font settings.
+
+2. **Font size increased: 10-11 → 16-18**: At font size 10-11, thin strokes disappear after binary thresholding (e.g. vertical bar in `ㄷ` of `드`). Verified against 2,286 real preprocessed crops from all 26 game themes — none had missing strokes. Font size 16+ preserves all strokes. Model normalizes to imgH=32 during inference, so raw image height doesn't need to match real crops exactly.
+   - **Future adjustment note:** If height mismatch causes issues, render at sz 16-18 then downscale to real crop heights (~14-15px).
+
+3. **Dictionary changes**: Removed GT lines (`*_expected.txt`) to avoid test data leakage. Removed `enchant_slot_header.txt` (handled by dedicated model). Current sources:
+   - Template-generated lines (stat patterns, headers, color parts)
+   - `reforge.txt` (1,404 entries)
+   - `enchant_effect.txt` (1,970 entries)
+   - `item_name.txt` (sampled 3,000 from 20,284)
+   - `tooltip_general.txt` (427 entries)
+
+4. **Refactored FM logic**: Extracted `apply_fm()` into `TextCorrector`, `run_v3_pipeline()` into `backend/lib/v3_pipeline.py`. Removed v1/v2 endpoints. Trade APIs moved to `backend/trade/router.py`.
+
+5. **Enchant header FM fix**: Changed from effect-based identification (`identify_enchant_from_effects`) to direct dictionary FM (`correct_normalized`). The old approach ignored correct header OCR and re-identified from effects, biasing toward enchants with fewer effects.
+
+### Training Data
+
+- ~53k images (dual font × 3 variations per label)
+- Font sizes: [16, 16, 17, 17, 18, 18]
+- Canvas width: 400px (accommodates larger font rendering)
+
+### Results
+
+*Training in progress...*
