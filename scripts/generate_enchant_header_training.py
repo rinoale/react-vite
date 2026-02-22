@@ -20,7 +20,7 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
 # === Configuration ===
-FONT_PATH = "data/fonts/mabinogi_classic.ttf"
+FONT_PATH = "data/fonts/NanumGothicBold.ttf"
 DICT_PATH = "data/dictionary/enchant_slot_header.txt"
 OUTPUT_DIR = "backend/ocr/enchant_header_train_data"
 IMAGES_DIR = os.path.join(OUTPUT_DIR, "images")
@@ -30,10 +30,9 @@ FONT_SIZE = 11
 VARIATIONS_PER_LABEL = 3
 
 # White mask threshold for training data rendering.
-# Real pipeline uses max_ch > 150, but PIL's anti-aliasing produces a
-# narrower fringe than the game's renderer.  Threshold=80 on synthetic
-# captures enough fringe to match real crop ink ratio (~0.209).
-WHITE_MASK_THRESHOLD = 80
+# Real pipeline uses max_ch > 150, but PIL's anti-aliasing spread differs.
+# Threshold=132 on NanumGothicBold matches real crop ink ratio (~0.209).
+WHITE_MASK_THRESHOLD = 132
 
 # Dark background brightness range (game tooltip backgrounds)
 BG_BRIGHTNESS_RANGE = (20, 45)

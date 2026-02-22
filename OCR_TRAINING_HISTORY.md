@@ -1128,9 +1128,56 @@ Eval command: `python3 scripts/v3/test_v3_pipeline.py 'data/sample_images/*_orig
 
 **Improvement over Attempt 17:** Exact matches 92/206 → 94/203, char accuracy 87.5% → 88.6% (+1.1pp). FM applications dropped from 39 to 14 (prefix stripping lets more raw OCR match GT directly without needing FM correction).
 
+---
+
+## Key Discovery: Font Mismatch in Game Rendering
+
+**Date:** 2026-02-22
+
+### Finding
+
+The Mabinogi game uses **different fonts for different UI elements**, regardless of the user's font setting:
+
+- **Content text** (stats, effects, descriptions): Uses the user's chosen font (e.g. `mabinogi_classic.ttf`)
+- **Section headers** (인챈트, 개조, etc.): Uses **NanumGothic** (orange text on dark background)
+- **Enchant slot headers** ([접두] 이름 (랭크 X)): Uses **NanumGothicBold** (white text)
+
+This was confirmed by comparing two screenshots of the same item with different font settings:
+- `predator_ng_original.png` — NanumGothic font setting (all text in NanumGothic)
+- `predator_cm_original.png` — mabinogi_classic font setting (content in classic, headers in NanumGothic)
+
+### Impact
+
+The enchant header OCR model was trained on `mabinogi_classic.ttf` — the **wrong font entirely**. This explains why enchant names were consistently garbled despite matching ink ratio and crop dimensions. The glyph shapes were fundamentally different.
+
+Visual comparison of `[접두] 판타스틱` across fonts (ink ratio in parentheses):
+
+| Source | Ink | Match |
+|--------|-----|-------|
+| Real crop (white mask) | 0.217 | — |
+| NanumGothicLight | 0.095 | Too thin |
+| NanumGothic (regular) | 0.157 | Too thin |
+| **NanumGothicBold** | **0.195** | **Closest glyph match** |
+| NanumGothicExtraBold | 0.222 | Too heavy |
+
+### Fix Applied
+
+1. **Enchant header preprocessing** (`_ocr_enchant_headers()`): Changed from threshold=80 BINARY_INV to white-mask→invert. Produces cleaner crops with ink ratio 0.209 (was 0.279).
+2. **Training data generation** (`generate_enchant_header_training.py`): Switched from `mabinogi_classic.ttf` to `NanumGothicBold.ttf`. Rendering: bright text on dark bg → white mask threshold=132 → invert. Ink ratio 0.208, matching real 0.209.
+3. **Enchant header model retrained** with NanumGothicBold font — training in progress.
+
+### Implications for General Content OCR
+
+The same font mismatch likely affects content text in tooltips where users select NanumGothic as their font. The general content model (`custom_mabinogi.pth`) is trained exclusively on `mabinogi_classic.ttf`. Future training should consider:
+- Supporting both fonts (mabinogi_classic + NanumGothicBold) in training data
+- Or detecting which font is in use and selecting the appropriate model
+
+---
+
 ### Next Steps (Attempt 18)
 
 The v3 pipeline is validated and stable. Next training attempt should focus on:
-1. **Ink ratio gap** — game-like rendering (dark bg + bright text → BT.601 → threshold) to match real crop ink ratio (0.201 vs 0.144)
-2. **Charset expansion** — a15 has 509 chars; enchant.txt alone needs 273 more. Careful to avoid Attempt 16's regression (2.4× output space without proportional data)
-3. **One variable at a time** — change rendering OR charset, not both
+1. **Font support** — game uses NanumGothicBold for headers; content font depends on user setting. Training data may need both fonts.
+2. **Ink ratio gap** — game-like rendering (dark bg + bright text → threshold) to match real crop ink ratio
+3. **Charset expansion** — a15 has 509 chars; enchant.txt alone needs 273 more. Careful to avoid Attempt 16's regression (2.4× output space without proportional data)
+4. **One variable at a time** — change font OR rendering OR charset, not all at once
