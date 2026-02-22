@@ -18,8 +18,15 @@ import re
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 import numpy as np
 import cv2
+import yaml
 
 # === Configuration ===
+# Load canonical prefix characters from training config
+_CONFIG_PATH = os.path.join(os.path.dirname(__file__), '..', 'configs', 'training_config.yaml')
+with open(_CONFIG_PATH, 'r', encoding='utf-8') as _f:
+    _config = yaml.safe_load(_f)
+BULLET = _config['prefixes']['bullet']        # first-level sub-bullet (e.g. '.')
+SUBBULLET = _config['prefixes']['subbullet']  # second-level sub-bullet (e.g. 'ㄴ')
 FONT_PATHS = [
     "data/fonts/mabinogi_classic.ttf",
     "data/fonts/NanumGothicBold.ttf",
@@ -27,26 +34,21 @@ FONT_PATHS = [
 DICT_PATHS = [
     "data/dictionary/reforge.txt",
     "data/dictionary/enchant_effect.txt",
-    "data/dictionary/item_name.txt",
+    # item_name.txt excluded — its 20K entries add 452 chars that dilute training for
+    # critical sections (enchant/reforge). Item names are FM-corrected at runtime instead.
     "data/dictionary/tooltip_general.txt",
 ]
-
-# item_name.txt has 20,284 entries — cap to prevent dataset inflation (~90k → ~30k images).
-# Critical section headers need proportional representation; sampling prevents dilution.
-ITEM_NAME_SAMPLE = 3000
-GT_DIR = "data/sample_images"
 OUTPUT_DIR = "backend/ocr/train_data"
 IMAGES_DIR = os.path.join(OUTPUT_DIR, "images")
 LABELS_DIR = os.path.join(OUTPUT_DIR, "labels")
 
-# Real line crop dimensions (from analysis of 235 GT lines):
-#   Height: 6-14px (median 10px), two clusters at 7px and 10px
-#   Width: 22-269px (median 261px), tooltip width ~262-271px
-#   Font size 8 → 8-9px height (matches 7px cluster after padding)
-#   Font size 9-11 → 9-13px height (matches 10px cluster)
-#   Weighted to include both clusters proportionally
-FONT_SIZES = [10, 10, 10, 11, 11, 11]  # Only legible sizes. Height varies by character content.
-CANVAS_WIDTH = 260  # Match real tooltip width
+# Font size 16-18 preserves all character strokes after binary thresholding.
+# At sz 10-11, thin strokes (e.g. vertical bar in ㄷ) disappear — real crops
+# never have this issue. Model resizes to imgH=32 during inference anyway.
+# If height mismatch causes issues, consider rendering large then downscaling
+# to real crop heights (~14-15px) as a future adjustment.
+FONT_SIZES = [16, 16, 17, 17, 18, 18]
+CANVAS_WIDTH = 400  # Wider than real tooltip — accommodates larger font sizes
 
 # Frontend threshold (from sell.jsx)
 FRONTEND_THRESHOLD = 80
@@ -180,9 +182,9 @@ def generate_template_lines():
         rank = rand_rank()
         lines.append(f"[{prefix}] {name} (랭크 {rank})")
 
-    # --- Enchant effects (- prefix) ---
-    # Boosted to 500 reps — '- ' prefix consistently misread as '소' in inference.
-    # More examples give the model more exposure to the dash character in context.
+    # --- Enchant effects (. prefix) ---
+    # Real game renders prefix as a baseline dot (period), not a dash.
+    # Confirmed by comparing real OCR crops against rendered samples.
     effect_words = ['수리비', '보호', '방어', '최대생명력', '최대마나', '최대스태미나',
                     '최대대미지', '최소대미지', '대미지밸런스', '마법 공격력',
                     '마법 보호', '크리티컬', '마리오네트 최대 대미지']
@@ -190,14 +192,14 @@ def generate_template_lines():
         effect = random.choice(effect_words)
         val = rand_int(1, 100)
         change = random.choice(['증가', '감소'])
-        lines.append(f"- {effect} {val} {change}")
+        lines.append(f"{BULLET} {effect} {val} {change}")
 
     # --- Enchant effects with range ---
     for _ in range(50):
         effect = random.choice(effect_words)
         lo = rand_int(1, 50)
         hi = rand_int(lo, lo + 30)
-        lines.append(f"- {effect} {hi} 증가 ({lo}~{hi})")
+        lines.append(f"{BULLET} {effect} {hi} 증가 ({lo}~{hi})")
 
     # --- Enchant with condition ---
     skills = ['회피', '파이널 히트', '윈드밀', '돌진', '다운 어택', '레이지 임팩트',
@@ -207,13 +209,13 @@ def generate_template_lines():
         rank = random.choice(['1', '6', '9', 'A', 'B', '15'])
         effect = random.choice(effect_words)
         val = rand_int(1, 60)
-        lines.append(f"- {skill} 랭크 {rank} 이상일 때 {effect} {val} 증가")
+        lines.append(f"{BULLET} {skill} 랭크 {rank} 이상일 때 {effect} {val} 증가")
 
     # --- Misc enchant lines ---
     for _ in range(30):
-        lines.append(f"- 수리비 {rand_pct()} {random.choice(['증가', '감소'])}")
-    lines.extend(['- 인챈트 추출 불가', '- 약해보임',
-                  '- 불 속성', '- 얼음 속성', '- 번개 속성'])
+        lines.append(f"{BULLET} 수리비 {rand_pct()} {random.choice(['증가', '감소'])}")
+    lines.extend([f'{BULLET} 인챈트 추출 불가', f'{BULLET} 약해보임',
+                  f'{BULLET} 불 속성', f'{BULLET} 얼음 속성', f'{BULLET} 번개 속성'])
 
     # --- Sub-bullets (ㄴ marker, no leading spaces) ---
     sub_effects = ['보호', '방어력', '최대 내구도', '최대 공격력', '크리티컬',
@@ -227,19 +229,19 @@ def generate_template_lines():
         val = rand_int(1, 100)
         sign = random.choice(['+', ''])
         unit = random.choice(['', '%', '% 증가'])
-        lines.append(f"ㄴ {effect} {sign}{val}{unit}")
+        lines.append(f"{SUBBULLET} {effect} {sign}{val}{unit}")
 
     # More sub-bullet patterns
     # Note: '대미지 배율' uses no space before % (confirmed from GT: "72% 증가")
     for _ in range(50):
-        lines.append(f"ㄴ 대미지 배율 {rand_int(10, 150)}% 증가")
+        lines.append(f"{SUBBULLET} 대미지 배율 {rand_int(10, 150)}% 증가")
     # Note: '쿨타임 감소' uses no space before 초 (confirmed from GT: "7.60초 감소")
     for _ in range(50):
-        lines.append(f"ㄴ 쿨타임 감소 {rand_int(1, 15)}.{rand_int(0, 99):02d}초 감소")
+        lines.append(f"{SUBBULLET} 쿨타임 감소 {rand_int(1, 15)}.{rand_int(0, 99):02d}초 감소")
     # Some enchant effects DO use space before % (대미지, 최소부상률, 지속대미지)
     for _ in range(50):
         effect = random.choice(['대미지', '최소부상률', '지속대미지'])
-        lines.append(f"ㄴ {effect} {rand_int(1, 200)} % 증가")
+        lines.append(f"{SUBBULLET} {effect} {rand_int(1, 200)} % 증가")
 
     # --- Reforging headers ---
     for _ in range(100):
@@ -259,11 +261,11 @@ def generate_template_lines():
     for _ in range(50):
         name = random.choice(reforge_names)
         n = rand_int(1, 4)
-        lines.append(f"- {name}{n}")
+        lines.append(f"{BULLET} {name}{n}")
     for _ in range(50):
         name = random.choice(reforge_names)
         n = rand_int(1, 4)
-        lines.append(f"- {name} {n}")
+        lines.append(f"{BULLET} {name} {n}")
 
     # --- Crafting lines (세공) ---
     craft_skills = ['클로저 대미지 배율', '크로스 버스터 대미지 배율',
@@ -271,20 +273,20 @@ def generate_template_lines():
                     '최소부상률', '멜로디 쇼크 지속대미지', '최대 공격력']
     for _ in range(50):
         skill = random.choice(craft_skills)
-        lines.append(f"- {skill}({rand_level()} 레벨)")
+        lines.append(f"{BULLET} {skill}({rand_level()} 레벨)")
     for _ in range(50):
         skill = random.choice(craft_skills)
-        lines.append(f"- {skill}({rand_level()} 레벨)")
+        lines.append(f"{BULLET} {skill}({rand_level()} 레벨)")
 
     # --- Set item lines ---
     set_skills = ['돌진', '스매시', '윈드밀', '파이널 히트', '파이널 스트라이크']
     for _ in range(50):
         skill = random.choice(set_skills)
         n = rand_int(1, 10)
-        lines.append(f"- {skill} 강화 +{n}")
+        lines.append(f"{BULLET} {skill} 강화 +{n}")
     for _ in range(50):
         skill = random.choice(set_skills)
-        lines.append(f"- {skill} 강화 +{rand_int(1, 10)}")
+        lines.append(f"{BULLET} {skill} 강화 +{rand_int(1, 10)}")
 
     lines.extend([
         f"발동 조건: 강화 수치 {rand_int(5, 15)} 달성" for _ in range(20)
@@ -293,23 +295,23 @@ def generate_template_lines():
     # --- Piercing ---
     for _ in range(30):
         lvl = rand_int(1, 5)
-        lines.append(f"- 피어싱 레벨 {lvl}")
+        lines.append(f"{BULLET} 피어싱 레벨 {lvl}")
     for _ in range(30):
         lvl = rand_int(1, 5)
         extra = random.choice(['', f'+ {rand_int(1,3)}'])
-        lines.append(f"- 피어싱 레벨 {lvl}{extra}")
+        lines.append(f"{BULLET} 피어싱 레벨 {lvl}{extra}")
     for _ in range(20):
         d, p = rand_int(5, 50), rand_int(5, 30)
-        lines.append(f"- 방어 {d}, 보호 {p} 차감")
+        lines.append(f"{BULLET} 방어 {d}, 보호 {p} 차감")
     for _ in range(20):
         d, p = rand_int(5, 50), rand_int(5, 30)
-        lines.append(f"- 마법 방어 {d}, 마법 보호 {p} 차감")
+        lines.append(f"{BULLET} 마법 방어 {d}, 마법 보호 {p} 차감")
     for _ in range(20):
         d, p = rand_int(5, 50), rand_int(5, 30)
-        lines.append(f"  ㄴ 방어 {d}, 보호 {p} 차감")
+        lines.append(f"  {SUBBULLET} 방어 {d}, 보호 {p} 차감")
     for _ in range(20):
         d, p = rand_int(5, 50), rand_int(5, 30)
-        lines.append(f"  ㄴ 마법 방어 {d}, 마법 보호 {p} 차감")
+        lines.append(f"  {SUBBULLET} 마법 방어 {d}, 마법 보호 {p} 차감")
 
     piercing_note = ['(피어싱이 부여된 장비를 양 쪽에 착용 시, 높은 쪽 적용)',
                      '(피어싱이 부여된 장비를 양 쪽에 착용 시, 높은 쪽',
@@ -357,29 +359,30 @@ def generate_template_lines():
         lines.append(f"등급 {g} ({rand_int(1, 50)}/{rand_int(30, 50)} 레벨)")
     lines.extend(['(에르그 이전 불가)'])
     for _ in range(20):
-        lines.append(f"- 무기 공격력 {rand_int(10, 100)} 증가")
+        lines.append(f"{BULLET} 무기 공격력 {rand_int(10, 100)} 증가")
     for _ in range(10):
-        lines.append(f"- 스플래시 반경 {rand_int(100, 500)}cm 증가")
+        lines.append(f"{BULLET} 스플래시 반경 {rand_int(100, 500)}cm 증가")
 
     # --- Special reforging ---
     for _ in range(20):
-        lines.append(f"- 크리티컬 대미지 : {rand_int(100, 200)} +{rand_int(10, 80)}%")
+        lines.append(f"{BULLET} 크리티컬 대미지 : {rand_int(100, 200)} +{rand_int(10, 80)}%")
 
     # --- Artisan lines ---
     artisan_effects = ['방어', '보호', '최대스태미나', '최대생명력', '솜씨', '체력']
     for _ in range(60):
         effect = random.choice(artisan_effects)
-        lines.append(f"- {effect} {rand_int(1, 30)} 증가")
+        lines.append(f"{BULLET} {effect} {rand_int(1, 30)} 증가")
 
     # --- Holy water / special effects ---
     for _ in range(20):
         stat = random.choice(['최대대미지', '최소대미지', '최대생명력', '최대마나'])
-        lines.append(f"- 성수 효과(거래 불가) : {stat} {rand_int(5, 30)} 증가")
+        lines.append(f"{BULLET} 성수 효과(거래 불가) : {stat} {rand_int(5, 30)} 증가")
     for _ in range(20):
-        lines.append(f"- 근접공격 자동방어 확률 : {rand_int(1, 15)}.{rand_int(0, 99):02d}%")
+        lines.append(f"{BULLET} 근접공격 자동방어 확률 : {rand_int(1, 15)}.{rand_int(0, 99):02d}%")
 
     # --- Prefix-stripped variants ---
-    # The splitter sometimes crops away leading "- " or "ㄴ ",
+    # The splitter sometimes crops away the leading BULLET or SUBBULLET prefix
+    # (canonical chars defined in configs/training_config.yaml),
     # so we train on content-only versions too.
     for _ in range(100):
         effect = random.choice(effect_words)
@@ -467,37 +470,6 @@ def generate_template_lines():
     return lines
 
 
-def load_gt_lines():
-    """Load all non-empty lines from *_expected.txt ground truth files.
-
-    Uses _expected.txt (user-maintained, clean prefixes, no bottom area) rather
-    than _processed.txt (has outdated . prefixes and full color part lines).
-
-    Color part lines (파트 X R:N G:N B:N) are excluded — the splitter breaks
-    these into sub-segments that OCR never sees as a full line. Sub-segment
-    templates (파트 A/B/C, R:N, G:N, B:N) are generated by generate_template_lines().
-    """
-    import re
-    gt_lines = []
-    if not os.path.exists(GT_DIR):
-        return gt_lines
-    for f in os.listdir(GT_DIR):
-        if not f.endswith('_expected.txt'):
-            continue
-        with open(os.path.join(GT_DIR, f), 'r', encoding='utf-8') as fh:
-            for line in fh:
-                line = line.strip()
-                if not line:
-                    continue
-                # Skip full color part lines — OCR only ever sees sub-segments
-                if re.match(r'^-?\s*파트\s+[A-F]', line):
-                    continue
-                # Skip comment lines added by regenerate_gt.py
-                if line.startswith('#'):
-                    continue
-                gt_lines.append(line)
-    return list(set(gt_lines))
-
 
 def load_dictionaries():
     """Load dictionary entries."""
@@ -508,9 +480,6 @@ def load_dictionaries():
             continue
         with open(dict_path, 'r', encoding='utf-8') as f:
             entries = [line.strip() for line in f if line.strip()]
-        if 'item_name' in dict_path and len(entries) > ITEM_NAME_SAMPLE:
-            print(f"  item_name.txt: sampling {ITEM_NAME_SAMPLE} from {len(entries)} entries")
-            entries = random.sample(entries, ITEM_NAME_SAMPLE)
         words.extend(entries)
         print(f"  Loaded {len(entries):5d} entries from {os.path.basename(dict_path)}")
     return words
@@ -614,16 +583,12 @@ def generate_data():
     template_lines = generate_template_lines()
     print(f"Template lines: {len(template_lines)}")
 
-    # 2. Ground truth lines (verbatim)
-    gt_lines = load_gt_lines()
-    print(f"Ground truth lines: {len(gt_lines)}")
-
-    # 3. Dictionary entries
+    # 2. Dictionary entries
     dict_words = load_dictionaries()
     print(f"Dictionary entries: {len(dict_words)}")
 
     # Combine (deduplicate)
-    all_labels = list(set(template_lines + gt_lines + dict_words))
+    all_labels = list(set(template_lines + dict_words))
 
     # Split long labels at word boundaries to fit within canvas (check all fonts)
     max_font = max(FONT_SIZES)

@@ -27,6 +27,7 @@ sys.path.insert(0, PROJECT_ROOT)
 sys.path.insert(0, os.path.join(PROJECT_ROOT, 'backend'))
 
 from lib.v3_pipeline import init_pipeline, run_v3_pipeline
+from lib.text_corrector import _PREFIX_PAT
 
 
 def load_ground_truth(txt_path):
@@ -52,9 +53,6 @@ def find_gt_file(image_path, gt_dir, gt_suffix):
     return None
 
 
-_LINE_PREFIX_RE = re.compile(r'^[-ㄴ]\s*')
-
-
 def test_image(pipeline, image_path, gt_path=None, verbose=True):
     """Run v3 pipeline on a single image and optionally compare against GT."""
     basename = os.path.basename(image_path)
@@ -74,7 +72,7 @@ def test_image(pipeline, image_path, gt_path=None, verbose=True):
     if gt_lines_raw is not None:
         gt_lines = []
         for g in gt_lines_raw:
-            m = _LINE_PREFIX_RE.match(g)
+            m = _PREFIX_PAT.match(g)
             gt_lines.append(g[m.end():] if m else g)
     else:
         gt_lines = None
