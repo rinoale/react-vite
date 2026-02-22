@@ -1,16 +1,17 @@
 from html import escape
-from typing import Any
+from typing import Any, List
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import HTMLResponse
-from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from db.connector import get_db
+from db import schemas
+from crud import admin as crud_admin
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
-_ALLOWED_TABS = {"entries", "effects", "links", "reforge"}
+_ALLOWED_TABS = {"enchants", "effects", "enchant_effects", "reforge"}
 
 
 def _slot_label(slot: int | None) -> str:
@@ -21,109 +22,24 @@ def _slot_label(slot: int | None) -> str:
     return "unknown"
 
 
-def _fetch_summary(db: Session) -> dict[str, int]:
-    return {
-        "enchant_entries": int(db.execute(text("SELECT COUNT(*) FROM enchant_entries")).scalar_one()),
-        "enchant_effects": int(db.execute(text("SELECT COUNT(*) FROM enchant_effects")).scalar_one()),
-        "enchant_links": int(
-            db.execute(text("SELECT COUNT(*) FROM enchant_entry_effect_links")).scalar_one()
-        ),
-        "reforge_options": int(db.execute(text("SELECT COUNT(*) FROM reforge_options")).scalar_one()),
-    }
-
-
-def _fetch_entries(db: Session, limit: int, offset: int) -> list[dict[str, Any]]:
-    rows = db.execute(
-        text(
-            """
-            SELECT
-                e.id,
-                e.slot,
-                e.name,
-                e.rank,
-                e.header_text,
-                COUNT(l.id) AS effect_count
-            FROM enchant_entries e
-            LEFT JOIN enchant_entry_effect_links l ON l.enchant_entry_id = e.id
-            GROUP BY e.id
-            ORDER BY e.id
-            LIMIT :limit OFFSET :offset
-            """
-        ),
-        {"limit": limit, "offset": offset},
-    ).mappings()
-    return [dict(r) for r in rows]
-
-
-def _fetch_effects(db: Session, limit: int, offset: int) -> list[dict[str, Any]]:
-    rows = db.execute(
-        text(
-            """
-            SELECT id, normalized_text
-            FROM enchant_effects
-            ORDER BY id
-            LIMIT :limit OFFSET :offset
-            """
-        ),
-        {"limit": limit, "offset": offset},
-    ).mappings()
-    return [dict(r) for r in rows]
-
-
-def _fetch_links(db: Session, limit: int, offset: int) -> list[dict[str, Any]]:
-    rows = db.execute(
-        text(
-            """
-            SELECT
-                l.id,
-                l.enchant_entry_id,
-                l.enchant_effect_id,
-                l.effect_order,
-                l.condition_text,
-                l.effect_value,
-                l.effect_direction,
-                l.raw_text,
-                e.name AS enchant_name,
-                ef.normalized_text AS effect_text
-            FROM enchant_entry_effect_links l
-            JOIN enchant_entries e ON e.id = l.enchant_entry_id
-            JOIN enchant_effects ef ON ef.id = l.enchant_effect_id
-            ORDER BY l.id
-            LIMIT :limit OFFSET :offset
-            """
-        ),
-        {"limit": limit, "offset": offset},
-    ).mappings()
-    return [dict(r) for r in rows]
-
-
-def _fetch_reforge(db: Session, limit: int, offset: int) -> list[dict[str, Any]]:
-    rows = db.execute(
-        text(
-            """
-            SELECT id, option_name
-            FROM reforge_options
-            ORDER BY id
-            LIMIT :limit OFFSET :offset
-            """
-        ),
-        {"limit": limit, "offset": offset},
-    ).mappings()
-    return [dict(r) for r in rows]
-
-
-def _render_table(rows: list[dict[str, Any]]) -> str:
+def _render_table(rows: list[Any]) -> str:
     if not rows:
         return "<p>No records.</p>"
 
-    headers = list(rows[0].keys())
+    # Handle both dict-like and object-like rows
+    if hasattr(rows[0], "__dict__") and not isinstance(rows[0], dict):
+        # Filter out SQLAlchemy internal state
+        headers = [k for k in rows[0].__dict__.keys() if not k.startswith('_')]
+    else:
+        headers = list(rows[0].keys())
+        
     th = "".join(f"<th>{escape(str(h))}</th>" for h in headers)
 
     body_rows = []
     for row in rows:
         td = ""
         for h in headers:
-            val = row.get(h)
+            val = row[h] if isinstance(row, dict) else getattr(row, h, None)
             if h == "slot":
                 val = f"{val} ({_slot_label(val)})"
             td += f"<td>{escape('' if val is None else str(val))}</td>"
@@ -142,69 +58,77 @@ def admin_health() -> dict[str, bool]:
     return {"ok": True}
 
 
-@router.get("/summary")
-def admin_summary(db: Session = Depends(get_db)) -> dict[str, int]:
-    return _fetch_summary(db)
+@router.get("/summary", response_model=schemas.SummarySchema)
+def admin_summary(db: Session = Depends(get_db)):
+    return crud_admin.get_summary(db)
 
 
-@router.get("/enchant-entries")
+@router.get("/enchant-entries", response_model=schemas.PaginatedEnchantResponse)
 def admin_enchant_entries(
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
-) -> dict[str, Any]:
-    rows = _fetch_entries(db, limit=limit, offset=offset)
+):
+    rows = crud_admin.get_enchants(db, limit=limit, offset=offset)
     return {"limit": limit, "offset": offset, "rows": rows}
 
 
-@router.get("/effects")
+@router.get("/enchant-entries/{enchant_id}/effects", response_model=List[schemas.EnchantEffect])
+def admin_enchant_effects_by_id(
+    enchant_id: int,
+    db: Session = Depends(get_db),
+):
+    return crud_admin.get_enchant_effects_by_id(db, enchant_id)
+
+
+@router.get("/effects", response_model=schemas.PaginatedEffectResponse)
 def admin_effects(
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
-) -> dict[str, Any]:
-    rows = _fetch_effects(db, limit=limit, offset=offset)
+):
+    rows = crud_admin.get_effects(db, limit=limit, offset=offset)
     return {"limit": limit, "offset": offset, "rows": rows}
 
 
-@router.get("/links")
+@router.get("/links", response_model=schemas.PaginatedEnchantEffectResponse)
 def admin_links(
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
-) -> dict[str, Any]:
-    rows = _fetch_links(db, limit=limit, offset=offset)
+):
+    rows = crud_admin.get_enchant_effects(db, limit=limit, offset=offset)
     return {"limit": limit, "offset": offset, "rows": rows}
 
 
-@router.get("/reforge-options")
+@router.get("/reforge-options", response_model=schemas.PaginatedReforgeResponse)
 def admin_reforge_options(
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
-) -> dict[str, Any]:
-    rows = _fetch_reforge(db, limit=limit, offset=offset)
+):
+    rows = crud_admin.get_reforge_options(db, limit=limit, offset=offset)
     return {"limit": limit, "offset": offset, "rows": rows}
 
 
 @router.get("/validate", response_class=HTMLResponse)
 def admin_validate_page(
-    tab: str = Query(default="entries"),
+    tab: str = Query(default="enchants"),
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
 ) -> HTMLResponse:
-    tab = tab if tab in _ALLOWED_TABS else "entries"
-    summary = _fetch_summary(db)
+    tab = tab if tab in _ALLOWED_TABS else "enchants"
+    summary = crud_admin.get_summary(db)
 
-    if tab == "entries":
-        rows = _fetch_entries(db, limit, offset)
+    if tab == "enchants":
+        rows = crud_admin.get_enchants(db, limit, offset)
     elif tab == "effects":
-        rows = _fetch_effects(db, limit, offset)
-    elif tab == "links":
-        rows = _fetch_links(db, limit, offset)
+        rows = crud_admin.get_effects(db, limit, offset)
+    elif tab == "enchant_effects":
+        rows = crud_admin.get_enchant_effects(db, limit, offset)
     else:
-        rows = _fetch_reforge(db, limit, offset)
+        rows = crud_admin.get_reforge_options(db, limit, offset)
 
     next_offset = offset + limit
     prev_offset = max(0, offset - limit)
@@ -219,15 +143,15 @@ def admin_validate_page(
 <body style=\"font-family: Arial, sans-serif; margin: 24px;\">
   <h1>Admin DB Validation</h1>
   <p>
-    entries={summary['enchant_entries']} |
-    effects={summary['enchant_effects']} |
-    links={summary['enchant_links']} |
+    enchants={summary['enchants']} |
+    effects={summary['effects']} |
+    enchant_effects={summary['enchant_effects']} |
     reforge={summary['reforge_options']}
   </p>
   <p>
-    <a href=\"/admin/validate?tab=entries&limit={limit}&offset=0\">entries</a> |
+    <a href=\"/admin/validate?tab=enchants&limit={limit}&offset=0\">enchants</a> |
     <a href=\"/admin/validate?tab=effects&limit={limit}&offset=0\">effects</a> |
-    <a href=\"/admin/validate?tab=links&limit={limit}&offset=0\">links</a> |
+    <a href=\"/admin/validate?tab=enchant_effects&limit={limit}&offset=0\">enchant_effects</a> |
     <a href=\"/admin/validate?tab=reforge&limit={limit}&offset=0\">reforge</a>
   </p>
   <p>Current tab: <strong>{escape(tab)}</strong> / limit={limit} / offset={offset}</p>

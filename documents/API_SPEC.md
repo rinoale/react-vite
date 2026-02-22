@@ -100,76 +100,110 @@ the frontend should always read `text` directly.
 
 **Note:** `corrected_text` is no longer returned. The server makes the FM decision — `text` is the final value.
 
-#### Enchant Section (`sections.enchant`)
-| Property | Type | Description |
-| :--- | :--- | :--- |
-| `prefix` | `object \| null` | Prefix enchant slot data, or `null` if no prefix enchant. |
-| `suffix` | `object \| null` | Suffix enchant slot data, or `null` if no suffix enchant. |
-| `lines` | `array` | All lines in the enchant section (for fallback rendering). |
-
-Each slot object:
-| Property | Type | Description |
-| :--- | :--- | :--- |
-| `text` | `string` | Full header text, e.g. `"[접두] 충격을 (랭크 F)"`. |
-| `name` | `string` | Enchant name, e.g. `"충격을"`. |
-| `rank` | `string` | Rank letter or number, e.g. `"F"`, `"6"`. |
-| `effects` | `array` | Effect objects (see below). |
-
-Each effect object:
-| Property | Type | Description |
-| :--- | :--- | :--- |
-| `text` | `string` | Full effect text, e.g. `"최대대미지 5 증가"`. |
-| `option_name` | `string` (optional) | Stat name extracted from the effect, e.g. `"최대대미지"`. Present only if a number was found. |
-| `option_level` | `number` (optional) | Numeric value extracted from the effect, e.g. `5`. Present only if a number was found. |
-
-#### Reforge Section (`sections.reforge`)
-| Property | Type | Description |
-| :--- | :--- | :--- |
-| `options` | `array` | Parsed reforge option records. |
-| `lines` | `array` | All lines in the reforge section. |
-
-Each option object:
-| Property | Type | Description |
-| :--- | :--- | :--- |
-| `name` | `string` | Reforge skill name (may be FM-corrected). |
-| `level` | `integer` | Current reforge level. |
-| `max_level` | `integer` | Maximum reforge level. |
-| `option_name` | `string` | Alias for `name` (unified field for DB storage). |
-| `option_level` | `integer` | Alias for `level` (unified field for DB storage). |
-| `effect` | `string \| null` | Effect description from the `ㄴ` sub-bullet, or `null`. |
-
 ---
 
-## 2. Admin Validation APIs
+## 2. Admin Validation APIs (v2 Schema)
 
-Simple admin endpoints for validating DB records in browser/JSON.
+These endpoints provide access to the core enchant and reforge dictionaries. 
+All responses are validated against Pydantic models.
 
-### HTML Page
+### Communication with Admin UI
+- **Base URL:** `/admin`
+- **Slot Mapping:** `0` = 접두 (Prefix), `1` = 접미 (Suffix)
+- **Rank Mapping:** `1-9` = ranks 1-9, `10` = A, `11` = B, `12` = C, `13` = D, `14` = E, `15` = F
+
+### Endpoints
+
+#### `GET /admin/health`
+Checks backend connectivity.
+- **Response:** `{ "ok": true }`
+
+#### `GET /admin/summary`
+Returns counts for all core entities.
+- **Response Structure:**
+  ```json
+  {
+    "enchants": 1168,
+    "effects": 68,
+    "enchant_effects": 4934,
+    "reforge_options": 527
+  }
+  ```
+
+#### `GET /admin/enchant-entries?limit=100&offset=0`
+Fetches a paginated list of enchant definitions.
+- **Response Structure:**
+  ```json
+  {
+    "limit": 100,
+    "offset": 0,
+    "rows": [
+      {
+        "id": 1,
+        "slot": 0,
+        "name": "강력한",
+        "rank": 9,
+        "header_text": "[접두] 강력한 (랭크 9)",
+        "effect_count": 3
+      }
+    ]
+  }
+  ```
+
+#### `GET /admin/enchant-entries/{enchant_id}/effects`
+Fetches all effect lines for a specific enchant.
+- **Response Structure:** `Array<EnchantEffect>`
+  ```json
+  [
+    {
+      "id": 101,
+      "enchant_id": 1,
+      "effect_id": 5,
+      "effect_order": 0,
+      "condition_text": "컴뱃 마스터리 랭크 9 이상일 때",
+      "min_value": 15,
+      "max_value": 20,
+      "raw_text": "컴뱃 마스터리 랭크 9 이상일 때 최대대미지 15 ~ 20 증가",
+      "enchant_name": "강력한",
+      "effect_name": "최대대미지"
+    }
+  ]
+  ```
+
+#### `GET /admin/effects?limit=100&offset=0`
+Fetches the master list of unique effect names.
+- **Response Structure:**
+  ```json
+  {
+    "limit": 100,
+    "offset": 0,
+    "rows": [
+      { "id": 1, "name": "최대대미지", "is_pct": false },
+      { "id": 2, "name": "수리비 (%)", "is_pct": true }
+    ]
+  }
+  ```
+
+#### `GET /admin/links?limit=100&offset=0`
+Fetches a paginated list of the full `enchant_effects` link table.
+- **Response Structure:** `{ "limit": 100, "offset": 0, "rows": Array<EnchantEffect> }`
+- **Note:** For the frontend, it is more efficient to use `/enchant-entries/{id}/effects` when expanding a single row.
+
+#### `GET /admin/reforge-options?limit=100&offset=0`
+Fetches the master list of reforge options.
+- **Response Structure:**
+  ```json
+  {
+    "limit": 100,
+    "offset": 0,
+    "rows": [
+      { "id": 1, "option_name": "스매시 대미지" }
+    ]
+  }
+  ```
+
+### HTML Validation Helper
 - **Endpoint:** `/admin/validate`
 - **Method:** `GET`
-- **Query params:** `tab` (`entries|effects|links|reforge`), `limit`, `offset`
-- **Response:** server-rendered HTML table for manual validation
-
-### JSON Endpoints
-- **`GET /admin/health`**
-  - Response: `{ "ok": true }`
-- **`GET /admin/summary`**
-  - Response:
-    ```json
-    {
-      "enchant_entries": 1168,
-      "enchant_effects": 230,
-      "enchant_links": 4934,
-      "reforge_options": 527
-    }
-    ```
-- **`GET /admin/enchant-entries?limit=100&offset=0`**
-  - Response: `{ "limit": 100, "offset": 0, "rows": [...] }`
-  - Row fields: `id`, `slot` (0/1), `name`, `rank`, `header_text`, `effect_count`
-- **`GET /admin/effects?limit=100&offset=0`**
-  - Row fields: `id`, `normalized_text`
-- **`GET /admin/links?limit=100&offset=0`**
-  - Row fields: `id`, `enchant_entry_id`, `enchant_effect_id`, `effect_order`, `condition_text`, `effect_value`, `effect_direction`, `raw_text`, `enchant_name`, `effect_text`
-  - **Proposed Filter:** `enchant_entry_id` (Integer). If provided, returns only links for that entry. Required for efficient expansion in Admin UI.
-- **`GET /admin/reforge-options?limit=100&offset=0`**
-  - Row fields: `id`, `option_name`
+- **Query params:** `tab` (`enchants|effects|enchant_effects|reforge`), `limit`, `offset`
+- **Response:** `HTMLResponse` containing a server-rendered table for quick data auditing.
