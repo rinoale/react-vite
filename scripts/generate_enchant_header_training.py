@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 """Generate synthetic training images for the enchant slot header OCR model.
 
-Images match real enchant header crops from the V3 segmentation pipeline:
-- Font size 11 → text_h=11, total_h=15 with padding
-- Binary (0/255), tight-cropped to ink bounds
-- Padding: pad_y = max(1, h//5) = 2, pad_x = max(2, h//3) = 3
+Rendering matches the real V3 inference pipeline:
+  Game: white text on dark bg → white mask (bright & balanced RGB) → invert
+  Synthetic: white text on dark bg → grayscale → white mask threshold → invert
 
-Reference characteristics (from tmp/enchant_header_samples/):
-  Height: 15px (all), Width: 55-118px median 65
-  Ink ratio: 0.258-0.331, mean 0.279
+Reference characteristics (from tmp/ocr_crops/ with white mask preprocessing):
+  Height: 15px (all), Width: 55-118px median 75
+  Ink ratio: 0.198-0.217, mean 0.209
 
 Run from project root:
     python3 scripts/generate_enchant_header_training.py
@@ -28,20 +27,32 @@ IMAGES_DIR = os.path.join(OUTPUT_DIR, "images")
 LABELS_DIR = os.path.join(OUTPUT_DIR, "labels")
 
 FONT_SIZE = 11
-THRESHOLD = 80
 VARIATIONS_PER_LABEL = 3
 
-# Quality gates (reference: ink 0.258-0.331, w 55-118, h 15)
+# White mask threshold for training data rendering.
+# Real pipeline uses max_ch > 150, but PIL's anti-aliasing produces a
+# narrower fringe than the game's renderer.  Threshold=80 on synthetic
+# captures enough fringe to match real crop ink ratio (~0.209).
+WHITE_MASK_THRESHOLD = 80
+
+# Dark background brightness range (game tooltip backgrounds)
+BG_BRIGHTNESS_RANGE = (20, 45)
+# Text brightness range (game white text)
+TEXT_BRIGHTNESS_RANGE = (220, 255)
+
+# Quality gates (reference: ink 0.198-0.217, w 55-118, h 15)
 MIN_INK_RATIO = 0.10
 MIN_WIDTH = 10
 MIN_HEIGHT = 8
 
 
 def render_line(text, font_size):
-    """Render a single text line, tight-cropped to ink bounds + padding.
+    """Render white text on dark bg, apply white mask, invert.
 
-    Matches how the V3 pipeline crops enchant slot headers:
-    pad_x = max(2, h//3), pad_y = max(1, h//5).
+    Mimics the real inference pipeline:
+    1. Bright text on dark background (like the game)
+    2. White mask: pixels > 150 → white, else black
+    3. Invert: black text on white background
 
     Returns (PIL Image in mode 'L', bool success).
     """
@@ -62,14 +73,21 @@ def render_line(text, font_size):
     img_h = text_h + 2 * pad_y
     img_w = text_w + 2 * pad_x
 
-    img = Image.new('L', (img_w, img_h), color=255)
+    # Step 1: Render bright text on dark background
+    bg = random.randint(*BG_BRIGHTNESS_RANGE)
+    fg = random.randint(*TEXT_BRIGHTNESS_RANGE)
+    img = Image.new('L', (img_w, img_h), color=bg)
     draw = ImageDraw.Draw(img)
-    draw.text((pad_x, pad_y - bbox[1]), text, font=font, fill=0)
+    draw.text((pad_x, pad_y - bbox[1]), text, font=font, fill=fg)
 
-    thresh = THRESHOLD + random.randint(-5, 20)
-    img = img.point(lambda x: 0 if x < thresh else 255, 'L')
+    # Step 2: White mask — pixel > 150 → 255, else 0
+    arr = np.array(img)
+    white_on_black = np.where(arr > WHITE_MASK_THRESHOLD, 255, 0).astype(np.uint8)
 
-    return img, True
+    # Step 3: Invert — black text on white background
+    black_on_white = 255 - white_on_black
+
+    return Image.fromarray(black_on_white, mode='L'), True
 
 
 def load_labels():
@@ -144,6 +162,7 @@ def generate_data():
     print(f"  Height: {heights.min()}-{heights.max()} (unique: {sorted(set(heights))})")
     print(f"  Width:  {widths.min()}-{widths.max()} (median: {int(np.median(widths))})")
     print(f"  Ink:    {inks.min():.3f}-{inks.max():.3f} (mean: {inks.mean():.3f})")
+    print(f"  Target: 0.198-0.217, mean 0.209")
 
 
 if __name__ == "__main__":

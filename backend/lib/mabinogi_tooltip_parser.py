@@ -495,7 +495,12 @@ class MabinogiTooltipParser(TooltipLineSplitter):
         min_ch = np.minimum(np.minimum(r, g), b)
         white_mask = (max_ch > 150) & ((max_ch / (min_ch + 1)) < 1.4)
 
-        img_h, img_w = binary.shape[:2]
+        # Use inverted white mask as OCR input (black text on white).
+        # Produces cleaner strokes than threshold=80 BINARY_INV, which
+        # fattens text from anti-aliasing fringe (ink 0.28 vs 0.21).
+        ocr_source = cv2.bitwise_not(white_mask.astype(np.uint8) * 255)
+
+        img_h, img_w = ocr_source.shape[:2]
         results = []
 
         for group, bounds, _ in header_classifications:
@@ -542,14 +547,9 @@ class MabinogiTooltipParser(TooltipLineSplitter):
             w_pad = min(img_w - x_pad, (x_end - x_start) + 2 * pad_x)
             h_pad = min(img_h - y_pad, text_h + 2 * pad_y)
 
-            # Crop from binary
-            crop = binary[y_pad:y_pad + h_pad, x_pad:x_pad + w_pad]
-
-            # Convert to grayscale if needed
-            if len(crop.shape) == 3:
-                gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
-            else:
-                gray = crop
+            # Crop from inverted white mask
+            crop = ocr_source[y_pad:y_pad + h_pad, x_pad:x_pad + w_pad]
+            gray = crop
 
             ch, cw = gray.shape
             if ch == 0 or cw == 0:
