@@ -18,7 +18,7 @@ import os
 import yaml
 
 DICT_DIR = os.path.join(os.path.dirname(__file__), '..', 'data', 'dictionary')
-ENCHANT_YAML = os.path.join(DICT_DIR, 'enchant.yaml')
+ENCHANT_YAML = os.path.join(os.path.dirname(__file__), '..', 'data', 'source_of_truth', 'enchant.yaml')
 SLOT_HEADER_TXT = os.path.join(DICT_DIR, 'enchant_slot_header.txt')
 EFFECT_TXT = os.path.join(DICT_DIR, 'enchant_effect.txt')
 

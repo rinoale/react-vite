@@ -59,11 +59,12 @@ class TextCorrector:
         for a line in the reforge section will search only those entries.
 
         Special handling:
-        - 'enchant.yaml' → structured DB via _load_enchant_structured() (skip flat dict)
+        - enchant.yaml (in data/source_of_truth/) → structured DB via _load_enchant_structured()
         - 'enchant_*.txt' (enchant_slot_header.txt, enchant_effect.txt) → merged into section 'enchant'
         """
         # First pass: load enchant.yaml for structured DB
-        yaml_path = os.path.join(dict_dir, 'enchant.yaml')
+        sot_dir = os.path.join(os.path.dirname(dict_dir), 'source_of_truth')
+        yaml_path = os.path.join(sot_dir, 'enchant.yaml')
         if os.path.exists(yaml_path):
             self._load_enchant_structured(yaml_path)
 

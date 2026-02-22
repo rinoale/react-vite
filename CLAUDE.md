@@ -231,7 +231,8 @@ Documents to keep in sync: `CLAUDE.md`, `AGENTS.md`, `OCR_TRAINING_HISTORY.md`, 
 - The EasyOCR custom model can only recognize characters present in `backend/ocr/unique_chars.txt`; any characters not in this set will never be output
 - EasyOCR always uses `keep_ratio_with_pad=True` during inference (hardcoded in `recognition.py` lines 199, 213), regardless of yaml PAD setting. Training must use `--PAD` to match.
 - Item database is currently mocked in `backend/lib/recommendation.py` (`ITEMS_DB`); no persistent storage yet
-- The `data/` directory (fonts, dictionary, sample images) is not fully committed to git
+- The `data/` directory (fonts, dictionary, sample images, source_of_truth) is not fully committed to git
+- `data/source_of_truth/enchant.yaml` is the canonical enchant data source; `data/dictionary/enchant_*.txt` files are generated from it via `scripts/generate_enchant_dicts.py`
 - Ground truth files (`data/sample_images/*.txt`) exist for: `lightarmor_processed_3`, `captain_suit_processed`, `lobe_processed`, `titan_blade_processed`, `dropbell_processed`. Additional `*_expected.txt` files track expected OCR output (may differ from full GT due to skipped sections).
 - Current deployed model charset is 509; known missing enchant characters remain and are tracked in `OCR_ISSUES.md`.
 - Training must run independently (not as subprocess of Claude Code) to avoid OOM kills — use `nohup` in a separate terminal
