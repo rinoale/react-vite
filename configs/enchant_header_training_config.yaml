@@ -27,6 +27,8 @@ training:
   workers: 0            # Required — LMDB can't be pickled for multiprocessing
   sensitive: true       # Required — preserves case for rank letters A-F
   PAD: true             # Required — matches EasyOCR's hardcoded keep_ratio_with_pad=True
+  adam: true            # Adam optimizer. Adadelta fails to converge on NanumGothicBold (0% acc after 10k iters).
+  lr: 0.001             # Adam default. Adadelta uses lr=1.0 which doesn't work for this font.
 
 # --- Data Paths (relative to project root) ---
 paths:

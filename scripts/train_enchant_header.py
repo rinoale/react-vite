@@ -37,6 +37,11 @@ def main():
     parser.add_argument('--num_iter', type=int, help='Override number of iterations')
     parser.add_argument('--batch_size', type=int, help='Override batch size')
     parser.add_argument('--valInterval', type=int, help='Override validation interval')
+    parser.add_argument('--adam', action='store_true', default=None,
+                        help='Use Adam optimizer (default: from config)')
+    parser.add_argument('--no-adam', action='store_true',
+                        help='Force Adadelta optimizer, overriding config')
+    parser.add_argument('--lr', type=float, help='Override learning rate')
     args = parser.parse_args()
 
     num_iter = args.num_iter or training['num_iter']
@@ -92,6 +97,21 @@ def main():
         cmd.append('--sensitive')
     if training.get('PAD'):
         cmd.append('--PAD')
+    # Optimizer: CLI --adam / --no-adam override config; config is default.
+    # Adadelta (default in train.py) fails to converge on NanumGothicBold —
+    # 0% accuracy after 10k iters. Adam with lr=0.001 reaches 99.8%.
+    use_adam = training.get('adam', False)
+    if args.adam:
+        use_adam = True
+    elif args.no_adam:
+        use_adam = False
+    if use_adam:
+        cmd.append('--adam')
+
+    # Learning rate: CLI --lr overrides config value.
+    lr = args.lr if args.lr is not None else training.get('lr')
+    if lr is not None:
+        cmd.extend(['--lr', str(lr)])
 
     print('=' * 60)
     print('  Enchant Header OCR Training Launcher')
@@ -105,6 +125,9 @@ def main():
     print(f'  batch_size       : {batch_size}')
     print(f'  num_iter         : {num_iter}')
     print(f'  valInterval      : {val_interval}')
+    print(f'  optimizer        : {"Adam" if use_adam else "Adadelta"}')
+    if lr is not None:
+        print(f'  lr               : {lr}')
     print(f'  charset ({len(charset)} chars)')
     print()
     print(f'  Command: {" ".join(cmd)}')

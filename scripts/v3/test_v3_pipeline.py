@@ -26,18 +26,7 @@ PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..
 sys.path.insert(0, PROJECT_ROOT)
 sys.path.insert(0, os.path.join(PROJECT_ROOT, 'backend'))
 
-from lib.mabinogi_tooltip_parser import MabinogiTooltipParser
-from lib.tooltip_segmenter import (
-    init_header_reader,
-    init_enchant_header_reader,
-    load_section_patterns,
-    load_config,
-    segment_and_tag,
-)
-
-MODELS_DIR  = os.path.join(PROJECT_ROOT, 'backend', 'ocr', 'models')
-CONFIG_PATH = os.path.join(PROJECT_ROOT, 'configs', 'mabinogi_tooltip.yaml')
-DICT_DIR    = os.path.join(PROJECT_ROOT, 'data', 'dictionary')
+from lib.v3_pipeline import init_pipeline, run_v3_pipeline
 
 
 def load_ground_truth(txt_path):
@@ -63,133 +52,10 @@ def find_gt_file(image_path, gt_dir, gt_suffix):
     return None
 
 
-def init_readers():
-    import easyocr
-    from lib.ocr_utils import patch_reader_imgw
-
-    print("Initializing header OCR reader (custom_header)...")
-    header_reader = init_header_reader(models_dir=MODELS_DIR)
-
-    print("Initializing enchant header OCR reader (custom_enchant_header)...")
-    enchant_header_reader = init_enchant_header_reader(models_dir=MODELS_DIR)
-
-    print("Initializing content OCR reader (custom_mabinogi)...")
-    content_reader = easyocr.Reader(
-        ['ko'],
-        model_storage_directory=MODELS_DIR,
-        user_network_directory=MODELS_DIR,
-        recog_network='custom_mabinogi',
-    )
-    fixed_imgW = patch_reader_imgw(content_reader, MODELS_DIR)
-    print(f"Content reader initialized with fixed imgW={fixed_imgW}")
-    return header_reader, enchant_header_reader, content_reader
-
-
-def init_corrector():
-    from lib.text_corrector import TextCorrector
-    return TextCorrector(dict_dir=DICT_DIR)
-
-
 _LINE_PREFIX_RE = re.compile(r'^[-ㄴ]\s*')
 
 
-def apply_fm(ocr_lines, sections, corrector):
-    """Apply FM exactly as the /upload-item-v3 endpoint does.
-
-    Mutates line['text'] in place and sets line['fm_applied'].
-    """
-    # Strip structural prefixes (- or ㄴ) — matches main.py step 3
-    for line in ocr_lines:
-        if line.get('is_header'):
-            continue
-        text = line.get('text', '')
-        m = _LINE_PREFIX_RE.match(text)
-        if m:
-            line['text'] = text[m.end():]
-
-    enchant_db_ready = bool(corrector._enchant_db)
-    fm_sections = set(corrector._section_norm_cache.keys())
-
-    for line in ocr_lines:
-        raw_text = line.get('text', '')
-        section  = line.get('section', '')
-
-        if not raw_text.strip():
-            line['fm_applied'] = False
-            continue
-
-        if line.get('is_header'):
-            line['fm_applied'] = False
-            continue
-
-        if section == 'enchant':
-            line['fm_applied'] = False
-            continue
-
-        if section in fm_sections:
-            fm_text, fm_score = corrector.correct_normalized(raw_text, section=section)
-        else:
-            fm_text, fm_score = raw_text, 0
-
-        if fm_score > 0:
-            line['text'] = fm_text
-            line['fm_applied'] = True
-        else:
-            line['fm_applied'] = False
-
-    # Enchant FM: identify enchants from effect lines, then correct
-    if 'enchant' in sections and sections['enchant'].get('lines') and enchant_db_ready:
-        enchant_lines = [l for l in sections['enchant']['lines']
-                         if not l.get('is_header')]
-        has_slot_hdrs = any(l.get('is_enchant_hdr') for l in enchant_lines)
-
-        if has_slot_hdrs:
-            slots = []
-            current_hdr, current_effects = None, []
-            for line in enchant_lines:
-                if line.get('is_enchant_hdr'):
-                    if current_hdr is not None:
-                        slots.append((current_hdr, current_effects))
-                    current_hdr = line
-                    current_effects = []
-                elif current_hdr is not None:
-                    current_effects.append(line)
-            if current_hdr is not None:
-                slots.append((current_hdr, current_effects))
-
-            for hdr_line, effect_lines in slots:
-                slot_type = hdr_line.get('enchant_slot')
-                effect_texts = [l['text'] for l in effect_lines
-                                if l.get('text', '').strip()]
-                entry, rank = corrector.identify_enchant_from_effects(
-                    effect_texts, slot_type)
-                if entry:
-                    hdr_line['text'] = entry['header']
-                    hdr_line['enchant_name'] = entry['name']
-                    hdr_line['enchant_rank'] = entry['rank']
-                    hdr_line['fm_applied'] = True
-        else:
-            current_entry = None
-            for line in enchant_lines:
-                raw_text = line.get('text', '')
-                if not raw_text.strip():
-                    continue
-                hdr_text, hdr_score, hdr_entry = corrector.match_enchant_header(raw_text)
-                if hdr_score > 0:
-                    line['text'] = hdr_text
-                    line['fm_applied'] = True
-                    current_entry = hdr_entry
-                else:
-                    fm_text, fm_score = corrector.match_enchant_effect(
-                        raw_text, current_entry)
-                    if fm_score > 0:
-                        line['text'] = fm_text
-                        line['fm_applied'] = True
-
-
-def test_image(header_reader, enchant_header_reader, content_reader,
-               parser, section_patterns,
-               image_path, corrector, gt_path=None, verbose=True):
+def test_image(pipeline, image_path, gt_path=None, verbose=True):
     """Run v3 pipeline on a single image and optionally compare against GT."""
     basename = os.path.basename(image_path)
 
@@ -198,22 +64,10 @@ def test_image(header_reader, enchant_header_reader, content_reader,
         print(f"  ERROR: cannot read {image_path}")
         return None
 
-    # Step 1: segment with header OCR
-    config = load_config(CONFIG_PATH)
-    tagged = segment_and_tag(img_bgr, header_reader, section_patterns, config)
-
-    # Step 2: content OCR per segment (enchant slot headers use dedicated model)
-    result = parser.parse_from_segments(
-        tagged, content_reader, enchant_header_reader=enchant_header_reader)
+    result = run_v3_pipeline(img_bgr, **pipeline, save_raw=True)
     ocr_lines = result['all_lines']
     sections  = result['sections']
-
-    # Save raw OCR text before FM mutates it
-    for line in ocr_lines:
-        line['raw_text'] = line.get('text', '')
-
-    # Step 3: FM — same logic as /upload-item-v3
-    apply_fm(ocr_lines, sections, corrector)
+    tagged    = result['tagged_segments']
 
     gt_lines_raw = load_ground_truth(gt_path) if gt_path else None
     # Strip structural prefixes from GT too (- or ㄴ) — output no longer has them
@@ -322,8 +176,14 @@ def test_image(header_reader, enchant_header_reader, content_reader,
                 else:
                     print(f"       OCR: {text}")
             else:
-                print(f"  Line {i+1:2d} (conf={line.get('confidence', 0):.3f})"
-                      f"{sub_tag}{model_tag}  {text}")
+                if fm_applied:
+                    print(f"  Line {i+1:2d} (conf={line.get('confidence', 0):.3f})"
+                          f"{sub_tag}{model_tag}")
+                    print(f"       OCR: {raw_text}")
+                    print(f"       FM:  {text}")
+                else:
+                    print(f"  Line {i+1:2d} (conf={line.get('confidence', 0):.3f})"
+                          f"{sub_tag}{model_tag}  {text}")
 
     if has_gt and len(ocr_lines) > len(gt_lines) and verbose:
         print(f"\n  ({len(ocr_lines) - len(gt_lines)} extra OCR lines beyond GT — not scored)")
@@ -397,12 +257,8 @@ def main():
     argp.add_argument('--quiet', '-q', action='store_true', help='Summary only')
     args = argp.parse_args()
 
-    header_reader, enchant_header_reader, content_reader = init_readers()
-    parser           = MabinogiTooltipParser(CONFIG_PATH)
-    section_patterns = load_section_patterns(CONFIG_PATH)
-    print(f"Loaded {len(section_patterns)} section patterns")
-
-    corrector = init_corrector()
+    pipeline = init_pipeline()
+    print(f"Loaded {len(pipeline['section_patterns'])} section patterns")
 
     images = collect_images(args.path)
     if not images:
@@ -415,9 +271,7 @@ def main():
     for image_path in images:
         gt_path = find_gt_file(image_path, args.gt_dir, args.gt_suffix)
         summary = test_image(
-            header_reader, enchant_header_reader, content_reader,
-            parser, section_patterns,
-            image_path, corrector, gt_path=gt_path,
+            pipeline, image_path, gt_path=gt_path,
             verbose=not args.quiet,
         )
         if summary:

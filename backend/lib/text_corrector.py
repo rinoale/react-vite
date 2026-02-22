@@ -373,3 +373,100 @@ class TextCorrector:
             return prefix + result + reforge_level_suffix, best_score
 
         return text, 0
+
+    def apply_fm(self, all_lines, sections):
+        """Apply section-aware FM correction to OCR output lines.
+
+        Strips structural prefixes (- or ㄴ), then runs FM per section.
+        Mutates line['text'] in place and sets line['fm_applied'].
+        Shared by /upload-item-v3 endpoint and test scripts.
+        """
+        # Strip structural prefixes (- or ㄴ) from content lines.
+        # Dictionary entries don't have these prefixes.
+        for line in all_lines:
+            if line.get('is_header'):
+                continue
+            text = line.get('text', '')
+            m = _PREFIX_PAT.match(text)
+            if m:
+                line['text'] = text[m.end():]
+
+        enchant_db_ready = bool(self._enchant_db)
+        fm_sections = set(self._section_norm_cache.keys())
+
+        # Per-line FM for non-enchant sections
+        for line in all_lines:
+            raw_text = line.get('text', '')
+            section = line.get('section', '')
+
+            if not raw_text.strip():
+                line['fm_applied'] = False
+                continue
+
+            if line.get('is_header'):
+                line['fm_applied'] = False
+                continue
+
+            # Enchant handled separately below
+            if section == 'enchant':
+                line['fm_applied'] = False
+                continue
+
+            if section in fm_sections:
+                fm_text, fm_score = self.correct_normalized(raw_text, section=section)
+            else:
+                fm_text, fm_score = raw_text, 0
+
+            if fm_score > 0:
+                line['text'] = fm_text
+                line['fm_applied'] = True
+            else:
+                line['fm_applied'] = False
+
+        # Enchant FM
+        if 'enchant' in sections and sections['enchant'].get('lines') and enchant_db_ready:
+            enchant_lines = [l for l in sections['enchant']['lines']
+                             if not l.get('is_header')]
+            has_slot_hdrs = any(l.get('is_enchant_hdr') for l in enchant_lines)
+
+            if has_slot_hdrs:
+                # Group lines by slot header (white-mask detected)
+                slots = []
+                current_hdr, current_effects = None, []
+                for line in enchant_lines:
+                    if line.get('is_enchant_hdr'):
+                        if current_hdr is not None:
+                            slots.append((current_hdr, current_effects))
+                        current_hdr = line
+                        current_effects = []
+                    elif current_hdr is not None:
+                        current_effects.append(line)
+                if current_hdr is not None:
+                    slots.append((current_hdr, current_effects))
+
+                for hdr_line, effect_lines in slots:
+                    # FM the header text directly against enchant dictionary
+                    raw_hdr = hdr_line.get('text', '')
+                    fm_hdr, fm_score = self.correct_normalized(
+                        raw_hdr, section='enchant')
+                    if fm_score > 0:
+                        hdr_line['text'] = fm_hdr
+                        hdr_line['fm_applied'] = True
+            else:
+                # Fallback: old linear approach (regex-detected or no headers)
+                current_entry = None
+                for line in enchant_lines:
+                    raw_text = line.get('text', '')
+                    if not raw_text.strip():
+                        continue
+                    hdr_text, hdr_score, hdr_entry = self.match_enchant_header(raw_text)
+                    if hdr_score > 0:
+                        line['text'] = hdr_text
+                        line['fm_applied'] = True
+                        current_entry = hdr_entry
+                    else:
+                        fm_text, fm_score = self.match_enchant_effect(
+                            raw_text, current_entry)
+                        if fm_score > 0:
+                            line['text'] = fm_text
+                            line['fm_applied'] = True
