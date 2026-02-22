@@ -43,10 +43,17 @@ config = {
     'PAD': training_cfg['training']['PAD'],
 }
 
-output_path = paths["model_config"]
+output_path = paths["training_model_config"]
+
+import os
+os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
 with open(output_path, "w", encoding="utf-8") as f:
     yaml.dump(config, f, allow_unicode=True)
 
 print(f"Created {output_path}")
 print(f"  imgH={model['imgH']}, imgW={model['imgW']}")
 print(f"  characters: {len(chars)} chars")
+print()
+print(f"Production yaml NOT updated. Deploy with:")
+print(f"  bash scripts/deploy_model.sh")

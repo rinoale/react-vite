@@ -117,7 +117,7 @@ Splits tooltip images into individual text line crops using horizontal projectio
 ### Training Configuration
 All training parameters are centralized in **`configs/training_config.yaml`**. This is the single source of truth for model architecture, hyperparameters, and paths.
 
-**Critical rule:** When changing `imgH`, `imgW`, or any `model:` param in `training_config.yaml`, you **MUST** re-run `python3 scripts/create_model_config.py` to regenerate `backend/models/custom_mabinogi.yaml`. Mismatched `imgW` between training and inference will cause TPS layer shape errors or garbage output.
+**Critical rule:** When changing `imgH`, `imgW`, or any `model:` param in `training_config.yaml`, you **MUST** re-run `python3 scripts/create_model_config.py` to regenerate `saved_models/custom_mabinogi.yaml` (training prep). This does NOT touch the production yaml — deploy both `.pth` and `.yaml` together with `bash scripts/deploy_model.sh`. Mismatched `imgW` between training and inference will cause TPS layer shape errors or garbage output.
 
 Key parameters and why (see `configs/training_config.yaml` for full list):
 - `imgW: 200` — Fixed via `ocr_utils.py` patch. Attempts 10-11 tried imgW=600 but failed; Attempt 12 reverted to 200 and patched inference to use the yaml value instead of dynamic per-image width.
@@ -186,16 +186,15 @@ nohup python3 -u scripts/train.py > logs/training_attemptN.log 2>&1 &
 #   nohup python3 -u scripts/train.py --batch_size 32 > training.log 2>&1 &
 # Monitor: tail -f logs/training_attemptN.log
 
-# Step 6: Deploy trained model
-cp saved_models/TPS-ResNet-BiLSTM-CTC-Seed1111/best_accuracy.pth \
-  backend/models/custom_mabinogi.pth
+# Step 6: Deploy trained model + config together
+bash scripts/deploy_model.sh
 
 # Step 7: Validate on real GT images
 python3 scripts/v2/test_v2_pipeline.py --normalize --gt-suffix _expected.txt        # Full output
 python3 scripts/v2/test_v2_pipeline.py -q --normalize --gt-suffix _expected.txt     # Summary only
 ```
 
-**When to re-run `create_model_config.py`:** Anytime you change `model:` section in `configs/training_config.yaml` (especially `imgW`, `imgH`), or update `unique_chars.txt`. The yaml must match training args exactly — the TPS Spatial Transformer is built with `I_size=(imgH, imgW)` and mismatched weights will crash or produce garbage.
+**When to re-run `create_model_config.py`:** Anytime you change `model:` section in `configs/training_config.yaml` (especially `imgW`, `imgH`), or update `unique_chars.txt`. This writes to `saved_models/custom_mabinogi.yaml` (training prep only). Production yaml at `backend/ocr/models/` is updated only via `bash scripts/deploy_model.sh`. The yaml must match training args exactly — the TPS Spatial Transformer is built with `I_size=(imgH, imgW)` and mismatched weights will crash or produce garbage.
 
 ### Testing
 - `scripts/v2/test_v2_pipeline.py` — Uses `MabinogiTooltipParser` to split GT images → `recognize()` → compares against GT `.txt` files. **Always run with `--normalize --gt-suffix _expected.txt`** — without these flags scores are artificially low (`.` bullet prefix mismatches + skipped sections inflate error count). Supports `--sections`/`-s` flag for section breakdown.
