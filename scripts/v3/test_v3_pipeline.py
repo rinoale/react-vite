@@ -199,6 +199,21 @@ def test_image(pipeline, image_path, gt_path=None, verbose=True):
         exact_matches = avg_char_accuracy = None
         avg_confidence = sum(r['confidence'] for r in results) / len(results) if results else 0.0
 
+    # Per-section breakdown (only for lines with GT)
+    section_stats = {}
+    if has_gt:
+        for r in counted:
+            sec = r['section'] or '(unknown)'
+            if sec not in section_stats:
+                section_stats[sec] = {'exact': 0, 'total': 0, 'char_acc_sum': 0.0, 'fm': 0}
+            s = section_stats[sec]
+            s['total'] += 1
+            if r['exact_match']:
+                s['exact'] += 1
+            s['char_acc_sum'] += r['char_accuracy']
+            if r['fm_applied']:
+                s['fm'] += 1
+
     summary = {
         'image':             basename,
         'gt_lines':          len(gt_lines) if has_gt else None,
@@ -211,6 +226,7 @@ def test_image(pipeline, image_path, gt_path=None, verbose=True):
         'avg_char_accuracy': avg_char_accuracy,
         'avg_confidence':    avg_confidence,
         'fm_applied':        n_fm,
+        'section_stats':     section_stats,
     }
 
     if verbose:
@@ -305,6 +321,32 @@ def main():
         if total_compared > 0:
             print(f"  {'TOTAL':40s}  {total_exact:3d}/{total_compared:<3d} exact  "
                   f"char_acc={total_char_acc/total_compared:.1%}{fm_col}")
+
+        # Aggregate per-section stats across all images
+        agg_sections = {}
+        for s in gt_sums:
+            for sec, stats in s.get('section_stats', {}).items():
+                if sec not in agg_sections:
+                    agg_sections[sec] = {'exact': 0, 'total': 0, 'char_acc_sum': 0.0, 'fm': 0}
+                a = agg_sections[sec]
+                a['exact'] += stats['exact']
+                a['total'] += stats['total']
+                a['char_acc_sum'] += stats['char_acc_sum']
+                a['fm'] += stats['fm']
+
+        if agg_sections:
+            print(f"\n{'='*70}")
+            print(f"  PER-SECTION BREAKDOWN")
+            print(f"{'='*70}")
+            print(f"  {'Section':<22s}  {'Exact':>11s}  {'Char Acc':>8s}  {'FM':>4s}")
+            print(f"  {'─'*22}  {'─'*11}  {'─'*8}  {'─'*4}")
+            for sec in sorted(agg_sections, key=lambda k: agg_sections[k]['total'], reverse=True):
+                st = agg_sections[sec]
+                ca = st['char_acc_sum'] / st['total'] if st['total'] else 0
+                fm_str = str(st['fm']) if st['fm'] else ''
+                print(f"  {sec:<22s}  {st['exact']:3d}/{st['total']:<3d} "
+                      f"({100*st['exact']/st['total'] if st['total'] else 0:5.1f}%)  "
+                      f"{ca:7.1%}  {fm_str:>4s}")
     print()
 
 

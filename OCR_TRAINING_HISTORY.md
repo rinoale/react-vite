@@ -1048,7 +1048,7 @@ Root cause: real crops = game's colored text on dark bg → BT.601 → threshold
 
 ### V3 Pipeline Results (a15 model, no retraining)
 
-Eval command: `python3 scripts/v3/test_v3_pipeline.py 'data/sample_images/*_original.png' --normalize`
+Eval command: `python3 scripts/v3/test_v3_pipeline.py 'data/sample_images/*_original.png'`
 
 | Image | Exact | Char Acc | Conf | Headers | FM |
 |-------|-------|----------|------|---------|-----|
