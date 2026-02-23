@@ -23,8 +23,9 @@ Each attempt has identified and fixed a specific bottleneck, steadily raising re
 | 17 | — | 87.5% | — | No retraining — v3 pipeline (segment-first) + border removal fix. Same a15 model. |
 | 17b | — | **88.6%** | — | No retraining — prefix stripping + white-mask enchant header cropping + unified crop debug. Same a15 model. |
 | 18 | — | **86.7%** | 0.57 | **Double-dip resize fix** — EasyOCR inference was resizing images twice (cv2.LANCZOS then PIL.BICUBIC), training only once (PIL.BICUBIC). Fixed in ocr_utils.py. +37 exact matches, no retraining. Also: font-specific dual model split (a19), oreo_flip border strip, render pipeline tuning (font 11-13, threshold 110-140). |
+| Enchant Hdr v2 | 98.1% | **86.9%** | — | Enchant header retrain: 3→10 variations, font [10-12] (was 11 only), imgW 256, 11.6k images. Flat result (103/203 vs 104/203). Header model was not the bottleneck. |
 
-Real-world char accuracy: **0% → 19.5% → 35.8% → 27.0% (regression) → 36.2% → 38.1% → 52.4% → 75.5% → 77.0% → 87.5% → 88.6% → 86.7%**. Note: Attempt 18 shows lower char_acc than 17b (86.7% vs 88.6%) because the test set expanded from 5→8 images (3 new images without GT reduce the measured total). On the same 5 GT images, exact matches jumped 67→104. Attempts 1-15 improved the OCR model. Attempt 16 regressed (charset expansion). Attempts 17/17b redesigned the pipeline without retraining. Attempt 18 fixed a fundamental EasyOCR inference bug ("double-dip resize") that affected all models since the beginning.
+Real-world char accuracy: **0% → 19.5% → 35.8% → 27.0% (regression) → 36.2% → 38.1% → 52.4% → 75.5% → 77.0% → 87.5% → 88.6% → 86.7% → 86.9%**. Note: Attempt 18 shows lower char_acc than 17b (86.7% vs 88.6%) because the test set expanded from 5→8 images (3 new images without GT reduce the measured total). On the same 5 GT images, exact matches jumped 67→104. Attempts 1-15 improved the OCR model. Attempt 16 regressed (charset expansion). Attempts 17/17b redesigned the pipeline without retraining. Attempt 18 fixed a fundamental EasyOCR inference bug ("double-dip resize") that affected all models since the beginning. Enchant Header v2 retrained with more variation but was essentially flat — header model was not the bottleneck.
 
 ---
 
@@ -1256,3 +1257,95 @@ Replaced `get_image_list()` call (which crops AND resizes) with `_crop_boxes()` 
 ### Key Lesson
 
 **Always verify that inference preprocessing matches training preprocessing exactly.** If OCR-ing training images doesn't give ~100% accuracy, there's a preprocessing mismatch — not a model quality issue. The double-dip resize was hidden because both resizes individually seemed reasonable, but compounded they introduced artifacts the model never saw during training.
+
+---
+
+## Enchant Header v2: Retrain with More Variation
+
+**Date:** 2026-02-23
+**Baseline:** Attempt 18 — 104/203 exact, 86.7% char acc (enchant header v1, double-dip fix applied)
+
+### Motivation
+
+The enchant header v1 model misread several real crops (e.g. `사라진`→`릴혀리`, crop 010→`지끼너구리`). Investigation identified three root causes:
+
+1. **Overfitting from too little variation**: 1,168 labels × 3 variations = 3,504 images. Single font size (11). The 3 "variations" per label were nearly identical (only random bg/fg brightness differs slightly).
+2. **40% of training images capped at imgW=200**: The longest labels exceeded imgW=200 at h=32, causing horizontal compression during training that didn't match inference.
+3. **Double-dip resize mismatch**: v1 was trained when inference had the double-resize bug. Now inference is fixed (single resize in AlignCollate only), so retraining aligns preprocessing for the first time.
+
+### Changes from v1
+
+| Aspect | v1 | v2 |
+|--------|-----|-----|
+| Font sizes | 11 only | [10, 10, 11, 11, 12, 12] |
+| Variations per label | 3 | 10 |
+| Total images | 3,504 | 11,680 (11,600 after LMDB filtering) |
+| imgW | 200 | 256 (covers real crops up to 120px@h=15) |
+| Rendering | Local duplicate `render_line()` | Shared `render_enchant_header()` from render_utils.py |
+| num_iter | 10,000 | 20,000 (scaled with ~3.3× more data) |
+| Optimizer | Adam (lr=0.001) | Adam (lr=0.001) — unchanged |
+
+### Training Data Quality
+
+```
+11,680 images generated (0 skipped)
+Height: 14-17 (unique: [14, 15, 16, 17])
+Width:  44-180 (median: 82)
+Ink:    0.158-0.279 (mean: 0.207, target: 0.209)
+```
+
+### Training Convergence
+
+| Iter | Accuracy | Loss | Notes |
+|------|----------|------|-------|
+| 1 | 0.0% | 37.2 | Random output |
+| 5,000 | 0.2% | 1.40 | Learning structure |
+| 8,000 | 8.8% | 0.75 | First exact matches |
+| 10,000 | 43.4% | 0.32 | — |
+| 12,000 | 82.1% | 0.08 | Rapid improvement |
+| 16,000 | 94.4% | 0.02 | Near convergence |
+| 18,500 | 96.1% | 0.02 | New best |
+| **20,000** | **98.1%** | **0.01** | **Final (best)** |
+
+Training time: ~7,736 seconds (~2.15 hours).
+
+### V3 Pipeline Results
+
+| Image | Exact | Char Acc | Conf | Headers | FM |
+|-------|-------|----------|------|---------|-----|
+| captain_suit | 6/14 | 80.4% | 0.679 | 4 | 1 |
+| dropbell | 14/33 | 83.4% | 0.555 | 4 | 5 |
+| lightarmor | 41/64 | 93.1% | 0.644 | 7 | 5 |
+| lobe | 3/12 | 69.3% | 0.568 | 2 | — |
+| titan_blade | 39/80 | 87.0% | 0.568 | 8 | 1 |
+| **TOTAL** | **103/203** | **86.9%** | — | — | **12** |
+
+Per-section breakdown:
+
+| Section | Exact | Char Acc |
+|---------|-------|----------|
+| enchant | 30/47 (63.8%) | 92.2% |
+| reforge | 13/20 (65.0%) | 96.7% |
+| set_item | 13/17 (76.5%) | 98.4% |
+| item_mod | 20/36 (55.6%) | 86.6% |
+| item_attrs | 17/54 (31.5%) | 84.3% |
+
+### Comparison with Baseline (Attempt 18)
+
+| Metric | v1 header | v2 header | Delta |
+|--------|-----------|-----------|-------|
+| Overall exact | 104/203 | 103/203 | -1 |
+| Char accuracy | 86.7% | 86.9% | +0.2pp |
+| Enchant exact | 29/47 (61.7%) | 30/47 (63.8%) | +1 |
+| Reforge exact | 13/20 (65.0%) | 13/20 (65.0%) | — |
+| Set item exact | 13/17 (76.5%) | 13/17 (76.5%) | — |
+
+### Conclusion
+
+**Essentially flat.** The v2 model achieved 98.1% synthetic accuracy (robust, not overfitting) vs v1's memorization on 3.5k images, but real-world pipeline impact was negligible (+1 enchant exact, -1 elsewhere). This indicates:
+
+1. The enchant header model was **not the bottleneck** — the double-dip fix in Attempt 18 already resolved most enchant header recognition issues for v1.
+2. The remaining enchant section errors are dominated by **content OCR quality** (effect lines), not header classification.
+3. The v2 model is more robust (generalized training vs overfitting), which may help on unseen enchant names, but the current 5-image test set doesn't surface this advantage.
+
+**Deployed:** enchant_header v2 is now active (symlinks updated). v1 remains available for rollback.
