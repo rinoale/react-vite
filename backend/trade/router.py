@@ -41,15 +41,6 @@ def _load_charset():
         if os.path.exists(chars_file):
             with open(chars_file, 'r', encoding='utf-8') as f:
                 chars.update(f.read().strip())
-    if not chars:
-        legacy_yaml = os.path.join(_MODELS_DIR, 'custom_mabinogi.yaml')
-        if os.path.exists(legacy_yaml):
-            real_path = os.path.realpath(legacy_yaml)
-            version_dir = os.path.dirname(real_path)
-            chars_file = os.path.join(version_dir, 'unique_chars.txt')
-            if os.path.exists(chars_file):
-                with open(chars_file, 'r', encoding='utf-8') as f:
-                    chars.update(f.read().strip())
     return chars
 
 

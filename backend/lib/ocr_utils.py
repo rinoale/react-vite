@@ -49,7 +49,7 @@ def _crop_boxes(horizontal_list, free_list, img_cv_grey):
     return image_list
 
 
-def patch_reader_imgw(reader, models_dir, recog_network='custom_mabinogi'):
+def patch_reader_imgw(reader, models_dir, recog_network):
     """Patch EasyOCR reader for training-matched inference.
 
     Fixes two mismatches between EasyOCR inference and training:
