@@ -217,6 +217,161 @@ class TextCorrector:
 
         return text, 0
 
+    def _dullahan_score_body(self, norm_effects, entry):
+        """Score OCR effect lines (the 'body') against one enchant entry's effects.
+
+        Part of the dullahan algorithm: the body (effects) helps find the right
+        head (header). Uses 1:1 matching (each entry effect matched at most once).
+        Returns total of matched scores (NOT divided by n_eff) — this avoids
+        penalizing entries with unmatched availability effects like '발에 인챈트 가능'.
+        """
+        effects_norm = entry.get('effects_norm', [])
+        if not effects_norm or not norm_effects:
+            return 0
+        used = set()
+        total = 0
+        for norm in norm_effects:
+            best_s, best_idx = 0, -1
+            for idx, (norm_eff, _) in enumerate(effects_norm):
+                if idx in used:
+                    continue
+                s = fuzz.ratio(norm, norm_eff)
+                if s > best_s:
+                    best_s = s
+                    best_idx = idx
+            if best_s > 50 and best_idx >= 0:
+                total += best_s
+                used.add(best_idx)
+        return total
+
+    def do_dullahan(self, header_text, effect_texts,
+                     slot_type=None):
+        """Find the correct head (header) for a body (effects).
+
+        Like the Dullahan searching for its head — when the header OCR is
+        garbled, the effect lines (body) identify the true enchant.
+
+        Strategy:
+        1. Pick up heads that look right (score by header name similarity)
+        2. Try each head on the body (score effects against candidates)
+        3. If no head fits, let the body find its own (effect-only search)
+           the header OCR is likely wrong — search by effects alone
+        4. Format: add rank only when the name was actually corrected
+
+        This handles two cases:
+        - Near-ties (폭단: 폭주=50%, 성단=50%) → effects break the tie
+        - Confident but wrong (바드=100% but effects=0) → effect search finds 마녀
+
+        Args:
+            header_text:    OCR'd header line (e.g. '[접미] 바드')
+            effect_texts:   list of OCR'd effect strings (non-grey, non-empty)
+            slot_type:      '접두' or '접미' to narrow candidates (optional)
+
+        Returns:
+            (corrected_header, score, entry) on match
+            (original_text, 0, None) on miss
+        """
+        if not header_text or not self._enchant_db:
+            return header_text, 0, None
+
+        # Extract just the enchant name from OCR text for matching.
+        # OCR may produce '[접미] 바드 (랭크 9)' or '[접미] 바드' (no rank).
+        m = _ENCHANT_HDR_PAT.match(header_text)
+        if m:
+            ocr_name = m.group(2).strip()
+        else:
+            m2 = re.match(r'\[?(접두|접미)\]?\s+(.+)', header_text)
+            if m2:
+                ocr_name = m2.group(2).strip()
+            else:
+                ocr_name = header_text.strip()
+
+        norm_name = _normalize_nums(ocr_name)
+
+        # Format: add rank only when the name was corrected
+        def _fmt(entry):
+            if entry['name'] == ocr_name:
+                return f"[{entry['slot']}] {entry['name']}"
+            return entry['header']  # full form with rank
+
+        # Score all entries by name similarity
+        candidates = []
+        for entry in self._enchant_db:
+            if slot_type and entry['slot'] != slot_type:
+                continue
+            score = fuzz.ratio(norm_name, _normalize_nums(entry['name']))
+            candidates.append((score, entry))
+
+        if not candidates:
+            return header_text, 0, None
+
+        candidates.sort(key=lambda x: x[0], reverse=True)
+        best_name_score = candidates[0][0]
+
+        # No effects available — header-only matching (same as old code)
+        if not effect_texts:
+            if best_name_score >= 80:
+                entry = candidates[0][1]
+                return _fmt(entry), best_name_score, entry
+            return header_text, 0, None
+
+        # Pre-normalize OCR effect texts
+        norm_effects = []
+        for text in effect_texts:
+            core = _PREFIX_PAT.sub('', text).strip()
+            if core:
+                norm_effects.append(_normalize_nums(core))
+
+        if not norm_effects:
+            if best_name_score >= 80:
+                entry = candidates[0][1]
+                return _fmt(entry), best_name_score, entry
+            return header_text, 0, None
+
+        # Take header candidates within 15 points of best, min score 30
+        cutoff = max(best_name_score - 15, 30)
+        top = [(s, e) for s, e in candidates if s >= cutoff]
+
+        # Score effects for each header candidate
+        scored = []
+        for name_score, entry in top:
+            eff_total = self._dullahan_score_body(norm_effects, entry)
+            scored.append((name_score, eff_total, entry))
+
+        # Among candidates, pick the one with highest effect total
+        scored.sort(key=lambda x: x[1], reverse=True)
+        best_name, best_eff, best_entry = scored[0]
+
+        if best_eff > 0:
+            # Effects confirm (or break tie for) this candidate
+            if best_name >= 80 or best_eff >= 120:
+                return _fmt(best_entry), best_name, best_entry
+            # Header score too low and effects not strong enough
+            return header_text, 0, None
+
+        # All header candidates have 0 effect match → header likely wrong
+        # (e.g. 바드=100% but effects are magic mastery → actually 마녀)
+        # Search all entries by effects alone
+        best_alt_total = 0
+        best_alt_entry = None
+        search = [e for e in self._enchant_db
+                  if not slot_type or e['slot'] == slot_type]
+        for entry in search:
+            total = self._dullahan_score_body(norm_effects, entry)
+            if total > best_alt_total:
+                best_alt_total = total
+                best_alt_entry = entry
+
+        if best_alt_entry and best_alt_total >= 100:
+            return _fmt(best_alt_entry), best_alt_total, best_alt_entry
+
+        # Fallback: return best header match
+        if best_name_score >= 80:
+            entry = candidates[0][1]
+            return _fmt(entry), best_name_score, entry
+
+        return header_text, 0, None
+
     def identify_enchant_from_effects(self, effect_texts, slot_type=None):
         """Identify an enchant entry by scoring OCR'd effect lines against all DB entries.
 
@@ -457,10 +612,15 @@ class TextCorrector:
                     slots.append((current_hdr, current_effects))
 
                 for hdr_line, effect_lines in slots:
-                    # FM the header text directly against enchant dictionary
                     raw_hdr = hdr_line.get('text', '')
-                    fm_hdr, fm_score = self.correct_normalized(
-                        raw_hdr, section='enchant')
+                    effect_texts = [l.get('text', '') for l in effect_lines
+                                    if l.get('text', '').strip()
+                                    and not l.get('is_grey')]
+                    slot_type = hdr_line.get('enchant_slot', '')
+
+                    fm_hdr, fm_score, entry = self.do_dullahan(
+                        raw_hdr, effect_texts, slot_type=slot_type)
+
                     if fm_score > 0:
                         hdr_line['text'] = fm_hdr
                         hdr_line['fm_applied'] = True
