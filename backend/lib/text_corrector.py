@@ -1,19 +1,14 @@
-from rapidfuzz import process, fuzz
 import os
+from pathlib import Path
+from rapidfuzz import process, fuzz
 import re
 
 import yaml
 
-# Load canonical prefix characters from active version's training config.
-# Resolve via symlink: models/custom_mabinogi.pth → ../general_model/<ver>/custom_mabinogi.pth
-_MODELS_DIR = os.path.join(os.path.dirname(__file__), '..', 'ocr', 'models')
-_ACTIVE_MODEL = os.path.realpath(os.path.join(_MODELS_DIR, 'custom_mabinogi.pth'))
-_ACTIVE_VER_DIR = os.path.dirname(_ACTIVE_MODEL)
-_CONFIG_PATH = os.path.join(_ACTIVE_VER_DIR, 'training_config.yaml')
-with open(_CONFIG_PATH, 'r', encoding='utf-8') as _f:
-    _config = yaml.safe_load(_f)
-_BULLET = _config['prefixes']['bullet']
-_SUBBULLET = _config['prefixes']['subbullet']
+# Load canonical prefix characters from tooltip config (game constants, not model-specific).
+_tooltip_cfg = yaml.safe_load((Path(__file__).parents[2] / 'configs' / 'mabinogi_tooltip.yaml').read_text())
+_BULLET = _tooltip_cfg['prefixes']['bullet']
+_SUBBULLET = _tooltip_cfg['prefixes']['subbullet']
 
 # Number normalization patterns
 _NUM_PAT    = re.compile(r'\d+(?:\.\d+)?')   # digit sequences (incl. decimals)
@@ -120,8 +115,7 @@ class TextCorrector:
             self._enchant_db           — list of entry dicts
             self._enchant_headers_norm — [(norm_header, entry)] for phase-1 header FM
         """
-        with open(path, 'r', encoding='utf-8') as f:
-            data = yaml.safe_load(f)
+        data = yaml.safe_load(Path(path).read_text())
 
         db = []
         for item in data:

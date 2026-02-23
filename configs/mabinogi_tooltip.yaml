@@ -117,6 +117,12 @@ sections:
 # Gaps wider than line_height * this value trigger horizontal splitting.
 # Normal inter-character gaps are 1-8px; color part gaps are 15-85px.
 # Factor 1.5 reliably splits multi-digit RGB values across all line heights.
+# Line prefix characters used in Mabinogi tooltips.
+# Used by TextCorrector for prefix stripping before fuzzy matching.
+prefixes:
+  bullet: "."       # OCR outputs period for the in-game middle dot (·)
+  subbullet: "ㄴ"   # sub-bullet: ㄴ (Korean nieun)
+
 horizontal_split_factor: 1.5
 
 # Header detection parameters (v3 segment-first pipeline)

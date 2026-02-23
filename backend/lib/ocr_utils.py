@@ -11,6 +11,7 @@ artifacts that degrade recognition accuracy.
 """
 
 import os
+from pathlib import Path
 import yaml
 import numpy as np
 from easyocr.recognition import get_text
@@ -63,8 +64,7 @@ def patch_reader_imgw(reader, models_dir, recog_network='custom_mabinogi'):
         recog_network: Name of the custom network config
     """
     yaml_path = os.path.join(models_dir, f'{recog_network}.yaml')
-    with open(yaml_path, 'r', encoding='utf-8') as f:
-        config = yaml.load(f, Loader=yaml.FullLoader)
+    config = yaml.safe_load(Path(yaml_path).read_text())
 
     fixed_imgW = config.get('imgW', config.get('network_params', {}).get('imgW', 600))
     imgH = config.get('imgH', 32)

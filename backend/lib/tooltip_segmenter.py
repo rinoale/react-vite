@@ -23,6 +23,7 @@ Each tagged segment:
 """
 
 import os
+from pathlib import Path
 
 import cv2
 import numpy as np
@@ -41,8 +42,7 @@ _MODELS_DIR = os.path.join(_BACKEND_DIR, 'ocr', 'models')
 
 def load_config(config_path):
     """Load full config from mabinogi_tooltip.yaml."""
-    with open(config_path, 'r', encoding='utf-8') as f:
-        return yaml.safe_load(f)
+    return yaml.safe_load(Path(config_path).read_text())
 
 
 def _get_header_detection_config(config):
@@ -248,8 +248,7 @@ def load_section_patterns(config_path):
 
     Returns list of (pattern_str, section_name_str).
     """
-    with open(config_path, 'r', encoding='utf-8') as f:
-        cfg = yaml.safe_load(f)
+    cfg = yaml.safe_load(Path(config_path).read_text())
     entries = []
     for section_name, section_cfg in cfg.get('sections', {}).items():
         for pattern in section_cfg.get('header_patterns', []):

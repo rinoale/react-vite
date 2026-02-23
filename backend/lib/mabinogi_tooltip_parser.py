@@ -11,6 +11,7 @@ Produces structured item data from tooltip images by:
 """
 
 import os
+from pathlib import Path
 import re
 from collections import OrderedDict
 
@@ -194,8 +195,7 @@ class MabinogiTooltipParser(TooltipLineSplitter):
 
     def __init__(self, config_path, output_dir="split_output"):
         super().__init__(output_dir)
-        with open(config_path, 'r', encoding='utf-8') as f:
-            self.config = yaml.load(f, Loader=yaml.FullLoader)
+        self.config = yaml.safe_load(Path(config_path).read_text())
         self.sections_config = self.config.get('sections', {})
         self.horizontal_split_factor = self.config.get('horizontal_split_factor', 3)
         # Build header pattern lookup: pattern_text → section_key
