@@ -330,7 +330,8 @@ class MabinogiTooltipParser(TooltipLineSplitter):
         return {
             'lines': [
                 {'text': l['text'], 'confidence': l['confidence'],
-                 'bounds': l['bounds'], 'section': l.get('section', section)}
+                 'bounds': l['bounds'], 'section': l.get('section', section),
+                 'ocr_model': l.get('ocr_model', '')}
                 for l in ocr_results
             ]
         }
@@ -464,12 +465,18 @@ class MabinogiTooltipParser(TooltipLineSplitter):
                 else:
                     text, confidence = '', 0.0
 
+                # Track which model won (DualReader sets last_model_names)
+                model_name = ''
+                if hasattr(reader, 'last_model_names') and reader.last_model_names:
+                    model_name = reader.last_model_names[0]
+
                 sub_texts.append(text)
                 sub_confs.append(confidence)
                 sub_details.append({
                     'text': text,
                     'confidence': float(confidence),
                     'bounds': line_info,
+                    'ocr_model': model_name,
                 })
 
             # Merge sub-line results
@@ -486,12 +493,16 @@ class MabinogiTooltipParser(TooltipLineSplitter):
                 'height': first['height'],
             }
 
+            # Use the model from the first sub-line (or most common if multiple)
+            ocr_model = sub_details[0].get('ocr_model', '') if sub_details else ''
+
             results.append({
                 'text': merged_text,
                 'confidence': float(avg_conf),
                 'sub_count': len(group),
                 'bounds': merged_bounds,
                 'sub_lines': sub_details,
+                'ocr_model': ocr_model,
             })
 
         return results

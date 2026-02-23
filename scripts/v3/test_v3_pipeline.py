@@ -158,7 +158,7 @@ def test_image(pipeline, image_path, gt_path=None, verbose=True):
 
             # Model tag
             ocr_model = line.get('ocr_model', '')
-            model_tag = f' [{ocr_model}]' if ocr_model and ocr_model != 'general' else ''
+            model_tag = f' [{ocr_model}]' if ocr_model else ''
 
             sub_tag = f' [{line.get("sub_count", 1)} segs]' if line.get('sub_count', 1) > 1 else ''
 
