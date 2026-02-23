@@ -93,7 +93,7 @@ Sections marked `skip: true` (e.g., `flavor_text`, `shop_price`) are omitted fro
 ## 4. OCR Recognition
 
 **Model:** `TPS-ResNet-BiLSTM-CTC`
-**Files:** `backend/models/custom_mabinogi.py`, `custom_mabinogi.yaml`, `custom_mabinogi.pth`
+**Files:** `backend/ocr/models/custom_mabinogi.py`, `custom_mabinogi.yaml`, `custom_mabinogi.pth` (symlinks to active version)
 
 Each line crop is passed directly to EasyOCR's `recognize()` function, bypassing the CRAFT detection stage entirely.
 
@@ -112,7 +112,7 @@ Each line crop is passed directly to EasyOCR's `recognize()` function, bypassing
 - `imgW: 200` — fixed width, applied via inference patch (`backend/lib/ocr_utils.py`)
 - `sensitive: true` — preserves case (required for R, G, B, A-F characters)
 - `PAD: true` — matches EasyOCR's hardcoded `keep_ratio_with_pad=True`
-- Character set: 509 characters (`backend/unique_chars.txt`)
+- Character set: 509 characters (e.g. `backend/ocr/general_model/a18/unique_chars.txt`)
 
 ### Inference patch
 
@@ -120,17 +120,30 @@ EasyOCR computes a dynamic `imgW = ceil(w/h) * 32` per image at runtime, which m
 
 ### Model versioning
 
-Active model is always loaded as `custom_mabinogi.pth`. Versioned backups are kept alongside it:
+Each model type has versioned folders under `backend/ocr/`. The `models/` directory contains only symlinks to the active version — all backend code loads from `models/` unchanged.
 
 ```
-backend/models/
-├── custom_mabinogi.pth       ← active (loaded by EasyOCR)
-├── custom_mabinogi_a14.pth   ← Attempt 14 backup
-├── custom_mabinogi_a15.pth   ← Attempt 15 backup
-└── ...
+backend/ocr/
+├── general_model/
+│   └── a18/                          ← version folder (self-contained)
+│       ├── custom_mabinogi.pth
+│       ├── custom_mabinogi.py
+│       ├── custom_mabinogi.yaml
+│       ├── unique_chars.txt
+│       ├── training_config.yaml
+│       ├── train_data/
+│       └── train_data_lmdb/
+├── category_header_model/v1/         ← header OCR model
+├── enchant_header_model/v1/          ← enchant header OCR model
+└── models/                           ← symlinks only + shared modules/
+    ├── custom_mabinogi.pth → ../general_model/a18/custom_mabinogi.pth
+    ├── custom_mabinogi.py  → ../general_model/a18/custom_mabinogi.py
+    ├── custom_mabinogi.yaml → ../general_model/a18/custom_mabinogi.yaml
+    └── modules/                      ← shared architecture modules
 ```
 
-To deploy a version: `cp custom_mabinogi_aN.pth custom_mabinogi.pth`
+To switch versions: `bash scripts/ocr/switch_model.sh general a18`
+To deploy after training: `bash scripts/ocr/general_model/deploy.sh <version>`
 
 ---
 
@@ -149,17 +162,23 @@ The OCR model is trained on synthetically generated images that match real toolt
 
 ### Training pipeline
 
+All OCR scripts are under `scripts/ocr/`, organized by model type. Each accepts `--version <ver>` (defaults to active version from symlink). Training parameters live in each version's `training_config.yaml`.
+
 ```
-generate_training_data.py   — render template lines with Mabinogi font
+scripts/ocr/general_model/
+  generate_training_data.py — render template lines with Mabinogi font
                               tight-crop to ink bounds + proportional padding
                               binary only (0 and 255), no augmentation
     ↓
-create_lmdb_dataset.py      — convert image/label pairs to LMDB format
+skills/ocr-trainer/scripts/
+  create_lmdb_dataset.py    — convert image/label pairs to LMDB format
     ↓
-train.py                    — fine-tune TPS-ResNet-BiLSTM-CTC
-                              reads all params from configs/training_config.yaml
+scripts/ocr/general_model/
+  train.py                  — fine-tune TPS-ResNet-BiLSTM-CTC
+                              reads params from version's training_config.yaml
     ↓
-test_v2_pipeline.py         — evaluate on 5 GT images (230 expected lines)
+scripts/v3/
+  test_v3_pipeline.py       — evaluate on GT images (segment-first pipeline)
                               always run with --normalize --gt-suffix _expected.txt
 ```
 

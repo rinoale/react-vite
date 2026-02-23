@@ -4,8 +4,12 @@ import re
 
 import yaml
 
-# Load canonical prefix characters from training config
-_CONFIG_PATH = os.path.join(os.path.dirname(__file__), '..', '..', 'configs', 'training_config.yaml')
+# Load canonical prefix characters from active version's training config.
+# Resolve via symlink: models/custom_mabinogi.pth → ../general_model/<ver>/custom_mabinogi.pth
+_MODELS_DIR = os.path.join(os.path.dirname(__file__), '..', 'ocr', 'models')
+_ACTIVE_MODEL = os.path.realpath(os.path.join(_MODELS_DIR, 'custom_mabinogi.pth'))
+_ACTIVE_VER_DIR = os.path.dirname(_ACTIVE_MODEL)
+_CONFIG_PATH = os.path.join(_ACTIVE_VER_DIR, 'training_config.yaml')
 with open(_CONFIG_PATH, 'r', encoding='utf-8') as _f:
     _config = yaml.safe_load(_f)
 _BULLET = _config['prefixes']['bullet']
