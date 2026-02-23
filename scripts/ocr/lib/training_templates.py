@@ -142,18 +142,8 @@ def generate_template_lines(bullet='.', subbullet='ㄴ'):
         channel = random.choice(['R', 'G', 'B'])
         lines.append(f"{channel}: {rand_rgb()}")
 
-    # --- Enchant headers ---
-    enchant_names = [
-        '사라진', '궤적', '충격을', '흡수해 낸', '판타스틱', '성단',
-        '새끼너구리', '인챈트 부여 가능',
-        '마법의', '치명적인', '불사의', '황금', '은빛',
-        '그림자', '빛나는', '날카로운', '강인한', '민첩한',
-    ]
-    for _ in range(100):
-        prefix = random.choice(['접두', '접미'])
-        name = random.choice(enchant_names)
-        rank = rand_rank()
-        lines.append(f"[{prefix}] {name} (랭크 {rank})")
+    # NOTE: Enchant headers like "[접두] 사라진 (랭크 5)" are handled by
+    # the enchant_header model, not content OCR. Not included here.
 
     # --- Enchant effects (. prefix) ---
     effect_words = ['수리비', '보호', '방어', '최대생명력', '최대마나', '최대스태미나',

@@ -76,6 +76,41 @@ def classify_enchant_line(content_bgr, bounds, bands):
     return 'grey' if mean_sat < 0.15 else 'effect'
 
 
+def _strip_border_cols(white_mask, edge_cols=3, density_threshold=0.5):
+    """Mask out edge columns with high white pixel density (border artifacts).
+
+    Checks the leftmost and rightmost `edge_cols` columns. If the fraction
+    of white pixels exceeds `density_threshold`, that column is cleared.
+    Border columns have near-continuous bright pixels (50-90% density),
+    while text in edge columns has sparse, short bursts (~10-15px per line).
+    """
+    h, w = white_mask.shape
+    cols_to_check = list(range(min(edge_cols, w))) + \
+                    list(range(max(0, w - edge_cols), w))
+
+    for c in cols_to_check:
+        density = white_mask[:, c].sum() / h
+        if density > density_threshold:
+            white_mask[:, c] = False
+
+    return white_mask
+
+
+def _oreo_flip(content_bgr):
+    """BGR → white mask (bright & balanced) → strip border cols → invert to black-on-white.
+    # bright-on-dark → white mask (max_ch>150, ratio<1.4) → strip border cols → invert
+    """
+    r = content_bgr[:, :, 2].astype(np.float32)
+    g = content_bgr[:, :, 1].astype(np.float32)
+    b = content_bgr[:, :, 0].astype(np.float32)
+    max_ch = np.maximum(np.maximum(r, g), b)
+    min_ch = np.minimum(np.minimum(r, g), b)
+    white_mask = (max_ch > 150) & ((max_ch / (min_ch + 1)) < 1.4)
+    white_mask = _strip_border_cols(white_mask)
+    ocr_input = cv2.bitwise_not(white_mask.astype(np.uint8) * 255)
+    return white_mask, ocr_input
+
+
 def detect_enchant_slot_headers(content_bgr):
     """Detect enchant slot header lines using white-text color mask.
 
@@ -83,7 +118,7 @@ def detect_enchant_slot_headers(content_bgr):
     that is distinguishable from colored effect text on any background theme.
 
     Algorithm:
-      1. Build white-pixel mask: bright (max_ch > 150) and balanced (ratio < 1.4)
+      1. oreo_flip: white-pixel mask (bright & balanced) → invert
       2. Horizontal projection → run detection → merge with gap tolerance 2
       3. Filter: 8 <= height <= 15 AND total_white_px >= 150
 
@@ -93,12 +128,7 @@ def detect_enchant_slot_headers(content_bgr):
     Returns:
         List of (y_start, y_end) tuples (y_end exclusive) for detected bands.
     """
-    r = content_bgr[:, :, 2].astype(np.float32)
-    g = content_bgr[:, :, 1].astype(np.float32)
-    b = content_bgr[:, :, 0].astype(np.float32)
-    max_ch = np.maximum(np.maximum(r, g), b)
-    min_ch = np.minimum(np.minimum(r, g), b)
-    white_mask = (max_ch > 150) & ((max_ch / (min_ch + 1)) < 1.4)
+    white_mask, _ = _oreo_flip(content_bgr)
 
     wpr = white_mask.sum(axis=1)
 
@@ -487,18 +517,7 @@ class MabinogiTooltipParser(TooltipLineSplitter):
         Returns:
             list of dicts matching _ocr_grouped_lines output format
         """
-        # Build white mask (same logic as detect_enchant_slot_headers)
-        r = content_bgr[:, :, 2].astype(np.float32)
-        g = content_bgr[:, :, 1].astype(np.float32)
-        b = content_bgr[:, :, 0].astype(np.float32)
-        max_ch = np.maximum(np.maximum(r, g), b)
-        min_ch = np.minimum(np.minimum(r, g), b)
-        white_mask = (max_ch > 150) & ((max_ch / (min_ch + 1)) < 1.4)
-
-        # Use inverted white mask as OCR input (black text on white).
-        # Produces cleaner strokes than threshold=80 BINARY_INV, which
-        # fattens text from anti-aliasing fringe (ink 0.28 vs 0.21).
-        ocr_source = cv2.bitwise_not(white_mask.astype(np.uint8) * 255)
+        white_mask, ocr_source = _oreo_flip(content_bgr)
 
         img_h, img_w = ocr_source.shape[:2]
         results = []

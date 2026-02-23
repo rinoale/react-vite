@@ -28,7 +28,7 @@ TARGET_HEIGHT_MAX = 16
 # Rendering constants
 BG_COLOR = (20, 20, 20)
 TEXT_COLOR = (220, 220, 220)
-FRONTEND_THRESHOLD = 80
+FRONTEND_THRESHOLD = 120
 
 
 def render_line_gamelike(text, font_path, font_size, canvas_width=400):
@@ -63,7 +63,7 @@ def render_line_gamelike(text, font_path, font_size, canvas_width=400):
     gray = np.array(img)
 
     # Step 3: Threshold to binary
-    thresh = FRONTEND_THRESHOLD + random.randint(-5, 15)
+    thresh = FRONTEND_THRESHOLD + random.randint(-10, 20)
     _, binary = cv2.threshold(gray, thresh, 255, cv2.THRESH_BINARY)
 
     # Step 4: Tight-crop to ink bounds
@@ -101,6 +101,45 @@ def render_line_gamelike(text, font_path, font_size, canvas_width=400):
         return None, False
 
     return Image.fromarray(final, mode='L'), True
+
+
+def render_enchant_header(text, font_path, font_size, bg_range=(20, 45),
+                          fg_range=(220, 255), threshold=132):
+    """Render synthetic enchant header training image.
+
+    Simulates the output of oreo_flip preprocessing on real screenshots.
+
+    Returns:
+        (PIL Image mode 'L', bool success)
+    """
+    try:
+        font = ImageFont.truetype(font_path, font_size)
+    except Exception:
+        return None, False
+
+    bbox = font.getbbox(text)
+    text_w = bbox[2] - bbox[0]
+    text_h = bbox[3] - bbox[1]
+
+    if text_w <= 0 or text_h <= 0:
+        return None, False
+
+    pad_y = max(1, text_h // 5)
+    pad_x = max(2, text_h // 3)
+    img_h = text_h + 2 * pad_y
+    img_w = text_w + 2 * pad_x
+
+    bg = random.randint(*bg_range)
+    fg = random.randint(*fg_range)
+    img = Image.new('L', (img_w, img_h), color=bg)
+    draw = ImageDraw.Draw(img)
+    draw.text((pad_x, pad_y - bbox[1]), text, font=font, fill=fg)
+
+    arr = np.array(img)
+    white_on_black = np.where(arr > threshold, 255, 0).astype(np.uint8)
+    black_on_white = 255 - white_on_black
+
+    return Image.fromarray(black_on_white, mode='L'), True
 
 
 def split_long_label(text, font, max_width):

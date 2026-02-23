@@ -20,10 +20,11 @@ import random
 import sys
 
 import numpy as np
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 from scripts.ocr.lib.model_version import resolve_version
+from scripts.ocr.lib.render_utils import render_enchant_header
 
 # === Configuration ===
 _parser = argparse.ArgumentParser(add_help=False)
