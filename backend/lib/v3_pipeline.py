@@ -7,6 +7,7 @@ import os
 
 import easyocr
 
+from lib.dual_reader import DualReader
 from lib.mabinogi_tooltip_parser import MabinogiTooltipParser
 from lib.ocr_utils import patch_reader_imgw
 from lib.text_corrector import TextCorrector
@@ -34,13 +35,41 @@ def init_pipeline():
     header_reader = init_header_reader(models_dir=MODELS_DIR)
     enchant_header_reader = init_enchant_header_reader(models_dir=MODELS_DIR)
 
-    content_reader = easyocr.Reader(
-        ['ko'],
-        model_storage_directory=MODELS_DIR,
-        user_network_directory=MODELS_DIR,
-        recog_network='custom_mabinogi',
-    )
-    patch_reader_imgw(content_reader, MODELS_DIR)
+    # Dual-reader: two font-specific models, pick higher confidence per line.
+    # Falls back to single legacy reader if font-specific models aren't deployed yet.
+    classic_yaml = os.path.join(MODELS_DIR, 'custom_mabinogi_classic.yaml')
+    nanum_yaml = os.path.join(MODELS_DIR, 'custom_nanum_gothic_bold.yaml')
+
+    if os.path.exists(classic_yaml) and os.path.exists(nanum_yaml):
+        classic_reader = easyocr.Reader(
+            ['ko'],
+            model_storage_directory=MODELS_DIR,
+            user_network_directory=MODELS_DIR,
+            recog_network='custom_mabinogi_classic',
+        )
+        patch_reader_imgw(classic_reader, MODELS_DIR, recog_network='custom_mabinogi_classic')
+
+        nanum_reader = easyocr.Reader(
+            ['ko'],
+            model_storage_directory=MODELS_DIR,
+            user_network_directory=MODELS_DIR,
+            recog_network='custom_nanum_gothic_bold',
+        )
+        patch_reader_imgw(nanum_reader, MODELS_DIR, recog_network='custom_nanum_gothic_bold')
+
+        content_reader = DualReader(
+            [classic_reader, nanum_reader],
+            ['mabinogi_classic', 'nanum_gothic_bold'],
+        )
+    else:
+        # Fallback: single legacy reader (custom_mabinogi)
+        content_reader = easyocr.Reader(
+            ['ko'],
+            model_storage_directory=MODELS_DIR,
+            user_network_directory=MODELS_DIR,
+            recog_network='custom_mabinogi',
+        )
+        patch_reader_imgw(content_reader, MODELS_DIR)
 
     parser = MabinogiTooltipParser(CONFIG_PATH)
     section_patterns = load_section_patterns(CONFIG_PATH)

@@ -12,7 +12,7 @@ MODELS_DIR="backend/ocr/models"
 
 if [ -z "$MODEL_TYPE" ] || [ -z "$VERSION" ]; then
   echo "Usage: bash scripts/ocr/switch_model.sh <model_type> <version>"
-  echo "  model_type: general | category_header | enchant_header"
+  echo "  model_type: general | general_mabinogi_classic | general_nanum_gothic_bold | category_header | enchant_header"
   echo "  version:    e.g. a18, v1, v2"
   exit 1
 fi
@@ -55,6 +55,30 @@ case "$MODEL_TYPE" in
     update_symlink "${SRC_DIR}/custom_header.yaml" "${MODELS_DIR}/custom_header.yaml"
     echo "Switched category_header model → ${VERSION}"
     ;;
+  general_mabinogi_classic)
+    SRC_DIR="../general_mabinogi_classic_model/${VERSION}"
+    REAL_DIR="backend/ocr/general_mabinogi_classic_model/${VERSION}"
+    if [ ! -d "$REAL_DIR" ]; then
+      echo "Error: version directory not found: $REAL_DIR" >&2
+      exit 1
+    fi
+    update_symlink "${SRC_DIR}/custom_mabinogi_classic.pth"  "${MODELS_DIR}/custom_mabinogi_classic.pth"
+    update_symlink "${SRC_DIR}/custom_mabinogi_classic.py"   "${MODELS_DIR}/custom_mabinogi_classic.py"
+    update_symlink "${SRC_DIR}/custom_mabinogi_classic.yaml" "${MODELS_DIR}/custom_mabinogi_classic.yaml"
+    echo "Switched general_mabinogi_classic model → ${VERSION}"
+    ;;
+  general_nanum_gothic_bold)
+    SRC_DIR="../general_nanum_gothic_bold_model/${VERSION}"
+    REAL_DIR="backend/ocr/general_nanum_gothic_bold_model/${VERSION}"
+    if [ ! -d "$REAL_DIR" ]; then
+      echo "Error: version directory not found: $REAL_DIR" >&2
+      exit 1
+    fi
+    update_symlink "${SRC_DIR}/custom_nanum_gothic_bold.pth"  "${MODELS_DIR}/custom_nanum_gothic_bold.pth"
+    update_symlink "${SRC_DIR}/custom_nanum_gothic_bold.py"   "${MODELS_DIR}/custom_nanum_gothic_bold.py"
+    update_symlink "${SRC_DIR}/custom_nanum_gothic_bold.yaml" "${MODELS_DIR}/custom_nanum_gothic_bold.yaml"
+    echo "Switched general_nanum_gothic_bold model → ${VERSION}"
+    ;;
   enchant_header)
     SRC_DIR="../enchant_header_model/${VERSION}"
     REAL_DIR="backend/ocr/enchant_header_model/${VERSION}"
@@ -69,7 +93,7 @@ case "$MODEL_TYPE" in
     ;;
   *)
     echo "Unknown model type: $MODEL_TYPE" >&2
-    echo "Valid types: general, category_header, enchant_header" >&2
+    echo "Valid types: general, general_mabinogi_classic, general_nanum_gothic_bold, category_header, enchant_header" >&2
     exit 1
     ;;
 esac

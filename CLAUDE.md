@@ -40,15 +40,25 @@ python3 scripts/db/import_dictionaries.py
 All scripts must be run from the **project root**. Scripts are organized under `scripts/ocr/`:
 ```
 scripts/ocr/
-├── general_model/           # Content OCR model scripts
+├── general_model/                    # Legacy combined content OCR model scripts
 │   ├── generate_training_data.py
 │   ├── create_model_config.py
 │   ├── train.py
 │   └── deploy.sh
-├── category_header_model/   # Category header OCR model scripts
+├── general_mabinogi_classic_model/   # mabinogi_classic font-specific content OCR
+│   ├── generate_training_data.py
+│   ├── create_model_config.py
+│   ├── train.py
+│   └── deploy.sh
+├── general_nanum_gothic_bold_model/  # NanumGothicBold font-specific content OCR
+│   ├── generate_training_data.py
+│   ├── create_model_config.py
+│   ├── train.py
+│   └── deploy.sh
+├── category_header_model/            # Category header OCR model scripts
 │   ├── create_lmdb.py
 │   └── train.py
-├── enchant_header_model/    # Enchant header OCR model scripts
+├── enchant_header_model/             # Enchant header OCR model scripts
 │   ├── generate_training_data.py
 │   ├── create_model_config.py
 │   ├── create_lmdb.py
@@ -56,7 +66,9 @@ scripts/ocr/
 ├── switch_model.sh          # Switch active model version (updates symlinks)
 ├── generate_enchant_dicts.py # Generate enchant dictionaries from YAML
 └── lib/
-    └── model_version.py     # Shared version resolution utility
+    ├── model_version.py     # Shared version resolution utility
+    ├── render_utils.py      # Game-like rendering pipeline (bright-on-dark → threshold → downscale)
+    └── training_templates.py # Shared template generators for training data
 ```
 ```bash
 python3 scripts/ocr/general_model/generate_training_data.py              # Uses active version (from symlink)
@@ -97,15 +109,18 @@ Determines section labels BEFORE running content OCR, eliminating cascade sectio
 
 ### Custom OCR Model
 - Architecture: `TPS-ResNet-BiLSTM-CTC` (from `deep-text-recognition-benchmark/`)
-- Font: `data/fonts/mabinogi_classic.ttf` (actual game font)
-- Current deployed content model: a18 (509-char output space). Attempt 16 tested 1201 chars but regressed; future expansion should be done with stronger data coverage.
+- Fonts: `data/fonts/mabinogi_classic.ttf` and `data/fonts/NanumGothicBold.ttf` (game uses both)
+- **Dual-model inference** (`backend/lib/dual_reader.py`): Two font-specific models run on every line; highest-confidence result wins. Falls back to single legacy model if font-specific models aren't deployed yet.
+- Current deployed content model: a18 (509-char output space, legacy combined). Font-specific models: `custom_mabinogi_classic` and `custom_nanum_gothic_bold` (a19).
 - **Model versioning**: Each model type has versioned folders under `backend/ocr/`:
-  - `general_model/a18/` — content OCR (`.pth`, `.py`, `.yaml`, `unique_chars.txt`, training data)
+  - `general_model/a18/` — legacy combined content OCR
+  - `general_mabinogi_classic_model/a19/` — mabinogi_classic font content OCR
+  - `general_nanum_gothic_bold_model/a19/` — NanumGothicBold font content OCR
   - `category_header_model/v1/` — category header OCR
   - `enchant_header_model/v1/` — enchant header OCR
-- **Symlinks**: `backend/ocr/models/` contains symlinks to active version folders — all backend code loads from `models/` unchanged
-- **Version switching**: `bash scripts/ocr/switch_model.sh general a18` (updates symlinks)
-- **Deployment**: `bash scripts/ocr/general_model/deploy.sh <version>` (copies trained model to version folder + updates symlinks)
+- **Symlinks**: `backend/ocr/models/` contains symlinks to active version folders — all backend code loads from `models/` unchanged. Font-specific models add `custom_mabinogi_classic.*` and `custom_nanum_gothic_bold.*` symlinks alongside the existing `custom_mabinogi.*` (kept for rollback).
+- **Version switching**: `bash scripts/ocr/switch_model.sh <type> <version>` — types: `general`, `general_mabinogi_classic`, `general_nanum_gothic_bold`, `category_header`, `enchant_header`
+- **Deployment**: `bash scripts/ocr/general_mabinogi_classic_model/deploy.sh <version>` or `bash scripts/ocr/general_nanum_gothic_bold_model/deploy.sh <version>` (copies trained model to version folder + updates symlinks)
 - Inference patch: `backend/lib/ocr_utils.py` — fixes EasyOCR's dynamic imgW to use yaml's fixed value
 - Training history and known issues: `OCR_TRAINING_HISTORY.md`
 
@@ -159,43 +174,43 @@ Key parameters and why (see the version's `training_config.yaml` for full list):
 
 ### Training Data Requirements
 Synthetic training images must match real line crops from the splitter:
-- **Font sizes**: `[10, 10, 10, 11, 11, 11]` only. Font 10 → img_h≈14px; font 11 → img_h≈15px. These match actual padded inference crops (h median=14). Do NOT pre-resize to 32px; let model inference handle that. Note: raw bounding box heights from detect_text_lines() (median 10px) are misleading — parse_tooltip() adds pad_y before recognize(), raising actual inference height to median 14px.
-- **Rendering pipeline** (next training target, Attempt 18): Game-like dark-bg + bright-text → BT.601 → threshold(bright→black) to close the ink-ratio gap (0.144 synthetic vs 0.201 real). Attempt 17 itself was a pipeline redesign with no retraining.
+- **Font sizes**: `[16, 16, 17, 17, 18, 18]` for rendering. Rendered at large size, then downscaled to ~14-15px to match real inference crops.
+- **Rendering pipeline** (`scripts/ocr/lib/render_utils.py`): Game-like rendering that closes both ink ratio and height gaps:
+  1. Dark bg (20,20,20) + bright text (220,220,220) at font 16-18
+  2. BT.601 grayscale → threshold 80 ± random(-10, +40) with BINARY_INV (bright→black ink)
+  3. Tight-crop to ink bounds + splitter padding
+  4. Downscale to target ~14-15px via cv2.INTER_AREA
+  5. Re-threshold to strict binary (0/255)
 - **Tight-crop to ink bounds**: Crop to text width + padding, NOT full 260px canvas. Real splitter crops are tight (22-80px for short text). Full-canvas training causes hallucination.
 - **Padding**: Match splitter formula: `pad_y = max(1, text_h // 5)`, `pad_x = max(2, text_h // 3)`
 - **Binary only**: Pixel values strictly 0 and 255. Re-threshold after any resize.
 - **No augmentation**: No blur, erode/dilate, or noise. Clean binary only.
 - **Quality gates on every image**: `MIN_INK_RATIO=0.02`, `MIN_WIDTH=10`, `MIN_HEIGHT=8`. Reject and retry any image that fails.
-- **Frontend threshold**: Base value 80 with small random variation, matching `sell.jsx`.
-- **Content**: Template-based full tooltip lines (not just dictionary words):
+- **Content**: Template-based full tooltip lines (shared in `scripts/ocr/lib/training_templates.py`):
   - Stat lines: `방어력 {N}`, `내구력 {N}/{N}`, `공격 {N}~{N}`
   - Color parts: `- 파트 {A-F} R:{N} G:{N} B:{N}`
   - Enchant headers/effects, hashtag lines, price lines, piercing text
   - Item names, flavor text, sub-bullets with `ㄴ` marker
   - All GT lines included verbatim
-- **Character set**: Current deployed model is 509 chars (a15). Expand only with proportional data/iteration scaling to avoid Attempt 16-style regression.
-- **Font**: `data/fonts/mabinogi_classic.ttf` (actual game font)
+- **Character set**: Current deployed model is 509 chars (a18). Expand only with proportional data/iteration scaling to avoid Attempt 16-style regression.
+- **Fonts**: Each font-specific model uses only its font: `mabinogi_classic.ttf` or `NanumGothicBold.ttf`
 
 ### Full Training Pipeline (run from project root)
 All scripts accept `--version <ver>` (defaults to active version from symlink).
-To train a new version, first create its folder by copying from the previous version:
-```bash
-cp -r backend/ocr/general_model/a18 backend/ocr/general_model/a19
-# Edit backend/ocr/general_model/a19/training_config.yaml — update paths and hyperparams
-# Edit backend/ocr/general_model/a19/unique_chars.txt — if charset changes
-```
 
+**Font-specific models** (a19+): Each font has its own model. Replace `MODEL` with `general_mabinogi_classic_model` or `general_nanum_gothic_bold_model`:
 ```bash
 VER=a19  # or omit --version to use the active symlink
+MODEL=general_mabinogi_classic_model  # or general_nanum_gothic_bold_model
 
-# Step 1: Generate synthetic training images
-python3 scripts/ocr/general_model/generate_training_data.py --version $VER
+# Step 1: Generate synthetic training images (uses game-like rendering pipeline)
+python3 scripts/ocr/${MODEL}/generate_training_data.py --version $VER
 
 # Step 2: Verify dimension distribution (acceptance check)
 python3 - <<PY
 import os, random, numpy as np
 from PIL import Image
-img_dir='backend/ocr/general_model/$VER/train_data/images'
+img_dir='backend/ocr/${MODEL}/$VER/train_data/images'
 files=[f for f in os.listdir(img_dir) if f.endswith('.png')]
 random.seed(0); files=random.sample(files, min(3000, len(files)))
 wh=[Image.open(os.path.join(img_dir,f)).size for f in files]
@@ -204,33 +219,30 @@ print(f"n={len(files)}, width>220={100*(w>220).mean():.0f}%")
 for lo,hi in [(8,9),(10,11),(12,13),(14,15),(16,20)]:
     c=int(((h>=lo)&(h<=hi)).sum()); print(f"  h={lo}-{hi}: {c} ({100*c/len(h):.1f}%)")
 PY
-# Expected: h=10-11 ~5-10%, h=14-15 ~70-80%, h=16-20 ~10-20%, no h=8-9 or h=12-13
+# Expected: h=13-16 should be 80-90%, ink ratio ~0.18-0.22
 
 # Step 3: Generate model config
-# REQUIRED when: imgW, imgH, network params, or unique_chars.txt changed
-python3 scripts/ocr/general_model/create_model_config.py --version $VER
+python3 scripts/ocr/${MODEL}/create_model_config.py --version $VER
 
 # Step 4: Create LMDB dataset
 python3 skills/ocr-trainer/scripts/create_lmdb_dataset.py \
-  --input backend/ocr/general_model/$VER/train_data \
-  --output backend/ocr/general_model/$VER/train_data_lmdb
+  --input backend/ocr/${MODEL}/$VER/train_data \
+  --output backend/ocr/${MODEL}/$VER/train_data_lmdb
 
 # Step 5: Train (run with nohup to avoid OOM kills)
-nohup python3 -u scripts/ocr/general_model/train.py --version $VER > logs/training_attemptN.log 2>&1 &
-# Override examples:
-#   nohup python3 -u scripts/ocr/general_model/train.py --version $VER --num_iter 20000 > training.log 2>&1 &
-#   nohup python3 -u scripts/ocr/general_model/train.py --version $VER --resume > training.log 2>&1 &
-# Monitor: tail -f logs/training_attemptN.log
+nohup python3 -u scripts/ocr/${MODEL}/train.py --version $VER > logs/training_${MODEL}_attemptN.log 2>&1 &
+# Monitor: tail -f logs/training_${MODEL}_attemptN.log
 
 # Step 6: Deploy trained model to versioned folder + update symlinks
-bash scripts/ocr/general_model/deploy.sh $VER
+bash scripts/ocr/${MODEL}/deploy.sh $VER
 
-# Step 7: Validate on real GT images
-python3 scripts/v2/test_v2_pipeline.py --normalize --gt-suffix _expected.txt        # Full output
-python3 scripts/v2/test_v2_pipeline.py -q --normalize --gt-suffix _expected.txt     # Summary only
+# Step 7: Validate on real GT images (DualReader picks best per line)
+python3 scripts/v3/test_v3_pipeline.py 'data/sample_images/*_original.png'
 ```
 
-**When to re-run `create_model_config.py`:** Anytime you change `model:` section in the version's `training_config.yaml` (especially `imgW`, `imgH`), or update the version's `unique_chars.txt`. This writes to `saved_models/custom_mabinogi.yaml` (training prep only). Production yaml at `backend/ocr/models/` is updated only via `bash scripts/ocr/general_model/deploy.sh <version>`. The yaml must match training args exactly — the TPS Spatial Transformer is built with `I_size=(imgH, imgW)` and mismatched weights will crash or produce garbage.
+**Legacy combined model** (a18, kept for rollback): use `scripts/ocr/general_model/` scripts as before.
+
+**When to re-run `create_model_config.py`:** Anytime you change `model:` section in the version's `training_config.yaml` (especially `imgW`, `imgH`), or update the version's `unique_chars.txt`. This writes to `saved_models/custom_mabinogi_classic.yaml` or `saved_models/custom_nanum_gothic_bold.yaml` (training prep only). Production yaml at `backend/ocr/models/` is updated only via `deploy.sh`. The yaml must match training args exactly — the TPS Spatial Transformer is built with `I_size=(imgH, imgW)` and mismatched weights will crash or produce garbage.
 
 ### Testing
 - `scripts/v2/test_v2_pipeline.py` — Uses `MabinogiTooltipParser` to split GT images → `recognize()` → compares against GT `.txt` files. **Always run with `--normalize --gt-suffix _expected.txt`** — without these flags scores are artificially low (`.` bullet prefix mismatches + skipped sections inflate error count). Supports `--sections`/`-s` flag for section breakdown.
