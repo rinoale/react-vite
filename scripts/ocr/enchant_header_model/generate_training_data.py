@@ -39,67 +39,14 @@ OUTPUT_DIR = f"backend/ocr/enchant_header_model/{_VERSION}/enchant_header_train_
 IMAGES_DIR = os.path.join(OUTPUT_DIR, "images")
 LABELS_DIR = os.path.join(OUTPUT_DIR, "labels")
 
-FONT_SIZE = 11
-VARIATIONS_PER_LABEL = 3
-
-# White mask threshold for training data rendering.
-# Real pipeline uses max_ch > 150, but PIL's anti-aliasing spread differs.
-# Threshold=132 on NanumGothicBold matches real crop ink ratio (~0.209).
-WHITE_MASK_THRESHOLD = 132
-
-# Dark background brightness range (game tooltip backgrounds)
-BG_BRIGHTNESS_RANGE = (20, 45)
-# Text brightness range (game white text)
-TEXT_BRIGHTNESS_RANGE = (220, 255)
+# Multiple font sizes for variation (v2: was single FONT_SIZE=11 in v1)
+FONT_SIZES = [10, 10, 11, 11, 12, 12]
+VARIATIONS_PER_LABEL = 10  # v2: was 3 in v1
 
 # Quality gates (reference: ink 0.198-0.217, w 55-118, h 15)
 MIN_INK_RATIO = 0.10
 MIN_WIDTH = 10
 MIN_HEIGHT = 8
-
-
-def render_line(text, font_size):
-    """Render white text on dark bg, apply white mask, invert.
-
-    Mimics the real inference pipeline:
-    1. Bright text on dark background (like the game)
-    2. White mask: pixels > 150 → white, else black
-    3. Invert: black text on white background
-
-    Returns (PIL Image in mode 'L', bool success).
-    """
-    try:
-        font = ImageFont.truetype(FONT_PATH, font_size)
-    except Exception:
-        return None, False
-
-    bbox = font.getbbox(text)
-    text_w = bbox[2] - bbox[0]
-    text_h = bbox[3] - bbox[1]
-
-    if text_w <= 0 or text_h <= 0:
-        return None, False
-
-    pad_y = max(1, text_h // 5)
-    pad_x = max(2, text_h // 3)
-    img_h = text_h + 2 * pad_y
-    img_w = text_w + 2 * pad_x
-
-    # Step 1: Render bright text on dark background
-    bg = random.randint(*BG_BRIGHTNESS_RANGE)
-    fg = random.randint(*TEXT_BRIGHTNESS_RANGE)
-    img = Image.new('L', (img_w, img_h), color=bg)
-    draw = ImageDraw.Draw(img)
-    draw.text((pad_x, pad_y - bbox[1]), text, font=font, fill=fg)
-
-    # Step 2: White mask — pixel > 150 → 255, else 0
-    arr = np.array(img)
-    white_on_black = np.where(arr > WHITE_MASK_THRESHOLD, 255, 0).astype(np.uint8)
-
-    # Step 3: Invert — black text on white background
-    black_on_white = 255 - white_on_black
-
-    return Image.fromarray(black_on_white, mode='L'), True
 
 
 def load_labels():
@@ -123,7 +70,8 @@ def generate_data():
 
     for label in labels:
         for v in range(VARIATIONS_PER_LABEL):
-            img, ok = render_line(label, FONT_SIZE)
+            font_size = random.choice(FONT_SIZES)
+            img, ok = render_enchant_header(label, FONT_PATH, font_size)
             if not ok:
                 skipped += 1
                 continue
