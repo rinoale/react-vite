@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """Training launcher for the enchant slot header OCR model.
 
-Reads all parameters from configs/enchant_header_training_config.yaml.
+Reads all parameters from the version's training_config.yaml.
 
 Usage (from project root):
-    python3 scripts/train_enchant_header.py
-    python3 scripts/train_enchant_header.py --resume
-    python3 scripts/train_enchant_header.py --num_iter 5000
-    python3 scripts/train_enchant_header.py --batch_size 16
+    python3 scripts/ocr/enchant_header_model/train.py
+    python3 scripts/ocr/enchant_header_model/train.py --version v2
+    python3 scripts/ocr/enchant_header_model/train.py --resume
+    python3 scripts/ocr/enchant_header_model/train.py --num_iter 5000
+    python3 scripts/ocr/enchant_header_model/train.py --batch_size 16
 """
 
 import argparse
@@ -15,24 +16,16 @@ import os
 import subprocess
 import sys
 
-import yaml
-
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CONFIG_PATH = os.path.join(PROJECT_ROOT, 'configs', 'enchant_header_training_config.yaml')
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+from scripts.ocr.lib.model_version import resolve_version, load_training_config, training_config_path, PROJECT_ROOT
 TRAIN_SCRIPT = os.path.join(PROJECT_ROOT, 'deep-text-recognition-benchmark', 'train.py')
-
-with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
-    cfg = yaml.safe_load(f)
-
-model = cfg['model']
-training = cfg['training']
-paths = cfg['paths']
 
 EXP_NAME = 'enchant_header_ocr'
 
 
 def main():
     parser = argparse.ArgumentParser(description='Train enchant header OCR model')
+    parser.add_argument('--version', default=None, help='Model version (default: active symlink)')
     parser.add_argument('--resume', action='store_true', help='Continue from best checkpoint')
     parser.add_argument('--num_iter', type=int, help='Override number of iterations')
     parser.add_argument('--batch_size', type=int, help='Override batch size')
@@ -43,6 +36,14 @@ def main():
                         help='Force Adadelta optimizer, overriding config')
     parser.add_argument('--lr', type=float, help='Override learning rate')
     args = parser.parse_args()
+
+    version = resolve_version('enchant_header', args.version)
+    config_path = training_config_path('enchant_header', version)
+    cfg = load_training_config('enchant_header', version)
+
+    model = cfg['model']
+    training = cfg['training']
+    paths = cfg['paths']
 
     num_iter = args.num_iter or training['num_iter']
     batch_size = args.batch_size or training['batch_size']
@@ -57,7 +58,7 @@ def main():
         sys.exit(1)
     if not os.path.exists(lmdb_dir):
         print(f"Error: LMDB not found at {lmdb_dir}")
-        print("Run: python3 scripts/create_enchant_header_lmdb.py")
+        print("Run: python3 scripts/ocr/enchant_header_model/create_lmdb.py")
         sys.exit(1)
 
     with open(char_file, 'r', encoding='utf-8') as f:
@@ -98,8 +99,6 @@ def main():
     if training.get('PAD'):
         cmd.append('--PAD')
     # Optimizer: CLI --adam / --no-adam override config; config is default.
-    # Adadelta (default in train.py) fails to converge on NanumGothicBold —
-    # 0% accuracy after 10k iters. Adam with lr=0.001 reaches 99.8%.
     use_adam = training.get('adam', False)
     if args.adam:
         use_adam = True
@@ -116,7 +115,8 @@ def main():
     print('=' * 60)
     print('  Enchant Header OCR Training Launcher')
     print('=' * 60)
-    print(f'  Config    : {CONFIG_PATH}')
+    print(f'  Version   : {version}')
+    print(f'  Config    : {config_path}')
     print(f'  LMDB      : {lmdb_dir}')
     print(f'  Saved dir : {saved_dir}/{EXP_NAME}')
     print()

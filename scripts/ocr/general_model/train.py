@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """
-Training launcher — reads configs/training_config.yaml and runs train.py.
+Training launcher — reads training_config.yaml from the version folder and runs train.py.
 
 Usage (from project root):
-    python3 scripts/train.py                          # Train from scratch
-    python3 scripts/train.py --resume                 # Continue from best checkpoint
-    python3 scripts/train.py --saved_model path.pth   # Continue from specific checkpoint
-    python3 scripts/train.py --num_iter 20000         # Override iterations
-    python3 scripts/train.py --batch_size 32          # Override batch size (e.g. OOM)
+    python3 scripts/ocr/general_model/train.py                          # Train active version
+    python3 scripts/ocr/general_model/train.py --version a19            # Train specific version
+    python3 scripts/ocr/general_model/train.py --resume                 # Continue from best checkpoint
+    python3 scripts/ocr/general_model/train.py --saved_model path.pth   # Continue from specific checkpoint
+    python3 scripts/ocr/general_model/train.py --num_iter 20000         # Override iterations
+    python3 scripts/ocr/general_model/train.py --batch_size 32          # Override batch size (e.g. OOM)
 
 Any flag passed on the command line overrides the config file value.
 """
@@ -15,16 +16,11 @@ import argparse
 import os
 import subprocess
 import sys
-import yaml
 
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+from scripts.ocr.lib.model_version import resolve_version, load_training_config, training_config_path
 
-CONFIG_PATH = "configs/training_config.yaml"
 TRAIN_SCRIPT = "deep-text-recognition-benchmark/train.py"
-
-
-def load_config():
-    with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-        return yaml.safe_load(f)
 
 
 def load_characters(path):
@@ -91,7 +87,8 @@ def build_command(cfg, overrides):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Train OCR model using configs/training_config.yaml")
+    parser = argparse.ArgumentParser(description="Train general OCR model")
+    parser.add_argument("--version", type=str, default=None, help="Model version (default: active symlink)")
     parser.add_argument("--resume", action="store_true", help="Continue from best checkpoint")
     parser.add_argument("--saved_model", type=str, help="Path to specific checkpoint to resume from")
     parser.add_argument("--num_iter", type=int, help="Override number of iterations")
@@ -99,14 +96,17 @@ def main():
     parser.add_argument("--valInterval", type=int, help="Override validation interval")
     overrides = parser.parse_args()
 
-    if not os.path.exists(CONFIG_PATH):
-        print(f"Error: Config file not found at {CONFIG_PATH}")
+    version = resolve_version('general', overrides.version)
+    config_path = training_config_path('general', version)
+
+    if not os.path.exists(config_path):
+        print(f"Error: Config file not found at {config_path}")
         sys.exit(1)
     if not os.path.exists(TRAIN_SCRIPT):
         print(f"Error: Training script not found at {TRAIN_SCRIPT}")
         sys.exit(1)
 
-    cfg = load_config()
+    cfg = load_training_config('general', version)
     cmd = build_command(cfg, overrides)
 
     model = cfg["model"]
@@ -116,7 +116,8 @@ def main():
     print("=" * 60)
     print("  OCR Training Launcher")
     print("=" * 60)
-    print(f"  Config file : {CONFIG_PATH}")
+    print(f"  Version   : {version}")
+    print(f"  Config    : {config_path}")
     print(f"  Train script: {TRAIN_SCRIPT}")
     print()
     print("  [Model Architecture]")

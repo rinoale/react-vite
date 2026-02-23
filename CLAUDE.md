@@ -37,16 +37,38 @@ python3 scripts/db/import_dictionaries.py
 ```
 
 ### OCR Training Pipeline
-All scripts must be run from the **project root**:
-```bash
-python3 scripts/generate_training_data.py                    # Synthetic training images → backend/train_data/
-python3 scripts/create_model_config.py                       # Generate custom_mabinogi.yaml from unique_chars.txt
-python3 skills/ocr-trainer/scripts/create_lmdb_dataset.py \
-  --input backend/train_data --output backend/train_data_lmdb # Convert to LMDB for training
-python3 scripts/v2/ocr/test_ocr.py                           # Test OCR on sample image (full-image readtext)
-python3 scripts/v2/line_split/test_line_splitter.py <image> <output_dir>   # Test line splitter visually
+All scripts must be run from the **project root**. Scripts are organized under `scripts/ocr/`:
 ```
-After training, deploy model by copying `.pth` to `backend/models/custom_mabinogi.pth`.
+scripts/ocr/
+├── general_model/           # Content OCR model scripts
+│   ├── generate_training_data.py
+│   ├── create_model_config.py
+│   ├── train.py
+│   └── deploy.sh
+├── category_header_model/   # Category header OCR model scripts
+│   ├── create_lmdb.py
+│   └── train.py
+├── enchant_header_model/    # Enchant header OCR model scripts
+│   ├── generate_training_data.py
+│   ├── create_model_config.py
+│   ├── create_lmdb.py
+│   └── train.py
+├── switch_model.sh          # Switch active model version (updates symlinks)
+├── generate_enchant_dicts.py # Generate enchant dictionaries from YAML
+└── lib/
+    └── model_version.py     # Shared version resolution utility
+```
+```bash
+python3 scripts/ocr/general_model/generate_training_data.py              # Uses active version (from symlink)
+python3 scripts/ocr/general_model/generate_training_data.py --version a19 # Or specify version explicitly
+python3 scripts/ocr/general_model/create_model_config.py --version a19   # Generate custom_mabinogi.yaml
+python3 skills/ocr-trainer/scripts/create_lmdb_dataset.py \
+  --input backend/ocr/general_model/a19/train_data \
+  --output backend/ocr/general_model/a19/train_data_lmdb                 # Convert to LMDB for training
+python3 scripts/v2/ocr/test_ocr.py                                       # Test OCR on sample image
+python3 scripts/v2/line_split/test_line_splitter.py <image> <output_dir>  # Test line splitter visually
+```
+After training, deploy model with: `bash scripts/ocr/general_model/deploy.sh <version>` (e.g. `a19`).
 
 ## Architecture
 
@@ -76,9 +98,14 @@ Determines section labels BEFORE running content OCR, eliminating cascade sectio
 ### Custom OCR Model
 - Architecture: `TPS-ResNet-BiLSTM-CTC` (from `deep-text-recognition-benchmark/`)
 - Font: `data/fonts/mabinogi_classic.ttf` (actual game font)
-- Current deployed content model: a15 (509-char output space). Attempt 16 tested 1201 chars but regressed; future expansion should be done with stronger data coverage.
-- Model weights: `backend/models/custom_mabinogi.pth`
-- Model architecture for EasyOCR integration: `backend/models/custom_mabinogi.py`
+- Current deployed content model: a18 (509-char output space). Attempt 16 tested 1201 chars but regressed; future expansion should be done with stronger data coverage.
+- **Model versioning**: Each model type has versioned folders under `backend/ocr/`:
+  - `general_model/a18/` — content OCR (`.pth`, `.py`, `.yaml`, `unique_chars.txt`, training data)
+  - `category_header_model/v1/` — category header OCR
+  - `enchant_header_model/v1/` — enchant header OCR
+- **Symlinks**: `backend/ocr/models/` contains symlinks to active version folders — all backend code loads from `models/` unchanged
+- **Version switching**: `bash scripts/ocr/switch_model.sh general a18` (updates symlinks)
+- **Deployment**: `bash scripts/ocr/general_model/deploy.sh <version>` (copies trained model to version folder + updates symlinks)
 - Inference patch: `backend/lib/ocr_utils.py` — fixes EasyOCR's dynamic imgW to use yaml's fixed value
 - Training history and known issues: `OCR_TRAINING_HISTORY.md`
 
@@ -115,11 +142,11 @@ Splits tooltip images into individual text line crops using horizontal projectio
 - Applied in `backend/main.py` and `scripts/v2/test_v2_pipeline.py` after reader init
 
 ### Training Configuration
-All training parameters are centralized in **`configs/training_config.yaml`**. This is the single source of truth for model architecture, hyperparameters, and paths.
+Each version folder has its own **`training_config.yaml`** (e.g. `backend/ocr/general_model/a18/training_config.yaml`). This is the single source of truth for that version's model architecture, hyperparameters, and paths.
 
-**Critical rule:** When changing `imgH`, `imgW`, or any `model:` param in `training_config.yaml`, you **MUST** re-run `python3 scripts/create_model_config.py` to regenerate `saved_models/custom_mabinogi.yaml` (training prep). This does NOT touch the production yaml — deploy both `.pth` and `.yaml` together with `bash scripts/deploy_model.sh`. Mismatched `imgW` between training and inference will cause TPS layer shape errors or garbage output.
+**Critical rule:** When changing `imgH`, `imgW`, or any `model:` param in the version's `training_config.yaml`, you **MUST** re-run `python3 scripts/ocr/general_model/create_model_config.py --version <ver>` to regenerate `saved_models/custom_mabinogi.yaml` (training prep). This does NOT touch the production yaml — deploy with `bash scripts/ocr/general_model/deploy.sh <version>`. Mismatched `imgW` between training and inference will cause TPS layer shape errors or garbage output.
 
-Key parameters and why (see `configs/training_config.yaml` for full list):
+Key parameters and why (see the version's `training_config.yaml` for full list):
 - `imgW: 200` — Fixed via `ocr_utils.py` patch. Attempts 10-11 tried imgW=600 but failed; Attempt 12 reverted to 200 and patched inference to use the yaml value instead of dynamic per-image width.
 - `workers: 0` — Required. LMDB can't be pickled for multiprocessing.
 - `sensitive: true` — Required. Prevents lowercasing (needed for R,G,B,L,A-F characters).
@@ -128,7 +155,7 @@ Key parameters and why (see `configs/training_config.yaml` for full list):
 - `batch_max_length: 55` — Longest labels are ~55 chars.
 - Note: `train.py` line 287-289 was patched so `--sensitive` no longer overrides the character set.
 
-**Training launcher:** `scripts/train.py` reads the config and runs `deep-text-recognition-benchmark/train.py` with all args. Supports `--resume`, `--num_iter`, `--batch_size` overrides.
+**Training launcher:** `scripts/ocr/general_model/train.py --version <ver>` reads the version's config and runs `deep-text-recognition-benchmark/train.py` with all args. Supports `--resume`, `--num_iter`, `--batch_size` overrides. Defaults to the active version (detected from symlink).
 
 ### Training Data Requirements
 Synthetic training images must match real line crops from the splitter:
@@ -150,19 +177,28 @@ Synthetic training images must match real line crops from the splitter:
 - **Font**: `data/fonts/mabinogi_classic.ttf` (actual game font)
 
 ### Full Training Pipeline (run from project root)
-All params read from `configs/training_config.yaml`.
+All scripts accept `--version <ver>` (defaults to active version from symlink).
+To train a new version, first create its folder by copying from the previous version:
 ```bash
+cp -r backend/ocr/general_model/a18 backend/ocr/general_model/a19
+# Edit backend/ocr/general_model/a19/training_config.yaml — update paths and hyperparams
+# Edit backend/ocr/general_model/a19/unique_chars.txt — if charset changes
+```
+
+```bash
+VER=a19  # or omit --version to use the active symlink
+
 # Step 1: Generate synthetic training images
-rm -rf backend/train_data backend/train_data_lmdb
-python3 scripts/generate_training_data.py
+python3 scripts/ocr/general_model/generate_training_data.py --version $VER
 
 # Step 2: Verify dimension distribution (acceptance check)
-python3 - <<'PY'
+python3 - <<PY
 import os, random, numpy as np
 from PIL import Image
-files=[f for f in os.listdir('backend/train_data/images') if f.endswith('.png')]
+img_dir='backend/ocr/general_model/$VER/train_data/images'
+files=[f for f in os.listdir(img_dir) if f.endswith('.png')]
 random.seed(0); files=random.sample(files, min(3000, len(files)))
-wh=[Image.open(os.path.join('backend/train_data/images',f)).size for f in files]
+wh=[Image.open(os.path.join(img_dir,f)).size for f in files]
 w=np.array([x for x,_ in wh]); h=np.array([y for _,y in wh])
 print(f"n={len(files)}, width>220={100*(w>220).mean():.0f}%")
 for lo,hi in [(8,9),(10,11),(12,13),(14,15),(16,20)]:
@@ -170,31 +206,31 @@ for lo,hi in [(8,9),(10,11),(12,13),(14,15),(16,20)]:
 PY
 # Expected: h=10-11 ~5-10%, h=14-15 ~70-80%, h=16-20 ~10-20%, no h=8-9 or h=12-13
 
-# Step 3: Generate model config (reads from configs/training_config.yaml)
+# Step 3: Generate model config
 # REQUIRED when: imgW, imgH, network params, or unique_chars.txt changed
-python3 scripts/create_model_config.py
+python3 scripts/ocr/general_model/create_model_config.py --version $VER
 
 # Step 4: Create LMDB dataset
 python3 skills/ocr-trainer/scripts/create_lmdb_dataset.py \
-  --input backend/train_data --output backend/train_data_lmdb
+  --input backend/ocr/general_model/$VER/train_data \
+  --output backend/ocr/general_model/$VER/train_data_lmdb
 
 # Step 5: Train (run with nohup to avoid OOM kills)
-nohup python3 -u scripts/train.py > logs/training_attemptN.log 2>&1 &
+nohup python3 -u scripts/ocr/general_model/train.py --version $VER > logs/training_attemptN.log 2>&1 &
 # Override examples:
-#   nohup python3 -u scripts/train.py --num_iter 20000 > training.log 2>&1 &
-#   nohup python3 -u scripts/train.py --resume > training.log 2>&1 &
-#   nohup python3 -u scripts/train.py --batch_size 32 > training.log 2>&1 &
+#   nohup python3 -u scripts/ocr/general_model/train.py --version $VER --num_iter 20000 > training.log 2>&1 &
+#   nohup python3 -u scripts/ocr/general_model/train.py --version $VER --resume > training.log 2>&1 &
 # Monitor: tail -f logs/training_attemptN.log
 
-# Step 6: Deploy trained model + config together
-bash scripts/deploy_model.sh
+# Step 6: Deploy trained model to versioned folder + update symlinks
+bash scripts/ocr/general_model/deploy.sh $VER
 
 # Step 7: Validate on real GT images
 python3 scripts/v2/test_v2_pipeline.py --normalize --gt-suffix _expected.txt        # Full output
 python3 scripts/v2/test_v2_pipeline.py -q --normalize --gt-suffix _expected.txt     # Summary only
 ```
 
-**When to re-run `create_model_config.py`:** Anytime you change `model:` section in `configs/training_config.yaml` (especially `imgW`, `imgH`), or update `unique_chars.txt`. This writes to `saved_models/custom_mabinogi.yaml` (training prep only). Production yaml at `backend/ocr/models/` is updated only via `bash scripts/deploy_model.sh`. The yaml must match training args exactly — the TPS Spatial Transformer is built with `I_size=(imgH, imgW)` and mismatched weights will crash or produce garbage.
+**When to re-run `create_model_config.py`:** Anytime you change `model:` section in the version's `training_config.yaml` (especially `imgW`, `imgH`), or update the version's `unique_chars.txt`. This writes to `saved_models/custom_mabinogi.yaml` (training prep only). Production yaml at `backend/ocr/models/` is updated only via `bash scripts/ocr/general_model/deploy.sh <version>`. The yaml must match training args exactly — the TPS Spatial Transformer is built with `I_size=(imgH, imgW)` and mismatched weights will crash or produce garbage.
 
 ### Testing
 - `scripts/v2/test_v2_pipeline.py` — Uses `MabinogiTooltipParser` to split GT images → `recognize()` → compares against GT `.txt` files. **Always run with `--normalize --gt-suffix _expected.txt`** — without these flags scores are artificially low (`.` bullet prefix mismatches + skipped sections inflate error count). Supports `--sections`/`-s` flag for section breakdown.
@@ -227,11 +263,11 @@ Documents to keep in sync: `CLAUDE.md`, `AGENTS.md`, `OCR_TRAINING_HISTORY.md`, 
 
 - Active API path is v3 (`/upload-item-v3`) with original color input and segment-first processing. Legacy v2 still exists for comparison.
 - In both v2 and v3 content OCR, CRAFT is not used; `TooltipLineSplitter` + `recognize()` is used for line-level recognition.
-- The EasyOCR custom model can only recognize characters present in `backend/ocr/unique_chars.txt`; any characters not in this set will never be output
+- The EasyOCR custom model can only recognize characters present in the active version's `unique_chars.txt` (e.g. `backend/ocr/general_model/a18/unique_chars.txt`); any characters not in this set will never be output
 - EasyOCR always uses `keep_ratio_with_pad=True` during inference (hardcoded in `recognition.py` lines 199, 213), regardless of yaml PAD setting. Training must use `--PAD` to match.
 - Item database is currently mocked in `backend/lib/recommendation.py` (`ITEMS_DB`); no persistent storage yet
 - The `data/` directory (fonts, dictionary, sample images, source_of_truth) is not fully committed to git
-- `data/source_of_truth/enchant.yaml` is the canonical enchant data source; `data/dictionary/enchant_*.txt` files are generated from it via `scripts/generate_enchant_dicts.py`
+- `data/source_of_truth/enchant.yaml` is the canonical enchant data source; `data/dictionary/enchant_*.txt` files are generated from it via `scripts/ocr/generate_enchant_dicts.py`
 - Ground truth files (`data/sample_images/*.txt`) exist for: `lightarmor_processed_3`, `captain_suit_processed`, `lobe_processed`, `titan_blade_processed`, `dropbell_processed`. Additional `*_expected.txt` files track expected OCR output (may differ from full GT due to skipped sections).
 - Current deployed model charset is 509; known missing enchant characters remain and are tracked in `OCR_ISSUES.md`.
 - Training must run independently (not as subprocess of Claude Code) to avoid OOM kills — use `nohup` in a separate terminal

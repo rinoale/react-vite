@@ -21,7 +21,7 @@ This skill helps you train a custom OCR model (EasyOCR/ClovaAI) to recognize tex
 ### 1. Generate Training Data
 Run the generation script from the **project root**:
 ```bash
-python3 scripts/generate_training_data.py
+python3 scripts/ocr/general_model/generate_training_data.py
 ```
 - Uses `data/fonts/mabinogi_classic.ttf` (the actual game font)
 - Reads dictionaries from `data/dictionary/reforging_options.txt` and `data/dictionary/tooltip_general.txt`

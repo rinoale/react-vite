@@ -1,18 +1,27 @@
 #!/usr/bin/env python3
 """Generate custom_enchant_header.yaml for EasyOCR inference.
 
-Reads model architecture params from enchant_header_training_config.yaml
+Reads model architecture params from the version's training_config.yaml
 and character list from enchant_header_chars.txt.
 
 Run from project root:
-    python3 scripts/create_enchant_header_model_config.py
+    python3 scripts/ocr/enchant_header_model/create_model_config.py              # active version
+    python3 scripts/ocr/enchant_header_model/create_model_config.py --version v2
 """
+import argparse
+import os
+import sys
 import yaml
 
-CONFIG_PATH = "configs/enchant_header_training_config.yaml"
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+from scripts.ocr.lib.model_version import resolve_version, load_training_config
 
-with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-    cfg = yaml.safe_load(f)
+parser = argparse.ArgumentParser(description='Generate enchant header EasyOCR inference yaml')
+parser.add_argument('--version', default=None, help='Model version (default: active symlink)')
+args = parser.parse_args()
+
+version = resolve_version('enchant_header', args.version)
+cfg = load_training_config('enchant_header', version)
 
 model = cfg["model"]
 inference = cfg["inference"]
@@ -46,6 +55,7 @@ output_path = paths["model_config"]
 with open(output_path, "w", encoding="utf-8") as f:
     yaml.dump(config, f, allow_unicode=True)
 
+print(f"Version: {version}")
 print(f"Created {output_path}")
 print(f"  imgH={model['imgH']}, imgW={model['imgW']}")
 print(f"  characters: {len(chars)} chars")

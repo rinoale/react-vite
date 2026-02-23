@@ -9,24 +9,34 @@ Images match real line crops from TooltipLineSplitter:
 - Full tooltip line patterns via templates, not just dictionary words
 
 Run from project root:
-    python3 scripts/generate_training_data.py
+    python3 scripts/ocr/general_model/generate_training_data.py              # uses active version (from symlink)
+    python3 scripts/ocr/general_model/generate_training_data.py --version a19  # explicit version
 """
 
+import argparse
 import os
 import random
 import re
+import sys
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 import numpy as np
 import cv2
-import yaml
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+from scripts.ocr.lib.model_version import resolve_version, load_training_config
 
 # === Configuration ===
-# Load canonical prefix characters from training config
-_CONFIG_PATH = os.path.join(os.path.dirname(__file__), '..', 'configs', 'training_config.yaml')
-with open(_CONFIG_PATH, 'r', encoding='utf-8') as _f:
-    _config = yaml.safe_load(_f)
+# Version from CLI or active symlink
+_parser = argparse.ArgumentParser(add_help=False)
+_parser.add_argument('--version', default=None)
+_args, _ = _parser.parse_known_args()
+_VERSION = resolve_version('general', _args.version)
+_config = load_training_config('general', _VERSION)
+print(f"Version: {_VERSION}")
+
 BULLET = _config['prefixes']['bullet']        # first-level sub-bullet (e.g. '.')
 SUBBULLET = _config['prefixes']['subbullet']  # second-level sub-bullet (e.g. 'ㄴ')
+
 FONT_PATHS = [
     "data/fonts/mabinogi_classic.ttf",
     "data/fonts/NanumGothicBold.ttf",
@@ -38,7 +48,7 @@ DICT_PATHS = [
     # critical sections (enchant/reforge). Item names are FM-corrected at runtime instead.
     "data/dictionary/tooltip_general.txt",
 ]
-OUTPUT_DIR = "backend/ocr/train_data"
+OUTPUT_DIR = f"backend/ocr/general_model/{_VERSION}/train_data"
 IMAGES_DIR = os.path.join(OUTPUT_DIR, "images")
 LABELS_DIR = os.path.join(OUTPUT_DIR, "labels")
 
@@ -382,7 +392,7 @@ def generate_template_lines():
 
     # --- Prefix-stripped variants ---
     # The splitter sometimes crops away the leading BULLET or SUBBULLET prefix
-    # (canonical chars defined in configs/training_config.yaml),
+    # (canonical chars defined in the version's training_config.yaml),
     # so we train on content-only versions too.
     for _ in range(100):
         effect = random.choice(effect_words)

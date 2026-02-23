@@ -10,7 +10,7 @@ Rank visibility rule for slot headers:
   Rank 1-9: pink text in-game → invisible in white-mask crop → omit rank
 
 Run from project root:
-    python3 scripts/generate_enchant_dicts.py
+    python3 scripts/ocr/generate_enchant_dicts.py
 """
 
 import os

@@ -10,19 +10,31 @@ Reference characteristics (from tmp/ocr_crops/ with white mask preprocessing):
   Ink ratio: 0.198-0.217, mean 0.209
 
 Run from project root:
-    python3 scripts/generate_enchant_header_training.py
+    python3 scripts/ocr/enchant_header_model/generate_training_data.py              # uses active version
+    python3 scripts/ocr/enchant_header_model/generate_training_data.py --version v2 # explicit version
 """
 
+import argparse
 import os
 import random
+import sys
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+from scripts.ocr.lib.model_version import resolve_version
+
 # === Configuration ===
+_parser = argparse.ArgumentParser(add_help=False)
+_parser.add_argument('--version', default=None)
+_args, _ = _parser.parse_known_args()
+_VERSION = resolve_version('enchant_header', _args.version)
+print(f"Version: {_VERSION}")
+
 FONT_PATH = "data/fonts/NanumGothicBold.ttf"
 DICT_PATH = "data/dictionary/enchant_slot_header.txt"
-OUTPUT_DIR = "backend/ocr/enchant_header_train_data"
+OUTPUT_DIR = f"backend/ocr/enchant_header_model/{_VERSION}/enchant_header_train_data"
 IMAGES_DIR = os.path.join(OUTPUT_DIR, "images")
 LABELS_DIR = os.path.join(OUTPUT_DIR, "labels")
 

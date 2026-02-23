@@ -143,39 +143,39 @@ See `documents/ARCHITECTURE.md` for full internals and `documents/STRATEGY_MABIN
 
 ## Training Custom OCR Model
 
-All parameters are in `configs/training_config.yaml` (single source of truth). Run all commands from the **project root**.
+Training parameters live in each version's `training_config.yaml` (e.g. `backend/ocr/general_model/a18/training_config.yaml`). All scripts accept `--version <ver>` (defaults to active version from symlink). Run all commands from the **project root**.
 
 ### Steps
 
 **1. Generate synthetic training images**
 ```bash
-rm -rf backend/train_data backend/train_data_lmdb
-python3 scripts/generate_training_data.py
-# Output: backend/train_data/  (~11k images)
+python3 scripts/ocr/general_model/generate_training_data.py --version a18
+# Output: backend/ocr/general_model/a18/train_data/  (~11k images)
 ```
 
 **2. Generate model config**
 
 Required when `imgW`, `imgH`, network params, or `unique_chars.txt` change.
 ```bash
-python3 scripts/create_model_config.py
-# Output: backend/models/custom_mabinogi.yaml
+python3 scripts/ocr/general_model/create_model_config.py --version a18
+# Output: saved_models/custom_mabinogi.yaml
 ```
 
 **3. Create LMDB dataset**
 ```bash
 python3 skills/ocr-trainer/scripts/create_lmdb_dataset.py \
-  --input backend/train_data --output backend/train_data_lmdb
+  --input backend/ocr/general_model/a18/train_data \
+  --output backend/ocr/general_model/a18/train_data_lmdb
 ```
 
 **4. Train**
 
 Use `nohup` — training must not be a subprocess (OOM risk).
 ```bash
-nohup python3 -u scripts/train.py > logs/training_attemptN.log 2>&1 &
+nohup python3 -u scripts/ocr/general_model/train.py --version a18 > logs/training_attemptN.log 2>&1 &
 
 # Resume from checkpoint
-nohup python3 -u scripts/train.py --resume > logs/training_attemptN.log 2>&1 &
+nohup python3 -u scripts/ocr/general_model/train.py --version a18 --resume > logs/training_attemptN.log 2>&1 &
 
 # Monitor
 tail -f logs/training_attemptN.log
@@ -183,11 +183,9 @@ tail -f logs/training_attemptN.log
 
 **5. Deploy**
 
-Back up the current model before replacing it:
+Copies trained model into version folder and updates symlinks:
 ```bash
-cp backend/models/custom_mabinogi.pth backend/models/custom_mabinogi_aN.pth   # version backup
-cp saved_models/TPS-ResNet-BiLSTM-CTC-Seed1111/best_accuracy.pth \
-   backend/models/custom_mabinogi.pth                                          # deploy
+bash scripts/ocr/general_model/deploy.sh a18
 ```
 
 **6. Validate**
@@ -207,13 +205,22 @@ Current benchmark status (docs): v2 best (Attempt 15) = 77.0% char acc, v3 (Atte
 
 ## Scripts Reference
 
-All scripts run from the **project root**.
+All scripts run from the **project root**. OCR scripts are organized under `scripts/ocr/`.
 
 | Script | Purpose |
 |---|---|
-| `scripts/generate_training_data.py` | Generate synthetic training images |
-| `scripts/create_model_config.py` | Generate `custom_mabinogi.yaml` from `unique_chars.txt` |
-| `scripts/train.py` | Training launcher (reads `configs/training_config.yaml`) |
+| `scripts/ocr/general_model/generate_training_data.py` | Generate synthetic training images |
+| `scripts/ocr/general_model/create_model_config.py` | Generate `custom_mabinogi.yaml` from `unique_chars.txt` |
+| `scripts/ocr/general_model/train.py` | Training launcher (reads version's `training_config.yaml`) |
+| `scripts/ocr/general_model/deploy.sh` | Deploy trained model to version folder + update symlinks |
+| `scripts/ocr/category_header_model/train.py` | Train category header OCR model |
+| `scripts/ocr/category_header_model/create_lmdb.py` | Create category header training LMDB |
+| `scripts/ocr/enchant_header_model/train.py` | Train enchant header OCR model |
+| `scripts/ocr/enchant_header_model/create_lmdb.py` | Create enchant header training LMDB |
+| `scripts/ocr/enchant_header_model/generate_training_data.py` | Generate enchant header training data |
+| `scripts/ocr/enchant_header_model/create_model_config.py` | Generate enchant header model config |
+| `scripts/ocr/switch_model.sh` | Switch active model version (updates symlinks) |
+| `scripts/ocr/generate_enchant_dicts.py` | Generate enchant dictionaries from YAML |
 | `scripts/v3/test_v3_pipeline.py` | Evaluate v3 segment-first pipeline on original color GT images |
 | `scripts/v2/test_v2_pipeline.py` | Evaluate legacy v2 pipeline on processed GT images |
 | `scripts/v3/segmentation/test_line_split.py` | Visual line detection verification per segment |

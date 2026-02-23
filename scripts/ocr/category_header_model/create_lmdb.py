@@ -2,24 +2,34 @@
 """Prepare header OCR training data and create LMDB dataset.
 
 Reads data/sample_headers/labels.txt (format: filename<TAB>label),
-copies processed images into backend/ocr/header_train_data/images/,
-writes individual label files to backend/ocr/header_train_data/labels/,
-then creates the LMDB at backend/ocr/header_train_data_lmdb/.
+copies processed images into backend/ocr/category_header_model/<version>/header_train_data/images/,
+writes individual label files to backend/ocr/category_header_model/<version>/header_train_data/labels/,
+then creates the LMDB at backend/ocr/category_header_model/<version>/header_train_data_lmdb/.
 
 Usage:
-    python3 scripts/create_header_lmdb.py
+    python3 scripts/ocr/category_header_model/create_lmdb.py              # default version v1
+    python3 scripts/ocr/category_header_model/create_lmdb.py --version v2 # explicit version
 """
 
+import argparse
 import os
 import shutil
 import sys
 
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+from scripts.ocr.lib.model_version import resolve_version, version_dir, PROJECT_ROOT
+
+parser = argparse.ArgumentParser(description='Create header OCR training LMDB')
+parser.add_argument('--version', default=None, help='Version folder name (default: active symlink)')
+args = parser.parse_args()
+
+version = resolve_version('category_header', args.version)
+ver_dir = version_dir('category_header', version)
 
 SRC_DIR    = os.path.join(PROJECT_ROOT, 'data', 'sample_headers')
 LABELS_TXT = os.path.join(SRC_DIR, 'labels.txt')
-DATA_DIR   = os.path.join(PROJECT_ROOT, 'backend', 'ocr', 'header_train_data')
-LMDB_DIR   = os.path.join(PROJECT_ROOT, 'backend', 'ocr', 'header_train_data_lmdb')
+DATA_DIR   = os.path.join(ver_dir, 'header_train_data')
+LMDB_DIR   = os.path.join(ver_dir, 'header_train_data_lmdb')
 LMDB_SCRIPT = os.path.join(PROJECT_ROOT, 'skills', 'ocr-trainer', 'scripts', 'create_lmdb_dataset.py')
 
 IMG_DIR   = os.path.join(DATA_DIR, 'images')
@@ -30,6 +40,8 @@ def main():
     if not os.path.isfile(LABELS_TXT):
         print(f"Error: {LABELS_TXT} not found. Run GT creation first.")
         sys.exit(1)
+
+    print(f"Version: {version}")
 
     # Read labels.txt
     entries = []
