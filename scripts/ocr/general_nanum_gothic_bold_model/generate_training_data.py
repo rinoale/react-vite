@@ -2,8 +2,8 @@
 """
 Generate synthetic training images for the NanumGothicBold font OCR model.
 
-Uses game-like rendering pipeline (bright-on-dark → BT.601 → threshold → downscale)
-to close the ink ratio and height gaps between synthetic and real inference crops.
+Uses direct rendering at font 11-13 (no downscale) to produce images matching
+real inference crop dimensions and stroke thickness.
 
 Run from project root:
     python3 scripts/ocr/general_nanum_gothic_bold_model/generate_training_data.py
@@ -46,7 +46,7 @@ OUTPUT_DIR = f"backend/ocr/general_nanum_gothic_bold_model/{_VERSION}/train_data
 IMAGES_DIR = os.path.join(OUTPUT_DIR, "images")
 LABELS_DIR = os.path.join(OUTPUT_DIR, "labels")
 
-FONT_SIZES = [16, 16, 17, 17, 18, 18]
+FONT_SIZES = [11, 11, 12, 12, 13, 13]
 CANVAS_WIDTH = 400
 VARIATIONS_PER_LABEL = 3
 

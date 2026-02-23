@@ -1,18 +1,13 @@
-"""Game-like rendering pipeline for synthetic OCR training images.
+"""Rendering pipeline for synthetic OCR training images.
 
-Closes two domain gaps between synthetic training data and real inference crops:
-1. **Ink ratio**: bright-on-dark rendering + threshold produces thicker strokes (~0.20)
-   matching real crops (was 0.144 with direct white-bg rendering)
-2. **Height**: Renders at font 16-18, downscales to ~14-15px matching real splitter output
+Renders at font 11-13 (producing ~14-16px height directly, matching real inference
+crops) with no downscale. This avoids stroke thickness artifacts from downscaling.
 
 Pipeline:
-  1. Dark background (20,20,20) + bright text (220,220,220) at font 16-18
-  2. BT.601 grayscale: Y = 0.299R + 0.587G + 0.114B
-  3. Threshold with BINARY_INV (bright text → black ink)
-  4. Tight-crop to ink bounds + splitter padding
-  5. Downscale to target height via cv2.INTER_AREA
-  6. Re-threshold to strict binary (0/255)
-  7. Quality gates
+  1. Black text on white background (grayscale) at font 11-13
+  2. Threshold 75-95 → strict binary (0/255)
+  3. Tight-crop to ink bounds + splitter padding
+  4. Quality gates (ink ratio, min width/height)
 """
 
 import random
@@ -27,7 +22,7 @@ MIN_WIDTH = 10
 MIN_HEIGHT = 8
 
 # Target output height range matching real inference crops
-TARGET_HEIGHT_MIN = 13
+TARGET_HEIGHT_MIN = 14
 TARGET_HEIGHT_MAX = 16
 
 # Rendering constants
@@ -55,23 +50,21 @@ def render_line_gamelike(text, font_path, font_size, canvas_width=400):
     if text_w <= 0 or text_h <= 0:
         return None, False
 
-    # Step 1: Render bright text on dark background (RGB)
-    # Use generous canvas to avoid clipping
+    # Step 1: Render black text on white background (grayscale)
     pad_render = max(4, text_h // 2)
     img_w = text_w + 2 * pad_render
     img_h = text_h + 2 * pad_render
 
-    img = Image.new('RGB', (img_w, img_h), color=BG_COLOR)
+    img = Image.new('L', (img_w, img_h), color=255)
     draw = ImageDraw.Draw(img)
-    draw.text((pad_render - bbox[0], pad_render - bbox[1]), text, font=font, fill=TEXT_COLOR)
+    draw.text((pad_render - bbox[0], pad_render - bbox[1]), text, font=font, fill=0)
 
-    # Step 2: BT.601 grayscale
-    arr = np.array(img, dtype=np.float32)
-    gray = (0.299 * arr[:, :, 0] + 0.587 * arr[:, :, 1] + 0.114 * arr[:, :, 2]).astype(np.uint8)
+    # Step 2: Grayscale numpy
+    gray = np.array(img)
 
-    # Step 3: Threshold with BINARY_INV (bright text → black ink on white bg)
-    thresh = FRONTEND_THRESHOLD + random.randint(-10, 40)
-    _, binary = cv2.threshold(gray, thresh, 255, cv2.THRESH_BINARY_INV)
+    # Step 3: Threshold to binary
+    thresh = FRONTEND_THRESHOLD + random.randint(-5, 15)
+    _, binary = cv2.threshold(gray, thresh, 255, cv2.THRESH_BINARY)
 
     # Step 4: Tight-crop to ink bounds
     ink_rows = np.where(binary.min(axis=1) < 255)[0]
@@ -86,26 +79,14 @@ def render_line_gamelike(text, font_path, font_size, canvas_width=400):
 
     crop_h, crop_w = cropped.shape
 
-    # Splitter-matching padding
+    # Step 5: Splitter-matching padding
     pad_y = max(1, crop_h // 5)
     pad_x = max(2, crop_h // 3)
 
     padded = np.full((crop_h + 2 * pad_y, crop_w + 2 * pad_x), 255, dtype=np.uint8)
     padded[pad_y:pad_y + crop_h, pad_x:pad_x + crop_w] = cropped
 
-    # Step 5: Downscale to target height (~14-15px)
-    h_padded = padded.shape[0]
-    target_h = random.randint(TARGET_HEIGHT_MIN, TARGET_HEIGHT_MAX)
-
-    if h_padded > target_h:
-        scale = target_h / h_padded
-        new_w = max(1, int(padded.shape[1] * scale))
-        resized = cv2.resize(padded, (new_w, target_h), interpolation=cv2.INTER_AREA)
-    else:
-        resized = padded
-
-    # Step 6: Re-threshold to strict binary (resize introduces gray values)
-    _, final = cv2.threshold(resized, 127, 255, cv2.THRESH_BINARY)
+    final = padded
 
     # Step 7: Quality gates
     h_final, w_final = final.shape
