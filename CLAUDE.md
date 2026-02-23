@@ -152,9 +152,12 @@ Splits tooltip images into individual text line crops using horizontal projectio
 - Ground truth test images in `data/sample_images/` with matching `.txt` files
 
 ### Inference Patch (`backend/lib/ocr_utils.py`)
-- `patch_reader_imgw()`: Monkey-patches EasyOCR's `recognize()` to use fixed imgW from yaml
-- Solves: EasyOCR computes dynamic `max_width = ceil(w/h) * 32` per image (576-1056px), mismatching training's fixed imgW
+- `patch_reader_imgw()`: Monkey-patches EasyOCR's `recognize()` to match training preprocessing exactly
+- **Double-dip resize fix (Attempt 18)**: EasyOCR inference resized images twice (cv2.LANCZOS in `get_image_list()` then PIL.BICUBIC in `AlignCollate`). Training only resizes once (PIL.BICUBIC in `AlignCollate`). The patch replaces `get_image_list()` with `_crop_boxes()` that crops without resizing, letting `AlignCollate` handle the single resize. This fix alone gave +37 exact matches across all models.
+- **Fixed imgW**: Uses yaml's fixed imgW (200) instead of EasyOCR's dynamic per-image width
 - Applied in `backend/main.py` and `scripts/v2/test_v2_pipeline.py` after reader init
+- **NEVER bypass this patch** — any code path that calls EasyOCR's unpatched `recognize()` will suffer double-dip resize degradation. Always use `patch_reader_imgw()` after creating a reader.
+- **Verification rule**: OCR-ing training images should give ~100% accuracy. If it doesn't, there's a preprocessing mismatch — investigate before retraining.
 
 ### Training Configuration
 Each version folder has its own **`training_config.yaml`** (e.g. `backend/ocr/general_model/a18/training_config.yaml`). This is the single source of truth for that version's model architecture, hyperparameters, and paths.

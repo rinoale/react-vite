@@ -1,22 +1,61 @@
 """Utilities for EasyOCR integration with custom model.
 
-Patches EasyOCR's recognize() to use a fixed imgW from the model yaml,
-instead of computing dynamic max_width per image. This ensures inference
-uses the same imgW as training, eliminating squash factor mismatch.
+Patches EasyOCR's recognize() to:
+1. Use fixed imgW from the model yaml (not dynamic per-image width)
+2. Skip EasyOCR's first resize in get_image_list() — only crop bounding boxes,
+   letting AlignCollate handle the single resize (matching training exactly)
+
+Without this patch, inference applies TWO resizes (cv2.LANCZOS then PIL.BICUBIC)
+while training applies only ONE (PIL.BICUBIC). The double resampling introduces
+artifacts that degrade recognition accuracy.
 """
 
 import os
 import yaml
+import numpy as np
 from easyocr.recognition import get_text
-from easyocr.utils import get_image_list
+
+
+def _crop_boxes(horizontal_list, free_list, img_cv_grey):
+    """Crop bounding boxes from image WITHOUT resizing.
+
+    Replaces EasyOCR's get_image_list() which crops AND resizes
+    (introducing a spurious first resize). AlignCollate inside get_text()
+    will handle the single resize, matching the training pipeline.
+    """
+    y_max, x_max = img_cv_grey.shape
+    image_list = []
+
+    for box in horizontal_list:
+        x_min = max(0, box[0])
+        x_end = min(box[1], x_max)
+        y_min = max(0, box[2])
+        y_end = min(box[3], y_max)
+        crop = img_cv_grey[y_min:y_end, x_min:x_end]
+        if crop.shape[0] == 0 or crop.shape[1] == 0:
+            continue
+        coord = [[x_min, y_min], [x_end, y_min], [x_end, y_end], [x_min, y_end]]
+        image_list.append((coord, crop))
+
+    for box in free_list:
+        from easyocr.utils import four_point_transform
+        rect = np.array(box, dtype="float32")
+        crop = four_point_transform(img_cv_grey, rect)
+        if crop.shape[0] == 0 or crop.shape[1] == 0:
+            continue
+        image_list.append((box, crop))
+
+    return image_list
 
 
 def patch_reader_imgw(reader, models_dir, recog_network='custom_mabinogi'):
-    """Patch EasyOCR reader to use fixed imgW from yaml during inference.
+    """Patch EasyOCR reader for training-matched inference.
 
-    EasyOCR computes dynamic max_width per image based on aspect ratio,
-    which varies wildly (576-1056px for our data). Training uses a fixed
-    imgW, so inference must match.
+    Fixes two mismatches between EasyOCR inference and training:
+    1. Uses fixed imgW from yaml (training uses fixed, EasyOCR uses dynamic)
+    2. Skips first resize in get_image_list() so only AlignCollate resizes
+       (training does single PIL.BICUBIC resize; unpatched EasyOCR does
+       cv2.LANCZOS then PIL.BICUBIC — double resampling degrades quality)
 
     Args:
         reader: EasyOCR Reader instance (already initialized)
@@ -29,8 +68,6 @@ def patch_reader_imgw(reader, models_dir, recog_network='custom_mabinogi'):
 
     fixed_imgW = config.get('imgW', config.get('network_params', {}).get('imgW', 600))
     imgH = config.get('imgH', 32)
-
-    original_recognize = reader.recognize
 
     def patched_recognize(img_cv_grey, horizontal_list=None, free_list=None,
                           decoder='greedy', beamWidth=5, batch_size=1,
@@ -58,24 +95,12 @@ def patch_reader_imgw(reader, models_dir, recog_network='custom_mabinogi'):
             horizontal_list = [[0, x_max, 0, y_max]]
             free_list = []
 
-        # Process each box with FIXED imgW instead of dynamic max_width
-        result = []
-        for bbox in horizontal_list:
-            h_list = [bbox]
-            f_list = []
-            image_list, _dynamic_width = get_image_list(h_list, f_list, img_cv_grey, model_height=imgH)
-            result0 = get_text(reader.character, imgH, fixed_imgW, reader.recognizer, reader.converter,
-                               image_list, ignore_char, decoder, beamWidth, batch_size,
-                               contrast_ths, adjust_contrast, filter_ths, workers, reader.device)
-            result += result0
-        for bbox in free_list:
-            h_list = []
-            f_list = [bbox]
-            image_list, _dynamic_width = get_image_list(h_list, f_list, img_cv_grey, model_height=imgH)
-            result0 = get_text(reader.character, imgH, fixed_imgW, reader.recognizer, reader.converter,
-                               image_list, ignore_char, decoder, beamWidth, batch_size,
-                               contrast_ths, adjust_contrast, filter_ths, workers, reader.device)
-            result += result0
+        # Crop without resizing — AlignCollate does the single resize
+        image_list = _crop_boxes(horizontal_list, free_list or [], img_cv_grey)
+
+        result = get_text(reader.character, imgH, fixed_imgW, reader.recognizer, reader.converter,
+                          image_list, ignore_char, decoder, beamWidth, batch_size,
+                          contrast_ths, adjust_contrast, filter_ths, workers, reader.device)
 
         if detail == 0:
             return [item[1] for item in result]
