@@ -61,6 +61,24 @@ class ReforgeOption(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
+class OcrCorrection(Base):
+    __tablename__ = "ocr_corrections"
+
+    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(Text, nullable=False, index=True)
+    line_index = Column(SmallInteger, nullable=False)
+    original_text = Column(Text, nullable=False)
+    corrected_text = Column(Text, nullable=False)
+    confidence = Column(Numeric, nullable=True)
+    section = Column(Text, nullable=True)
+    ocr_model = Column(Text, nullable=True)
+    fm_applied = Column(Boolean, default=False)
+    status = Column(Text, nullable=False, server_default='pending')
+    image_filename = Column(Text, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    trained_version = Column(Text, nullable=True)
+
+
 class Item(Base):
     __tablename__ = "items"
 

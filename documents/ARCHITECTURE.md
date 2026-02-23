@@ -206,6 +206,109 @@ Evaluated on 5 real tooltip images, 230 expected lines:
 
 ---
 
+## 7. User-Correction Training Pipeline
+
+Users edit OCR-recognized text in the frontend. Those edits are captured as training data for model improvement.
+
+### Data flow
+
+```
+Upload screenshot
+    │
+    ▼
+/upload-item-v3 → session_id=uuid4()
+    │  saves per-line crop PNGs to tmp/ocr_crops/{session_id}/
+    │  saves ocr_results.json (original text per line, for server-side diffing)
+    │  tags each line with global_index
+    │  returns { session_id, sections, all_lines }
+    │
+    ▼
+Frontend: user edits text, clicks "Register Item"
+    │  POST /register-item { session_id, name, price, category, lines[] }
+    │  (lines = flat array of { global_index, text } from all sections)
+    │
+    ▼
+Backend (trade/router.py):
+    │  1. Loads ocr_results.json from session dir
+    │  2. Diffs submitted lines against originals (server-side)
+    │  3. For each changed line: charset-validate, copy crop, insert DB row
+    │  4. Register item (TODO: persistent item storage)
+    │  Returns { registered, name, corrections_saved }
+    │
+    ▼
+(Admin) GET /admin/corrections/list?status=pending → review
+(Admin) POST /admin/corrections/approve/{id} → status=approved
+    │
+    ▼
+(Manual) merge_corrections.py → new version with synthetic + corrections
+    │
+    ▼
+(Manual) retrain_with_corrections.sh → LMDB + resume training
+    │
+    ▼
+(Manual) eval_compare.py → A/B gate → deploy if no regression
+```
+
+Corrections are captured implicitly — no separate submit step for the user.
+
+### Crop persistence
+
+**Files:** `backend/lib/v3_pipeline.py`, `backend/lib/mabinogi_tooltip_parser.py`
+
+During `/upload-item-v3`, when `save_crops=True`:
+- `run_v3_pipeline()` generates a `session_id` (UUID4) and creates `tmp/ocr_crops/{session_id}/`
+- `_ocr_grouped_lines()` attaches the grayscale line crop as `line['_crop']` (numpy array)
+- After all lines are assembled and tagged with `global_index`, crops are saved as `{global_index:03d}.png`
+- The `_crop` key is removed from lines before returning to the caller
+- `ocr_results.json` is written with original text, confidence, section, ocr_model, fm_applied per line
+
+Temp crops are cleaned by `scripts/ocr/cleanup_crops.py` (removes dirs older than 24h with no DB corrections).
+
+### Database schema
+
+**Table:** `ocr_corrections` (migration: `infra/database/init/002_corrections.sql`)
+
+| Column | Type | Description |
+|--------|------|-------------|
+| session_id | TEXT | Links to crop directory |
+| line_index | SMALLINT | global_index from the OCR pipeline |
+| original_text | TEXT | OCR output (after FM) |
+| corrected_text | TEXT | User-edited text |
+| confidence | NUMERIC | OCR confidence at recognition time |
+| section | TEXT | Section label (enchant, reforge, etc.) |
+| ocr_model | TEXT | Which model won (mabinogi_classic, nanum_gothic_bold) |
+| fm_applied | BOOLEAN | Whether FM was applied to this line |
+| status | TEXT | `pending` → `approved` → `trained` |
+| image_filename | TEXT | Crop filename (e.g. `003.png`) |
+| trained_version | TEXT | Set when merged into a training version |
+
+### API endpoints
+
+| Endpoint | Method | File | Description |
+|----------|--------|------|-------------|
+| `/register-item` | POST | `backend/trade/router.py` | Register item + implicitly capture corrections |
+| `/admin/corrections/list` | GET | `backend/admin/router.py` | Query by status, paginated |
+| `/admin/corrections/approve/{id}` | POST | `backend/admin/router.py` | `pending` → `approved` |
+
+Charset gate (in `/register-item`): lines with characters not in the union of both font models' `unique_chars.txt` are silently skipped (not saved as corrections).
+
+### Training scripts
+
+| Script | Purpose |
+|--------|---------|
+| `scripts/ocr/merge_corrections.py` | Query approved corrections, charset-validate, copy base version's synthetic data + correction crops (×N duplication), write `gt.txt`, update DB to `trained` |
+| `scripts/ocr/retrain_with_corrections.sh` | Wrapper: merge → create_model_config → create_lmdb → print `nohup train.py --resume` command |
+| `scripts/ocr/eval_compare.py` | Switch model versions, run `test_v3_pipeline.py --json` on each, print comparison table, gate on exact matches + char accuracy |
+| `scripts/ocr/cleanup_crops.py` | Remove `tmp/ocr_crops/` dirs older than N hours with no DB corrections |
+
+### Frontend
+
+**File:** `frontend/src/pages/sell.jsx`
+
+After OCR scan, `sessionId` is stored from response. On "Register Item" submit, the frontend collects all lines with `global_index` + current `text` from `formData.sections` and POSTs to `/register-item`. No client-side diffing — the server handles it.
+
+---
+
 ## Data Flow Diagram
 
 ```

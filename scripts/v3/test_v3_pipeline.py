@@ -269,6 +269,8 @@ def main():
     argp.add_argument('--gt-suffix', default='.txt',
                       help='GT file suffix (default: .txt)')
     argp.add_argument('--quiet', '-q', action='store_true', help='Summary only')
+    argp.add_argument('--json', action='store_true',
+                      help='Print machine-parseable JSON summary (last line)')
     args = argp.parse_args()
 
     pipeline = init_pipeline()
@@ -348,6 +350,20 @@ def main():
                       f"({100*st['exact']/st['total'] if st['total'] else 0:5.1f}%)  "
                       f"{ca:7.1%}  {fm_str:>4s}")
     print()
+
+    # Machine-parseable JSON output (used by eval_compare.py)
+    if args.json and has_gt:
+        import json as _json
+        gt_sums = [s for s in all_summaries if s['gt_lines'] is not None]
+        total_exact = sum(s['exact_matches'] for s in gt_sums)
+        total_compared = sum(s['total_compared'] for s in gt_sums)
+        total_char_acc = (sum(s['avg_char_accuracy'] * s['total_compared'] for s in gt_sums)
+                          / total_compared if total_compared else 0)
+        print(_json.dumps({
+            'total_exact': total_exact,
+            'total_compared': total_compared,
+            'total_char_accuracy': round(total_char_acc, 4),
+        }))
 
 
 if __name__ == '__main__':

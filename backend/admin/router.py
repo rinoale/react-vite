@@ -1,12 +1,13 @@
 from html import escape
 from typing import Any, List
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
 from db.connector import get_db
 from db import schemas
+from db.models import OcrCorrection
 from crud import admin as crud_admin
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -166,3 +167,38 @@ def admin_validate_page(
 </html>
 """
     return HTMLResponse(content=html)
+
+
+# ---------------------------------------------------------------------------
+# OCR Correction review endpoints (admin-only)
+# ---------------------------------------------------------------------------
+
+@router.get("/corrections/list", response_model=list[schemas.CorrectionOut])
+def list_corrections(
+    status: str = Query("pending"),
+    limit: int = Query(100, le=500),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+):
+    """List corrections filtered by status."""
+    return (
+        db.query(OcrCorrection)
+        .filter(OcrCorrection.status == status)
+        .order_by(OcrCorrection.id)
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+
+
+@router.post("/corrections/approve/{correction_id}")
+def approve_correction(correction_id: int, db: Session = Depends(get_db)):
+    """Set a correction's status to 'approved'."""
+    row = db.query(OcrCorrection).filter(OcrCorrection.id == correction_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Correction not found")
+    if row.status != 'pending':
+        raise HTTPException(status_code=400, detail=f"Cannot approve from status '{row.status}'")
+    row.status = 'approved'
+    db.commit()
+    return {"id": row.id, "status": row.status}

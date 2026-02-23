@@ -80,3 +80,35 @@ class PaginatedReforgeResponse(BaseModel):
     limit: int
     offset: int
     rows: List[ReforgeOption]
+
+
+# --- Item registration + implicit correction capture ---
+
+class RegisterItemLine(BaseModel):
+    global_index: int
+    text: str
+
+class RegisterItemRequest(BaseModel):
+    session_id: Optional[str] = None
+    name: str = ''
+    price: str = ''
+    category: str = 'weapon'
+    lines: List[RegisterItemLine] = []
+
+class CorrectionOut(BaseModel):
+    id: int
+    session_id: str
+    line_index: int
+    original_text: str
+    corrected_text: str
+    confidence: Optional[Decimal] = None
+    section: Optional[str] = None
+    ocr_model: Optional[str] = None
+    fm_applied: bool = False
+    status: str
+    image_filename: str
+    created_at: datetime
+    trained_version: Optional[str] = None
+
+    class Config:
+        from_attributes = True

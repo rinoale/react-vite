@@ -204,7 +204,8 @@ class MabinogiTooltipParser(TooltipLineSplitter):
             for pattern in sec.get('header_patterns', []):
                 self._header_patterns[pattern] = key
 
-    def parse_from_segments(self, tagged_segments, reader, enchant_header_reader=None):
+    def parse_from_segments(self, tagged_segments, reader,
+                            enchant_header_reader=None, crop_session_dir=None):
         """Build full structured result from segment_and_tag() output.
 
         Drop-in replacement for parse_tooltip() in the new segment-first pipeline.
@@ -215,6 +216,8 @@ class MabinogiTooltipParser(TooltipLineSplitter):
             reader:                content OCR EasyOCR reader (custom_mabinogi, imgW patched)
             enchant_header_reader: optional dedicated enchant slot header OCR reader
                                    (custom_enchant_header). If None, falls back to content reader.
+            crop_session_dir:      if set, each line dict will carry a '_crop' key
+                                   (grayscale numpy array) for the caller to persist.
 
         Returns:
             dict with 'sections' (OrderedDict) and 'all_lines' — same format as
@@ -243,7 +246,8 @@ class MabinogiTooltipParser(TooltipLineSplitter):
 
             section_data = self._parse_segment_from_array(
                 content_crop, section, reader,
-                enchant_header_reader=enchant_header_reader)
+                enchant_header_reader=enchant_header_reader,
+                attach_crops=crop_session_dir is not None)
 
             if section == 'pre_header':
                 sections.update(section_data)
@@ -267,7 +271,8 @@ class MabinogiTooltipParser(TooltipLineSplitter):
         return {'sections': sections, 'all_lines': all_lines}
 
     def _parse_segment_from_array(self, content_bgr, section, reader,
-                                    enchant_header_reader=None):
+                                    enchant_header_reader=None,
+                                    attach_crops=False):
         """Parse one content region (BGR numpy array) with a pre-known section label.
 
         Preprocessing: BT.601 grayscale → threshold=80 (mirrors frontend pipeline).
@@ -302,13 +307,15 @@ class MabinogiTooltipParser(TooltipLineSplitter):
             if slot_bands:
                 return self._parse_enchant_with_bands(
                     content_bgr, binary, grouped, slot_bands, section, reader,
-                    enchant_header_reader=enchant_header_reader)
+                    enchant_header_reader=enchant_header_reader,
+                    attach_crops=attach_crops)
 
         # All other sections: OCR every line
         _save = os.environ.get('SAVE_OCR_CROPS')
         ocr_results    = self._ocr_grouped_lines(binary, grouped, reader,
                                                   save_crops_dir=_save,
-                                                  save_label=f'content_{section}')
+                                                  save_label=f'content_{section}',
+                                                  attach_crops=attach_crops)
 
         for line in ocr_results:
             line['section'] = section
@@ -402,7 +409,8 @@ class MabinogiTooltipParser(TooltipLineSplitter):
         return result
 
     def _ocr_grouped_lines(self, img, grouped_lines, reader,
-                           save_crops_dir=None, save_label='content'):
+                           save_crops_dir=None, save_label='content',
+                           attach_crops=False):
         """Run OCR on each grouped line, merging sub-line results.
 
         Args:
@@ -411,6 +419,7 @@ class MabinogiTooltipParser(TooltipLineSplitter):
             reader: EasyOCR Reader instance
             save_crops_dir: if set, save each crop to this directory before OCR
             save_label: label embedded in saved filenames (e.g. 'content_reforge')
+            attach_crops: if True, attach grayscale crop as '_crop' on each result
 
         Returns:
             list of dicts with 'text', 'confidence', 'sub_count', 'bounds', 'sub_lines'
@@ -496,14 +505,30 @@ class MabinogiTooltipParser(TooltipLineSplitter):
             # Use the model from the first sub-line (or most common if multiple)
             ocr_model = sub_details[0].get('ocr_model', '') if sub_details else ''
 
-            results.append({
+            entry = {
                 'text': merged_text,
                 'confidence': float(avg_conf),
                 'sub_count': len(group),
                 'bounds': merged_bounds,
                 'sub_lines': sub_details,
                 'ocr_model': ocr_model,
-            })
+            }
+
+            # Attach full-width line crop for correction training
+            if attach_crops:
+                mb = merged_bounds
+                pad_y = max(1, mb['height'] // 5)
+                pad_x = max(2, mb['height'] // 3)
+                y0 = max(0, mb['y'] - pad_y)
+                y1 = min(img.shape[0], mb['y'] + mb['height'] + pad_y)
+                x0 = max(0, mb['x'] - pad_x)
+                x1 = min(img.shape[1], mb['x'] + mb['width'] + pad_x)
+                crop_region = img[y0:y1, x0:x1]
+                if len(crop_region.shape) == 3:
+                    crop_region = cv2.cvtColor(crop_region, cv2.COLOR_BGR2GRAY)
+                entry['_crop'] = crop_region
+
+            results.append(entry)
 
         return results
 
@@ -847,7 +872,8 @@ class MabinogiTooltipParser(TooltipLineSplitter):
 
     def _parse_enchant_with_bands(self, content_bgr, binary, grouped,
                                     bands, section, reader,
-                                    enchant_header_reader=None):
+                                    enchant_header_reader=None,
+                                    attach_crops=False):
         """Parse enchant section with white-mask bands.
 
         Classifies each line group as header/effect/grey BEFORE OCR.
@@ -895,7 +921,8 @@ class MabinogiTooltipParser(TooltipLineSplitter):
                         if header_classifications else [])
         effect_batch = (self._ocr_grouped_lines(binary, effect_groups, reader,
                                                 save_crops_dir=_save,
-                                                save_label='content_enchant')
+                                                save_label='content_enchant',
+                                                attach_crops=attach_crops)
                         if effect_groups else [])
 
         header_iter = iter(header_batch)

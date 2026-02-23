@@ -47,6 +47,8 @@ const Sell = () => {
     item_color: true
   });
   
+  const [sessionId, setSessionId] = useState(null);
+
   const [formData, setFormData] = useState({
     name: '',
     price: '',
@@ -91,7 +93,8 @@ const Sell = () => {
       const data = await res.json();
       setOcrResult(data);
       setDetectedLines(data.all_lines || []);
-      
+      setSessionId(data.session_id || null);
+
       // Map sections to form data
       const newSections = data.sections || {};
       
@@ -376,7 +379,43 @@ const Sell = () => {
                 <div className="text-xs text-gray-500 font-bold">MABINOGI MARKETPLACE V1.0</div>
               </div>
               
-              <form className="space-y-6" onSubmit={(e) => e.preventDefault()}>
+              <form className="space-y-6" onSubmit={async (e) => {
+                e.preventDefault();
+
+                // Collect all lines with global_index + current text
+                const lines = [];
+                for (const secData of Object.values(formData.sections)) {
+                  if (!secData.lines) continue;
+                  for (const line of secData.lines) {
+                    if (line.global_index != null) {
+                      lines.push({ global_index: line.global_index, text: line.text });
+                    }
+                  }
+                }
+
+                try {
+                  const res = await fetch('http://localhost:8000/register-item', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      session_id: sessionId,
+                      name: formData.name,
+                      price: formData.price,
+                      category: formData.category,
+                      lines,
+                    }),
+                  });
+                  if (!res.ok) throw new Error('Failed to register item');
+                  const result = await res.json();
+                  const corrMsg = result.corrections_saved
+                    ? ` (${result.corrections_saved} correction(s) captured for training)`
+                    : '';
+                  alert(`Item registered successfully.${corrMsg}`);
+                } catch (err) {
+                  console.error('Register item error:', err);
+                  alert('Failed to register item.');
+                }
+              }}>
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
                     <div className="md:col-span-8">
                         <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Item Name</label>

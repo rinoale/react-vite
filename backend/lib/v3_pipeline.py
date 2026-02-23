@@ -3,8 +3,11 @@
 Shared by /upload-item-v3 endpoint and test scripts.
 """
 
+import json
 import os
+import uuid
 
+import cv2
 import easyocr
 
 from lib.dual_reader import DualReader
@@ -89,7 +92,7 @@ def init_pipeline():
 
 def run_v3_pipeline(img_bgr, header_reader, section_patterns, config,
                     content_reader, enchant_header_reader, parser, corrector,
-                    save_raw=False):
+                    save_raw=False, save_crops=False):
     """Run the full v3 pipeline on a color screenshot.
 
     Steps:
@@ -100,19 +103,42 @@ def run_v3_pipeline(img_bgr, header_reader, section_patterns, config,
 
     Args:
         save_raw: if True, saves pre-FM text as line['raw_text'] (for test comparison)
+        save_crops: if True, saves per-line crop PNGs keyed by session_id
 
     Returns:
-        dict with 'sections', 'all_lines', 'tagged_segments'
+        dict with 'sections', 'all_lines', 'tagged_segments', and optionally 'session_id'
     """
+    # Generate session for crop persistence
+    session_id = None
+    crop_session_dir = None
+    if save_crops:
+        session_id = str(uuid.uuid4())
+        crop_session_dir = os.path.join(
+            BASE_DIR, '..', 'tmp', 'ocr_crops', session_id)
+        os.makedirs(crop_session_dir, exist_ok=True)
+
     # Step 1: segment with header OCR
     tagged = segment_and_tag(img_bgr, header_reader, section_patterns, config)
 
     # Step 2: content OCR per segment
     result = parser.parse_from_segments(
-        tagged, content_reader, enchant_header_reader=enchant_header_reader)
+        tagged, content_reader, enchant_header_reader=enchant_header_reader,
+        crop_session_dir=crop_session_dir)
 
     all_lines = result.get('all_lines', [])
     sections = result.get('sections', {})
+
+    # Tag every line with a global index (needed for frontend diff mapping)
+    for idx, line in enumerate(all_lines):
+        line['global_index'] = idx
+
+    # Persist per-line crop images for correction training
+    if crop_session_dir:
+        for line in all_lines:
+            crop = line.pop('_crop', None)
+            if crop is not None:
+                fname = f"{line['global_index']:03d}.png"
+                cv2.imwrite(os.path.join(crop_session_dir, fname), crop)
 
     if save_raw:
         for line in all_lines:
@@ -130,8 +156,27 @@ def run_v3_pipeline(img_bgr, header_reader, section_patterns, config,
         reforge_updated = parser.build_reforge_structured(sections['reforge']['lines'])
         sections['reforge'].update(reforge_updated)
 
-    return {
+    # Persist original OCR results for server-side diffing at registration time
+    if crop_session_dir:
+        originals = []
+        for line in all_lines:
+            originals.append({
+                'global_index': line['global_index'],
+                'text': line.get('text', ''),
+                'confidence': float(line.get('confidence', 0)),
+                'section': line.get('section', ''),
+                'ocr_model': line.get('ocr_model', ''),
+                'fm_applied': bool(line.get('fm_applied', False)),
+            })
+        with open(os.path.join(crop_session_dir, 'ocr_results.json'), 'w',
+                  encoding='utf-8') as f:
+            json.dump(originals, f, ensure_ascii=False)
+
+    result_dict = {
         'sections': sections,
         'all_lines': all_lines,
         'tagged_segments': tagged,
     }
+    if session_id:
+        result_dict['session_id'] = session_id
+    return result_dict
