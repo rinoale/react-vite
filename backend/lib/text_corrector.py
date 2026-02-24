@@ -618,6 +618,10 @@ class TextCorrector:
                     if fm_score > 0:
                         hdr_line['text'] = fm_hdr
                         hdr_line['fm_applied'] = True
+                        if entry:
+                            hdr_line['enchant_slot'] = entry['slot']
+                            hdr_line['enchant_name'] = entry['name']
+                            hdr_line['enchant_rank'] = entry['rank']
             else:
                 # Fallback: old linear approach (regex-detected or no headers)
                 current_entry = None
