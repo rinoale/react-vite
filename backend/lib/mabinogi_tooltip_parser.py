@@ -795,6 +795,31 @@ class MabinogiTooltipParser(TooltipLineSplitter):
                     sections[last_section_key]['lines'] = lines[:i]
                     break
 
+    @staticmethod
+    def _detect_sub_lines_by_indent(lines):
+        """Tag lines as sub-lines based on x-offset from section baseline.
+
+        Lines indented significantly from the minimum x position are tagged
+        is_reforge_sub=True. Falls back to ㄴ prefix detection.
+
+        Resolution-independent: uses relative threshold (offset > min_x).
+        """
+        content_lines = [l for l in lines if not l.get('is_header')]
+        if content_lines:
+            min_x = min(l.get('bounds', {}).get('x', 0) for l in content_lines)
+        else:
+            min_x = 0
+
+        for line in lines:
+            if line.get('is_header'):
+                continue
+            # Skip lines already tagged as reforge option headers
+            if 'reforge_name' in line:
+                continue
+            line_x = line.get('bounds', {}).get('x', 0)
+            is_indented = (line_x - min_x) > min_x and min_x > 0
+            line['is_reforge_sub'] = is_indented or bool(_REFORGE_SUB_RE.match(line.get('text', '')))
+
     def _parse_reforge_section(self, lines):
         """Parse reforge section into structured option records.
 
@@ -816,10 +841,8 @@ class MabinogiTooltipParser(TooltipLineSplitter):
                 line['reforge_level']     = int(m.group(2))
                 line['reforge_max_level'] = int(m.group(3))
                 line['is_reforge_sub']    = False
-            elif _REFORGE_SUB_RE.match(text):
-                line['is_reforge_sub'] = True
-            else:
-                line['is_reforge_sub'] = False
+
+        self._detect_sub_lines_by_indent(lines)
 
         result = self.build_reforge_structured(lines)
         result['lines'] = lines

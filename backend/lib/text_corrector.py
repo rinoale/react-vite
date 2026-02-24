@@ -573,6 +573,11 @@ class TextCorrector:
                 line['fm_applied'] = False
                 continue
 
+            # Skip FM for reforge sub-lines (indented effect descriptions)
+            if line.get('is_reforge_sub'):
+                line['fm_applied'] = False
+                continue
+
             if section in fm_sections:
                 fm_text, fm_score = self.correct_normalized(raw_text, section=section)
             else:
