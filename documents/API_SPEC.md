@@ -20,25 +20,27 @@ This document serves as the contract between the Backend AI Agent and the Fronte
 | `file` | `File` (Binary) | Yes | Original color screenshot of the item tooltip. |
 
 ### Response Structure (JSON)
-The response follows a "Section-First" architecture.
+The response follows a "Section-First" architecture. Internal pipeline fields (`bounds`, `ocr_model`, `fm_applied`, `section`, `sub_lines`, etc.) are stripped — the frontend receives only the fields it needs.
 
 **FM Decision:** The server applies fuzzy matching (FM) against section-specific dictionaries.
-If a match is found, `text` is replaced with the FM result and `fm_applied` is set to `true`.
-Otherwise, `text` remains the raw OCR output. There is no separate `corrected_text` field —
-the frontend should always read `text` directly.
+If a match is found, `text` is silently replaced with the FM result.
+The frontend should always read `text` directly — it is the best available value.
 
 ```json
 {
   "filename": "item_screenshot.png",
+  "session_id": "abc123",
   "sections": {
     "item_name": {
       "text": "Dragon Blade",
-      "lines": [ { "text": "Dragon Blade", "confidence": 0.99, "is_header": true } ]
+      "lines": [
+        { "text": "Dragon Blade", "confidence": 0.99, "is_header": true, "global_index": 0 }
+      ]
     },
     "item_attrs": {
       "lines": [
-        { "text": "공격 15~30", "confidence": 0.85, "fm_applied": true },
-        { "text": "부상률 0~10%", "confidence": 0.92, "fm_applied": false }
+        { "text": "공격 15~30", "confidence": 0.85, "global_index": 2 },
+        { "text": "부상률 0~10%", "confidence": 0.92, "global_index": 3 }
       ]
     },
     "enchant": {
@@ -47,18 +49,15 @@ the frontend should always read `text` directly.
         "name": "충격을",
         "rank": "F",
         "effects": [
-          {
-            "text": "최대대미지 5 증가",
-            "option_name": "최대대미지",
-            "option_level": 5
-          },
-          {
-            "text": "활성화된 아르카나의 전용 옵션일 때 효과 발동"
-          }
+          { "text": "최대대미지 5 증가", "option_name": "최대대미지", "option_level": 5 },
+          { "text": "활성화된 아르카나의 전용 옵션일 때 효과 발동" }
         ]
       },
       "suffix": null,
-      "lines": [ "..." ]
+      "lines": [
+        { "text": "[접두] 충격을 (랭크 F)", "confidence": 0.95, "global_index": 10 },
+        { "text": "최대대미지 5 증가", "confidence": 0.88, "global_index": 11 }
+      ]
     },
     "reforge": {
       "options": [
@@ -66,21 +65,25 @@ the frontend should always read `text` directly.
           "name": "스매시 대미지",
           "level": 15,
           "max_level": 20,
-          "option_name": "스매시 대미지",
-          "option_level": 15,
           "effect": "대미지 150% 증가"
         }
       ],
-      "lines": [ "..." ]
+      "lines": [
+        { "text": "스매시 대미지 15 (Max 20)", "confidence": 0.90, "global_index": 15 }
+      ]
     },
     "item_color": {
       "parts": [
         { "part": "A", "r": 255, "g": 255, "b": 255 }
       ]
+    },
+    "flavor_text": {
+      "skipped": true
     }
   },
   "all_lines": [
-    { "text": "...", "confidence": 0.0, "section": "item_name", "is_header": true, "fm_applied": false }
+    { "text": "Dragon Blade", "confidence": 0.99, "is_header": true, "global_index": 0 },
+    { "text": "공격 15~30", "confidence": 0.85, "global_index": 2 }
   ]
 }
 ```
@@ -89,16 +92,91 @@ the frontend should always read `text` directly.
 `pre_header`, `item_name`, `item_type`, `item_grade`, `item_attrs`, `enchant`, `item_mod`, `reforge`, `erg`, `set_item`, `item_color`, `ego`, `flavor_text`, `shop_price`.
 
 #### Line Object Properties
-| Property | Type | Description |
-| :--- | :--- | :--- |
-| `text` | `string` | Best available text — FM-corrected if a match was found, otherwise raw OCR. |
-| `confidence` | `float` | OCR confidence (0.0 to 1.0). |
-| `fm_applied` | `boolean` | `true` if `text` was replaced by a fuzzy-match result. |
-| `is_header` | `boolean` | `true` if this line is the orange section header (e.g. "인챈트"). |
-| `section` | `string` | Section key this line belongs to. |
-| `bounds` | `object` | Bounding box `{ x, y, width, height }`. |
+| Property | Type | Present | Description |
+| :--- | :--- | :--- | :--- |
+| `text` | `string` | Always | Best available text (FM-corrected if matched, otherwise raw OCR). |
+| `confidence` | `float` | Always | OCR confidence (0.0 to 1.0), rounded to 4 decimal places. |
+| `global_index` | `int` | Always | Unique line index within the session. Sent back in `/register-item` for correction mapping. |
+| `is_header` | `boolean` | Optional | Present and `true` only for orange section header lines (e.g. "인챈트"). Absent for content lines. |
 
-**Note:** `corrected_text` is no longer returned. The server makes the FM decision — `text` is the final value.
+#### Section Object Properties
+All sections contain `lines` (array of Line objects) unless `skipped: true`.
+
+| Property | Type | Sections | Description |
+| :--- | :--- | :--- | :--- |
+| `lines` | `Line[]` | All (unless skipped) | Editable text lines for the section. |
+| `text` | `string` | `item_name`, `item_type`, `pre_header` | Section-level summary text. |
+| `prefix` | `object\|null` | `enchant` | Structured prefix enchant (`name`, `rank`, `effects[]`). |
+| `suffix` | `object\|null` | `enchant` | Structured suffix enchant (`name`, `rank`, `effects[]`). |
+| `options` | `object[]` | `reforge` | Structured reforge options (`name`, `level`, `max_level`, `effect`). |
+| `parts` | `object[]` | `item_color` | Color parts (`part`, `r`, `g`, `b`). |
+| `skipped` | `boolean` | `flavor_text`, `shop_price` | `true` when the section is intentionally omitted. |
+
+#### EnchantSlotResponse (`prefix` / `suffix`)
+| Property | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `text` | `string` | Yes | Header text, e.g. `[접두] 충격을 (랭크 F)`. |
+| `name` | `string` | Yes | Enchant name, e.g. `충격을`. |
+| `rank` | `string` | Yes | Rank label, e.g. `F`, `9`, `A`. |
+| `effects` | `EnchantEffectResponse[]` | Yes | List of effect lines. |
+
+#### EnchantEffectResponse (each element in `effects`)
+| Property | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `text` | `string` | Yes | Full effect text, e.g. `최대대미지 5 증가`. |
+| `option_name` | `string` | No | Extracted option name, e.g. `최대대미지`. Absent for non-numeric effects. |
+| `option_level` | `int\|float` | No | Extracted numeric value, e.g. `5`. Absent for non-numeric effects. |
+
+#### ReforgeOptionResponse (each element in `options`)
+| Property | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `name` | `string` | Yes | Option name, e.g. `스매시 대미지`. |
+| `level` | `int` | Yes | Current level, e.g. `15`. |
+| `max_level` | `int` | Yes | Maximum level, e.g. `20`. |
+| `effect` | `string` | No | Effect description, e.g. `대미지 150% 증가`. |
+
+#### ColorPartResponse (each element in `parts`)
+| Property | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `part` | `string` | Yes | Part label (`A`-`F`). |
+| `r` | `int` | No | Red channel (0-255). |
+| `g` | `int` | No | Green channel (0-255). |
+| `b` | `int` | No | Blue channel (0-255). |
+
+---
+
+## 1b. Item Registration
+
+**Endpoint:** `/register-item`
+**Method:** `POST`
+**Content-Type:** `application/json`
+
+### Request Body
+```json
+{
+  "name": "Dragon Blade",
+  "session_id": "abc123",
+  "lines": [
+    { "global_index": 0, "text": "Dragon Blade" },
+    { "global_index": 2, "text": "공격 15~30" }
+  ]
+}
+```
+
+| Field | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `name` | `string` | Yes | Item name for registration. |
+| `session_id` | `string` | No | Session ID from `/upload-item-v3`. Enables correction capture. |
+| `lines` | `array` | No | Final line texts. Each has `global_index` (int) and `text` (string). Lines where `text` differs from the original OCR are saved as correction training data. |
+
+### Response
+```json
+{
+  "registered": true,
+  "name": "Dragon Blade",
+  "corrections_saved": 2
+}
+```
 
 ---
 

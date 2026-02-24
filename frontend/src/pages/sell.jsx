@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Upload, Loader2, Save, X, Settings, RotateCw, AlertTriangle, CheckCircle2, ChevronDown, ChevronRight } from 'lucide-react';
+import { Upload, Loader2, Save, X, Settings, RotateCw, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import SectionCard from '../components/SectionCard';
+import { ColorPartsSection, EnchantSection, ReforgeSection, DefaultSection } from '../components/sections';
 
 const CATEGORY_LABELS = {
   item_name: "Item Name",
@@ -14,21 +16,6 @@ const CATEGORY_LABELS = {
   item_color: "Item Color (아이템 색상)",
   ego: "Spirit (정령)"
 };
-
-const SectionCard = ({ title, children, isOpen = true, onToggle }) => (
-  <div className="bg-gray-800/50 rounded-xl border border-gray-700 overflow-hidden mb-4">
-    <div 
-      className="bg-gray-700/50 px-4 py-2 flex justify-between items-center cursor-pointer hover:bg-gray-700 transition-colors"
-      onClick={onToggle}
-    >
-      <h3 className="text-sm font-bold text-orange-400 uppercase tracking-wider flex items-center gap-2">
-        {isOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-        {title}
-      </h3>
-    </div>
-    {isOpen && <div className="p-4 space-y-3">{children}</div>}
-  </div>
-);
 
 const Sell = () => {
   const [file, setFile] = useState(null);
@@ -140,131 +127,16 @@ const Sell = () => {
 
   const renderSectionContent = (key, sectionData) => {
     if (sectionData.skipped) return <p className="text-xs text-gray-500 italic">Section skipped by parser</p>;
-    
-    // Special handling for Color Parts
-    if (key === 'item_color' && sectionData.parts) {
-      return (
-        <div className="grid grid-cols-3 gap-2">
-          {sectionData.parts.map((p, idx) => (
-            <div key={idx} className="bg-gray-900 p-2 rounded border border-gray-700 flex items-center gap-3">
-              <div 
-                className="w-8 h-8 rounded border border-white/20" 
-                style={{ backgroundColor: `rgb(${p.r || 0}, ${p.g || 0}, ${p.b || 0})` }}
-                title={`R:${p.r} G:${p.g} B:${p.b}`}
-              />
-              <div>
-                <span className="text-xs font-bold text-gray-400">Part {p.part}</span>
-                <div className="text-[10px] text-gray-500">
-                  {p.r},{p.g},{p.b}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      );
-    }
 
-    // Special handling for Enchant (prefix/suffix structure)
-    if (key === 'enchant' && (sectionData.prefix || sectionData.suffix)) {
-        const renderSlot = (slot, slotLabel) => {
-            if (!slot) return null;
-            return (
-                <div className="bg-gray-900/50 p-3 rounded border border-gray-700">
-                    <div className="flex justify-between items-center mb-2">
-                        <span className="text-sm font-medium text-purple-300">{slot.name}</span>
-                        <span className="text-xs bg-purple-900/50 text-purple-300 px-2 py-0.5 rounded border border-purple-700/50">
-                            {slotLabel} · Rank {slot.rank}
-                        </span>
-                    </div>
-                    <div className="space-y-1.5 pl-3 border-l border-purple-900/30">
-                        {slot.effects.map((eff, i) => (
-                            <p key={i} className="text-xs text-gray-400">
-                                <span className="text-gray-600 mr-1">-</span>
-                                {eff.option_name != null ? (
-                                    <>
-                                        <span>{eff.option_name} </span>
-                                        <span className="text-orange-400 font-bold">{eff.option_level}</span>
-                                        {eff.text.slice(eff.text.indexOf(String(eff.option_level)) + String(eff.option_level).length).trim() && (
-                                            <span> {eff.text.slice(eff.text.indexOf(String(eff.option_level)) + String(eff.option_level).length).trim()}</span>
-                                        )}
-                                    </>
-                                ) : (
-                                    <span>{eff.text}</span>
-                                )}
-                            </p>
-                        ))}
-                    </div>
-                </div>
-            );
-        };
+    const onLineChange = (lineIdx, newText) => handleSectionTextChange(key, lineIdx, newText);
 
-        return (
-            <div className="space-y-3">
-                {renderSlot(sectionData.prefix, 'Prefix')}
-                {renderSlot(sectionData.suffix, 'Suffix')}
-                {/* Fallback to raw lines if no structured data */}
-                {!sectionData.prefix && !sectionData.suffix && sectionData.lines?.filter(l => !l.is_header).map((line, idx) => (
-                    <input
-                        key={idx}
-                        type="text"
-                        value={line.text}
-                        onChange={(e) => handleSectionTextChange(key, idx, e.target.value)}
-                        className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-sm text-gray-300 focus:ring-1 focus:ring-orange-500 outline-none"
-                    />
-                ))}
-            </div>
-        );
-    }
-
-    // Special handling for Reforge Options
-    if (key === 'reforge' && sectionData.options) {
-        return (
-            <div className="space-y-3">
-                {sectionData.options.map((opt, idx) => (
-                    <div key={idx} className="bg-gray-900/50 p-2 rounded border border-gray-700">
-                        <div className="flex justify-between items-center mb-1">
-                            <span className="text-sm font-medium text-cyan-300">{opt.option_name || opt.name}</span>
-                            <span className="text-xs bg-cyan-900/50 text-cyan-300 px-2 py-0.5 rounded border border-cyan-700/50">
-                                Level {opt.option_level || opt.level} / {opt.max_level}
-                            </span>
-                        </div>
-                        {opt.effect && <p className="text-xs text-gray-400">ㄴ {opt.effect}</p>}
-                    </div>
-                ))}
-                {/* Fallback to raw lines if options parsing failed */}
-                {!sectionData.options.length && sectionData.lines?.map((line, idx) => (
-                    <input
-                        key={idx}
-                        type="text"
-                        value={line.text}
-                        onChange={(e) => handleSectionTextChange(key, idx, e.target.value)}
-                        className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-sm text-gray-300 focus:ring-1 focus:ring-orange-500 outline-none"
-                    />
-                ))}
-            </div>
-        )
-    }
-
-    // Default: List of lines as inputs
-    return (
-      <div className="space-y-2">
-        {(sectionData.lines || [])
-          .filter(line => !line.is_header)
-          .map((line, idx) => (
-            <div key={idx} className="relative group">
-              <input
-                type="text"
-                value={line.text}
-                onChange={(e) => handleSectionTextChange(key, idx, e.target.value)}
-                className={`w-full bg-gray-900 border ${line.confidence < 0.7 ? 'border-red-900/50 focus:border-red-500' : 'border-gray-700 focus:border-orange-500'} rounded px-3 py-1.5 text-sm text-gray-300 outline-none transition-colors`}
-              />
-              {line.confidence < 0.7 && (
-                  <AlertTriangle className="w-3 h-3 text-red-500 absolute right-2 top-1/2 -translate-y-1/2 opacity-50 group-hover:opacity-100 transition-opacity" title={`Low Confidence: ${Math.round(line.confidence * 100)}%`} />
-              )}
-            </div>
-          ))}
-      </div>
-    );
+    if (key === 'item_color' && sectionData.parts)
+      return <ColorPartsSection parts={sectionData.parts} />;
+    if (key === 'enchant' && (sectionData.prefix || sectionData.suffix))
+      return <EnchantSection prefix={sectionData.prefix} suffix={sectionData.suffix} lines={sectionData.lines} onLineChange={onLineChange} />;
+    if (key === 'reforge' && sectionData.options)
+      return <ReforgeSection options={sectionData.options} lines={sectionData.lines} onLineChange={onLineChange} />;
+    return <DefaultSection lines={sectionData.lines} onLineChange={onLineChange} />;
   };
 
   return (

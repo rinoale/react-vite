@@ -11,6 +11,7 @@ from typing import List
 from db.connector import get_db
 from db.models import OcrCorrection
 from db.schemas import RegisterItemRequest
+from trade.schemas import UploadItemV3Response
 from lib.recommendation import recommender, ITEMS_DB
 from lib.v3_pipeline import init_pipeline, run_v3_pipeline
 
@@ -68,7 +69,9 @@ def recommend_for_user(user_history: UserHistory):
     return results
 
 
-@router.post("/upload-item-v3")
+@router.post("/upload-item-v3",
+              response_model=UploadItemV3Response,
+              response_model_exclude_none=True)
 async def upload_item_v3(file: UploadFile = File(...)):
     """Segment-first OCR pipeline.
 
@@ -86,14 +89,7 @@ async def upload_item_v3(file: UploadFile = File(...)):
 
         result = run_v3_pipeline(img_bgr, **_pipeline, save_crops=True)
 
-        response = {
-            "filename": file.filename,
-            "sections": result['sections'],
-            "all_lines": result['all_lines'],
-        }
-        if 'session_id' in result:
-            response['session_id'] = result['session_id']
-        return response
+        return {"filename": file.filename, **result}
 
     except HTTPException:
         raise

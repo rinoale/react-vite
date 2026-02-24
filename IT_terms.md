@@ -247,3 +247,9 @@
 - refactor: code restructuring without changing behavior
 - migrate: move data/code from one version/system to another
 - deprecate: mark a feature as discouraged before removal
+
+### Describing Design Complexity
+- sophisticated: highly advanced and well-designed. Example: "This service has a sophisticated architecture with strong fault tolerance."
+- elaborate: very detailed and multi-step in structure or process. Example: "The deployment pipeline is elaborate but easy to audit."
+- intricate: complex with many small, interconnected parts. Example: "The parser uses intricate rules to handle edge cases."
+- delicate: requiring careful handling because small changes can break behavior. Example: "This legacy integration is delicate, so we test every minor change."
