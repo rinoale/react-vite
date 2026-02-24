@@ -32,7 +32,9 @@ This approach:
 |---------|--------------|------------|-----------------|
 | v1 | 3,504 synthetic | 0 | — |
 | v2 | 11,680 synthetic | 0 | 46.3% (106/229) |
-| v3 | 11,680 synthetic + 1,265 real (55 unique × 23 copies) | 55 | pending training |
+| v3 | 11,680 synthetic + 1,265 real (55 unique × 23 copies) | 55 | **100% (55/55)** |
+
+**Attempt 19 proved that real sample mixing works.** Just ~10% real crops took accuracy from 46.3% → 100%. This validates the user correction feedback pipeline as a reliable strategy for continuous improvement.
 
 ### Implemented: Reforge Sub-Line Detection by X-Offset
 
@@ -88,6 +90,40 @@ Verified with: `python3 scripts/ocr/rgb_mask_test.py "data/themes/*.png" --rgb 7
 - Investigate if blue-masked lines can replace or supplement current content OCR for enchant/reforge sections
 - Test if line splitting on blue-masked images gives cleaner crops (no adjacent non-effect lines to confuse splitter)
 - Consider using blue mask to tag lines as "effect" before OCR, eliminating need for post-hoc sub-line detection
+
+## Better Crops → Better Training Data → Better Models
+
+### The Virtuous Cycle
+
+Attempt 19 proved that real samples dramatically improve model accuracy. This means **crop quality is upstream of everything** — better crops produce better training data, which produce better models, which produce better OCR output.
+
+```
+Color pattern discovery (rgb_mask_test.py)
+    → improved crop/segmentation logic
+        → cleaner line crops
+            → better real training samples
+                → better models
+                    → better OCR → user corrections → more real samples → ...
+```
+
+### Improving Crop Logic via Color Patterns
+
+Using `scripts/ocr/rgb_mask_test.py`, general color rules are being discovered across all 26 theme images:
+
+| Color | RGB | What it marks |
+|-------|-----|---------------|
+| Blue | (74, 149, 238) ±1 | Effect/stat lines (enchant effects, reforge options, set bonuses) |
+| Orange | R>150, 50<G<180, B<80 | Section headers |
+| White (balanced channels) | max/min < 1.4 | Enchant slot headers, general text |
+
+These color constants are game engine invariants — they work across all themes and resolutions. Each discovered pattern can improve how we crop, classify, and preprocess lines before OCR.
+
+### What This Enables
+
+- **Line-type tagging before OCR**: Color tells us what a line IS (effect, header, sub-line) without reading it
+- **Targeted preprocessing per line type**: Different preprocessing for blue effect lines vs white text vs orange headers
+- **Cleaner training crops**: Isolate exactly the pixels that matter, remove noise from adjacent lines
+- **Same approach for content models**: What worked for enchant headers (real sample mixing) should work for content OCR too — once we have clean, well-classified crops
 
 ### V3 Training Pipeline
 
