@@ -823,16 +823,19 @@ class MabinogiTooltipParser(TooltipLineSplitter):
     def _parse_reforge_section(self, lines):
         """Parse reforge section into structured option records.
 
-        Each reforge option is a header line 'NAME(current/max 레벨)' followed
-        by one ㄴ sub-bullet describing the effect at the current level.
+        Each reforge option is a main line (at baseline x), optionally followed
+        by an indented sub-bullet describing the effect. Some options have a
+        '(current/max 레벨)' level suffix, others don't.
 
         Tags each line dict with metadata for FM and DB storage:
-          header line: reforge_name, reforge_level, reforge_max_level, is_reforge_sub=False
-          sub-bullet:  is_reforge_sub=True
+          main line with levels:    reforge_name, reforge_level, reforge_max_level, is_reforge_sub=False
+          main line without levels: reforge_name (text as-is), is_reforge_sub=False
+          sub-bullet:               is_reforge_sub=True
 
         Returns:
             {'options': [{name, level, max_level, option_name, option_level, effect}], 'lines': lines}
         """
+        # First pass: detect level-suffixed options via regex
         for line in lines:
             text = line.get('text', '')
             m = _REFORGE_HEADER_RE.match(text)
@@ -842,7 +845,23 @@ class MabinogiTooltipParser(TooltipLineSplitter):
                 line['reforge_max_level'] = int(m.group(3))
                 line['is_reforge_sub']    = False
 
+        # Second pass: detect sub-lines by indent
         self._detect_sub_lines_by_indent(lines)
+
+        # Third pass: non-indented lines without reforge_name are level-less options
+        for line in lines:
+            if line.get('is_header'):
+                continue
+            if 'reforge_name' in line:
+                continue
+            if line.get('is_reforge_sub'):
+                continue
+            text = line.get('text', '').strip().lstrip('-').strip()
+            if text:
+                line['reforge_name']      = text
+                line['reforge_level']     = None
+                line['reforge_max_level'] = None
+                line['is_reforge_sub']    = False
 
         result = self.build_reforge_structured(lines)
         result['lines'] = lines
@@ -873,9 +892,9 @@ class MabinogiTooltipParser(TooltipLineSplitter):
                     level     = int(m.group(2))
                     max_level = int(m.group(3))
                 else:
-                    name      = line['reforge_name']
-                    level     = line['reforge_level']
-                    max_level = line['reforge_max_level']
+                    name      = text.strip().lstrip('-').strip() or line['reforge_name']
+                    level     = line.get('reforge_level')
+                    max_level = line.get('reforge_max_level')
 
                 current = {
                     'name':         name,

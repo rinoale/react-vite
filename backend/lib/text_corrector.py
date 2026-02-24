@@ -282,7 +282,7 @@ class TextCorrector:
 
         norm_name = _normalize_nums(ocr_name)
 
-        # Format: add rank only when the name was corrected
+        # Format: add rank only when the name was actually corrected
         def _fmt(entry):
             if entry['name'] == ocr_name:
                 return f"[{entry['slot']}] {entry['name']}"

@@ -30,8 +30,8 @@ class EnchantSlotResponse(BaseModel):
 
 class ReforgeOptionResponse(BaseModel):
     name: str
-    level: int
-    max_level: int
+    level: Optional[int] = None
+    max_level: Optional[int] = None
     effect: Optional[str] = None
 
 
