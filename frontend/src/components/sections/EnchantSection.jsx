@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 
 const EnchantSlot = ({ slot, slotLabel }) => {
   if (!slot) return null;
@@ -32,20 +32,55 @@ const EnchantSlot = ({ slot, slotLabel }) => {
   );
 };
 
-const EnchantSection = ({ prefix, suffix, lines, onLineChange }) => (
-  <div className="space-y-3">
-    <EnchantSlot slot={prefix} slotLabel="Prefix" />
-    <EnchantSlot slot={suffix} slotLabel="Suffix" />
-    {!prefix && !suffix && lines?.filter(l => !l.is_header).map((line, idx) => (
+const FallbackLines = ({ slotLines, onLineChange }) => (
+  <div className="space-y-1">
+    {slotLines.map((line) => (
       <input
-        key={idx}
+        key={line.lineIdx}
         type="text"
         value={line.text}
-        onChange={(e) => onLineChange(idx, e.target.value)}
+        onChange={(e) => onLineChange(line.lineIdx, e.target.value)}
         className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-sm text-gray-300 focus:ring-1 focus:ring-orange-500 outline-none"
       />
     ))}
   </div>
 );
+
+const EnchantSection = ({ prefix, suffix, lines, onLineChange }) => {
+  const groups = useMemo(() => {
+    if (!lines) return { prefix: [], suffix: [], unassigned: [] };
+
+    let currentSlot = null;
+    const result = { prefix: [], suffix: [], unassigned: [] };
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const text = line.text || '';
+      if (text.startsWith('[접두]')) currentSlot = 'prefix';
+      else if (text.startsWith('[접미]')) currentSlot = 'suffix';
+      result[currentSlot || 'unassigned'].push({ ...line, lineIdx: i });
+    }
+
+    return result;
+  }, [lines]);
+
+  return (
+    <div className="space-y-3">
+      {prefix ? (
+        <EnchantSlot slot={prefix} slotLabel="Prefix" />
+      ) : groups.prefix.length > 0 ? (
+        <FallbackLines slotLines={groups.prefix} onLineChange={onLineChange} />
+      ) : null}
+      {suffix ? (
+        <EnchantSlot slot={suffix} slotLabel="Suffix" />
+      ) : groups.suffix.length > 0 ? (
+        <FallbackLines slotLines={groups.suffix} onLineChange={onLineChange} />
+      ) : null}
+      {groups.unassigned.length > 0 && (
+        <FallbackLines slotLines={groups.unassigned} onLineChange={onLineChange} />
+      )}
+    </div>
+  );
+};
 
 export default EnchantSection;

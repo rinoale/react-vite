@@ -6,17 +6,11 @@ class OcrLineResponse(BaseModel):
     text: str = ''
     confidence: float = 0.0
     global_index: int
-    is_header: Optional[bool] = None
 
     @field_validator('confidence', mode='before')
     @classmethod
     def round_confidence(cls, v):
         return round(v, 4) if v is not None else 0.0
-
-    @field_validator('is_header', mode='before')
-    @classmethod
-    def true_or_none(cls, v):
-        return True if v else None
 
 
 # --- Typed sub-models for structured section data ---
@@ -49,6 +43,9 @@ class ColorPartResponse(BaseModel):
 
 
 class OcrSectionResponse(BaseModel):
+    header_text: Optional[str] = None
+    header_confidence: Optional[float] = None
+    header_index: Optional[int] = None
     lines: Optional[List[OcrLineResponse]] = None
     text: Optional[str] = None
     skipped: Optional[bool] = None

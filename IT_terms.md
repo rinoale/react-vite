@@ -180,6 +180,7 @@
 - integration test: test of interactions between components
 - end-to-end test: test of full workflow from user perspective
 - regression test: test ensuring old functionality still works after changes
+- discrepancy: a mismatch between expected and actual results. Example: "We found a discrepancy between OCR output and ground-truth labels."
 - test coverage: proportion of code executed by tests
 - mock: simulated dependency used in tests
 - stub: simple controlled replacement returning fixed responses

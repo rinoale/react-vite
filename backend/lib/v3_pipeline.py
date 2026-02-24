@@ -166,3 +166,25 @@ def run_v3_pipeline(img_bgr, header_reader, section_patterns, config,
     if session_id:
         result_dict['session_id'] = session_id
     return result_dict
+
+
+def prepare_sections_for_response(sections):
+    """Transform raw sections for HTTP response.
+
+    Promotes is_header lines to section-level metadata
+    (header_text, header_confidence, header_index) and removes
+    them from lines[].  Returns a new dict — does not mutate input.
+    """
+    out = {}
+    for key, sec in sections.items():
+        sec_copy = dict(sec)
+        lines = sec_copy.get('lines') or []
+        header_lines = [l for l in lines if l.get('is_header')]
+        if header_lines:
+            h = header_lines[0]
+            sec_copy['header_text'] = h.get('text', '')
+            sec_copy['header_confidence'] = h.get('confidence', 0.0)
+            sec_copy['header_index'] = h.get('global_index')
+        sec_copy['lines'] = [l for l in lines if not l.get('is_header')]
+        out[key] = sec_copy
+    return out

@@ -13,7 +13,7 @@ from db.models import OcrCorrection
 from db.schemas import RegisterItemRequest
 from trade.schemas import UploadItemV3Response
 from lib.recommendation import recommender, ITEMS_DB
-from lib.v3_pipeline import init_pipeline, run_v3_pipeline
+from lib.v3_pipeline import init_pipeline, run_v3_pipeline, prepare_sections_for_response
 
 logger = logging.getLogger('mabinogi')
 
@@ -88,6 +88,11 @@ async def upload_item_v3(file: UploadFile = File(...)):
             raise HTTPException(status_code=400, detail="Could not decode image")
 
         result = run_v3_pipeline(img_bgr, **_pipeline, save_crops=True)
+
+        result['sections'] = prepare_sections_for_response(result['sections'])
+        # Strip is_header from all_lines (no longer in OcrLineResponse schema)
+        for line in result.get('all_lines', []):
+            line.pop('is_header', None)
 
         return {"filename": file.filename, **result}
 
