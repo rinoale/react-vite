@@ -208,32 +208,137 @@ def detect_headers(img, config):
 
 
 # ---------------------------------------------------------------------------
+# 1b. Border detection
+# ---------------------------------------------------------------------------
+
+def detect_bottom_border(img, border_val=132, tolerance=5, min_density=0.3):
+    """Find the y-coordinate of the bottom horizontal border line.
+
+    Mabinogi tooltips have section borders at RGB(132,132,132). The bottom
+    horizontal border marks where tooltip content ends. Detecting it gives
+    a clean processing cutoff so noise below the tooltip (game world
+    background, UI elements) is excluded.
+
+    Scans rows from bottom upward looking for rows where >min_density of
+    pixels match the border color (±tolerance on each channel).
+
+    Args:
+        img:         BGR image (original color screenshot)
+        border_val:  Expected grayscale value of border pixels (default 132)
+        tolerance:   Per-channel tolerance around border_val (default 5)
+        min_density: Fraction of image width that must be border-colored (default 0.3)
+
+    Returns:
+        y-coordinate of the bottom border row, or None if not detected.
+    """
+    h_img, w_img = img.shape[:2]
+    lo = border_val - tolerance
+    hi = border_val + tolerance
+
+    # Per-channel range check: all of B, G, R must be within [lo, hi]
+    border_mask = (
+        (img[:, :, 0] >= lo) & (img[:, :, 0] <= hi) &
+        (img[:, :, 1] >= lo) & (img[:, :, 1] <= hi) &
+        (img[:, :, 2] >= lo) & (img[:, :, 2] <= hi)
+    )
+
+    threshold = int(w_img * min_density)
+
+    for y in range(h_img - 1, -1, -1):
+        if border_mask[y].sum() >= threshold:
+            return y
+
+    return None
+
+
+def detect_vertical_borders(img, border_val=132, tolerance=5, min_density=0.3):
+    """Find x-coordinates of left and right vertical border lines.
+
+    Same color matching as detect_bottom_border() but scans columns instead
+    of rows. Scans inward from each edge to find the first column where
+    >min_density of pixels match the border color.
+
+    Args:
+        img:         BGR image (original color screenshot)
+        border_val:  Expected grayscale value of border pixels (default 132)
+        tolerance:   Per-channel tolerance around border_val (default 5)
+        min_density: Fraction of image height that must be border-colored (default 0.3)
+
+    Returns:
+        (left_x, right_x) — x-coordinates of borders, each may be None.
+    """
+    h_img, w_img = img.shape[:2]
+    lo = border_val - tolerance
+    hi = border_val + tolerance
+
+    border_mask = (
+        (img[:, :, 0] >= lo) & (img[:, :, 0] <= hi) &
+        (img[:, :, 1] >= lo) & (img[:, :, 1] <= hi) &
+        (img[:, :, 2] >= lo) & (img[:, :, 2] <= hi)
+    )
+
+    col_counts = border_mask.sum(axis=0)
+    threshold = int(h_img * min_density)
+
+    # Scan from left edge inward
+    left_x = None
+    for x in range(w_img):
+        if col_counts[x] >= threshold:
+            left_x = x
+            break
+
+    # Scan from right edge inward
+    right_x = None
+    for x in range(w_img - 1, -1, -1):
+        if col_counts[x] >= threshold:
+            right_x = x
+            break
+
+    return left_x, right_x
+
+
+# ---------------------------------------------------------------------------
 # 2. Segmentation
 # ---------------------------------------------------------------------------
 
-def build_segments(img, headers):
+def build_segments(img, headers, bottom_y=None, left_x=None, right_x=None):
     """Pair each header with its content region below it.
+
+    Args:
+        img:      BGR image
+        headers:  List of header dicts from detect_headers()
+        bottom_y: Optional y-coordinate of the bottom tooltip border.
+                  If provided, the last segment is clamped to this boundary
+                  instead of extending to the full image height.
+        left_x:   Optional x-coordinate of the left vertical border.
+                  Content regions start at left_x+1 (inside the border).
+        right_x:  Optional x-coordinate of the right vertical border.
+                  Content regions end at right_x (exclusive, inside the border).
 
     Returns list of dicts:
       {'index', 'header': dict or None, 'content': {'y','h','x','w'}}
     """
     h_img, w_img = img.shape[:2]
+    effective_bottom = bottom_y if bottom_y is not None else h_img
+    content_x = (left_x + 1) if left_x is not None else 0
+    content_x_end = right_x if right_x is not None else w_img
+    content_w = content_x_end - content_x
     segments = []
 
     if headers and headers[0]['y'] > 0:
         segments.append({
             'index': 0,
             'header': None,
-            'content': {'y': 0, 'h': headers[0]['y'], 'x': 0, 'w': w_img},
+            'content': {'y': 0, 'h': headers[0]['y'], 'x': content_x, 'w': content_w},
         })
 
     for i, hdr in enumerate(headers):
-        next_y = headers[i + 1]['y'] if i + 1 < len(headers) else h_img
+        next_y = headers[i + 1]['y'] if i + 1 < len(headers) else effective_bottom
         content_h = next_y - hdr['content_y']
         segments.append({
             'index': i + 1,
             'header': hdr,
-            'content': {'y': hdr['content_y'], 'h': content_h, 'x': 0, 'w': w_img},
+            'content': {'y': hdr['content_y'], 'h': content_h, 'x': content_x, 'w': content_w},
         })
 
     return segments
@@ -415,13 +520,17 @@ def segment_and_tag(img, header_reader, patterns, config, cutoff=None):
           }
     """
     headers = detect_headers(img, config)
-    segments = build_segments(img, headers)
+    bottom_y = detect_bottom_border(img)
+    left_x, right_x = detect_vertical_borders(img)
+    segments = build_segments(img, headers, bottom_y=bottom_y,
+                              left_x=left_x, right_x=right_x)
     tagged = []
 
     for seg in segments:
         idx = seg['index']
         cnt = seg['content']
-        content_crop = img[cnt['y']:cnt['y'] + cnt['h'], :]
+        content_crop = img[cnt['y']:cnt['y'] + cnt['h'],
+                           cnt['x']:cnt['x'] + cnt['w']]
 
         if seg['header'] is None:
             # Pre-header region: item name + item attrs (no header to classify)
