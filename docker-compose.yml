@@ -46,6 +46,8 @@ services:
       dockerfile: Dockerfile
     container_name: mabinogi-frontend
     working_dir: /app
+    environment:
+      MABINOGI_TRADE_API_URL: http://localhost:8000
     command: npm run dev -- --host 0.0.0.0 --port 5173
     ports:
       - "5173:5173"

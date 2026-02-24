@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Upload, Loader2, Save, X, Settings, RotateCw, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import SectionCard from '../components/SectionCard';
 import { ColorPartsSection, EnchantSection, ReforgeSection, DefaultSection } from '../components/sections';
+import { uploadItemV3, registerItem } from '../api/items';
 
 const CATEGORY_LABELS = {
   item_name: "Item Name",
@@ -63,21 +64,11 @@ const Sell = () => {
 
     setIsLoading(true);
     setLoadingStep('SEGMENTING');
-    
-    const formDataUpload = new FormData();
-    formDataUpload.append('file', file);
 
     try {
       // Step 1: Segmentation and Initial OCR
       setLoadingStep('RECOGNIZING');
-      const res = await fetch('http://localhost:8000/upload-item-v3', {
-        method: 'POST',
-        body: formDataUpload,
-      });
-
-      if (!res.ok) throw new Error('Failed to process image');
-
-      const data = await res.json();
+      const { data } = await uploadItemV3(file);
       setOcrResult(data);
       setDetectedLines(data.all_lines || []);
       setSessionId(data.session_id || null);
@@ -266,19 +257,13 @@ const Sell = () => {
                 }
 
                 try {
-                  const res = await fetch('http://localhost:8000/register-item', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      session_id: sessionId,
-                      name: formData.name,
-                      price: formData.price,
-                      category: formData.category,
-                      lines,
-                    }),
+                  const { data: result } = await registerItem({
+                    session_id: sessionId,
+                    name: formData.name,
+                    price: formData.price,
+                    category: formData.category,
+                    lines,
                   });
-                  if (!res.ok) throw new Error('Failed to register item');
-                  const result = await res.json();
                   const corrMsg = result.corrections_saved
                     ? ` (${result.corrections_saved} correction(s) captured for training)`
                     : '';

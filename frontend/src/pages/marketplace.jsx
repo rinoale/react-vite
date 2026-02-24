@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Search, ShoppingBag, Sparkles, Filter } from 'lucide-react';
+import { getItems as fetchItemsApi, getRecommendationsByItem } from '../api/recommend';
 
 const Marketplace = () => {
   const [items, setItems] = useState([]);
@@ -22,8 +23,7 @@ const Marketplace = () => {
 
   const fetchItems = async () => {
     try {
-      const res = await fetch('http://localhost:8000/items');
-      const data = await res.json();
+      const { data } = await fetchItemsApi();
       setItems(data);
     } catch (error) {
       console.error("Failed to fetch items:", error);
@@ -32,8 +32,7 @@ const Marketplace = () => {
 
   const fetchRecommendations = async (itemId) => {
     try {
-      const res = await fetch(`http://localhost:8000/recommend/item/${itemId}`);
-      const data = await res.json();
+      const { data } = await getRecommendationsByItem(itemId);
       setRecommendations(data);
     } catch (error) {
       console.error("Failed to fetch recommendations:", error);

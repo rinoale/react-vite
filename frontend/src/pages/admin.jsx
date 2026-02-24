@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Loader2, ChevronDown, ChevronRight, Info, List, RefreshCw } from 'lucide-react';
-
-const API_BASE = 'http://localhost:8000';
+import { getSummary, getEnchantEntries, getEnchantEffects, getLinks } from '../api/admin';
 
 const toRankLabel = (rank) => {
   const n = Number(rank);
@@ -79,15 +78,12 @@ const Admin = () => {
     setIsLoading(true);
     try {
       const [summaryRes, entriesRes] = await Promise.all([
-        fetch(`${API_BASE}/admin/summary`),
-        fetch(`${API_BASE}/admin/enchant-entries?limit=${pagination.limit}&offset=${pagination.offset}`),
+        getSummary(),
+        getEnchantEntries({ limit: pagination.limit, offset: pagination.offset }),
       ]);
 
-      const summaryData = await summaryRes.json();
-      const entriesData = await entriesRes.json();
-
-      setSummary(summaryData);
-      setEntries(entriesData.rows || []);
+      setSummary(summaryRes.data);
+      setEntries(entriesRes.data.rows || []);
     } catch (error) {
       console.error('Error fetching admin data:', error);
     } finally {
@@ -102,14 +98,13 @@ const Admin = () => {
     try {
       let rows = [];
 
-      // New spec endpoint
-      const directRes = await fetch(`${API_BASE}/admin/enchant-entries/${enchantId}/effects`);
-      if (directRes.ok) {
-        rows = await directRes.json();
-      } else {
+      try {
+        // New spec endpoint
+        const { data } = await getEnchantEffects(enchantId);
+        rows = data;
+      } catch {
         // Backward-compat fallback for older backend shape
-        const linksRes = await fetch(`${API_BASE}/admin/links?limit=5000&offset=0`);
-        const linksData = await linksRes.json();
+        const { data: linksData } = await getLinks({ limit: 5000, offset: 0 });
         rows = (linksData.rows || [])
           .filter((link) => link.enchant_entry_id === enchantId)
           .sort((a, b) => (a.effect_order || 0) - (b.effect_order || 0));
