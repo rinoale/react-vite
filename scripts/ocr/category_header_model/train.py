@@ -26,6 +26,8 @@ def main():
     parser = argparse.ArgumentParser(description='Train category header OCR model')
     parser.add_argument('--version',     default=None, help='Model version (default: active symlink)')
     parser.add_argument('--resume',      action='store_true', help='Continue from best checkpoint')
+    parser.add_argument('--resume-from', default=None, metavar='VERSION',
+                        help="Resume from a different version's checkpoint (e.g. --resume-from v1)")
     parser.add_argument('--num_iter',    type=int, help='Override number of iterations')
     parser.add_argument('--batch_size',  type=int, help='Override batch size')
     parser.add_argument('--valInterval', type=int, help='Override validation interval')
@@ -38,7 +40,8 @@ def main():
     model = cfg['model']
     training = cfg['training']
     paths = cfg['paths']
-    exp_name = training.get('exp_name', 'header_ocr')
+    exp_name_prefix = training.get('exp_name', 'header_ocr')
+    exp_name = f'{exp_name_prefix}_{version}'
 
     num_iter = args.num_iter or training['num_iter']
     batch_size = args.batch_size or training['batch_size']
@@ -60,7 +63,16 @@ def main():
         charset = f.read().replace('\n', '')
 
     saved_model = ''
-    if args.resume:
+    if args.resume_from:
+        source_exp = f'{exp_name_prefix}_{args.resume_from}'
+        best_path = os.path.join(saved_dir, source_exp, 'best_accuracy.pth')
+        if os.path.exists(best_path):
+            saved_model = best_path
+            print(f"Resuming from {args.resume_from}: {saved_model}")
+        else:
+            print(f"Error: --resume-from {args.resume_from} but {best_path} not found.")
+            sys.exit(1)
+    elif args.resume:
         best_path = os.path.join(saved_dir, exp_name, 'best_accuracy.pth')
         if os.path.exists(best_path):
             saved_model = best_path

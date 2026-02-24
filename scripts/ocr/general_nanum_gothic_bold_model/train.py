@@ -41,11 +41,21 @@ def build_command(cfg, overrides):
     if overrides.valInterval is not None:
         training["valInterval"] = overrides.valInterval
 
-    # Use exp_name for checkpoint directory
-    exp_name = training.get("exp_name", "TPS-ResNet-BiLSTM-CTC-Seed1111")
+    # Version-specific exp_name to avoid checkpoint conflicts
+    exp_name_prefix = training.get("exp_name", "nanum_gothic_bold_ocr")
+    exp_name = f"{exp_name_prefix}_{overrides._version}"
 
     saved_model = ""
-    if overrides.resume:
+    if overrides.resume_from:
+        source_exp = f"{exp_name_prefix}_{overrides.resume_from}"
+        best_path = os.path.join(paths["saved_models_dir"], source_exp, "best_accuracy.pth")
+        if os.path.exists(best_path):
+            saved_model = best_path
+            print(f"Resuming from {overrides.resume_from}: {saved_model}")
+        else:
+            print(f"Error: --resume-from {overrides.resume_from} but {best_path} not found.")
+            sys.exit(1)
+    elif overrides.resume:
         seed_dir = os.path.join(paths["saved_models_dir"], exp_name)
         best_path = os.path.join(seed_dir, "best_accuracy.pth")
         if os.path.exists(best_path):
@@ -90,6 +100,8 @@ def main():
     parser = argparse.ArgumentParser(description="Train nanum_gothic_bold OCR model")
     parser.add_argument("--version", type=str, default=None, help="Model version (default: active symlink)")
     parser.add_argument("--resume", action="store_true", help="Continue from best checkpoint")
+    parser.add_argument("--resume-from", default=None, metavar="VERSION",
+                        help="Resume from a different version's checkpoint (e.g. --resume-from a19)")
     parser.add_argument("--saved_model", type=str, help="Path to specific checkpoint to resume from")
     parser.add_argument("--num_iter", type=int, help="Override number of iterations")
     parser.add_argument("--batch_size", type=int, help="Override batch size")
@@ -97,6 +109,7 @@ def main():
     overrides = parser.parse_args()
 
     version = resolve_version(MODEL_TYPE, overrides.version)
+    overrides._version = version
     config_path = training_config_path(MODEL_TYPE, version)
 
     if not os.path.exists(config_path):

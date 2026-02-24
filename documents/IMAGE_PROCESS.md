@@ -259,3 +259,67 @@ Legend: **[USED]** = actively used in this project, **[—]** = not used
 | BiLSTM sequence modeling | **[USED]** | Bidirectional LSTM for contextual sequence prediction in OCR. |
 
 **Project usage**: TPS-ResNet-BiLSTM-CTC architecture (from deep-text-recognition-benchmark). TPS handles spatial distortion, ResNet extracts features, BiLSTM models sequence context, CTC decodes output.
+
+---
+
+## V3 Pipeline — Preprocessing Per Stage
+
+The V3 pipeline receives an **original color screenshot** (BGR) and applies different preprocessing depending on the pipeline stage.
+
+### 1. Section Header OCR
+
+Detects orange header text (e.g. 인챈트, 세공, 에르그) within black-square regions.
+
+| Step | Technique | Detail |
+|------|-----------|--------|
+| Grayscale | BT.601 weighted (§1) | `cv2.cvtColor(BGR2GRAY)` |
+| Threshold | Global fixed, BINARY_INV (§2) | threshold=50 (configurable via yaml) |
+
+Code: `tooltip_segmenter.py` → `_preprocess_header()`
+
+### 2. Content OCR
+
+General text recognition for all non-enchant content sections (item stats, description, reforge, etc.)
+
+| Step | Technique | Detail |
+|------|-----------|--------|
+| Grayscale | BT.601 weighted (§1) | `cv2.cvtColor(BGR2GRAY)` |
+| Threshold | Global fixed, BINARY_INV (§2) | threshold=80 |
+
+Code: `mabinogi_tooltip_parser.py` → `_parse_segment()`
+
+### 3. Enchant Slot Header OCR
+
+Isolates white enchant slot header text (e.g. `[접두] 창백한 (랭크 A)`) from colored effect text on any background theme.
+
+| Step | Technique | Detail |
+|------|-----------|--------|
+| Color mask | Channel balance ratio (§3) | `max(R,G,B) > 150` AND `max/min ratio < 1.4` — keeps balanced bright pixels (white/gray), rejects colored pixels (orange, blue, pink) |
+| Border strip | Density thresholding (§7) | Edge columns with >50% white density are cleared |
+| Invert | bitwise_not (§10) | White mask → black-on-white for OCR |
+
+Code: `mabinogi_tooltip_parser.py` → `_oreo_flip()`
+
+### 4. Header Detection (non-OCR)
+
+Locates section header positions in the screenshot using orange text color. Not OCR — just spatial detection.
+
+| Step | Technique | Detail |
+|------|-----------|--------|
+| Color mask | Per-channel RGB threshold (§3) | `R>150, 50<G<180, B<80` — orange text mask |
+| Projection | Horizontal projection + run-length (§7) | Detect orange bands → filter by height and pixel count |
+| Boundary | Connected components (§8) | Near-black boundary expansion around orange bands |
+
+Code: `tooltip_segmenter.py` → `detect_headers()`
+
+### 5. Border Detection (non-OCR)
+
+Detects tooltip frame borders to constrain content regions. Not OCR — spatial boundary detection.
+
+| Step | Technique | Detail |
+|------|-----------|--------|
+| Color mask | Per-channel RGB threshold (§3) | RGB(132,132,132) ±5 tolerance |
+| Bottom | Density thresholding (§7) | Scan rows bottom→up, first row with ≥30% border pixels |
+| Left/Right | Density thresholding (§7) | Scan columns inward from each edge |
+
+Code: `tooltip_segmenter.py` → `detect_bottom_border()`, `detect_vertical_borders()`

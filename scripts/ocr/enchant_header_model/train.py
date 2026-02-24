@@ -20,13 +20,15 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 from scripts.ocr.lib.model_version import resolve_version, load_training_config, training_config_path, PROJECT_ROOT
 TRAIN_SCRIPT = os.path.join(PROJECT_ROOT, 'deep-text-recognition-benchmark', 'train.py')
 
-EXP_NAME = 'enchant_header_ocr'
+EXP_NAME_PREFIX = 'enchant_header_ocr'
 
 
 def main():
     parser = argparse.ArgumentParser(description='Train enchant header OCR model')
     parser.add_argument('--version', default=None, help='Model version (default: active symlink)')
     parser.add_argument('--resume', action='store_true', help='Continue from best checkpoint')
+    parser.add_argument('--resume-from', default=None, metavar='VERSION',
+                        help='Resume from a different version\'s checkpoint (e.g. --resume-from v2)')
     parser.add_argument('--num_iter', type=int, help='Override number of iterations')
     parser.add_argument('--batch_size', type=int, help='Override batch size')
     parser.add_argument('--valInterval', type=int, help='Override validation interval')
@@ -38,6 +40,7 @@ def main():
     args = parser.parse_args()
 
     version = resolve_version('enchant_header', args.version)
+    exp_name = f'{EXP_NAME_PREFIX}_{version}'
     config_path = training_config_path('enchant_header', version)
     cfg = load_training_config('enchant_header', version)
 
@@ -65,8 +68,18 @@ def main():
         charset = f.read().replace('\n', '')
 
     saved_model = ''
-    if args.resume:
-        best_path = os.path.join(saved_dir, EXP_NAME, 'best_accuracy.pth')
+    if args.resume_from:
+        # Resume from a different version's checkpoint
+        source_exp = f'{EXP_NAME_PREFIX}_{args.resume_from}'
+        best_path = os.path.join(saved_dir, source_exp, 'best_accuracy.pth')
+        if os.path.exists(best_path):
+            saved_model = best_path
+            print(f"Resuming from {args.resume_from}: {saved_model}")
+        else:
+            print(f"Error: --resume-from {args.resume_from} but {best_path} not found.")
+            sys.exit(1)
+    elif args.resume:
+        best_path = os.path.join(saved_dir, exp_name, 'best_accuracy.pth')
         if os.path.exists(best_path):
             saved_model = best_path
             print(f"Resuming from: {saved_model}")
@@ -92,7 +105,7 @@ def main():
         '--workers', str(training['workers']),
         '--character', charset,
         '--saved_model', saved_model,
-        '--exp_name', EXP_NAME,
+        '--exp_name', exp_name,
     ]
     if training.get('sensitive'):
         cmd.append('--sensitive')
@@ -118,7 +131,7 @@ def main():
     print(f'  Version   : {version}')
     print(f'  Config    : {config_path}')
     print(f'  LMDB      : {lmdb_dir}')
-    print(f'  Saved dir : {saved_dir}/{EXP_NAME}')
+    print(f'  Saved dir : {saved_dir}/{exp_name}')
     print()
     print(f'  imgH={model["imgH"]}, imgW={model["imgW"]}')
     print(f'  batch_max_length : {training["batch_max_length"]}')

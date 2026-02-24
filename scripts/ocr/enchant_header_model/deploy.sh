@@ -20,8 +20,8 @@ if [ ! -d "$DST_DIR" ]; then
   exit 1
 fi
 
-# Use exp_name from training config for checkpoint directory
-EXP_NAME="enchant_header_ocr"
+# Use version-specific exp_name for checkpoint directory
+EXP_NAME="enchant_header_ocr_${VERSION}"
 SRC_PTH="saved_models/${EXP_NAME}/best_accuracy.pth"
 SRC_YAML="saved_models/custom_enchant_header.yaml"
 SRC_CHARS="${DST_DIR}/enchant_header_chars.txt"

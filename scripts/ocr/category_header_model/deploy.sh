@@ -21,7 +21,7 @@ if [ ! -d "$DST_DIR" ]; then
 fi
 
 # Use exp_name from training config for checkpoint directory
-EXP_NAME="header_ocr"
+EXP_NAME="header_ocr_${VERSION}"
 SRC_PTH="saved_models/${EXP_NAME}/best_accuracy.pth"
 SRC_YAML="saved_models/custom_header.yaml"
 SRC_CHARS="${DST_DIR}/unique_chars.txt"
