@@ -187,11 +187,11 @@ Output: ("내구력 11/12", 100)
 
 ---
 
-## 3. Two-Phase Enchant Matching (Linear Fallback)
+## 3. Two-Phase Enchant Matching
 
 **File:** `backend/lib/text_corrector.py`
 **Methods:** `match_enchant_header()`, `match_enchant_effect()`
-**Used when:** `has_slot_hdrs = False` (no white-mask detected slot headers)
+**Used in:** Both `has_slot_hdrs` branch (effect FM after Dullahan header match) and linear fallback (`has_slot_hdrs = False`)
 
 ### Problem
 
@@ -214,6 +214,32 @@ For each enchant line (linear scan):
 ```
 
 This is the old path, still used as fallback when white-mask segmentation doesn't detect slot headers.
+
+### Condition-Stripped Effects + `fuzz.ratio`
+
+**Method:** `match_enchant_effect()` uses `fuzz.ratio` against **condition-stripped** effects.
+
+**Why:** Mabinogi enchant effects have two parts: an optional **condition** (e.g., `파 어웨이 랭크 24 이상일 때`) and the actual **effect** (e.g., `최대대미지 20 ~ 45 증가`). Abbreviated tooltips show only the effect. `enchant.yaml` stores these as separate fields:
+
+```yaml
+# enchant.yaml structure
+- condition: 파 어웨이 랭크 24 이상일 때    # optional, kept for reference
+  effect: 최대대미지 20 ~ 45 증가           # used for FM matching
+- 수리비 200% 증가                          # plain string = no condition
+```
+
+The loading code (`_load_enchant_structured`) extracts only the `effect` field for `effects_norm`. This means FM matching always compares OCR text against the effect-only portion.
+
+**Why `ratio`, not `partial_ratio`:** With condition-stripped effects, all entries are short and similar length. `partial_ratio` inflates scores for very short entries (e.g., `지력 N 증가` trivially matches as a substring of any `...N 증가` text). `ratio` correctly penalizes length differences:
+
+```
+OCR:                    "피어싱 레벨 N 증가"
+DB effect (correct):    "피어싱 레벨 N ~ N 증가"   → ratio=85 ✓  (wins)
+DB effect (wrong):      "지력 N 증가"              → ratio=56 ✗  (loses)
+                                                      partial_ratio=92 ✗ (would win!)
+```
+
+**Decision:** `fuzz.ratio` with condition-stripped effects, threshold 75. No fallback.
 
 ---
 

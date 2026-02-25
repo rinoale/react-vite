@@ -162,6 +162,9 @@ def test_image(pipeline, image_path, gt_path=None, verbose=True):
 
             sub_tag = f' [{line.get("sub_count", 1)} segs]' if line.get('sub_count', 1) > 1 else ''
 
+            fm_rejected = line.get('fm_rejected')
+            fm_rejected_score = line.get('fm_rejected_score', 0)
+
             if has_gt:
                 status = 'OK' if exact_match else 'XX'
 
@@ -171,6 +174,9 @@ def test_image(pipeline, image_path, gt_path=None, verbose=True):
                 if fm_applied:
                     print(f"       OCR: {raw_text}")
                     print(f"       FM:  {text}")
+                elif fm_rejected:
+                    print(f"       OCR: {text}")
+                    print(f"       FM✗: {fm_rejected}  (score={fm_rejected_score:.0f}, rejected)")
                 else:
                     print(f"       OCR: {text}")
             else:
@@ -179,6 +185,11 @@ def test_image(pipeline, image_path, gt_path=None, verbose=True):
                           f"{sub_tag}{model_tag}")
                     print(f"       OCR: {raw_text}")
                     print(f"       FM:  {text}")
+                elif fm_rejected:
+                    print(f"  Line {i+1:2d} (conf={line.get('confidence', 0):.3f})"
+                          f"{sub_tag}{model_tag}")
+                    print(f"       OCR: {text}")
+                    print(f"       FM✗: {fm_rejected}  (score={fm_rejected_score:.0f}, rejected)")
                 else:
                     print(f"  Line {i+1:2d} (conf={line.get('confidence', 0):.3f})"
                           f"{sub_tag}{model_tag}  {text}")

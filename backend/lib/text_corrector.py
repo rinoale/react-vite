@@ -120,7 +120,15 @@ class TextCorrector:
         db = []
         for item in data:
             header = f"[{item['slot']}] {item['name']} (랭크 {item['rank']})"
-            effects = item.get('effects', [])
+            raw_effects = item.get('effects', [])
+            # Extract effect-only text: dicts have condition/effect fields,
+            # strings are plain effects without conditions.
+            effects = []
+            for eff in raw_effects:
+                if isinstance(eff, dict):
+                    effects.append(eff['effect'])
+                else:
+                    effects.append(eff)
             entry = {
                 'header':       header,
                 'header_norm':  _normalize_nums(header),
@@ -198,7 +206,7 @@ class TextCorrector:
         best_score = 0
         best_norm = None
         for norm_entry, _ in effects_norm:
-            score = fuzz.partial_ratio(norm_core, norm_entry)
+            score = fuzz.ratio(norm_core, norm_entry)
             if score > best_score:
                 best_score = score
                 best_norm = norm_entry
@@ -207,7 +215,20 @@ class TextCorrector:
             result = best_norm
             for num in numbers:
                 result = result.replace('N', num, 1)
+            # Clean up leftover range placeholders when OCR has fewer numbers
+            # e.g. "피어싱 레벨 3 ~ N 증가" → "피어싱 레벨 3 증가"
+            result = re.sub(r'\s*~\s*N', '', result)
+            result = re.sub(r'N\s*~\s*', '', result)
             return prefix + result, best_score
+
+        # Below cutoff — return candidate with negative score for diagnostics
+        if best_norm is not None:
+            candidate = best_norm
+            for num in numbers:
+                candidate = candidate.replace('N', num, 1)
+            candidate = re.sub(r'\s*~\s*N', '', candidate)
+            candidate = re.sub(r'N\s*~\s*', '', candidate)
+            return prefix + candidate, -best_score
 
         return text, 0
 
@@ -533,6 +554,14 @@ class TextCorrector:
             # Re-attach reforge level suffix that was stripped before matching
             return prefix + result + reforge_level_suffix, best_score
 
+        # Below cutoff — return candidate with negative score for diagnostics
+        # Negative score signals rejection; |score| is the actual match quality
+        if best_norm is not None:
+            candidate = best_norm
+            for num in numbers:
+                candidate = candidate.replace('N', num, 1)
+            return prefix + candidate + reforge_level_suffix, -best_score
+
         return text, 0
 
     def apply_fm(self, all_lines, sections):
@@ -586,6 +615,11 @@ class TextCorrector:
             if fm_score > 0:
                 line['text'] = fm_text
                 line['fm_applied'] = True
+            elif fm_score < 0 and fm_score not in (-2, -3):
+                # Rejected candidate — store for diagnostics
+                line['fm_applied'] = False
+                line['fm_rejected'] = fm_text
+                line['fm_rejected_score'] = -fm_score
             else:
                 line['fm_applied'] = False
 
@@ -639,6 +673,9 @@ class TextCorrector:
                             if eff_score > 0:
                                 eff_line['text'] = fm_eff
                                 eff_line['fm_applied'] = True
+                            elif eff_score < 0:
+                                eff_line['fm_rejected'] = fm_eff
+                                eff_line['fm_rejected_score'] = -eff_score
             else:
                 # Fallback: old linear approach (regex-detected or no headers)
                 current_entry = None

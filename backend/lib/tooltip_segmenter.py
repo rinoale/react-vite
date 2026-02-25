@@ -519,18 +519,26 @@ def segment_and_tag(img, header_reader, patterns, config, cutoff=None):
             'header_match_score': int,
           }
     """
-    headers = detect_headers(img, config)
+    # Detect tooltip borders first, then crop to boundary.
+    # Orange header detection runs on the cropped area only,
+    # eliminating false positives from stray orange pixels outside the tooltip.
     bottom_y = detect_bottom_border(img)
     left_x, right_x = detect_vertical_borders(img)
-    segments = build_segments(img, headers, bottom_y=bottom_y,
-                              left_x=left_x, right_x=right_x)
+
+    y1 = (bottom_y + 1) if bottom_y is not None else img.shape[0]
+    x0 = (left_x + 1) if left_x is not None else 0
+    x1 = right_x if right_x is not None else img.shape[1]
+    tooltip = img[0:y1, x0:x1]
+
+    headers = detect_headers(tooltip, config)
+    segments = build_segments(tooltip, headers)
     tagged = []
 
     for seg in segments:
         idx = seg['index']
         cnt = seg['content']
-        content_crop = img[cnt['y']:cnt['y'] + cnt['h'],
-                           cnt['x']:cnt['x'] + cnt['w']]
+        content_crop = tooltip[cnt['y']:cnt['y'] + cnt['h'],
+                               cnt['x']:cnt['x'] + cnt['w']]
 
         if seg['header'] is None:
             # Pre-header region: item name + item attrs (no header to classify)
@@ -548,8 +556,8 @@ def segment_and_tag(img, header_reader, patterns, config, cutoff=None):
             continue
 
         hdr = seg['header']
-        header_crop = img[hdr['y']:hdr['y'] + hdr['h'],
-                          hdr['x']:hdr['x'] + hdr['w']]
+        header_crop = tooltip[hdr['y']:hdr['y'] + hdr['h'],
+                              hdr['x']:hdr['x'] + hdr['w']]
 
         section, ocr_text, ocr_conf, match_score = classify_header(
             header_crop, header_reader, patterns, config, cutoff=cutoff

@@ -125,6 +125,13 @@ These color constants are game engine invariants — they work across all themes
 - **Cleaner training crops**: Isolate exactly the pixels that matter, remove noise from adjacent lines
 - **Same approach for content models**: What worked for enchant headers (real sample mixing) should work for content OCR too — once we have clean, well-classified crops
 
+## User Guidance for Better Recognition
+
+Tips to show users for optimal OCR results:
+
+- **Crop tightly**: Crop the screenshot to show only the item tooltip, removing surrounding game UI as much as possible
+- **Use simple tooltip**: Press **ALT** in-game to show the abbreviated tooltip — fewer lines means fewer OCR errors (e.g. plate_helmet: 42 lines → 33 lines, no sub-line descriptions to misread)
+
 ### V3 Training Pipeline
 
 ```bash
