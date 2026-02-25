@@ -19,6 +19,9 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
+      args:
+        UID: ${UID:-1000}
+        GID: ${GID:-1000}
     container_name: mabinogi-backend
     working_dir: /app/backend
     environment:
@@ -28,7 +31,7 @@ services:
       DB_USER: mabinogi
       DB_PASSWORD: mabinogi
     command: >
-      sh -lc "pip install -r /app/backend/requirements.txt &&
+      sh -lc "pip install --user -r /app/backend/requirements.txt &&
       uvicorn main:app --reload --port 8000 --host 0.0.0.0"
     ports:
       - "8000:8000"

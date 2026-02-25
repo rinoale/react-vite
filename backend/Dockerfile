@@ -1,5 +1,8 @@
 FROM python:3.14.2-slim
 
+ARG UID=1000
+ARG GID=1000
+
 WORKDIR /app
 
 # System deps commonly needed by OCR stack (opencv/easyocr/pillow)
@@ -22,7 +25,16 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 COPY backend /app/backend
 COPY configs /app/configs
 
+# Create non-root user (python-slim has no UID 1000 conflict)
+RUN groupadd -g ${GID} appgroup \
+ && useradd -m -u ${UID} -g ${GID} -s /bin/bash appuser \
+ && chown -R ${UID}:${GID} /app
+
+ENV PATH="/home/appuser/.local/bin:${PATH}"
+
 WORKDIR /app/backend
+
+USER appuser
 
 EXPOSE 8000
 

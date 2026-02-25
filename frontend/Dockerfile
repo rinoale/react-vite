@@ -9,10 +9,12 @@ COPY packages/trade/package.json /app/packages/trade/
 COPY packages/admin/package.json /app/packages/admin/
 COPY packages/misc/package.json /app/packages/misc/
 
-RUN npm install
+RUN npm install && chown -R node:node /app
 
 # Keep a baseline copy; compose mount will provide live files during dev.
-COPY . /app
+COPY --chown=node:node . /app
+
+USER node
 
 EXPOSE 5173 5174 5175
 
