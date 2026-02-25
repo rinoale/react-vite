@@ -3,17 +3,17 @@ import os
 import shutil
 
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
-from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from typing import List
+
+from sqlalchemy import text
 
 from db.connector import get_db
 from db.models import OcrCorrection, Item, ItemEnchant, ItemEnchantEffect, ItemReforgeOption, Enchant, EnchantEffect, ReforgeOption
 from db.schemas import RegisterItemRequest
 from trade.schemas import UploadItemV3Response
 from lib.log import logger
-from lib.recommendation import recommender, ITEMS_DB
 from lib.v3_pipeline import init_pipeline, run_v3_pipeline, prepare_sections_for_response
+from crud.admin import get_item_detail
 
 router = APIRouter()
 
@@ -60,25 +60,34 @@ _CHARSETS = _load_charsets()
 _ALL_CHARS = set().union(*_CHARSETS.values()) if _CHARSETS else set()
 
 
-class UserHistory(BaseModel):
-    history_ids: List[int]
-
-
 @router.get("/items")
-def get_items():
-    return ITEMS_DB
+def get_items(db: Session = Depends(get_db)):
+    rows = db.execute(
+        text(
+            """
+            SELECT
+                i.id,
+                i.name,
+                i.created_at,
+                COUNT(DISTINCT ie.id) AS enchant_count,
+                COUNT(DISTINCT iro.id) AS reforge_count
+            FROM items i
+            LEFT JOIN item_enchants ie ON ie.item_id = i.id
+            LEFT JOIN item_reforge_options iro ON iro.item_id = i.id
+            GROUP BY i.id
+            ORDER BY i.id DESC
+            """
+        )
+    ).mappings()
+    return [dict(r) for r in rows]
 
 
-@router.get("/recommend/item/{item_id}")
-def recommend_by_item(item_id: int):
-    results = recommender.get_recommendations(item_id)
-    return results
-
-
-@router.post("/recommend/user")
-def recommend_for_user(user_history: UserHistory):
-    results = recommender.recommend_for_user(user_history.history_ids)
-    return results
+@router.get("/items/{item_id}")
+def get_item(item_id: int, db: Session = Depends(get_db)):
+    result = get_item_detail(db, item_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Item not found")
+    return result
 
 
 @router.post("/upload-item-v3",

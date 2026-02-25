@@ -1,4 +1,7 @@
 {
+  "app": {
+    "title": "Mabinogi Tools"
+  },
   "navigate": {
     "title": "South Korea Navigation Map",
     "subtitle": "Interactive map with address search and location services",

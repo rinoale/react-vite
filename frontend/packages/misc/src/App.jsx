@@ -1,8 +1,13 @@
+import { useEffect } from 'react'
 import { Routes, Route, Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import Navigate from './pages/navigate'
 import ImageProcess from './pages/image_process'
 
 function App() {
+  const { t } = useTranslation()
+  useEffect(() => { document.title = t('app.title') }, [t])
+
   return (
     <>
       <div>

@@ -1,4 +1,7 @@
 {
+  "app": {
+    "title": "마비노기 관리자"
+  },
   "admin": {
     "title": "ADMIN",
     "titleHighlight": "DASHBOARD",

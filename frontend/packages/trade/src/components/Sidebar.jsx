@@ -26,7 +26,7 @@ const Sidebar = () => {
     <nav className="w-56 shrink-0 bg-gray-800 border-r border-gray-700 flex flex-col p-4 gap-1">
       <Link to="/" className="mb-6 px-2 flex items-center gap-3 hover:opacity-80 transition-opacity" title="Home">
         <img src="/favicon.svg" alt="Home" className="w-8 h-8" />
-        <span className="text-white font-black text-lg tracking-tight">MABI</span>
+        <span className="text-white font-black text-lg tracking-tight">{t('sidebar.home')}</span>
       </Link>
       <NavLink to="/" icon={ShoppingBag}>{t('sidebar.marketplace')}</NavLink>
       <NavLink to="/sell" icon={Upload}>{t('sidebar.sellItem')}</NavLink>

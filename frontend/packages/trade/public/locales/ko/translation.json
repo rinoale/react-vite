@@ -1,4 +1,7 @@
 {
+  "app": {
+    "title": "마트레"
+  },
   "sell": {
     "title": "SELL",
     "titleHighlight": "ITEM",
@@ -49,13 +52,16 @@
   "marketplace": {
     "title": "Marketplace",
     "searchPlaceholder": "Search for items...",
-    "buyNow": "Buy Now",
-    "recommendedForYou": "Recommended for You",
-    "noRecommendations": "No recommendations found.",
-    "selectItem": "Select an item to view details and recommendations",
-    "match": "{{pct}}% match"
+    "enchants": "{{count}} enchant(s)",
+    "reforges": "{{count}} reforge(s)",
+    "noItems": "No items registered yet.",
+    "noResults": "No items match your search.",
+    "selectItem": "Select an item to view details",
+    "enchantLabel": "인챈트",
+    "reforgeLabel": "세공"
   },
   "sidebar": {
+    "home": "마트레",
     "marketplace": "Marketplace",
     "sellItem": "Sell Item"
   },

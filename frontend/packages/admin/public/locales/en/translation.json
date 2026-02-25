@@ -1,4 +1,7 @@
 {
+  "app": {
+    "title": "Mabinogi Admin"
+  },
   "admin": {
     "title": "ADMIN",
     "titleHighlight": "DASHBOARD",

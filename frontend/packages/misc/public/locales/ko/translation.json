@@ -1,4 +1,7 @@
 {
+  "app": {
+    "title": "마비노기 도구"
+  },
   "navigate": {
     "title": "South Korea Navigation Map",
     "subtitle": "Interactive map with address search and location services",

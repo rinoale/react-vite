@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { Search, ShoppingBag, Sparkles, Filter } from 'lucide-react';
+import { Search, ShoppingBag, Wand2, Hammer } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { getItems as fetchItemsApi, getRecommendationsByItem } from '@mabi/shared/api/recommend';
+import { getItems as fetchItemsApi, getItemDetail } from '@mabi/shared/api/recommend';
+
+const SLOT_LABELS = { 0: 'Prefix', 1: 'Suffix' };
 
 const Marketplace = () => {
   const { t } = useTranslation();
   const [items, setItems] = useState([]);
   const [selectedItem, setSelectedItem] = useState(null);
-  const [recommendations, setRecommendations] = useState([]);
+  const [itemDetail, setItemDetail] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     fetchItems();
@@ -17,7 +18,9 @@ const Marketplace = () => {
 
   useEffect(() => {
     if (selectedItem) {
-      fetchRecommendations(selectedItem.id);
+      fetchDetail(selectedItem.id);
+    } else {
+      setItemDetail(null);
     }
   }, [selectedItem]);
 
@@ -30,19 +33,24 @@ const Marketplace = () => {
     }
   };
 
-  const fetchRecommendations = async (itemId) => {
+  const fetchDetail = async (itemId) => {
     try {
-      const { data } = await getRecommendationsByItem(itemId);
-      setRecommendations(data);
+      const { data } = await getItemDetail(itemId);
+      setItemDetail(data);
     } catch (error) {
-      console.error("Failed to fetch recommendations:", error);
+      console.error("Failed to fetch item detail:", error);
+      setItemDetail(null);
     }
   };
 
   const filteredItems = items.filter(item =>
-    item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    item.category.toLowerCase().includes(searchQuery.toLowerCase())
+    item.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const formatDate = (dateStr) => {
+    if (!dateStr) return '';
+    return new Date(dateStr).toLocaleDateString();
+  };
 
   return (
     <div className="min-h-screen bg-gray-900 text-gray-100 p-6">
@@ -69,72 +77,96 @@ const Marketplace = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Item Grid */}
           <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
-            {filteredItems.map(item => (
-              <div
-                key={item.id}
-                onClick={() => setSelectedItem(item)}
-                className={`bg-gray-800 p-4 rounded-xl border cursor-pointer transition-all hover:scale-[1.02] ${selectedItem?.id === item.id ? 'border-cyan-500 shadow-[0_0_15px_rgba(6,182,212,0.3)]' : 'border-gray-700 hover:border-gray-600'}`}
-              >
-                <div className="flex justify-between items-start mb-2">
-                  <h3 className="font-bold text-lg">{item.name}</h3>
-                  <span className="text-xs px-2 py-1 bg-gray-700 rounded-full text-gray-300">
-                    {item.category}
-                  </span>
+            {filteredItems.length > 0 ? (
+              filteredItems.map(item => (
+                <div
+                  key={item.id}
+                  onClick={() => setSelectedItem(item)}
+                  className={`bg-gray-800 p-4 rounded-xl border cursor-pointer transition-all hover:scale-[1.02] ${selectedItem?.id === item.id ? 'border-cyan-500 shadow-[0_0_15px_rgba(6,182,212,0.3)]' : 'border-gray-700 hover:border-gray-600'}`}
+                >
+                  <h3 className="font-bold text-lg mb-3">{item.name}</h3>
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {item.enchant_count > 0 && (
+                      <span className="text-xs px-2 py-1 bg-purple-900/50 text-purple-300 rounded-full flex items-center gap-1">
+                        <Wand2 className="w-3 h-3" />
+                        {t('marketplace.enchants', { count: item.enchant_count })}
+                      </span>
+                    )}
+                    {item.reforge_count > 0 && (
+                      <span className="text-xs px-2 py-1 bg-cyan-900/50 text-cyan-300 rounded-full flex items-center gap-1">
+                        <Hammer className="w-3 h-3" />
+                        {t('marketplace.reforges', { count: item.reforge_count })}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500">{formatDate(item.created_at)}</p>
                 </div>
-                <p className="text-gray-400 text-sm line-clamp-2">{item.description}</p>
+              ))
+            ) : (
+              <div className="md:col-span-2 bg-gray-800/50 border border-gray-700 border-dashed rounded-xl p-12 text-center text-gray-500 flex flex-col items-center">
+                <ShoppingBag className="w-12 h-12 mb-4 opacity-50" />
+                <p>{items.length === 0 ? t('marketplace.noItems') : t('marketplace.noResults')}</p>
               </div>
-            ))}
+            )}
           </div>
 
-          {/* Sidebar: Details & Recommendations */}
+          {/* Sidebar: Item Detail */}
           <div className="lg:col-span-1 space-y-6">
-            {selectedItem ? (
-              <>
-                {/* Selected Item Detail */}
-                <div className="bg-gray-800 rounded-xl p-6 border border-gray-700 sticky top-6">
-                  <h2 className="text-2xl font-bold mb-2">{selectedItem.name}</h2>
-                  <span className="inline-block bg-cyan-900/50 text-cyan-300 px-3 py-1 rounded-full text-sm mb-4">
-                    {selectedItem.category}
-                  </span>
-                  <p className="text-gray-300 mb-6 leading-relaxed">
-                    {selectedItem.description}
-                  </p>
+            {selectedItem && itemDetail ? (
+              <div className="bg-gray-800 rounded-xl p-6 border border-gray-700 sticky top-6">
+                <h2 className="text-2xl font-bold mb-4">{itemDetail.name}</h2>
 
-                  <button className="w-full bg-cyan-600 hover:bg-cyan-700 text-white py-3 rounded-lg font-bold mb-6 transition-colors">
-                    {t('marketplace.buyNow')}
-                  </button>
-
-                  {/* Recommendations */}
-                  <div className="border-t border-gray-700 pt-6">
-                    <h3 className="text-lg font-semibold flex items-center gap-2 mb-4 text-purple-400">
-                      <Sparkles className="w-5 h-5" />
-                      {t('marketplace.recommendedForYou')}
+                {/* Enchants */}
+                {itemDetail.enchants?.length > 0 && (
+                  <div className="mb-4">
+                    <h3 className="text-sm font-semibold text-purple-400 mb-2 flex items-center gap-1">
+                      <Wand2 className="w-4 h-4" />
+                      {t('marketplace.enchantLabel')}
                     </h3>
-
-                    <div className="space-y-3">
-                      {recommendations.length > 0 ? (
-                        recommendations.map((rec, idx) => (
-                          <div
-                            key={idx}
-                            onClick={() => setSelectedItem(rec.item)}
-                            className="bg-gray-700/50 p-3 rounded-lg hover:bg-gray-700 cursor-pointer transition-colors"
-                          >
-                            <div className="flex justify-between items-center mb-1">
-                              <span className="font-medium text-sm">{rec.item.name}</span>
-                              <span className="text-xs text-green-400">
-                                {t('marketplace.match', { pct: Math.round(rec.score * 100) })}
-                              </span>
-                            </div>
-                            <p className="text-xs text-gray-400 line-clamp-1">{rec.item.description}</p>
+                    <div className="space-y-2">
+                      {itemDetail.enchants.map((enc, idx) => (
+                        <div key={idx} className="bg-gray-900/50 p-3 rounded border border-gray-700">
+                          <div className="flex justify-between items-center mb-1">
+                            <span className="text-sm font-medium text-purple-300">{enc.enchant_name}</span>
+                            <span className="text-xs text-gray-400">{SLOT_LABELS[enc.slot] || enc.slot}</span>
                           </div>
-                        ))
-                      ) : (
-                        <p className="text-sm text-gray-500">{t('marketplace.noRecommendations')}</p>
-                      )}
+                          {enc.effects?.length > 0 && (
+                            <ul className="space-y-0.5">
+                              {enc.effects.map((eff, i) => (
+                                <li key={i} className="text-xs text-gray-400">
+                                  {eff.raw_text}{eff.value != null && <span className="text-cyan-300 ml-1">({eff.value})</span>}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      ))}
                     </div>
                   </div>
-                </div>
-              </>
+                )}
+
+                {/* Reforge */}
+                {itemDetail.reforge_options?.length > 0 && (
+                  <div className="mb-4">
+                    <h3 className="text-sm font-semibold text-cyan-400 mb-2 flex items-center gap-1">
+                      <Hammer className="w-4 h-4" />
+                      {t('marketplace.reforgeLabel')}
+                    </h3>
+                    <div className="space-y-2">
+                      {itemDetail.reforge_options.map((opt, idx) => (
+                        <div key={idx} className="bg-gray-900/50 p-3 rounded border border-gray-700 flex justify-between items-center">
+                          <span className="text-sm text-cyan-300">{opt.option_name}</span>
+                          {opt.level != null && (
+                            <span className="text-xs bg-cyan-900/50 text-cyan-300 px-2 py-0.5 rounded border border-cyan-700/50">
+                              Lv.{opt.level} / {opt.max_level}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             ) : (
               <div className="bg-gray-800/50 border border-gray-700 border-dashed rounded-xl p-8 text-center text-gray-500 flex flex-col items-center">
                 <ShoppingBag className="w-12 h-12 mb-4 opacity-50" />
