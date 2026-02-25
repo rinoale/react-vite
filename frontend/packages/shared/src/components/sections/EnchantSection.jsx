@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Pencil } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import ConfigSearchInput from '../ConfigSearchInput';
 
 /** Find enchant config entry matching name + slot */
@@ -10,6 +11,7 @@ function findEnchantConfig(name, slotInt) {
 }
 
 const EffectRow = ({ eff, lineIdx, lineText, onLineChange, configEffects }) => {
+  const { t } = useTranslation();
   const [editingName, setEditingName] = useState(false);
   const [editingLevel, setEditingLevel] = useState(false);
   const [levelDraft, setLevelDraft] = useState('');
@@ -40,7 +42,7 @@ const EffectRow = ({ eff, lineIdx, lineText, onLineChange, configEffects }) => {
             setEditingName(false);
           }}
           onCancel={() => setEditingName(false)}
-          placeholder="Search effect..."
+          placeholder={t('sections.enchant.searchEffect')}
         />
       </div>
     );
@@ -69,7 +71,7 @@ const EffectRow = ({ eff, lineIdx, lineText, onLineChange, configEffects }) => {
             <span
               className={'text-orange-400 font-bold' + (isRanged ? ' cursor-pointer hover:underline' : '')}
               onClick={isRanged ? () => { setLevelDraft(String(eff.option_level)); setEditingLevel(true); } : undefined}
-              title={isRanged ? 'Click to edit value' : undefined}
+              title={isRanged ? t('sections.enchant.clickToEditValue') : undefined}
             >
               {eff.option_level}
             </span>
@@ -85,7 +87,7 @@ const EffectRow = ({ eff, lineIdx, lineText, onLineChange, configEffects }) => {
         <button
           onClick={() => setEditingName(true)}
           className="ml-auto p-0.5 text-gray-600 opacity-0 group-hover:opacity-100 hover:text-orange-400 transition-opacity"
-          title="Correct effect"
+          title={t('sections.enchant.correctEffect')}
         >
           <Pencil className="w-3 h-3" />
         </button>
@@ -95,6 +97,7 @@ const EffectRow = ({ eff, lineIdx, lineText, onLineChange, configEffects }) => {
 };
 
 const EnchantSlot = ({ slot, slotLabel, headerLineIdx, effectLineIndices, lines, onLineChange }) => {
+  const { t } = useTranslation();
   const [editingHeader, setEditingHeader] = useState(false);
 
   const slotInt = slotLabel === 'Prefix' ? 0 : 1;
@@ -130,7 +133,7 @@ const EnchantSlot = ({ slot, slotLabel, headerLineIdx, effectLineIndices, lines,
               setEditingHeader(false);
             }}
             onCancel={() => setEditingHeader(false)}
-            placeholder="Search enchant..."
+            placeholder={t('sections.enchant.searchEnchant')}
           />
         ) : (
           <div className="group flex items-center gap-1">
@@ -138,7 +141,7 @@ const EnchantSlot = ({ slot, slotLabel, headerLineIdx, effectLineIndices, lines,
             <button
               onClick={() => setEditingHeader(true)}
               className="p-0.5 text-gray-600 opacity-0 group-hover:opacity-100 hover:text-purple-400 transition-opacity"
-              title="Correct enchant"
+              title={t('sections.enchant.correctEnchant')}
             >
               <Pencil className="w-3 h-3" />
             </button>

@@ -1,0 +1,78 @@
+{
+  "sell": {
+    "title": "SELL",
+    "titleHighlight": "ITEM",
+    "subtitle": "Register your Mabinogi items via OCR",
+    "scanSuccessful": "Scan Successful",
+    "uploadTooltip": "Upload Tooltip",
+    "dropScreenshot": "Drop Mabinogi Screenshot",
+    "supportedFormats": "Supports JPG, PNG",
+    "scanTooltip": "Scan Tooltip",
+    "detectingSections": "DETECTING SECTIONS...",
+    "readingText": "READING TEXT STATS...",
+    "processing": "PROCESSING...",
+    "pipelineVersion": "Attempt 17 (V3 Pipeline)",
+    "ocrMetrics": "OCR METRICS",
+    "totalLines": "Total Lines",
+    "sections": "Sections",
+    "itemDetails": "ITEM DETAILS",
+    "scanned": "SCANNED",
+    "appVersion": "MABINOGI MARKETPLACE V1.0",
+    "itemName": "Item Name",
+    "price": "Price (Gold)",
+    "itemNamePlaceholder": "e.g. Dragon Blade",
+    "detectedCategories": "Detected Categories",
+    "itemClassification": "Item Classification",
+    "emptyTitle": "Upload and scan an item tooltip to populate details",
+    "emptySubtitle": "Structured parsing will automatically organize the data.",
+    "registerItem": "Register Item",
+    "resetForm": "Reset Form",
+    "sectionSkipped": "Section skipped by parser",
+    "errorScanning": "Error scanning image. Please try again.",
+    "itemRegistered": "Item registered successfully.",
+    "correctionsCapture": " ({{count}} correction(s) captured for training)",
+    "registerFailed": "Failed to register item."
+  },
+  "categoryLabels": {
+    "item_name": "Item Name",
+    "item_type": "Item Type",
+    "item_grade": "Grade",
+    "item_attrs": "Attributes (아이템 속성)",
+    "enchant": "Enchant (인챈트)",
+    "item_mod": "Upgrade (개조)",
+    "reforge": "Reforge (세공)",
+    "erg": "Erg (에르그)",
+    "set_item": "Set Item (세트아이템)",
+    "item_color": "Item Color (아이템 색상)",
+    "ego": "Spirit (정령)"
+  },
+  "marketplace": {
+    "title": "Marketplace",
+    "searchPlaceholder": "Search for items...",
+    "buyNow": "Buy Now",
+    "recommendedForYou": "Recommended for You",
+    "noRecommendations": "No recommendations found.",
+    "selectItem": "Select an item to view details and recommendations",
+    "match": "{{pct}}% match"
+  },
+  "sidebar": {
+    "marketplace": "Marketplace",
+    "sellItem": "Sell Item"
+  },
+  "sections": {
+    "lowConfidence": "Low Confidence: {{pct}}%",
+    "enchant": {
+      "correctEnchant": "Correct enchant",
+      "correctEffect": "Correct effect",
+      "searchEffect": "Search effect...",
+      "searchEnchant": "Search enchant...",
+      "clickToEditValue": "Click to edit value"
+    },
+    "reforge": {
+      "correct": "Correct",
+      "clickToEditLevel": "Click to edit level",
+      "searchReforgeOption": "Search reforge option..."
+    },
+    "cancel": "Cancel"
+  }
+}

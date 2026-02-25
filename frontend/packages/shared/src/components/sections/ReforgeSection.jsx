@@ -1,8 +1,10 @@
 import React, { useState, useMemo } from 'react';
 import { Pencil } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import ConfigSearchInput from '../ConfigSearchInput';
 
 const ReforgeOption = ({ opt, optIdx, lineIdx, onLineChange }) => {
+  const { t } = useTranslation();
   const [editingName, setEditingName] = useState(false);
   const [editingLevel, setEditingLevel] = useState(false);
   const [levelDraft, setLevelDraft] = useState('');
@@ -44,7 +46,7 @@ const ReforgeOption = ({ opt, optIdx, lineIdx, onLineChange }) => {
             setEditingName(false);
           }}
           onCancel={() => setEditingName(false)}
-          placeholder="Search reforge option..."
+          placeholder={t('sections.reforge.searchReforgeOption')}
         />
       ) : (
         <div className="group flex justify-between items-center mb-1">
@@ -53,7 +55,7 @@ const ReforgeOption = ({ opt, optIdx, lineIdx, onLineChange }) => {
             <button
               onClick={() => setEditingName(true)}
               className="p-0.5 text-gray-600 opacity-0 group-hover:opacity-100 hover:text-cyan-400 transition-opacity"
-              title="Correct"
+              title={t('sections.reforge.correct')}
             >
               <Pencil className="w-3 h-3" />
             </button>
@@ -76,7 +78,7 @@ const ReforgeOption = ({ opt, optIdx, lineIdx, onLineChange }) => {
               <span
                 className="text-xs bg-cyan-900/50 text-cyan-300 px-2 py-0.5 rounded border border-cyan-700/50 cursor-pointer hover:border-cyan-500"
                 onClick={() => { setLevelDraft(String(opt.level)); setEditingLevel(true); }}
-                title="Click to edit level"
+                title={t('sections.reforge.clickToEditLevel')}
               >
                 Level {opt.level} / {opt.max_level}
               </span>

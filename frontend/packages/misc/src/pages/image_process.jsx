@@ -1,7 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Upload, Download, Settings, FileText, Scissors, X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 const MabinogiTesseractPrep = () => {
+  const { t } = useTranslation();
   const [image, setImage] = useState(null);
   const [processedImage, setProcessedImage] = useState(null);
   const [settings, setSettings] = useState({
@@ -14,14 +16,14 @@ const MabinogiTesseractPrep = () => {
   const [images, setImages] = useState([]);
   const [lineSegments, setLineSegments] = useState([]);
   const [showSegmentation, setShowSegmentation] = useState(false);
-  
+
   // Manual selection states
   const [isSelecting, setIsSelecting] = useState(false);
   const [selectionStart, setSelectionStart] = useState(null);
   const [selectionEnd, setSelectionEnd] = useState(null);
   const [currentSelection, setCurrentSelection] = useState(null);
   const [manualSegments, setManualSegments] = useState([]);
-  
+
   const canvasRef = useRef(null);
   const fileInputRef = useRef(null);
   const displayCanvasRef = useRef(null);
@@ -46,10 +48,10 @@ const MabinogiTesseractPrep = () => {
   const processImage = (img) => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
-    
+
     canvas.width = img.width;
     canvas.height = img.height;
-    
+
     ctx.drawImage(img, 0, 0);
     let imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const data = imageData.data;
@@ -101,7 +103,7 @@ const MabinogiTesseractPrep = () => {
       for (let x = 0; x < width; x++) {
         let sum = 0, count = 0;
         const halfBlock = Math.floor(blockSize / 2);
-        
+
         for (let by = Math.max(0, y - halfBlock); by <= Math.min(height - 1, y + halfBlock); by++) {
           for (let bx = Math.max(0, x - halfBlock); bx <= Math.min(width - 1, x + halfBlock); bx++) {
             const idx = (by * width + bx) * 4;
@@ -109,7 +111,7 @@ const MabinogiTesseractPrep = () => {
             count++;
           }
         }
-        
+
         const threshold = sum / count - 10;
         const idx = (y * width + x) * 4;
         const val = temp[idx] > threshold ? 0 : 255;
@@ -131,14 +133,13 @@ const MabinogiTesseractPrep = () => {
     if (!displayCanvasRef.current) return;
     const canvas = displayCanvasRef.current;
     const rect = canvas.getBoundingClientRect();
-    
-    // Account for canvas scaling
+
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
-    
+
     const x = (e.clientX - rect.left) * scaleX;
     const y = (e.clientY - rect.top) * scaleY;
-    
+
     setIsSelecting(true);
     setSelectionStart({ x, y });
     setSelectionEnd({ x, y });
@@ -148,29 +149,28 @@ const MabinogiTesseractPrep = () => {
     if (!isSelecting || !displayCanvasRef.current) return;
     const canvas = displayCanvasRef.current;
     const rect = canvas.getBoundingClientRect();
-    
-    // Account for canvas scaling
+
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
-    
+
     const x = (e.clientX - rect.left) * scaleX;
     const y = (e.clientY - rect.top) * scaleY;
-    
+
     setSelectionEnd({ x, y });
   };
 
   const handleMouseUp = () => {
     if (!isSelecting || !selectionStart || !selectionEnd) return;
-    
+
     const x = Math.min(selectionStart.x, selectionEnd.x);
     const y = Math.min(selectionStart.y, selectionEnd.y);
     const width = Math.abs(selectionEnd.x - selectionStart.x);
     const height = Math.abs(selectionEnd.y - selectionStart.y);
-    
+
     if (width > 5 && height > 5) {
       setCurrentSelection({ x, y, width, height });
     }
-    
+
     setIsSelecting(false);
   };
 
@@ -180,18 +180,17 @@ const MabinogiTesseractPrep = () => {
     const canvas = canvasRef.current;
     const segmentCanvas = document.createElement('canvas');
     const ctx = segmentCanvas.getContext('2d');
-    
-    // currentSelection is already in canvas coordinates, no scaling needed
+
     const x = currentSelection.x;
     const y = currentSelection.y;
     const width = currentSelection.width;
     const height = currentSelection.height;
-    
+
     segmentCanvas.width = width;
     segmentCanvas.height = height;
-    
+
     ctx.drawImage(canvas, x, y, width, height, 0, 0, width, height);
-    
+
     const newSegment = {
       id: Date.now(),
       image: segmentCanvas.toDataURL(),
@@ -199,7 +198,7 @@ const MabinogiTesseractPrep = () => {
       filename: `segment_${manualSegments.length + 1}.png`,
       bounds: currentSelection
     };
-    
+
     setManualSegments([...manualSegments, newSegment]);
     setCurrentSelection(null);
     setSelectionStart(null);
@@ -211,7 +210,7 @@ const MabinogiTesseractPrep = () => {
   };
 
   const updateSegmentText = (id, text) => {
-    setManualSegments(prev => 
+    setManualSegments(prev =>
       prev.map(seg => seg.id === id ? { ...seg, text } : seg)
     );
   };
@@ -225,13 +224,11 @@ const MabinogiTesseractPrep = () => {
 
   const downloadDataset = async () => {
     console.log(`Starting download of ${images.length} image/text pairs...`);
-    
-    // Download files with delays to avoid browser blocking
+
     for (let i = 0; i < images.length; i++) {
       const item = images[i];
-      
+
       try {
-        // Download image
         const imageLink = document.createElement('a');
         imageLink.href = item.image;
         imageLink.download = item.filename;
@@ -239,11 +236,9 @@ const MabinogiTesseractPrep = () => {
         document.body.appendChild(imageLink);
         imageLink.click();
         document.body.removeChild(imageLink);
-        
-        // Small delay between downloads
+
         await new Promise(resolve => setTimeout(resolve, 300));
-        
-        // Download text file
+
         const textBlob = new Blob([item.text || ''], { type: 'text/plain' });
         const textUrl = URL.createObjectURL(textBlob);
         const textLink = document.createElement('a');
@@ -254,17 +249,16 @@ const MabinogiTesseractPrep = () => {
         textLink.click();
         document.body.removeChild(textLink);
         URL.revokeObjectURL(textUrl);
-        
-        // Another delay
+
         await new Promise(resolve => setTimeout(resolve, 300));
-        
+
         console.log(`Downloaded ${i + 1}/${images.length}: ${item.filename}`);
-        
+
       } catch (error) {
         console.error(`Error downloading ${item.filename}:`, error);
       }
     }
-    
+
     console.log(`Finished downloading ${images.length} image/text pairs`);
   };
 
@@ -296,37 +290,34 @@ echo "Box files generated. Please manually correct them before proceeding."
 
   useEffect(() => {
     if (!processedImage || !displayCanvasRef.current) return;
-    
+
     const canvas = displayCanvasRef.current;
     const ctx = canvas.getContext('2d');
     const img = new Image();
-    
+
     img.onload = () => {
       canvas.width = img.width;
       canvas.height = img.height;
       ctx.drawImage(img, 0, 0);
-      
-      // Draw existing segments
+
       manualSegments.forEach(seg => {
         ctx.strokeStyle = '#22d3ee';
         ctx.lineWidth = 2;
         ctx.strokeRect(seg.bounds.x, seg.bounds.y, seg.bounds.width, seg.bounds.height);
       });
-      
-      // Draw current selection
+
       if (currentSelection) {
         ctx.strokeStyle = '#10b981';
         ctx.lineWidth = 2;
         ctx.strokeRect(currentSelection.x, currentSelection.y, currentSelection.width, currentSelection.height);
       }
-      
-      // Draw active selection
+
       if (isSelecting && selectionStart && selectionEnd) {
         const x = Math.min(selectionStart.x, selectionEnd.x);
         const y = Math.min(selectionStart.y, selectionEnd.y);
         const width = Math.abs(selectionEnd.x - selectionStart.x);
         const height = Math.abs(selectionEnd.y - selectionStart.y);
-        
+
         ctx.strokeStyle = '#fbbf24';
         ctx.lineWidth = 2;
         ctx.setLineDash([5, 5]);
@@ -334,33 +325,25 @@ echo "Box files generated. Please manually correct them before proceeding."
         ctx.setLineDash([]);
       }
     };
-    
+
     img.src = processedImage;
   }, [processedImage, manualSegments, currentSelection, isSelecting, selectionStart, selectionEnd]);
 
-  // Calculate button position next to selection
   const getButtonPosition = () => {
     if (!currentSelection || !displayCanvasRef.current) return {};
-    
+
     const canvas = displayCanvasRef.current;
     const rect = canvas.getBoundingClientRect();
-    
-    // Account for canvas scaling
+
     const scaleX = rect.width / canvas.width;
     const scaleY = rect.height / canvas.height;
-    
-    // Convert canvas coordinates to screen coordinates
-    const screenX = rect.left + (currentSelection.x + currentSelection.width) * scaleX;
-    const screenY = rect.top + currentSelection.y * scaleY;
-    
-    // Position button to the right of selection
-    // Use absolute positioning within the canvas container instead of fixed
+
     return {
       position: 'absolute',
       left: `${(currentSelection.x + currentSelection.width) * scaleX + 10}px`,
       top: `${currentSelection.y * scaleY}px`,
       zIndex: 20,
-      pointerEvents: 'auto' // Ensure it's clickable
+      pointerEvents: 'auto'
     };
   };
 
@@ -370,17 +353,17 @@ echo "Box files generated. Please manually correct them before proceeding."
       {currentSelection && (
         <div style={getButtonPosition()} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 transition-all duration-200 hover:scale-105 border-2 border-green-500">
           <Scissors className="w-4 h-4" />
-          Add Selected Region
+          {t('imageProcess.addSelectedRegion')}
         </div>
       )}
 
       <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-bold mb-2 text-cyan-400">Mabinogi Tesseract Training Prep</h1>
-        <p className="text-gray-400 mb-6">Preprocess item tooltip images and prepare training data</p>
+        <h1 className="text-3xl font-bold mb-2 text-cyan-400">{t('imageProcess.title')}</h1>
+        <p className="text-gray-400 mb-6">{t('imageProcess.subtitle')}</p>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="bg-gray-800 rounded-lg p-6">
-            <h2 className="text-xl font-semibold mb-4">Image Processing</h2>
+            <h2 className="text-xl font-semibold mb-4">{t('imageProcess.imageProcessing')}</h2>
 
             <input
               type="file"
@@ -389,26 +372,26 @@ echo "Box files generated. Please manually correct them before proceeding."
               accept="image/*"
               className="hidden"
             />
-            
+
             <button
               onClick={() => fileInputRef.current?.click()}
               className="w-full bg-cyan-600 hover:bg-cyan-700 text-white py-3 rounded-lg mb-4 flex items-center justify-center gap-2"
             >
               <Upload className="w-5 h-5" />
-              Upload Item Tooltip Image
+              {t('imageProcess.uploadImage')}
             </button>
 
             {image && (
               <div className="space-y-4">
                 <div>
-                  <h3 className="text-sm font-medium mb-2">Original Image</h3>
+                  <h3 className="text-sm font-medium mb-2">{t('imageProcess.originalImage')}</h3>
                   <img src={image.src} alt="Original" className="w-full border border-gray-700 rounded" />
                 </div>
 
                 <div>
                   <div className="flex justify-between items-center mb-2">
-                    <h3 className="text-sm font-medium">Processed Image</h3>
-                    <span className="text-xs text-gray-400">Drag to select text regions</span>
+                    <h3 className="text-sm font-medium">{t('imageProcess.processedImage')}</h3>
+                    <span className="text-xs text-gray-400">{t('imageProcess.dragToSelect')}</span>
                   </div>
                   {processedImage && (
                     <div className="relative">
@@ -419,16 +402,16 @@ echo "Box files generated. Please manually correct them before proceeding."
                         onMouseUp={handleMouseUp}
                         className="w-full border border-gray-700 rounded cursor-crosshair"
                       />
-                      
+
                       {/* Smart Positioning Add Selected Region Button */}
                       {currentSelection && (
-                        <div 
-                          style={getButtonPosition()} 
+                        <div
+                          style={getButtonPosition()}
                           className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 transition-all duration-200 hover:scale-105 border-2 border-green-500 cursor-pointer"
                           onClick={addSelection}
                         >
                           <Scissors className="w-4 h-4" />
-                          Add Selected Region
+                          {t('imageProcess.addSelectedRegion')}
                         </div>
                       )}
                     </div>
@@ -444,13 +427,13 @@ echo "Box files generated. Please manually correct them before proceeding."
             <div className="bg-gray-800 rounded-lg p-6">
               <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
                 <Settings className="w-5 h-5" />
-                Processing Settings
+                {t('imageProcess.processingSettings')}
               </h2>
 
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium mb-2">
-                    Contrast: {settings.contrast.toFixed(1)}
+                    {t('imageProcess.contrast', { value: settings.contrast.toFixed(1) })}
                   </label>
                   <input
                     type="range"
@@ -465,7 +448,7 @@ echo "Box files generated. Please manually correct them before proceeding."
 
                 <div>
                   <label className="block text-sm font-medium mb-2">
-                    Brightness: {settings.brightness.toFixed(1)}
+                    {t('imageProcess.brightness', { value: settings.brightness.toFixed(1) })}
                   </label>
                   <input
                     type="range"
@@ -480,7 +463,7 @@ echo "Box files generated. Please manually correct them before proceeding."
 
                 <div>
                   <label className="block text-sm font-medium mb-2">
-                    Threshold: {settings.threshold}
+                    {t('imageProcess.threshold', { value: settings.threshold })}
                   </label>
                   <input
                     type="range"
@@ -502,22 +485,22 @@ echo "Box files generated. Please manually correct them before proceeding."
                       onChange={(e) => handleSettingChange('useAdaptive', e.target.checked)}
                       className="w-4 h-4"
                     />
-                    <span className="text-sm">Use Adaptive Threshold</span>
+                    <span className="text-sm">{t('imageProcess.useAdaptive')}</span>
                   </label>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-2">Color Channel</label>
+                  <label className="block text-sm font-medium mb-2">{t('imageProcess.colorChannel')}</label>
                   <select
                     value={settings.colorChannel}
                     onChange={(e) => handleSettingChange('colorChannel', e.target.value)}
                     className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2"
                   >
-                    <option value="grayscale">Grayscale</option>
-                    <option value="red">Red Channel</option>
-                    <option value="green">Green Channel</option>
-                    <option value="blue">Blue Channel</option>
-                    <option value="original">Original</option>
+                    <option value="grayscale">{t('imageProcess.grayscale')}</option>
+                    <option value="red">{t('imageProcess.redChannel')}</option>
+                    <option value="green">{t('imageProcess.greenChannel')}</option>
+                    <option value="blue">{t('imageProcess.blueChannel')}</option>
+                    <option value="original">{t('imageProcess.original')}</option>
                   </select>
                 </div>
               </div>
@@ -525,8 +508,8 @@ echo "Box files generated. Please manually correct them before proceeding."
 
             {manualSegments.length > 0 && (
               <div className="bg-gray-800 rounded-lg p-6">
-                <h2 className="text-xl font-semibold mb-4">Selected Segments ({manualSegments.length})</h2>
-                
+                <h2 className="text-xl font-semibold mb-4">{t('imageProcess.selectedSegments', { count: manualSegments.length })}</h2>
+
                 <div className="space-y-3 max-h-96 overflow-y-auto">
                   {manualSegments.map((segment) => (
                     <div key={segment.id} className="border border-gray-700 rounded p-3">
@@ -542,7 +525,7 @@ echo "Box files generated. Please manually correct them before proceeding."
                       <textarea
                         value={segment.text}
                         onChange={(e) => updateSegmentText(segment.id, e.target.value)}
-                        placeholder="Enter text for this segment..."
+                        placeholder={t('imageProcess.segmentPlaceholder')}
                         className="w-full h-16 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm resize-none"
                       />
                     </div>
@@ -553,7 +536,7 @@ echo "Box files generated. Please manually correct them before proceeding."
                   onClick={addSegmentsToDataset}
                   className="w-full mt-4 bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg"
                 >
-                  Add All Segments to Dataset
+                  {t('imageProcess.addAllSegments')}
                 </button>
               </div>
             )}
@@ -562,8 +545,8 @@ echo "Box files generated. Please manually correct them before proceeding."
 
         {images.length > 0 && (
           <div className="mt-6 bg-gray-800 rounded-lg p-6">
-            <h2 className="text-xl font-semibold mb-4">Training Dataset ({images.length} images)</h2>
-            
+            <h2 className="text-xl font-semibold mb-4">{t('imageProcess.trainingDataset', { count: images.length })}</h2>
+
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
               {images.map((item) => (
                 <div key={item.id} className="border border-gray-700 rounded p-2">
@@ -579,30 +562,30 @@ echo "Box files generated. Please manually correct them before proceeding."
                 className="flex-1 bg-cyan-600 hover:bg-cyan-700 text-white py-3 rounded-lg flex items-center justify-center gap-2"
               >
                 <Download className="w-5 h-5" />
-                Download All Images & Text Files
+                {t('imageProcess.downloadAll')}
               </button>
-              
+
               <button
                 onClick={downloadTrainingScript}
                 className="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-3 rounded-lg flex items-center justify-center gap-2"
               >
                 <Download className="w-5 h-5" />
-                Download Training Script
+                {t('imageProcess.downloadScript')}
               </button>
             </div>
           </div>
         )}
 
         <div className="mt-6 bg-gray-800 rounded-lg p-6">
-          <h2 className="text-xl font-semibold mb-4">Quick Guide</h2>
+          <h2 className="text-xl font-semibold mb-4">{t('imageProcess.quickGuide')}</h2>
           <ol className="space-y-2 text-sm text-gray-300">
-            <li><strong>1.</strong> Upload an item tooltip image from Mabinogi</li>
-            <li><strong>2.</strong> Adjust processing settings to get clear text</li>
-            <li><strong>3.</strong> <strong className="text-cyan-400">Drag with your mouse to select text regions</strong></li>
-            <li><strong>4.</strong> Click "Add Selected Region" for each selection</li>
-            <li><strong>5.</strong> Type the text for each segment</li>
-            <li><strong>6.</strong> Click "Add All Segments to Dataset"</li>
-            <li><strong>7.</strong> Repeat for many tooltips, then download everything!</li>
+            <li><strong>1.</strong> {t('imageProcess.guide1')}</li>
+            <li><strong>2.</strong> {t('imageProcess.guide2')}</li>
+            <li><strong>3.</strong> <strong className="text-cyan-400">{t('imageProcess.guide3')}</strong></li>
+            <li><strong>4.</strong> {t('imageProcess.guide4')}</li>
+            <li><strong>5.</strong> {t('imageProcess.guide5')}</li>
+            <li><strong>6.</strong> {t('imageProcess.guide6')}</li>
+            <li><strong>7.</strong> {t('imageProcess.guide7')}</li>
           </ol>
         </div>
       </div>

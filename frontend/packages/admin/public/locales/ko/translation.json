@@ -1,0 +1,69 @@
+{
+  "admin": {
+    "title": "ADMIN",
+    "titleHighlight": "DASHBOARD",
+    "subtitle": "Database Validation & Maintenance",
+    "initializing": "Initializing Database..."
+  },
+  "stats": {
+    "enchants": "Enchants",
+    "effects": "Effects",
+    "enchantEffects": "Enchant Effects",
+    "items": "Items"
+  },
+  "tabs": {
+    "enchants": "Enchants",
+    "items": "Items",
+    "corrections": "Corrections"
+  },
+  "corrections": {
+    "title": "OCR CORRECTIONS",
+    "pending": "pending",
+    "approved": "approved",
+    "prev": "PREV",
+    "next": "NEXT",
+    "noCorrections": "No {{status}} corrections found.",
+    "save": "Save",
+    "approve": "Approve",
+    "refresh": "Refresh"
+  },
+  "items": {
+    "title": "REGISTERED ITEMS",
+    "prev": "PREV",
+    "next": "NEXT",
+    "noItems": "No registered items found.",
+    "loadingDetails": "Loading details...",
+    "enchants": "Enchants",
+    "prefix": "Prefix",
+    "suffix": "Suffix",
+    "rank": "Rank {{rank}}",
+    "reforgeOptions": "Reforge Options",
+    "level": "Lv. {{level}}",
+    "noEnchantReforge": "No enchant or reforge data for this item.",
+    "unnamed": "(unnamed)",
+    "refresh": "Refresh",
+    "enchantCount": "{{count}} ENCHANT",
+    "enchantCount_plural": "{{count}} ENCHANTS"
+  },
+  "enchants": {
+    "title": "ENCHANT ENTRIES",
+    "searchPlaceholder": "Search enchant name",
+    "prev": "PREV",
+    "next": "NEXT",
+    "effectsAndConditions": "Enchant Effects & Conditions",
+    "loadingEffects": "Loading effects...",
+    "noEffects": "No effects found for this enchant.",
+    "noMatch": "No enchant matched the search.",
+    "prefix": "Prefix",
+    "suffix": "Suffix",
+    "rank": "Rank {{rank}}",
+    "effectCount": "{{count}} EFFECTS",
+    "increase": "Increase",
+    "decrease": "Decrease",
+    "condition": "Condition: {{text}}",
+    "order": "Order: {{value}}",
+    "range": "Range: {{min}} ~ {{max}}",
+    "value": "Value: {{value}}",
+    "refresh": "Refresh"
+  }
+}

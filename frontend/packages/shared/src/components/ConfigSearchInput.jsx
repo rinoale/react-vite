@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 /**
  * Search-and-select dropdown for correcting OCR values from config data.
@@ -11,6 +12,7 @@ import { X } from 'lucide-react';
  * @param {string} placeholder - Input placeholder text
  */
 const ConfigSearchInput = ({ items, getLabel, onSelect, onCancel, placeholder }) => {
+  const { t } = useTranslation();
   const [query, setQuery] = useState('');
   const [highlightIdx, setHighlightIdx] = useState(0);
   const inputRef = useRef(null);
@@ -60,7 +62,7 @@ const ConfigSearchInput = ({ items, getLabel, onSelect, onCancel, placeholder })
           placeholder={placeholder}
           className="flex-1 bg-gray-900 border border-orange-500 rounded px-2 py-1 text-sm text-gray-200 focus:ring-1 focus:ring-orange-500 outline-none"
         />
-        <button onClick={onCancel} className="p-0.5 text-gray-500 hover:text-gray-300" title="Cancel">
+        <button onClick={onCancel} className="p-0.5 text-gray-500 hover:text-gray-300" title={t('sections.cancel')}>
           <X className="w-3.5 h-3.5" />
         </button>
       </div>

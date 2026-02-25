@@ -10,6 +10,7 @@
     "./api/admin": "./src/api/admin.js",
     "./components/SectionCard": "./src/components/SectionCard.jsx",
     "./components/ConfigSearchInput": "./src/components/ConfigSearchInput.jsx",
-    "./components/sections": "./src/components/sections/index.js"
+    "./components/sections": "./src/components/sections/index.js",
+    "./i18n": "./src/i18n.js"
   }
 }

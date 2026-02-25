@@ -1,24 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Upload, Loader2, Save, X, Settings, RotateCw, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import SectionCard from '@mabi/shared/components/SectionCard';
 import { ColorPartsSection, EnchantSection, ReforgeSection, DefaultSection } from '@mabi/shared/components/sections';
 import { uploadItemV3, registerItem } from '@mabi/shared/api/items';
 
-const CATEGORY_LABELS = {
-  item_name: "Item Name",
-  item_type: "Item Type",
-  item_grade: "Grade",
-  item_attrs: "Attributes (아이템 속성)",
-  enchant: "Enchant (인챈트)",
-  item_mod: "Upgrade (개조)",
-  reforge: "Reforge (세공)",
-  erg: "Erg (에르그)",
-  set_item: "Set Item (세트아이템)",
-  item_color: "Item Color (아이템 색상)",
-  ego: "Spirit (정령)"
-};
-
 const Sell = () => {
+  const { t } = useTranslation();
   const [file, setFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -34,7 +22,7 @@ const Sell = () => {
     set_item: true,
     item_color: true
   });
-  
+
   const [sessionId, setSessionId] = useState(null);
 
   const [formData, setFormData] = useState({
@@ -75,11 +63,11 @@ const Sell = () => {
 
       // Map sections to form data
       const newSections = data.sections || {};
-      
+
       // Auto-populate some core fields
       const itemName = newSections.item_name?.text || '';
       const allText = (data.all_lines || []).map(l => l.text).join('\n');
-      
+
       setFormData(prev => ({
         ...prev,
         name: itemName,
@@ -92,7 +80,7 @@ const Sell = () => {
 
     } catch (error) {
       console.error("Error processing image:", error);
-      alert("Error scanning image. Please try again.");
+      alert(t('sell.errorScanning'));
       setLoadingStep('ERROR');
     } finally {
       setIsLoading(false);
@@ -121,7 +109,7 @@ const Sell = () => {
 
 
   const renderSectionContent = (key, sectionData) => {
-    if (sectionData.skipped) return <p className="text-xs text-gray-500 italic">Section skipped by parser</p>;
+    if (sectionData.skipped) return <p className="text-xs text-gray-500 italic">{t('sell.sectionSkipped')}</p>;
 
     const onLineChange = (lineIdx, newText, structuredUpdate) => handleSectionTextChange(key, lineIdx, newText, structuredUpdate);
 
@@ -139,47 +127,47 @@ const Sell = () => {
       <div className="max-w-7xl mx-auto">
         <header className="flex justify-between items-center mb-8 border-b border-gray-800 pb-4">
           <div>
-            <h1 className="text-4xl font-black text-white tracking-tight">SELL <span className="text-orange-500">ITEM</span></h1>
-            <p className="text-gray-400 text-sm mt-1">Register your Mabinogi items via OCR</p>
+            <h1 className="text-4xl font-black text-white tracking-tight">{t('sell.title')} <span className="text-orange-500">{t('sell.titleHighlight')}</span></h1>
+            <p className="text-gray-400 text-sm mt-1">{t('sell.subtitle')}</p>
           </div>
           <div className="flex gap-3">
-             {loadingStep === 'COMPLETE' && <span className="flex items-center gap-1 text-green-400 text-sm font-bold bg-green-950/30 px-3 py-1 rounded-full border border-green-900/50"><CheckCircle2 className="w-4 h-4" /> Scan Successful</span>}
+             {loadingStep === 'COMPLETE' && <span className="flex items-center gap-1 text-green-400 text-sm font-bold bg-green-950/30 px-3 py-1 rounded-full border border-green-900/50"><CheckCircle2 className="w-4 h-4" /> {t('sell.scanSuccessful')}</span>}
           </div>
         </header>
-        
+
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
           {/* Left Column: Image Upload (4 cols) */}
           <div className="xl:col-span-4 space-y-6">
             <div className="bg-gray-800 rounded-2xl p-6 border border-gray-700 shadow-2xl">
               <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
                 <Upload className="w-5 h-5 text-orange-500" />
-                Upload Tooltip
+                {t('sell.uploadTooltip')}
               </h2>
-              
+
               {!previewUrl ? (
                 <div className="border-2 border-dashed border-gray-700 rounded-xl h-80 flex flex-col items-center justify-center text-gray-500 hover:border-orange-500 hover:bg-orange-500/5 transition-all cursor-pointer relative group">
-                  <input 
-                    type="file" 
-                    onChange={handleFileChange} 
+                  <input
+                    type="file"
+                    onChange={handleFileChange}
                     accept="image/*"
                     className="absolute inset-0 opacity-0 cursor-pointer"
                   />
                   <div className="bg-gray-700 p-4 rounded-full mb-4 group-hover:scale-110 transition-transform">
                     <Upload className="w-8 h-8 text-gray-400" />
                   </div>
-                  <span className="font-bold">Drop Mabinogi Screenshot</span>
-                  <span className="text-xs mt-1 text-gray-600">Supports JPG, PNG</span>
+                  <span className="font-bold">{t('sell.dropScreenshot')}</span>
+                  <span className="text-xs mt-1 text-gray-600">{t('sell.supportedFormats')}</span>
                 </div>
               ) : (
                 <div className="space-y-4">
                   <div className="relative group">
-                    <img 
-                      src={previewUrl} 
-                      alt="Item Preview" 
+                    <img
+                      src={previewUrl}
+                      alt="Item Preview"
                       className="w-full rounded-xl shadow-xl border border-gray-700"
                     />
                     <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-xl">
-                        <button 
+                        <button
                             onClick={() => { setFile(null); setPreviewUrl(null); setOcrResult(null); setDetectedLines([]); }}
                             className="bg-red-600 p-2 rounded-full hover:bg-red-700 text-white shadow-lg"
                         >
@@ -196,7 +184,7 @@ const Sell = () => {
                   className="w-full mt-6 bg-orange-600 hover:bg-orange-500 text-white py-4 rounded-xl flex items-center justify-center gap-2 font-black uppercase tracking-widest transition-all shadow-lg active:scale-95"
                 >
                   <RotateCw className="w-5 h-5" />
-                  Scan Tooltip
+                  {t('sell.scanTooltip')}
                 </button>
               )}
 
@@ -205,10 +193,10 @@ const Sell = () => {
                   <Loader2 className="w-8 h-8 text-orange-500 animate-spin" />
                   <div className="text-center">
                     <p className="font-bold text-sm tracking-wide">
-                        {loadingStep === 'SEGMENTING' ? 'DETECTING SECTIONS...' : 
-                         loadingStep === 'RECOGNIZING' ? 'READING TEXT STATS...' : 'PROCESSING...'}
+                        {loadingStep === 'SEGMENTING' ? t('sell.detectingSections') :
+                         loadingStep === 'RECOGNIZING' ? t('sell.readingText') : t('sell.processing')}
                     </p>
-                    <p className="text-[10px] text-gray-500 mt-1 uppercase">Attempt 17 (V3 Pipeline)</p>
+                    <p className="text-[10px] text-gray-500 mt-1 uppercase">{t('sell.pipelineVersion')}</p>
                   </div>
                 </div>
               )}
@@ -217,14 +205,14 @@ const Sell = () => {
             {/* Confidence Stats */}
             {ocrResult && (
                 <div className="bg-gray-800 rounded-2xl p-6 border border-gray-700 shadow-xl">
-                    <h3 className="text-xs font-black text-gray-500 uppercase tracking-widest mb-4">OCR METRICS</h3>
+                    <h3 className="text-xs font-black text-gray-500 uppercase tracking-widest mb-4">{t('sell.ocrMetrics')}</h3>
                     <div className="grid grid-cols-2 gap-4">
                         <div className="bg-gray-900/50 p-3 rounded-xl border border-gray-700/50">
-                            <span className="text-[10px] text-gray-500 font-bold uppercase block mb-1">Total Lines</span>
+                            <span className="text-[10px] text-gray-500 font-bold uppercase block mb-1">{t('sell.totalLines')}</span>
                             <span className="text-2xl font-black text-white">{detectedLines.length}</span>
                         </div>
                         <div className="bg-gray-900/50 p-3 rounded-xl border border-gray-700/50">
-                            <span className="text-[10px] text-gray-500 font-bold uppercase block mb-1">Sections</span>
+                            <span className="text-[10px] text-gray-500 font-bold uppercase block mb-1">{t('sell.sections')}</span>
                             <span className="text-2xl font-black text-orange-500">{Object.keys(ocrResult.sections).length}</span>
                         </div>
                     </div>
@@ -240,12 +228,12 @@ const Sell = () => {
 
               <div className="flex justify-between items-center mb-8">
                 <h2 className="text-2xl font-black flex items-center gap-3">
-                   ITEM DETAILS
-                   {ocrResult && <span className="bg-green-500/10 text-green-500 text-[10px] px-2 py-1 rounded border border-green-500/20">SCANNED</span>}
+                   {t('sell.itemDetails')}
+                   {ocrResult && <span className="bg-green-500/10 text-green-500 text-[10px] px-2 py-1 rounded border border-green-500/20">{t('sell.scanned')}</span>}
                 </h2>
-                <div className="text-xs text-gray-500 font-bold">MABINOGI MARKETPLACE V1.0</div>
+                <div className="text-xs text-gray-500 font-bold">{t('sell.appVersion')}</div>
               </div>
-              
+
               <form className="space-y-6" onSubmit={async (e) => {
                 e.preventDefault();
 
@@ -288,28 +276,28 @@ const Sell = () => {
                     reforge_options,
                   });
                   const corrMsg = result.corrections_saved
-                    ? ` (${result.corrections_saved} correction(s) captured for training)`
+                    ? t('sell.correctionsCapture', { count: result.corrections_saved })
                     : '';
-                  alert(`Item registered successfully.${corrMsg}`);
+                  alert(`${t('sell.itemRegistered')}${corrMsg}`);
                 } catch (err) {
                   console.error('Register item error:', err);
-                  alert('Failed to register item.');
+                  alert(t('sell.registerFailed'));
                 }
               }}>
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
                     <div className="md:col-span-8">
-                        <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Item Name</label>
+                        <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">{t('sell.itemName')}</label>
                         <input
                             type="text"
                             name="name"
                             value={formData.name}
                             onChange={handleInputChange}
-                            placeholder="e.g. Dragon Blade"
+                            placeholder={t('sell.itemNamePlaceholder')}
                             className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-lg font-bold text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all"
                         />
                     </div>
                     <div className="md:col-span-4">
-                        <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Price (Gold)</label>
+                        <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">{t('sell.price')}</label>
                         <input
                             type="text"
                             inputMode="numeric"
@@ -330,16 +318,16 @@ const Sell = () => {
                 {/* Structured Sections Grid */}
                 {ocrResult ? (
                     <div className="space-y-2 mt-8">
-                        <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-4">Detected Categories</label>
-                        
+                        <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-4">{t('sell.detectedCategories')}</label>
+
                         {/* Render known sections in a specific order if possible */}
                         {Object.keys(formData.sections).map((secKey) => {
                             if (['item_name', 'item_type', 'flavor_text', 'shop_price'].includes(secKey)) return null;
                             const sectionData = formData.sections[secKey];
                             return (
-                                <SectionCard 
-                                    key={secKey} 
-                                    title={CATEGORY_LABELS[secKey] || secKey} 
+                                <SectionCard
+                                    key={secKey}
+                                    title={t(`categoryLabels.${secKey}`, secKey)}
                                     isOpen={openSections[secKey]}
                                     onToggle={() => toggleSection(secKey)}
                                 >
@@ -351,7 +339,7 @@ const Sell = () => {
                         {/* Special case for Item Type if not in card */}
                         {formData.sections.item_type && (
                             <div className="bg-gray-900/30 p-4 rounded-xl border border-gray-700/50 mt-4">
-                                <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Item Classification</label>
+                                <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">{t('sell.itemClassification')}</label>
                                 <p className="text-sm text-gray-400 italic font-medium">{formData.sections.item_type.text}</p>
                             </div>
                         )}
@@ -359,8 +347,8 @@ const Sell = () => {
                 ) : (
                     <div className="py-20 flex flex-col items-center justify-center border-2 border-dashed border-gray-700 rounded-2xl bg-gray-900/20 text-gray-500">
                         <RotateCw className="w-12 h-12 mb-4 opacity-10" />
-                        <p className="font-bold tracking-tight">Upload and scan an item tooltip to populate details</p>
-                        <p className="text-xs mt-1">Structured parsing will automatically organize the data.</p>
+                        <p className="font-bold tracking-tight">{t('sell.emptyTitle')}</p>
+                        <p className="text-xs mt-1">{t('sell.emptySubtitle')}</p>
                     </div>
                 )}
 
@@ -370,12 +358,12 @@ const Sell = () => {
                     className="flex-1 bg-green-600 hover:bg-green-500 text-white py-4 rounded-2xl flex items-center justify-center gap-2 font-black text-xl transition-all shadow-xl active:scale-95 uppercase tracking-widest"
                   >
                     <Save className="w-6 h-6" />
-                    Register Item
+                    {t('sell.registerItem')}
                   </button>
                   <button
                     type="button"
                     className="px-6 bg-gray-700 hover:bg-gray-600 text-white rounded-2xl font-bold transition-all shadow-lg active:scale-95"
-                    title="Reset Form"
+                    title={t('sell.resetForm')}
                     onClick={() => {
                         setOcrResult(null);
                         setFormData({ name: '', price: '', category: 'weapon', description: '', sections: {} });
