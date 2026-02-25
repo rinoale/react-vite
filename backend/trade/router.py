@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from typing import List
 
 from db.connector import get_db
-from db.models import OcrCorrection
+from db.models import OcrCorrection, Item
 from db.schemas import RegisterItemRequest
 from trade.schemas import UploadItemV3Response
 from lib.log import logger
@@ -215,9 +215,21 @@ def register_item(payload: RegisterItemRequest, db: Session = Depends(get_db)):
                     logger.exception("register-item  DB commit failed for %d correction(s)", corrections_saved)
                     corrections_saved = 0
 
-    # TODO: persist item to DB when item storage is implemented
+    # Persist item to DB
+    item = Item(name=payload.name)
+    db.add(item)
+    try:
+        db.commit()
+        db.refresh(item)
+        logger.info("register-item  persisted item id=%d name=%r", item.id, item.name)
+    except Exception:
+        db.rollback()
+        logger.exception("register-item  item persist failed")
+        raise HTTPException(status_code=500, detail="Failed to persist item")
+
     return {
         "registered": True,
         "name": payload.name,
+        "item_id": item.id,
         "corrections_saved": corrections_saved,
     }

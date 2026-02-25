@@ -9,6 +9,7 @@ def get_summary(db: Session):
         "effects": db.query(models.Effect).count(),
         "enchant_effects": db.query(models.EnchantEffect).count(),
         "reforge_options": db.query(models.ReforgeOption).count(),
+        "items": db.query(models.Item).count(),
     }
 
 def get_enchants(db: Session, limit: int = 100, offset: int = 0):
@@ -90,3 +91,26 @@ def get_enchant_effects_by_id(db: Session, enchant_id: int):
 
 def get_reforge_options(db: Session, limit: int = 100, offset: int = 0):
     return db.query(models.ReforgeOption).order_by(models.ReforgeOption.id).limit(limit).offset(offset).all()
+
+def get_items(db: Session, limit: int = 100, offset: int = 0):
+    rows = db.execute(
+        text(
+            """
+            SELECT
+                i.id,
+                i.name,
+                i.created_at,
+                COUNT(ie.id) AS enchant_count
+            FROM items i
+            LEFT JOIN item_enchants ie ON ie.item_id = i.id
+            GROUP BY i.id
+            ORDER BY i.id DESC
+            LIMIT :limit OFFSET :offset
+            """
+        ),
+        {"limit": limit, "offset": offset},
+    ).mappings()
+    return [dict(r) for r in rows]
+
+def get_item_count(db: Session):
+    return db.query(models.Item).count()

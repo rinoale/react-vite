@@ -60,6 +60,7 @@ class SummarySchema(BaseModel):
     effects: int
     enchant_effects: int
     reforge_options: int
+    items: int
 
 class PaginatedEnchantResponse(BaseModel):
     limit: int
@@ -80,6 +81,20 @@ class PaginatedReforgeResponse(BaseModel):
     limit: int
     offset: int
     rows: List[ReforgeOption]
+
+class ItemOut(BaseModel):
+    id: int
+    name: str
+    created_at: Optional[datetime] = None
+    enchant_count: int = 0
+
+    class Config:
+        from_attributes = True
+
+class PaginatedItemResponse(BaseModel):
+    limit: int
+    offset: int
+    rows: List[ItemOut]
 
 
 # --- Item registration + implicit correction capture ---

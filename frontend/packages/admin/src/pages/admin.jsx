@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import { Loader2, ChevronDown, ChevronRight, Info, List, RefreshCw, Check, Image, Pencil, X, Save } from 'lucide-react';
-import { getSummary, getEnchantEntries, getEnchantEffects, getLinks, getCorrections, approveCorrection, editCorrection } from '@mabi/shared/api/admin';
+import { Loader2, ChevronDown, ChevronRight, Info, List, RefreshCw, Check, Image, Pencil, X, Save, Package } from 'lucide-react';
+import { getSummary, getEnchantEntries, getEnchantEffects, getLinks, getCorrections, approveCorrection, editCorrection, getItems } from '@mabi/shared/api/admin';
 
 const toRankLabel = (rank) => {
   const n = Number(rank);
@@ -22,6 +22,7 @@ const normalizeSummary = (summary) => ({
   effects: summary?.effects ?? summary?.enchant_effects ?? 0,
   enchantEffects: summary?.enchant_effects ?? summary?.enchant_links ?? 0,
   reforgeOptions: summary?.reforge_options ?? 0,
+  items: summary?.items ?? 0,
 });
 
 const formatEffectText = (effect) => {
@@ -287,8 +288,100 @@ const CorrectionsPanel = () => {
   );
 };
 
+const ItemsPanel = () => {
+  const [items, setItems] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [pagination, setPagination] = useState({ limit: 50, offset: 0 });
+
+  const fetchItems = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const { data } = await getItems({ limit: pagination.limit, offset: pagination.offset });
+      setItems(data.rows || []);
+    } catch (error) {
+      console.error('Error fetching items:', error);
+      setItems([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [pagination.offset, pagination.limit]);
+
+  useEffect(() => {
+    fetchItems();
+  }, [fetchItems]);
+
+  return (
+    <div className="bg-gray-800 rounded-2xl border border-gray-700 shadow-2xl overflow-hidden">
+      <div className="bg-gray-700/50 px-6 py-4 flex justify-between items-center">
+        <h2 className="text-xl font-bold flex items-center gap-2">
+          <Package className="w-5 h-5 text-cyan-500" />
+          REGISTERED ITEMS
+        </h2>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => setPagination((prev) => ({ ...prev, offset: Math.max(0, prev.offset - prev.limit) }))}
+            className="text-xs bg-gray-600 hover:bg-gray-500 px-3 py-1 rounded"
+            disabled={pagination.offset === 0}
+          >
+            PREV
+          </button>
+          <span className="text-xs font-mono">
+            {pagination.offset + 1} - {pagination.offset + items.length}
+          </span>
+          <button
+            onClick={() => setPagination((prev) => ({ ...prev, offset: prev.offset + prev.limit }))}
+            className="text-xs bg-gray-600 hover:bg-gray-500 px-3 py-1 rounded"
+            disabled={items.length < pagination.limit}
+          >
+            NEXT
+          </button>
+          <button onClick={fetchItems} className="p-1 hover:text-cyan-400" title="Refresh">
+            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
+      </div>
+
+      <div className="divide-y divide-gray-700">
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-8 h-8 text-cyan-500 animate-spin" />
+          </div>
+        ) : items.length === 0 ? (
+          <div className="px-6 py-8 text-center text-xs text-gray-500 uppercase tracking-wide">
+            No registered items found.
+          </div>
+        ) : (
+          items.map((item) => (
+            <div key={item.id} className="px-6 py-4 flex items-center justify-between hover:bg-gray-700/30 transition-colors">
+              <div className="flex items-center gap-4">
+                <span className="text-lg font-black text-white">{item.name || '(unnamed)'}</span>
+                {item.enchant_count > 0 && (
+                  <span className="text-xs font-bold text-cyan-600 uppercase tracking-tighter">
+                    {item.enchant_count} ENCHANT{item.enchant_count !== 1 ? 'S' : ''}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-4">
+                {item.created_at && (
+                  <span className="text-[10px] font-mono text-gray-500">
+                    {new Date(item.created_at).toLocaleString()}
+                  </span>
+                )}
+                <span className="text-[10px] font-mono text-gray-500 bg-black/30 px-2 py-0.5 rounded">
+                  ID: {item.id}
+                </span>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+};
+
 const TABS = [
   { key: 'enchants', label: 'Enchants' },
+  { key: 'items', label: 'Items' },
   { key: 'corrections', label: 'Corrections' },
 ];
 
@@ -391,6 +484,10 @@ const Admin = () => {
                 <span className="text-[10px] font-black text-gray-500 block uppercase">Enchant Effects</span>
                 <span className="text-lg font-bold text-cyan-400">{stats.enchantEffects}</span>
               </div>
+              <div className="bg-gray-800 px-4 py-2 rounded-lg border border-gray-700">
+                <span className="text-[10px] font-black text-gray-500 block uppercase">Items</span>
+                <span className="text-lg font-bold text-cyan-400">{stats.items}</span>
+              </div>
             </div>
           )}
         </header>
@@ -413,6 +510,8 @@ const Admin = () => {
 
         {activeTab === 'corrections' ? (
           <CorrectionsPanel />
+        ) : activeTab === 'items' ? (
+          <ItemsPanel />
         ) : isLoading && !summary ? (
           <div className="flex flex-col items-center justify-center py-20">
             <Loader2 className="w-12 h-12 text-cyan-500 animate-spin mb-4" />

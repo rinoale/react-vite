@@ -111,6 +111,16 @@ def admin_reforge_options(
     return {"limit": limit, "offset": offset, "rows": rows}
 
 
+@router.get("/items", response_model=schemas.PaginatedItemResponse)
+def admin_items(
+    limit: int = Query(default=100, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+):
+    rows = crud_admin.get_items(db, limit=limit, offset=offset)
+    return {"limit": limit, "offset": offset, "rows": rows}
+
+
 @router.get("/validate", response_class=HTMLResponse)
 def admin_validate_page(
     tab: str = Query(default="enchants"),
@@ -146,7 +156,8 @@ def admin_validate_page(
     enchants={summary['enchants']} |
     effects={summary['effects']} |
     enchant_effects={summary['enchant_effects']} |
-    reforge={summary['reforge_options']}
+    reforge={summary['reforge_options']} |
+    items={summary['items']}
   </p>
   <p>
     <a href=\"/admin/validate?tab=enchants&limit={limit}&offset=0\">enchants</a> |

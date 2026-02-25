@@ -10,11 +10,11 @@ Single full-page view, no sidebar or router. Renders `<Admin />` directly.
 
 ```
 +--header----------------------------------------------------------+
-| ADMIN DASHBOARD                    [Enchants] [Effects] [Links]  |
-| Database Validation & Maintenance   1,234      5,678     9,012   |
+| ADMIN DASHBOARD              [Enchants] [Effects] [Links] [Items]|
+| Database Validation           1,234      5,678    9,012    42    |
 +------------------------------------------------------------------+
 |                                                                  |
-|  [Enchants] [Corrections]   ← tab bar                           |
+|  [Enchants] [Items] [Corrections]   ← tab bar                   |
 |                                                                  |
 +------------------------------------------------------------------+
 ```
@@ -65,3 +65,24 @@ Single full-page view, no sidebar or router. Renders `<Admin />` directly.
 - **Inline edit**: click pencil → input replaces corrected text, Enter saves
 - **Approve**: marks correction as approved, removes from pending list
 - **Badges**: section (purple), model (mono), FM (yellow), charset mismatch (red)
+
+### Tab: Items
+
+```
++--REGISTERED ITEMS----------------------------------------------+
+| [pkg] REGISTERED ITEMS             [PREV] 1-50 [NEXT] @       |
++------------------------------------------------------------------+
+| 라이트 레더 아머                           2026-02-26   ID: 3    |
+|                                            2 ENCHANTS            |
+|------------------------------------------------------------------+
+| 캡틴 수트                                  2026-02-25   ID: 2    |
+|------------------------------------------------------------------+
+| 타이탄 블레이드                             2026-02-24   ID: 1    |
+|                                            1 ENCHANT             |
++------------------------------------------------------------------+
+```
+
+- **Flat list**: no expand/collapse, simpler than enchants
+- **Enchant badge**: shown only if enchant_count > 0
+- **Pagination**: server-side, 50 per page, newest first
+- **Timestamp**: created_at formatted as locale string
