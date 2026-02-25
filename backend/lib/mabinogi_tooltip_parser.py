@@ -970,9 +970,24 @@ class MabinogiTooltipParser(TooltipLineSplitter):
         header_iter = iter(header_batch)
         effect_iter = iter(effect_batch)
 
-        # 3. Assemble results — parse header text for slot/name/rank
+        # 3. Assemble results — determine slot from position, not OCR text.
+        #    Mabinogi tooltip: prefix always first, suffix second.
+        #    Grey lines above first header → prefix slot is empty → header is suffix.
         hdr_model_name = ('enchant_header' if enchant_header_reader is not None
                           else 'general')
+        n_headers = sum(1 for _, _, lt in classifications if lt == 'header')
+        if n_headers == 2:
+            slot_queue = ['접두', '접미']
+        elif n_headers == 1:
+            # Check if grey lines appear before the first header
+            first_hdr_y = next(b['y'] for _, b, lt in classifications if lt == 'header')
+            grey_above = any(lt == 'grey' and b['y'] < first_hdr_y
+                             for _, b, lt in classifications)
+            slot_queue = ['접미'] if grey_above else ['접두']
+        else:
+            slot_queue = []
+
+        slot_iter = iter(slot_queue)
         ocr_results = []
         for group, bounds, line_type in classifications:
             if line_type == 'grey':
@@ -992,16 +1007,9 @@ class MabinogiTooltipParser(TooltipLineSplitter):
                 line['section'] = section
                 line['is_enchant_hdr'] = True
                 line['ocr_model'] = hdr_model_name
-                text = line.get('text', '')
-                m = _ENCHANT_HEADER_RE.match(text)
-                if m:
-                    line['enchant_slot'] = m.group(1)
-                    line['enchant_name'] = m.group(2).strip()
-                    line['enchant_rank'] = m.group(3)
-                else:
-                    line['enchant_slot'] = ''
-                    line['enchant_name'] = ''
-                    line['enchant_rank'] = ''
+                line['enchant_slot'] = next(slot_iter, '')
+                line['enchant_name'] = ''
+                line['enchant_rank'] = ''
                 ocr_results.append(line)
             else:  # effect
                 line = next(effect_iter)
@@ -1075,7 +1083,12 @@ class MabinogiTooltipParser(TooltipLineSplitter):
                     name = line.get('enchant_name', '')
                     rank = line.get('enchant_rank', '')
 
-                current = {'text': text, 'name': name, 'rank': rank, 'effects': []}
+                # Enrich text with rank from DB if available but not in OCR output
+                display_text = text
+                if name and rank and '랭크' not in text:
+                    display_text = f"[{line.get('enchant_slot', '접두')}] {name} (랭크 {rank})"
+
+                current = {'text': display_text, 'name': name, 'rank': rank, 'effects': []}
                 slot = line.get('enchant_slot', '')
                 if slot == '접두':
                     prefix = current

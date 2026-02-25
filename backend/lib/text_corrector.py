@@ -198,7 +198,7 @@ class TextCorrector:
         best_score = 0
         best_norm = None
         for norm_entry, _ in effects_norm:
-            score = fuzz.ratio(norm_core, norm_entry)
+            score = fuzz.partial_ratio(norm_core, norm_entry)
             if score > best_score:
                 best_score = score
                 best_norm = norm_entry
@@ -627,6 +627,18 @@ class TextCorrector:
                             hdr_line['enchant_slot'] = entry['slot']
                             hdr_line['enchant_name'] = entry['name']
                             hdr_line['enchant_rank'] = entry['rank']
+
+                    # FM effect lines against the matched entry's effects
+                    if entry:
+                        for eff_line in effect_lines:
+                            eff_text = eff_line.get('text', '')
+                            if not eff_text.strip() or eff_line.get('is_grey'):
+                                continue
+                            fm_eff, eff_score = self.match_enchant_effect(
+                                eff_text, entry)
+                            if eff_score > 0:
+                                eff_line['text'] = fm_eff
+                                eff_line['fm_applied'] = True
             else:
                 # Fallback: old linear approach (regex-detected or no headers)
                 current_entry = None
