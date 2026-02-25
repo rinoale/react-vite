@@ -1,1 +1,2 @@
-@import 'tailwindcss'
+@import 'tailwindcss';
+@source "../../shared/src/**/*.{js,jsx}";

@@ -311,10 +311,16 @@ const Sell = () => {
                     <div className="md:col-span-4">
                         <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Price (Gold)</label>
                         <input
-                            type="number"
+                            type="text"
+                            inputMode="numeric"
                             name="price"
-                            value={formData.price}
-                            onChange={handleInputChange}
+                            value={formData.price ? Number(formData.price).toLocaleString() : ''}
+                            onChange={(e) => {
+                              const raw = e.target.value.replace(/,/g, '');
+                              if (raw === '' || /^\d+$/.test(raw)) {
+                                setFormData(prev => ({ ...prev, price: raw }));
+                              }
+                            }}
                             placeholder="0"
                             className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-lg font-bold text-orange-400 focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all"
                         />
