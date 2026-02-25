@@ -1,5 +1,4 @@
 import json
-import logging
 import os
 import shutil
 
@@ -12,10 +11,9 @@ from db.connector import get_db
 from db.models import OcrCorrection
 from db.schemas import RegisterItemRequest
 from trade.schemas import UploadItemV3Response
+from lib.log import logger
 from lib.recommendation import recommender, ITEMS_DB
 from lib.v3_pipeline import init_pipeline, run_v3_pipeline, prepare_sections_for_response
-
-logger = logging.getLogger('mabinogi')
 
 router = APIRouter()
 
@@ -29,9 +27,10 @@ _CORRECTIONS_DIR = os.path.join(_BASE_DIR, '..', 'data', 'corrections')
 _MODELS_DIR = os.path.join(_BASE_DIR, 'ocr', 'models')
 
 
-def _load_charset():
-    """Load union of character sets from both font-specific models."""
-    chars = set()
+def _load_charsets():
+    """Load per-model charsets for mismatch detection."""
+    charsets = {}
+    # Content models
     for yaml_prefix in ('custom_mabinogi_classic', 'custom_nanum_gothic_bold'):
         yaml_path = os.path.join(_MODELS_DIR, f'{yaml_prefix}.yaml')
         if not os.path.exists(yaml_path):
@@ -41,11 +40,24 @@ def _load_charset():
         chars_file = os.path.join(version_dir, 'unique_chars.txt')
         if os.path.exists(chars_file):
             with open(chars_file, 'r', encoding='utf-8') as f:
-                chars.update(f.read().strip())
-    return chars
+                charsets[yaml_prefix] = set(f.read().strip())
+    # Enchant header model
+    enchant_hdr_dir = os.path.join(_MODELS_DIR, 'custom_enchant_header.yaml')
+    if os.path.exists(enchant_hdr_dir):
+        real_path = os.path.realpath(enchant_hdr_dir)
+        version_dir = os.path.dirname(real_path)
+        for fname in ('enchant_header_chars.txt', 'unique_chars.txt'):
+            chars_file = os.path.join(version_dir, fname)
+            if os.path.exists(chars_file):
+                with open(chars_file, 'r', encoding='utf-8') as f:
+                    charsets['enchant_header'] = set(f.read().strip())
+                break
+    return charsets
 
 
-_CHARSET = _load_charset()
+_CHARSETS = _load_charsets()
+# Union of all model charsets — used only for logging, not gating
+_ALL_CHARS = set().union(*_CHARSETS.values()) if _CHARSETS else set()
 
 
 class UserHistory(BaseModel):
@@ -87,11 +99,27 @@ async def upload_item_v3(file: UploadFile = File(...)):
         if img_bgr is None:
             raise HTTPException(status_code=400, detail="Could not decode image")
 
+        h, w = img_bgr.shape[:2]
+        logger.info("upload-item-v3  file=%s  size=%dx%d", file.filename, w, h)
+
         result = run_v3_pipeline(img_bgr, **_pipeline, save_crops=True)
 
-        result['sections'] = prepare_sections_for_response(result['sections'])
+        all_lines = result.get('all_lines', [])
+        sections = result.get('sections', {})
+        session_id = result.get('session_id', '')
+        n_crops = sum(1 for l in all_lines if '_crop' not in l)  # crops already popped by pipeline
+
+        logger.info(
+            "upload-item-v3  session=%s  sections=%s  lines=%d  crops=%d",
+            session_id,
+            list(sections.keys()),
+            len(all_lines),
+            n_crops,
+        )
+
+        result['sections'] = prepare_sections_for_response(sections)
         # Strip is_header from all_lines (no longer in OcrLineResponse schema)
-        for line in result.get('all_lines', []):
+        for line in all_lines:
             line.pop('is_header', None)
 
         return {"filename": file.filename, **result}
@@ -139,11 +167,20 @@ def register_item(payload: RegisterItemRequest, db: Session = Depends(get_db)):
                 if line.text == orig['text']:
                     continue  # No change
 
-                # Charset gate
-                if _CHARSET:
-                    bad = set(line.text) - _CHARSET - {' '}
-                    if bad:
-                        continue
+                # Check charset mismatch against the model that produced this line
+                charset_mismatch = None
+                if _CHARSETS:
+                    ocr_model = orig.get('ocr_model', '')
+                    # Pick the right charset for this line's model
+                    if ocr_model == 'enchant_header':
+                        model_charset = _CHARSETS.get('enchant_header')
+                    else:
+                        # Content models — check union of both
+                        model_charset = _CHARSETS.get('custom_mabinogi_classic', set()) | _CHARSETS.get('custom_nanum_gothic_bold', set())
+                    if model_charset:
+                        bad = set(line.text) - model_charset - {' '}
+                        if bad:
+                            charset_mismatch = ''.join(sorted(bad))
 
                 # Copy crop image
                 crop_name = f"{line.global_index:03d}.png"
@@ -164,6 +201,7 @@ def register_item(payload: RegisterItemRequest, db: Session = Depends(get_db)):
                     ocr_model=orig.get('ocr_model', ''),
                     fm_applied=orig.get('fm_applied', False),
                     status='pending',
+                    charset_mismatch=charset_mismatch,
                     image_filename=crop_name,
                 ))
                 corrections_saved += 1

@@ -534,7 +534,7 @@ class MabinogiTooltipParser(TooltipLineSplitter):
 
     def _ocr_enchant_headers(self, content_bgr, binary,
                              header_classifications, bands, reader,
-                             save_crops_dir=None):
+                             save_crops_dir=None, attach_crops=False):
         """OCR enchant slot headers using white-mask band bounds.
 
         Instead of using line-splitter bounds (which include UI borders and
@@ -549,6 +549,7 @@ class MabinogiTooltipParser(TooltipLineSplitter):
             bands:        list of (y_start, y_end) from detect_enchant_slot_headers()
             reader:       EasyOCR reader for enchant headers
             save_crops_dir: if set, save each crop before OCR
+            attach_crops: if True, attach grayscale crop as '_crop' on each result
 
         Returns:
             list of dicts matching _ocr_grouped_lines output format
@@ -632,13 +633,16 @@ class MabinogiTooltipParser(TooltipLineSplitter):
             else:
                 text, confidence = '', 0.0
 
-            results.append({
+            entry = {
                 'text': text,
                 'confidence': float(confidence),
                 'sub_count': len(group),
                 'bounds': bounds,
                 'sub_lines': [],
-            })
+            }
+            if attach_crops:
+                entry['_crop'] = gray
+            results.append(entry)
 
         return results
 
@@ -959,7 +963,8 @@ class MabinogiTooltipParser(TooltipLineSplitter):
         _save = os.environ.get('SAVE_OCR_CROPS')
         header_batch = (self._ocr_enchant_headers(
                             content_bgr, binary, header_classifications, bands,
-                            hdr_reader, save_crops_dir=_save)
+                            hdr_reader, save_crops_dir=_save,
+                            attach_crops=attach_crops)
                         if header_classifications else [])
         effect_batch = (self._ocr_grouped_lines(binary, effect_groups, reader,
                                                 save_crops_dir=_save,

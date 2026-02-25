@@ -11,6 +11,7 @@ import cv2
 import easyocr
 
 from lib.dual_reader import DualReader
+from lib.log import logger, timed, timed_block
 from lib.mabinogi_tooltip_parser import MabinogiTooltipParser
 from lib.ocr_utils import patch_reader_imgw
 from lib.text_corrector import TextCorrector
@@ -28,6 +29,7 @@ CONFIG_PATH = os.path.join(BASE_DIR, '..', 'configs', 'mabinogi_tooltip.yaml')
 DICT_DIR    = os.path.join(BASE_DIR, '..', 'data', 'dictionary')
 
 
+@timed("v3 init_pipeline")
 def init_pipeline():
     """Initialize all V3 pipeline components.
 
@@ -76,6 +78,7 @@ def init_pipeline():
     }
 
 
+@timed("v3 pipeline total")
 def run_v3_pipeline(img_bgr, header_reader, section_patterns, config,
                     content_reader, enchant_header_reader, parser, corrector,
                     save_raw=False, save_crops=False):
@@ -104,15 +107,20 @@ def run_v3_pipeline(img_bgr, header_reader, section_patterns, config,
         os.makedirs(crop_session_dir, exist_ok=True)
 
     # Step 1: segment with header OCR
-    tagged = segment_and_tag(img_bgr, header_reader, section_patterns, config)
+    with timed_block("v3 step1") as step1_ms:
+        tagged = segment_and_tag(img_bgr, header_reader, section_patterns, config)
+    seg_labels = [s['section'] for s in tagged]
+    logger.info("v3 step1 segment  %d segments %s  %.1fms", len(tagged), seg_labels, step1_ms())
 
     # Step 2: content OCR per segment
-    result = parser.parse_from_segments(
-        tagged, content_reader, enchant_header_reader=enchant_header_reader,
-        crop_session_dir=crop_session_dir)
+    with timed_block("v3 step2") as step2_ms:
+        result = parser.parse_from_segments(
+            tagged, content_reader, enchant_header_reader=enchant_header_reader,
+            crop_session_dir=crop_session_dir)
 
     all_lines = result.get('all_lines', [])
     sections = result.get('sections', {})
+    logger.info("v3 step2 ocr  %d lines  %.1fms", len(all_lines), step2_ms())
 
     # Tag every line with a global index (needed for frontend diff mapping)
     for idx, line in enumerate(all_lines):
@@ -131,7 +139,10 @@ def run_v3_pipeline(img_bgr, header_reader, section_patterns, config,
             line['raw_text'] = line.get('text', '')
 
     # Step 3: FM (includes prefix stripping)
-    corrector.apply_fm(all_lines, sections)
+    with timed_block("v3 step3") as step3_ms:
+        corrector.apply_fm(all_lines, sections)
+    fm_count = sum(1 for l in all_lines if l.get('fm_applied'))
+    logger.info("v3 step3 fm  %d/%d lines corrected  %.1fms", fm_count, len(all_lines), step3_ms())
 
     # Step 4: rebuild structured data from FM-corrected lines
     if 'enchant' in sections and sections['enchant'].get('lines'):
@@ -157,6 +168,9 @@ def run_v3_pipeline(img_bgr, header_reader, section_patterns, config,
         with open(os.path.join(crop_session_dir, 'ocr_results.json'), 'w',
                   encoding='utf-8') as f:
             json.dump(originals, f, ensure_ascii=False, indent=2)
+        n_crops = sum(1 for o in originals
+                      if os.path.isfile(os.path.join(crop_session_dir, f"{o['global_index']:03d}.png")))
+        logger.info("v3 crops  session=%s  %d/%d saved", session_id, n_crops, len(originals))
 
     result_dict = {
         'sections': sections,

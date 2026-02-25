@@ -231,6 +231,11 @@ const CorrectionsPanel = () => {
                       FM
                     </span>
                   )}
+                  {c.charset_mismatch && (
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-900/40 text-red-300" title={`Missing chars: ${c.charset_mismatch}`}>
+                      CHARSET: {c.charset_mismatch}
+                    </span>
+                  )}
                   <span className="text-[10px] font-mono text-gray-600">ID: {c.id}</span>
                 </div>
               </div>

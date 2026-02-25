@@ -74,6 +74,7 @@ class OcrCorrection(Base):
     ocr_model = Column(Text, nullable=True)
     fm_applied = Column(Boolean, default=False)
     status = Column(Text, nullable=False, server_default='pending')
+    charset_mismatch = Column(Text, nullable=True)
     image_filename = Column(Text, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     trained_version = Column(Text, nullable=True)

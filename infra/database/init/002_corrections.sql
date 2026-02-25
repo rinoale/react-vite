@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS ocr_corrections (
     ocr_model TEXT,
     fm_applied BOOLEAN NOT NULL DEFAULT FALSE,
     status TEXT NOT NULL DEFAULT 'pending',        -- pending → approved → trained
+    charset_mismatch TEXT,                          -- chars not in model's charset (NULL = all OK)
     image_filename TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     trained_version TEXT                            -- set when merged into training data

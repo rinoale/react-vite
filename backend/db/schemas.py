@@ -106,6 +106,7 @@ class CorrectionOut(BaseModel):
     ocr_model: Optional[str] = None
     fm_applied: bool = False
     status: str
+    charset_mismatch: Optional[str] = None
     image_filename: str
     created_at: datetime
     trained_version: Optional[str] = None
