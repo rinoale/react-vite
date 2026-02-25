@@ -38,6 +38,7 @@ services:
       - /home/gbsong/workspace/ocr_training_data/mabinogi/data:/app/data
       - ./configs:/app/configs
       - ./logs:/app/logs
+      - ./tmp:/app/tmp
     restart: unless-stopped
 
   frontend:

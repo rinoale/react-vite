@@ -3,13 +3,30 @@ import { Pencil } from 'lucide-react';
 import ConfigSearchInput from '../ConfigSearchInput';
 
 const ReforgeOption = ({ opt, optIdx, lineIdx, onLineChange }) => {
-  const [editing, setEditing] = useState(false);
+  const [editingName, setEditingName] = useState(false);
+  const [editingLevel, setEditingLevel] = useState(false);
+  const [levelDraft, setLevelDraft] = useState('');
 
   const reforgeItems = useMemo(() => window.REFORGES_CONFIG || [], []);
 
+  const commitLevel = (value) => {
+    setEditingLevel(false);
+    if (value === '' || value === String(opt.level)) return;
+    const numLevel = parseInt(value, 10);
+    if (isNaN(numLevel)) return;
+    const newText = `- ${opt.name} (${numLevel}/${opt.max_level} 레벨)`;
+    onLineChange(lineIdx, newText, (sec) => {
+      if (sec.options) {
+        const opts = [...sec.options];
+        opts[optIdx] = { ...opts[optIdx], level: numLevel, option_level: numLevel };
+        sec.options = opts;
+      }
+    });
+  };
+
   return (
     <div className="bg-gray-900/50 p-2 rounded border border-gray-700">
-      {editing ? (
+      {editingName ? (
         <ConfigSearchInput
           items={reforgeItems}
           getLabel={(item) => item}
@@ -24,9 +41,9 @@ const ReforgeOption = ({ opt, optIdx, lineIdx, onLineChange }) => {
                 sec.options = opts;
               }
             });
-            setEditing(false);
+            setEditingName(false);
           }}
-          onCancel={() => setEditing(false)}
+          onCancel={() => setEditingName(false)}
           placeholder="Search reforge option..."
         />
       ) : (
@@ -34,7 +51,7 @@ const ReforgeOption = ({ opt, optIdx, lineIdx, onLineChange }) => {
           <div className="flex items-center gap-1">
             <span className="text-sm font-medium text-cyan-300">{opt.name}</span>
             <button
-              onClick={() => setEditing(true)}
+              onClick={() => setEditingName(true)}
               className="p-0.5 text-gray-600 opacity-0 group-hover:opacity-100 hover:text-cyan-400 transition-opacity"
               title="Correct"
             >
@@ -42,13 +59,32 @@ const ReforgeOption = ({ opt, optIdx, lineIdx, onLineChange }) => {
             </button>
           </div>
           {opt.level != null && (
-            <span className="text-xs bg-cyan-900/50 text-cyan-300 px-2 py-0.5 rounded border border-cyan-700/50">
-              Level {opt.level} / {opt.max_level}
-            </span>
+            editingLevel ? (
+              <input
+                type="text"
+                autoFocus
+                value={levelDraft}
+                onChange={(e) => setLevelDraft(e.target.value)}
+                onBlur={() => commitLevel(levelDraft)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') commitLevel(levelDraft);
+                  if (e.key === 'Escape') setEditingLevel(false);
+                }}
+                className="w-16 text-xs text-cyan-300 bg-gray-900 border border-cyan-500 rounded px-1 py-0.5 text-center outline-none"
+              />
+            ) : (
+              <span
+                className="text-xs bg-cyan-900/50 text-cyan-300 px-2 py-0.5 rounded border border-cyan-700/50 cursor-pointer hover:border-cyan-500"
+                onClick={() => { setLevelDraft(String(opt.level)); setEditingLevel(true); }}
+                title="Click to edit level"
+              >
+                Level {opt.level} / {opt.max_level}
+              </span>
+            )
           )}
         </div>
       )}
-      {!editing && opt.effect && <p className="text-xs text-gray-400">ㄴ {opt.effect}</p>}
+      {!editingName && opt.effect && <p className="text-xs text-gray-400">ㄴ {opt.effect}</p>}
     </div>
   );
 };

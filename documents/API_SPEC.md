@@ -285,3 +285,70 @@ Fetches the master list of reforge options.
 - **Method:** `GET`
 - **Query params:** `tab` (`enchants|effects|enchant_effects|reforge`), `limit`, `offset`
 - **Response:** `HTMLResponse` containing a server-rendered table for quick data auditing.
+
+---
+
+## 3. OCR Correction Review APIs
+
+These endpoints allow reviewing and approving user-submitted OCR corrections captured during `/register-item`.
+
+### Endpoints
+
+#### `GET /admin/corrections/list?status=pending&limit=100&offset=0`
+Fetches a paginated list of OCR corrections filtered by status.
+- **Query params:**
+
+| Parameter | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `status` | `string` | `pending` | Filter by status (`pending`, `approved`). |
+| `limit` | `int` | `100` | Max rows (up to 500). |
+| `offset` | `int` | `0` | Pagination offset. |
+
+- **Response Structure:** `Array<CorrectionOut>`
+  ```json
+  [
+    {
+      "id": 1,
+      "session_id": "d87ab724-30b8-428c-9076-f73155227af5",
+      "line_index": 21,
+      "original_text": "최대대미지 18 증가",
+      "corrected_text": "최대대미지 16 증가",
+      "confidence": 0.8159,
+      "section": "enchant",
+      "ocr_model": "mabinogi_classic",
+      "fm_applied": true,
+      "status": "pending",
+      "image_filename": "021.png",
+      "created_at": "2026-02-25T12:00:00+00:00",
+      "trained_version": null
+    }
+  ]
+  ```
+
+#### CorrectionOut Properties
+| Property | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | `int` | Yes | Correction record ID. |
+| `session_id` | `string` | Yes | Session from `/upload-item-v3`. Maps to crop dir `tmp/ocr_crops/{session_id}/`. |
+| `line_index` | `int` | Yes | Global line index. Crop image: `{session_id}/{line_index:03d}.png`. |
+| `original_text` | `string` | Yes | OCR output text (before user correction). |
+| `corrected_text` | `string` | Yes | User-submitted corrected text. |
+| `confidence` | `float` | No | OCR confidence of the original recognition. |
+| `section` | `string` | No | Section the line belongs to (e.g. `enchant`, `reforge`, `item_attrs`). |
+| `ocr_model` | `string` | No | Model that produced the original text (e.g. `mabinogi_classic`, `nanum_gothic_bold`). |
+| `fm_applied` | `bool` | Yes | Whether fuzzy matching was applied to the original text. |
+| `status` | `string` | Yes | Current status: `pending` or `approved`. |
+| `image_filename` | `string` | Yes | Crop image filename (e.g. `021.png`). |
+| `created_at` | `datetime` | Yes | Timestamp of correction submission. |
+| `trained_version` | `string` | No | Model version this correction was used to train (null if not yet used). |
+
+#### `POST /admin/corrections/approve/{correction_id}`
+Approves a pending correction.
+- **Path params:** `correction_id` (int) — The correction record ID.
+- **Response:**
+  ```json
+  { "id": 1, "status": "approved" }
+  ```
+- **Errors:**
+  - `404` — Correction not found.
+  - `400` — Correction is not in `pending` status.

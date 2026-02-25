@@ -156,7 +156,7 @@ def run_v3_pipeline(img_bgr, header_reader, section_patterns, config,
             })
         with open(os.path.join(crop_session_dir, 'ocr_results.json'), 'w',
                   encoding='utf-8') as f:
-            json.dump(originals, f, ensure_ascii=False)
+            json.dump(originals, f, ensure_ascii=False, indent=2)
 
     result_dict = {
         'sections': sections,

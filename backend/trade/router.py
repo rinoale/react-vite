@@ -112,6 +112,10 @@ def register_item(payload: RegisterItemRequest, db: Session = Depends(get_db)):
     diffs against the submitted lines, and saves any changes as
     correction training data.
     """
+    logger.info(
+        "register-item  session=%s  name=%r  lines=%d",
+        payload.session_id, payload.name, len(payload.lines),
+    )
     corrections_saved = 0
 
     # Capture corrections if we have a session with stored originals
@@ -165,7 +169,13 @@ def register_item(payload: RegisterItemRequest, db: Session = Depends(get_db)):
                 corrections_saved += 1
 
             if corrections_saved:
-                db.commit()
+                try:
+                    db.commit()
+                    logger.info("register-item  saved %d correction(s)", corrections_saved)
+                except Exception:
+                    db.rollback()
+                    logger.exception("register-item  DB commit failed for %d correction(s)", corrections_saved)
+                    corrections_saved = 0
 
     # TODO: persist item to DB when item storage is implemented
     return {
