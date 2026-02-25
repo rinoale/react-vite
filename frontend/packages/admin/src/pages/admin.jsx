@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { Loader2, ChevronDown, ChevronRight, Info, List, RefreshCw, Check, Image, Pencil, X, Save } from 'lucide-react';
-import { getSummary, getEnchantEntries, getEnchantEffects, getLinks, getCorrections, approveCorrection, editCorrection } from '../api/admin';
+import { getSummary, getEnchantEntries, getEnchantEffects, getLinks, getCorrections, approveCorrection, editCorrection } from '@mabi/shared/api/admin';
 
 const toRankLabel = (rank) => {
   const n = Number(rank);

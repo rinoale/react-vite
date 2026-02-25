@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Search, ShoppingBag, Sparkles, Filter } from 'lucide-react';
-import { getItems as fetchItemsApi, getRecommendationsByItem } from '../api/recommend';
+import { getItems as fetchItemsApi, getRecommendationsByItem } from '@mabi/shared/api/recommend';
 
 const Marketplace = () => {
   const [items, setItems] = useState([]);

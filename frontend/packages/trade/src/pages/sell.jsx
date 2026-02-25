@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Upload, Loader2, Save, X, Settings, RotateCw, AlertTriangle, CheckCircle2 } from 'lucide-react';
-import SectionCard from '../components/SectionCard';
-import { ColorPartsSection, EnchantSection, ReforgeSection, DefaultSection } from '../components/sections';
-import { uploadItemV3, registerItem } from '../api/items';
+import SectionCard from '@mabi/shared/components/SectionCard';
+import { ColorPartsSection, EnchantSection, ReforgeSection, DefaultSection } from '@mabi/shared/components/sections';
+import { uploadItemV3, registerItem } from '@mabi/shared/api/items';
 
 const CATEGORY_LABELS = {
   item_name: "Item Name",

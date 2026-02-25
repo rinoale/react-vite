@@ -1,13 +1,20 @@
 {
-  "name": "react-vite",
+  "name": "mabinogi-frontend",
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
+    "dev:trade": "npm run dev -w @mabi/trade",
+    "dev:admin": "npm run dev -w @mabi/admin",
+    "dev:misc": "npm run dev -w @mabi/misc",
+    "build": "npm run build -w @mabi/trade && npm run build -w @mabi/admin && npm run build -w @mabi/misc",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview:trade": "npm run preview -w @mabi/trade",
+    "preview:admin": "npm run preview -w @mabi/admin",
+    "preview:misc": "npm run preview -w @mabi/misc"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.18",

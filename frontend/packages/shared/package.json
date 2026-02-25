@@ -1,0 +1,15 @@
+{
+  "name": "@mabi/shared",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    "./api/client": "./src/api/client.js",
+    "./api/items": "./src/api/items.js",
+    "./api/recommend": "./src/api/recommend.js",
+    "./api/admin": "./src/api/admin.js",
+    "./components/SectionCard": "./src/components/SectionCard.jsx",
+    "./components/ConfigSearchInput": "./src/components/ConfigSearchInput.jsx",
+    "./components/sections": "./src/components/sections/index.js"
+  }
+}
