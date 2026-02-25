@@ -111,6 +111,17 @@ def admin_reforge_options(
     return {"limit": limit, "offset": offset, "rows": rows}
 
 
+@router.get("/items/{item_id}/detail", response_model=schemas.ItemDetailOut)
+def admin_item_detail(
+    item_id: int,
+    db: Session = Depends(get_db),
+):
+    result = crud_admin.get_item_detail(db, item_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Item not found")
+    return result
+
+
 @router.get("/items", response_model=schemas.PaginatedItemResponse)
 def admin_items(
     limit: int = Query(default=100, ge=1, le=500),

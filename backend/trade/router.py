@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from typing import List
 
 from db.connector import get_db
-from db.models import OcrCorrection, Item
+from db.models import OcrCorrection, Item, ItemEnchant, ItemEnchantEffect, ItemReforgeOption, Enchant, EnchantEffect, ReforgeOption
 from db.schemas import RegisterItemRequest
 from trade.schemas import UploadItemV3Response
 from lib.log import logger
@@ -215,13 +215,57 @@ def register_item(payload: RegisterItemRequest, db: Session = Depends(get_db)):
                     logger.exception("register-item  DB commit failed for %d correction(s)", corrections_saved)
                     corrections_saved = 0
 
-    # Persist item to DB
+    # Persist item + join rows in a single transaction
     item = Item(name=payload.name)
     db.add(item)
     try:
+        db.flush()  # get item.id for FK references
+
+        # --- Enchants ---
+        for enc in payload.enchants:
+            enchant_row = db.query(Enchant).filter(
+                Enchant.name == enc.name,
+                Enchant.slot == enc.slot,
+            ).first()
+            if not enchant_row:
+                logger.warning("register-item  enchant not found: name=%r slot=%d", enc.name, enc.slot)
+                continue
+
+            db.add(ItemEnchant(item_id=item.id, enchant_id=enchant_row.id, slot=enc.slot))
+
+            for idx, eff in enumerate(enc.effects):
+                if eff.option_level is None:
+                    continue
+                ee_row = db.query(EnchantEffect).filter(
+                    EnchantEffect.enchant_id == enchant_row.id,
+                    EnchantEffect.effect_order == idx,
+                ).first()
+                if ee_row:
+                    db.add(ItemEnchantEffect(
+                        item_id=item.id,
+                        enchant_effect_id=ee_row.id,
+                        value=eff.option_level,
+                    ))
+
+        # --- Reforge options ---
+        for opt in payload.reforge_options:
+            reforge_row = db.query(ReforgeOption).filter(
+                ReforgeOption.option_name == opt.name,
+            ).first()
+            db.add(ItemReforgeOption(
+                item_id=item.id,
+                reforge_option_id=reforge_row.id if reforge_row else None,
+                option_name=opt.name,
+                level=opt.level,
+                max_level=opt.max_level,
+            ))
+
         db.commit()
         db.refresh(item)
-        logger.info("register-item  persisted item id=%d name=%r", item.id, item.name)
+        logger.info("register-item  persisted item id=%d name=%r enchants=%d reforges=%d",
+                     item.id, item.name, len(payload.enchants), len(payload.reforge_options))
+    except HTTPException:
+        raise
     except Exception:
         db.rollback()
         logger.exception("register-item  item persist failed")

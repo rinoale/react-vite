@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Union
 from pydantic import BaseModel, Field
 from decimal import Decimal
 from datetime import datetime
@@ -99,6 +99,22 @@ class PaginatedItemResponse(BaseModel):
 
 # --- Item registration + implicit correction capture ---
 
+class RegisterEnchantEffect(BaseModel):
+    text: str
+    option_name: Optional[str] = None
+    option_level: Optional[Union[int, float]] = None
+
+class RegisterEnchantSlot(BaseModel):
+    slot: int  # 0=prefix, 1=suffix
+    name: str
+    rank: str
+    effects: List[RegisterEnchantEffect] = []
+
+class RegisterReforgeOption(BaseModel):
+    name: str
+    level: Optional[int] = None
+    max_level: Optional[int] = None
+
 class RegisterItemLine(BaseModel):
     global_index: int
     text: str
@@ -109,6 +125,8 @@ class RegisterItemRequest(BaseModel):
     price: str = ''
     category: str = 'weapon'
     lines: List[RegisterItemLine] = []
+    enchants: List[RegisterEnchantSlot] = []
+    reforge_options: List[RegisterReforgeOption] = []
 
 class CorrectionOut(BaseModel):
     id: int
@@ -128,3 +146,27 @@ class CorrectionOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# --- Item detail response ---
+
+class ItemEnchantEffectOut(BaseModel):
+    raw_text: str
+    value: Optional[Decimal] = None
+
+class ItemEnchantOut(BaseModel):
+    slot: int
+    enchant_name: str
+    rank: int
+    effects: List[ItemEnchantEffectOut] = []
+
+class ItemReforgeOptionOut(BaseModel):
+    option_name: str
+    level: Optional[int] = None
+    max_level: Optional[int] = None
+
+class ItemDetailOut(BaseModel):
+    id: int
+    name: str
+    enchants: List[ItemEnchantOut] = []
+    reforge_options: List[ItemReforgeOptionOut] = []

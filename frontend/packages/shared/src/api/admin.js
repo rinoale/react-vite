@@ -22,3 +22,6 @@ export const editCorrection = (correctionId, correctedText) =>
 
 export const getItems = ({ limit, offset }) =>
   client.get('/admin/items', { params: { limit, offset } });
+
+export const getItemDetail = (itemId) =>
+  client.get(`/admin/items/${itemId}/detail`);

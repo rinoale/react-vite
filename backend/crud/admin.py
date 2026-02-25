@@ -114,3 +114,71 @@ def get_items(db: Session, limit: int = 100, offset: int = 0):
 
 def get_item_count(db: Session):
     return db.query(models.Item).count()
+
+def get_item_detail(db: Session, item_id: int):
+    item = db.query(models.Item).filter(models.Item.id == item_id).first()
+    if not item:
+        return None
+
+    # Enchants with their effects
+    enchant_rows = db.execute(
+        text(
+            """
+            SELECT
+                ie.slot,
+                e.name AS enchant_name,
+                e.rank
+            FROM item_enchants ie
+            JOIN enchants e ON e.id = ie.enchant_id
+            WHERE ie.item_id = :item_id
+            ORDER BY ie.slot
+            """
+        ),
+        {"item_id": item_id},
+    ).mappings()
+
+    enchants = []
+    for enc in enchant_rows:
+        effect_rows = db.execute(
+            text(
+                """
+                SELECT
+                    ee.raw_text,
+                    iee.value
+                FROM item_enchant_effects iee
+                JOIN enchant_effects ee ON ee.id = iee.enchant_effect_id
+                JOIN enchants e ON e.id = ee.enchant_id
+                WHERE iee.item_id = :item_id
+                  AND e.name = :enchant_name
+                  AND e.slot = :slot
+                ORDER BY ee.effect_order
+                """
+            ),
+            {"item_id": item_id, "enchant_name": enc["enchant_name"], "slot": enc["slot"]},
+        ).mappings()
+        enchants.append({
+            "slot": enc["slot"],
+            "enchant_name": enc["enchant_name"],
+            "rank": enc["rank"],
+            "effects": [dict(e) for e in effect_rows],
+        })
+
+    # Reforge options
+    reforge_rows = db.execute(
+        text(
+            """
+            SELECT option_name, level, max_level
+            FROM item_reforge_options
+            WHERE item_id = :item_id
+            ORDER BY id
+            """
+        ),
+        {"item_id": item_id},
+    ).mappings()
+
+    return {
+        "id": item.id,
+        "name": item.name,
+        "enchants": enchants,
+        "reforge_options": [dict(r) for r in reforge_rows],
+    }

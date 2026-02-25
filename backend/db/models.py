@@ -89,6 +89,8 @@ class Item(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     enchants = relationship("ItemEnchant", back_populates="item", cascade="all, delete-orphan")
+    enchant_effects = relationship("ItemEnchantEffect", back_populates="item", cascade="all, delete-orphan")
+    reforge_options = relationship("ItemReforgeOption", back_populates="item", cascade="all, delete-orphan")
 
 class ItemEnchant(Base):
     __tablename__ = "item_enchants"
@@ -105,3 +107,29 @@ class ItemEnchant(Base):
     __table_args__ = (
         UniqueConstraint('item_id', 'slot', name='_item_slot_uc'),
     )
+
+class ItemEnchantEffect(Base):
+    __tablename__ = "item_enchant_effects"
+
+    id = Column(Integer, primary_key=True, index=True)
+    item_id = Column(Integer, ForeignKey("items.id", ondelete="CASCADE"), nullable=False)
+    enchant_effect_id = Column(Integer, ForeignKey("enchant_effects.id", ondelete="RESTRICT"), nullable=False)
+    value = Column(Numeric, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    item = relationship("Item", back_populates="enchant_effects")
+    enchant_effect = relationship("EnchantEffect")
+
+class ItemReforgeOption(Base):
+    __tablename__ = "item_reforge_options"
+
+    id = Column(Integer, primary_key=True, index=True)
+    item_id = Column(Integer, ForeignKey("items.id", ondelete="CASCADE"), nullable=False)
+    reforge_option_id = Column(Integer, ForeignKey("reforge_options.id", ondelete="RESTRICT"), nullable=True)
+    option_name = Column(Text, nullable=False)
+    level = Column(Integer, nullable=True)
+    max_level = Column(Integer, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    item = relationship("Item", back_populates="reforge_options")
+    reforge_option = relationship("ReforgeOption")

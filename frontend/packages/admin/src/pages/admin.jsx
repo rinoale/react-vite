@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { Loader2, ChevronDown, ChevronRight, Info, List, RefreshCw, Check, Image, Pencil, X, Save, Package } from 'lucide-react';
-import { getSummary, getEnchantEntries, getEnchantEffects, getLinks, getCorrections, approveCorrection, editCorrection, getItems } from '@mabi/shared/api/admin';
+import { getSummary, getEnchantEntries, getEnchantEffects, getLinks, getCorrections, approveCorrection, editCorrection, getItems, getItemDetail } from '@mabi/shared/api/admin';
 
 const toRankLabel = (rank) => {
   const n = Number(rank);
@@ -292,6 +292,9 @@ const ItemsPanel = () => {
   const [items, setItems] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [pagination, setPagination] = useState({ limit: 50, offset: 0 });
+  const [expandedItemIds, setExpandedItemIds] = useState({});
+  const [detailByItem, setDetailByItem] = useState({});
+  const [loadingDetail, setLoadingDetail] = useState({});
 
   const fetchItems = useCallback(async () => {
     setIsLoading(true);
@@ -309,6 +312,25 @@ const ItemsPanel = () => {
   useEffect(() => {
     fetchItems();
   }, [fetchItems]);
+
+  const fetchItemDetail = async (itemId) => {
+    if (detailByItem[itemId] || loadingDetail[itemId]) return;
+    setLoadingDetail((prev) => ({ ...prev, [itemId]: true }));
+    try {
+      const { data } = await getItemDetail(itemId);
+      setDetailByItem((prev) => ({ ...prev, [itemId]: data }));
+    } catch (error) {
+      console.error(`Error fetching item detail ${itemId}:`, error);
+      setDetailByItem((prev) => ({ ...prev, [itemId]: { enchants: [], reforge_options: [] } }));
+    } finally {
+      setLoadingDetail((prev) => ({ ...prev, [itemId]: false }));
+    }
+  };
+
+  const toggleItem = (id) => {
+    setExpandedItemIds((prev) => ({ ...prev, [id]: !prev[id] }));
+    fetchItemDetail(id);
+  };
 
   return (
     <div className="bg-gray-800 rounded-2xl border border-gray-700 shadow-2xl overflow-hidden">
@@ -351,28 +373,125 @@ const ItemsPanel = () => {
             No registered items found.
           </div>
         ) : (
-          items.map((item) => (
-            <div key={item.id} className="px-6 py-4 flex items-center justify-between hover:bg-gray-700/30 transition-colors">
-              <div className="flex items-center gap-4">
-                <span className="text-lg font-black text-white">{item.name || '(unnamed)'}</span>
-                {item.enchant_count > 0 && (
-                  <span className="text-xs font-bold text-cyan-600 uppercase tracking-tighter">
-                    {item.enchant_count} ENCHANT{item.enchant_count !== 1 ? 'S' : ''}
-                  </span>
+          items.map((item) => {
+            const isExpanded = !!expandedItemIds[item.id];
+            const detail = detailByItem[item.id];
+            const isDetailLoading = !!loadingDetail[item.id];
+
+            return (
+              <div key={item.id} className="transition-colors hover:bg-gray-700/30">
+                <div
+                  className="px-6 py-4 flex items-center justify-between cursor-pointer"
+                  onClick={() => toggleItem(item.id)}
+                >
+                  <div className="flex items-center gap-4">
+                    {isExpanded ? (
+                      <ChevronDown className="w-5 h-5 text-cyan-500" />
+                    ) : (
+                      <ChevronRight className="w-5 h-5 text-gray-500" />
+                    )}
+                    <span className="text-lg font-black text-white">{item.name || '(unnamed)'}</span>
+                    {item.enchant_count > 0 && (
+                      <span className="text-xs font-bold text-cyan-600 uppercase tracking-tighter">
+                        {item.enchant_count} ENCHANT{item.enchant_count !== 1 ? 'S' : ''}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-4">
+                    {item.created_at && (
+                      <span className="text-[10px] font-mono text-gray-500">
+                        {new Date(item.created_at).toLocaleString()}
+                      </span>
+                    )}
+                    <span className="text-[10px] font-mono text-gray-500 bg-black/30 px-2 py-0.5 rounded">
+                      ID: {item.id}
+                    </span>
+                  </div>
+                </div>
+
+                {isExpanded && (
+                  <div className="px-16 py-4 bg-black/20 space-y-4">
+                    {isDetailLoading ? (
+                      <div className="py-4 text-center">
+                        <div className="flex items-center justify-center gap-2">
+                          <Loader2 className="w-4 h-4 animate-spin text-gray-600" />
+                          <span className="text-xs text-gray-600 uppercase">Loading details...</span>
+                        </div>
+                      </div>
+                    ) : detail ? (
+                      <>
+                        {detail.enchants?.length > 0 && (
+                          <div className="space-y-3">
+                            <p className="text-[10px] font-black text-gray-600 uppercase tracking-widest border-b border-gray-800 pb-1">
+                              Enchants
+                            </p>
+                            {detail.enchants.map((enc, idx) => (
+                              <div key={idx} className="bg-gray-800/50 p-3 rounded-lg border border-gray-700/50">
+                                <div className="flex items-center gap-3 mb-2">
+                                  <span className={`text-xs font-bold uppercase px-1.5 py-0.5 rounded ${
+                                    enc.slot === 0 ? 'bg-blue-900/50 text-blue-300' : 'bg-red-900/50 text-red-300'
+                                  }`}>
+                                    {enc.slot === 0 ? 'Prefix' : 'Suffix'}
+                                  </span>
+                                  <span className="text-sm font-bold text-white">{enc.enchant_name}</span>
+                                  <span className="text-xs text-gray-500">Rank {toRankLabel(enc.rank)}</span>
+                                </div>
+                                {enc.effects?.length > 0 && (
+                                  <ul className="space-y-1 ml-4">
+                                    {enc.effects.map((eff, effIdx) => (
+                                      <li key={effIdx} className="flex items-center gap-2">
+                                        <span className="text-sm text-gray-300">{eff.raw_text}</span>
+                                        {eff.value != null && (
+                                          <span className="text-xs font-bold text-cyan-400">
+                                            = {eff.value}
+                                          </span>
+                                        )}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {detail.reforge_options?.length > 0 && (
+                          <div className="space-y-3">
+                            <p className="text-[10px] font-black text-gray-600 uppercase tracking-widest border-b border-gray-800 pb-1">
+                              Reforge Options
+                            </p>
+                            <ul className="space-y-2">
+                              {detail.reforge_options.map((opt, idx) => (
+                                <li key={idx} className="bg-gray-800/50 p-3 rounded-lg border border-gray-700/50 flex items-center justify-between">
+                                  <span className="text-sm font-medium text-gray-300">{opt.option_name}</span>
+                                  <div className="flex items-center gap-2">
+                                    {opt.level != null && (
+                                      <span className="text-xs font-bold text-orange-400">
+                                        Lv. {opt.level}
+                                      </span>
+                                    )}
+                                    {opt.max_level != null && (
+                                      <span className="text-[10px] text-gray-500">
+                                        / {opt.max_level}
+                                      </span>
+                                    )}
+                                  </div>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        {(!detail.enchants?.length && !detail.reforge_options?.length) && (
+                          <p className="text-xs text-gray-600 uppercase">No enchant or reforge data for this item.</p>
+                        )}
+                      </>
+                    ) : null}
+                  </div>
                 )}
               </div>
-              <div className="flex items-center gap-4">
-                {item.created_at && (
-                  <span className="text-[10px] font-mono text-gray-500">
-                    {new Date(item.created_at).toLocaleString()}
-                  </span>
-                )}
-                <span className="text-[10px] font-mono text-gray-500 bg-black/30 px-2 py-0.5 rounded">
-                  ID: {item.id}
-                </span>
-              </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
     </div>

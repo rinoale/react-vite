@@ -260,6 +260,23 @@ const Sell = () => {
                   }
                 }
 
+                // Extract structured enchant data
+                const enchants = [];
+                const enchantSec = formData.sections?.enchant;
+                if (enchantSec?.prefix?.name) {
+                  enchants.push({ slot: 0, name: enchantSec.prefix.name, rank: enchantSec.prefix.rank || '', effects: enchantSec.prefix.effects || [] });
+                }
+                if (enchantSec?.suffix?.name) {
+                  enchants.push({ slot: 1, name: enchantSec.suffix.name, rank: enchantSec.suffix.rank || '', effects: enchantSec.suffix.effects || [] });
+                }
+
+                // Extract structured reforge data
+                const reforge_options = (formData.sections?.reforge?.options || []).map(opt => ({
+                  name: opt.option_name || opt.name || '',
+                  level: opt.option_level ?? opt.level ?? null,
+                  max_level: opt.max_level ?? null,
+                }));
+
                 try {
                   const { data: result } = await registerItem({
                     session_id: sessionId,
@@ -267,6 +284,8 @@ const Sell = () => {
                     price: formData.price,
                     category: formData.category,
                     lines,
+                    enchants,
+                    reforge_options,
                   });
                   const corrMsg = result.corrections_saved
                     ? ` (${result.corrections_saved} correction(s) captured for training)`
