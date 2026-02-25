@@ -48,7 +48,10 @@ def main():
     effects = set()
     for e in data:
         for eff in e.get('effects', []):
-            effects.add(eff)
+            if isinstance(eff, dict):
+                effects.add(eff['effect'])
+            else:
+                effects.add(eff)
     sorted_effects = sorted(effects)
 
     with open(EFFECT_TXT, 'w', encoding='utf-8') as f:

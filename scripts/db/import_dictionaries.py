@@ -217,8 +217,14 @@ def import_enchant(
             {"eid": enchant_id},
         )
 
-        for idx, raw_text in enumerate(entry["effects"], start=1):
-            condition_text, effect_text = _split_condition(raw_text)
+        for idx, eff_item in enumerate(entry["effects"], start=1):
+            if isinstance(eff_item, dict):
+                condition_text = eff_item.get('condition')
+                effect_text = eff_item['effect']
+                raw_text = f"{condition_text} {effect_text}" if condition_text else effect_text
+            else:
+                raw_text = eff_item
+                condition_text, effect_text = _split_condition(raw_text)
 
             # Try to parse as a valued effect
             effect_name, min_val, max_val = _parse_valued_effect(
