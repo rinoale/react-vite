@@ -29,6 +29,14 @@ from db.connector import _build_database_url
 from db.models import OcrCorrection
 
 
+# Maps --model arg to the ocr_model values stored in DB by DualReader
+_MODEL_TO_OCR_MODELS = {
+    'general_mabinogi_classic': {'mabinogi_classic'},
+    'general_nanum_gothic_bold': {'nanum_gothic_bold'},
+    'general': {'mabinogi_classic', 'nanum_gothic_bold', ''},
+}
+
+
 def load_charset(version_dir):
     path = os.path.join(version_dir, 'unique_chars.txt')
     if not os.path.exists(path):
@@ -77,9 +85,13 @@ def main():
     db = Session()
 
     try:
-        rows = db.query(OcrCorrection).filter(OcrCorrection.status == 'approved').all()
+        ocr_models = _MODEL_TO_OCR_MODELS.get(model_type)
+        query = db.query(OcrCorrection).filter(OcrCorrection.status == 'approved')
+        if ocr_models is not None:
+            query = query.filter(OcrCorrection.ocr_model.in_(ocr_models))
+        rows = query.all()
         if not rows:
-            print("No approved corrections found.")
+            print(f"No approved corrections found for ocr_model in {ocr_models}.")
             return
 
         # Charset-validate
@@ -98,7 +110,7 @@ def main():
                 continue
             valid_rows.append((row, img_path))
 
-        print(f"Approved: {len(rows)}, Valid: {len(valid_rows)}, Duplication: {args.duplication}")
+        print(f"Approved (ocr_model in {ocr_models}): {len(rows)}, Valid: {len(valid_rows)}, Duplication: {args.duplication}")
 
         if not valid_rows:
             print("No valid corrections to merge.")

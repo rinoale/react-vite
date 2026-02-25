@@ -10,3 +10,12 @@ export const getEnchantEffects = (enchantId) =>
 
 export const getLinks = ({ limit, offset }) =>
   client.get('/admin/links', { params: { limit, offset } });
+
+export const getCorrections = ({ status, limit, offset }) =>
+  client.get('/admin/corrections/list', { params: { status, limit, offset } });
+
+export const approveCorrection = (correctionId) =>
+  client.post(`/admin/corrections/approve/${correctionId}`);
+
+export const editCorrection = (correctionId, correctedText) =>
+  client.patch(`/admin/corrections/${correctionId}`, { corrected_text: correctedText });

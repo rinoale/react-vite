@@ -81,3 +81,22 @@ for e in ranked[:5]:
   score = fuzz.ratio(norm, re.sub(r'\d+(?:\.\d+)?', 'N', e))
   print(f'{score:.0f}: {e}')
 ```
+
+### List ocr_correction
+```
+import sys
+sys.path.insert(0, 'backend')
+
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from db.connector import _build_database_url
+from db.models import OcrCorrection
+
+engine = create_engine(_build_database_url())
+db = sessionmaker(bind=engine)()
+
+for row in db.query(OcrCorrection).all():
+  print(f"#{row.id}  [{row.status}]  {row.original_text!r} → {row.corrected_text!r}  ({row.session_id}/{row.image_filename})")
+
+db.close()
+```

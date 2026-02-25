@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import logging
 import os
 from admin import router as admin_router
+from corrections import router as corrections_router
 from trade.router import router as trade_router
 
 # ---------------------------------------------------------------------------
@@ -30,6 +31,7 @@ for name in ('uvicorn', 'uvicorn.access', 'uvicorn.error'):
 
 app = FastAPI()
 app.include_router(admin_router)
+app.include_router(corrections_router)
 app.include_router(trade_router)
 
 # Allow CORS for local development
