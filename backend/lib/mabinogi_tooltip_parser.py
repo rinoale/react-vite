@@ -1015,7 +1015,7 @@ class MabinogiTooltipParser(TooltipLineSplitter):
                 line = next(effect_iter)
                 line['section'] = section
                 line['is_enchant_hdr'] = False
-                line['ocr_model'] = 'general'
+                line.setdefault('ocr_model', 'general')
                 ocr_results.append(line)
 
         result = self.build_enchant_structured(ocr_results)
