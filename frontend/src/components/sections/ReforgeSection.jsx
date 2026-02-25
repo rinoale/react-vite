@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Pencil } from 'lucide-react';
 import ConfigSearchInput from '../ConfigSearchInput';
 
-const ReforgeOption = ({ opt, lineIdx, onLineChange }) => {
+const ReforgeOption = ({ opt, optIdx, lineIdx, onLineChange }) => {
   const [editing, setEditing] = useState(false);
 
   const reforgeItems = useMemo(() => window.REFORGES_CONFIG || [], []);
@@ -17,7 +17,13 @@ const ReforgeOption = ({ opt, lineIdx, onLineChange }) => {
             const newText = opt.level != null
               ? `- ${name} (${opt.level}/${opt.max_level} 레벨)`
               : `- ${name}`;
-            onLineChange(lineIdx, newText);
+            onLineChange(lineIdx, newText, (sec) => {
+              if (sec.options) {
+                const opts = [...sec.options];
+                opts[optIdx] = { ...opts[optIdx], name, option_name: name };
+                sec.options = opts;
+              }
+            });
             setEditing(false);
           }}
           onCancel={() => setEditing(false)}
@@ -71,6 +77,7 @@ const ReforgeSection = ({ options, lines, onLineChange }) => {
           <ReforgeOption
             key={idx}
             opt={opt}
+            optIdx={idx}
             lineIdx={optionLineIndices[idx]}
             onLineChange={onLineChange}
           />

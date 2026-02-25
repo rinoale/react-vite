@@ -7,9 +7,13 @@ Generates: frontend/public/enchants_config.js
 
 import json
 import os
+import re
 import sys
 import yaml
 from sqlalchemy import text
+
+# Matches first number or range pattern: "16", "0.3", "8 ~ 9", "50 ~ 65"
+_NUM_RE = re.compile(r'\d+(?:\.\d+)?(?:\s*~\s*\d+(?:\.\d+)?)?')
 
 # Add backend to path to import connector
 PROJECT_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '..')
@@ -73,21 +77,40 @@ def export_config():
                 print(f"Warning: No DB ID found for {slot_str} {name} (Rank {rank_str})")
                 continue
                 
-            # Flatten effects: plain strings stay as-is,
-            # {condition, effect} dicts become "condition effect"
+            # Build structured effects: each is {text, option_name, suffix, ranged}
+            # so the frontend can reconstruct corrected text without regex.
             effects_list = []
             for eff in item.get('effects', []):
                 if isinstance(eff, str):
-                    effects_list.append(eff)
+                    eff_text = eff
+                    parse_text = eff
                 elif isinstance(eff, dict):
                     cond = eff.get('condition', '')
                     effect = eff.get('effect', '')
-                    if cond and effect:
-                        effects_list.append(f"{cond} {effect}")
-                    elif effect:
-                        effects_list.append(effect)
-                    elif cond:
-                        effects_list.append(cond)
+                    eff_text = f"{cond} {effect}".strip() if cond and effect \
+                        else (effect or cond)
+                    # Parse option_name from effect part only (not merged text)
+                    # so it matches OCR-detected option_name which sees no condition
+                    parse_text = effect if effect else eff_text
+                else:
+                    continue
+
+                m = _NUM_RE.search(parse_text)
+                if m:
+                    oname = parse_text[:m.start()].rstrip()
+                    effects_list.append({
+                        'text': eff_text,
+                        'option_name': oname if oname else None,
+                        'suffix': parse_text[m.end():],
+                        'ranged': '~' in m.group(),
+                    })
+                else:
+                    effects_list.append({
+                        'text': eff_text,
+                        'option_name': None,
+                        'suffix': None,
+                        'ranged': False,
+                    })
 
             entry = {
                 'id': db_id,

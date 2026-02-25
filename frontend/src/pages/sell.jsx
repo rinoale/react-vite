@@ -104,15 +104,18 @@ const Sell = () => {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleSectionTextChange = (sectionKey, lineIdx, newText) => {
+  const handleSectionTextChange = (sectionKey, lineIdx, newText, structuredUpdate) => {
     setFormData(prev => {
-      const updatedSections = { ...prev.sections };
-      if (updatedSections[sectionKey] && updatedSections[sectionKey].lines) {
-        const updatedLines = [...updatedSections[sectionKey].lines];
+      const sec = { ...prev.sections[sectionKey] };
+      if (sec.lines) {
+        const updatedLines = [...sec.lines];
         updatedLines[lineIdx] = { ...updatedLines[lineIdx], text: newText };
-        updatedSections[sectionKey] = { ...updatedSections[sectionKey], lines: updatedLines };
+        sec.lines = updatedLines;
       }
-      return { ...prev, sections: updatedSections };
+      if (structuredUpdate) {
+        structuredUpdate(sec);
+      }
+      return { ...prev, sections: { ...prev.sections, [sectionKey]: sec } };
     });
   };
 
@@ -120,7 +123,7 @@ const Sell = () => {
   const renderSectionContent = (key, sectionData) => {
     if (sectionData.skipped) return <p className="text-xs text-gray-500 italic">Section skipped by parser</p>;
 
-    const onLineChange = (lineIdx, newText) => handleSectionTextChange(key, lineIdx, newText);
+    const onLineChange = (lineIdx, newText, structuredUpdate) => handleSectionTextChange(key, lineIdx, newText, structuredUpdate);
 
     if (key === 'item_color' && sectionData.parts)
       return <ColorPartsSection parts={sectionData.parts} />;
