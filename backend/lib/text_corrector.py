@@ -608,7 +608,9 @@ class TextCorrector:
                 continue
 
             if section in fm_sections:
-                fm_text, fm_score = self.correct_normalized(raw_text, section=section)
+                # Reforge is a closed set — always accept the best match
+                cutoff = 0 if section == 'reforge' else 80
+                fm_text, fm_score = self.correct_normalized(raw_text, section=section, cutoff_score=cutoff)
             else:
                 fm_text, fm_score = raw_text, 0
 
