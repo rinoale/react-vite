@@ -1,3 +1,25 @@
+```
+            |
+            |          input beam (screenshot)
+           /\
+          /  \
+         / /\ \        prism (OCR engine)
+        / /  \ \
+       / /  <> \ \     core (recognition)
+      / /______\ \
+     /____________\
+     |  |  |  |  |
+    /  /   |   \  \    output rays (structured data)
+   /  /    |    \  \
+```
+
+The favicon is a **prism** — a single beam of light enters from above and splits into
+multiple colored rays below. This represents the core function of the app: a raw item
+screenshot goes in, and the OCR pipeline decomposes it into structured, categorized data
+(enchants, reforge options, attributes, colors, etc.).
+
+---
+
 # Frontend — npm Workspaces Monorepo
 
 ## Structure
