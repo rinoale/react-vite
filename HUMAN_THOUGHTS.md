@@ -55,3 +55,29 @@ But there are too many domain specific features that are not able to apply for a
 I'd rather say, specifying and implementing domain specific features are the actual core values of applications.
 
 Google map is good for in general. it shows everyplace in earth. But I'd rather use navermap in korea because it has a lot of korea specific features.
+
+## Simple script
+
+### fuzzy matching
+```
+from rapidfuzz import fuzz
+import re
+
+# Load dictionary
+with open('data/dictionary/reforge.txt') as f:
+  entries = [line.strip() for line in f if line.strip()]
+
+# Normalize numbers to N
+target = '근성 최소 대미지'
+norm = re.sub(r'\d+(?:\.\d+)?', 'N', target)
+
+# Find best match
+best = max(entries, key=lambda e: fuzz.ratio(norm, re.sub(r'\d+(?:\.\d+)?', 'N', e)))
+score = fuzz.ratio(norm, re.sub(r'\d+(?:\.\d+)?', 'N', best))
+print(f'{norm} → {best} (score={score:.0f})')
+
+ranked = sorted(entries, key=lambda e: fuzz.ratio(norm, re.sub(r'\d+(?:\.\d+)?', 'N', e)), reverse=True)
+for e in ranked[:5]:
+  score = fuzz.ratio(norm, re.sub(r'\d+(?:\.\d+)?', 'N', e))
+  print(f'{score:.0f}: {e}')
+```

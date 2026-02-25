@@ -116,41 +116,6 @@ const Sell = () => {
     });
   };
 
-  const handleEnchantStructuredChange = (sectionKey) => (lineIdx, newText, slotKey, effectUpdater) => {
-    setFormData(prev => {
-      const sec = { ...prev.sections[sectionKey] };
-      // Update line text
-      const updatedLines = [...sec.lines];
-      updatedLines[lineIdx] = { ...updatedLines[lineIdx], text: newText };
-      sec.lines = updatedLines;
-      // Update structured data
-      if (sec[slotKey]) {
-        const slot = { ...sec[slotKey], effects: [...sec[slotKey].effects] };
-        // Find effect index by counting non-header lines in this slot
-        effectUpdater(slot);
-        sec[slotKey] = slot;
-      }
-      return { ...prev, sections: { ...prev.sections, [sectionKey]: sec } };
-    });
-  };
-
-  const handleReforgeStructuredChange = (sectionKey) => (lineIdx, newText, optIdx, optionUpdater) => {
-    setFormData(prev => {
-      const sec = { ...prev.sections[sectionKey] };
-      // Update line text
-      const updatedLines = [...sec.lines];
-      updatedLines[lineIdx] = { ...updatedLines[lineIdx], text: newText };
-      sec.lines = updatedLines;
-      // Update structured data
-      if (sec.options && sec.options[optIdx]) {
-        const opts = [...sec.options];
-        opts[optIdx] = { ...opts[optIdx] };
-        optionUpdater(opts[optIdx]);
-        sec.options = opts;
-      }
-      return { ...prev, sections: { ...prev.sections, [sectionKey]: sec } };
-    });
-  };
 
   const renderSectionContent = (key, sectionData) => {
     if (sectionData.skipped) return <p className="text-xs text-gray-500 italic">Section skipped by parser</p>;
@@ -160,9 +125,9 @@ const Sell = () => {
     if (key === 'item_color' && sectionData.parts)
       return <ColorPartsSection parts={sectionData.parts} />;
     if (key === 'enchant' && (sectionData.prefix || sectionData.suffix))
-      return <EnchantSection prefix={sectionData.prefix} suffix={sectionData.suffix} lines={sectionData.lines} onLineChange={onLineChange} onStructuredChange={handleEnchantStructuredChange(key)} />;
+      return <EnchantSection prefix={sectionData.prefix} suffix={sectionData.suffix} lines={sectionData.lines} onLineChange={onLineChange} />;
     if (key === 'reforge' && sectionData.options)
-      return <ReforgeSection options={sectionData.options} lines={sectionData.lines} onLineChange={onLineChange} onStructuredChange={handleReforgeStructuredChange(key)} />;
+      return <ReforgeSection options={sectionData.options} lines={sectionData.lines} onLineChange={onLineChange} />;
     return <DefaultSection lines={sectionData.lines} onLineChange={onLineChange} />;
   };
 

@@ -1,7 +1,53 @@
-import React, { useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
+import { Pencil } from 'lucide-react';
+import ConfigSearchInput from '../ConfigSearchInput';
 
-const ReforgeSection = ({ options, lines, onLineChange, onStructuredChange }) => {
-  // Map each option to its line index in the lines array
+const ReforgeOption = ({ opt, lineIdx, onLineChange }) => {
+  const [editing, setEditing] = useState(false);
+
+  const reforgeItems = useMemo(() => window.REFORGES_CONFIG || [], []);
+
+  return (
+    <div className="bg-gray-900/50 p-2 rounded border border-gray-700">
+      {editing ? (
+        <ConfigSearchInput
+          items={reforgeItems}
+          getLabel={(item) => item}
+          onSelect={(name) => {
+            const newText = opt.level != null
+              ? `- ${name} (${opt.level}/${opt.max_level} 레벨)`
+              : `- ${name}`;
+            onLineChange(lineIdx, newText);
+            setEditing(false);
+          }}
+          onCancel={() => setEditing(false)}
+          placeholder="Search reforge option..."
+        />
+      ) : (
+        <div className="group flex justify-between items-center mb-1">
+          <div className="flex items-center gap-1">
+            <span className="text-sm font-medium text-cyan-300">{opt.name}</span>
+            <button
+              onClick={() => setEditing(true)}
+              className="p-0.5 text-gray-600 opacity-0 group-hover:opacity-100 hover:text-cyan-400 transition-opacity"
+              title="Correct"
+            >
+              <Pencil className="w-3 h-3" />
+            </button>
+          </div>
+          {opt.level != null && (
+            <span className="text-xs bg-cyan-900/50 text-cyan-300 px-2 py-0.5 rounded border border-cyan-700/50">
+              Level {opt.level} / {opt.max_level}
+            </span>
+          )}
+        </div>
+      )}
+      {!editing && opt.effect && <p className="text-xs text-gray-400">ㄴ {opt.effect}</p>}
+    </div>
+  );
+};
+
+const ReforgeSection = ({ options, lines, onLineChange }) => {
   const optionLineIndices = useMemo(() => {
     if (!lines || !options?.length) return [];
     const indices = [];
@@ -10,7 +56,6 @@ const ReforgeSection = ({ options, lines, onLineChange, onStructuredChange }) =>
       const line = lines[i];
       if (line.is_header) continue;
       if (line.is_reforge_sub) continue;
-      // This is a main option line
       if (optIdx < options.length) {
         indices.push(i);
         optIdx++;
@@ -22,61 +67,14 @@ const ReforgeSection = ({ options, lines, onLineChange, onStructuredChange }) =>
   if (options?.length > 0) {
     return (
       <div className="space-y-3">
-        {options.map((opt, idx) => {
-          const lineIdx = optionLineIndices[idx];
-          return (
-            <div key={idx} className="bg-gray-900/50 p-2 rounded border border-gray-700">
-              <div className="flex justify-between items-center mb-1">
-                <input
-                  type="text"
-                  value={opt.name}
-                  onChange={(e) => {
-                    const newName = e.target.value;
-                    const newText = opt.level != null
-                      ? `- ${newName} (${opt.level}/${opt.max_level} 레벨)`
-                      : `- ${newName}`;
-                    if (onStructuredChange) {
-                      onStructuredChange(lineIdx, newText, idx, (option) => {
-                        option.name = newName;
-                        option.option_name = newName;
-                      });
-                    } else {
-                      onLineChange(lineIdx, newText);
-                    }
-                  }}
-                  className="bg-transparent border-b border-gray-700 text-sm font-medium text-cyan-300 px-1 py-0.5 focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
-                />
-                {opt.level != null && (
-                  <span className="flex items-center gap-1 text-xs bg-cyan-900/50 text-cyan-300 px-2 py-0.5 rounded border border-cyan-700/50">
-                    Level{' '}
-                    <input
-                      type="number"
-                      value={opt.level}
-                      min={1}
-                      max={opt.max_level || 20}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        const newLevel = val === '' ? '' : Number(val);
-                        const newText = `- ${opt.name} (${val}/${opt.max_level} 레벨)`;
-                        if (onStructuredChange) {
-                          onStructuredChange(lineIdx, newText, idx, (option) => {
-                            option.level = newLevel;
-                            option.option_level = newLevel;
-                          });
-                        } else {
-                          onLineChange(lineIdx, newText);
-                        }
-                      }}
-                      className="w-10 bg-gray-900 border border-gray-700 rounded px-1 py-0 text-center text-cyan-300 font-bold focus:ring-1 focus:ring-cyan-500 outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                    />
-                    <span>/ {opt.max_level}</span>
-                  </span>
-                )}
-              </div>
-              {opt.effect && <p className="text-xs text-gray-400">ㄴ {opt.effect}</p>}
-            </div>
-          );
-        })}
+        {options.map((opt, idx) => (
+          <ReforgeOption
+            key={idx}
+            opt={opt}
+            lineIdx={optionLineIndices[idx]}
+            onLineChange={onLineChange}
+          />
+        ))}
       </div>
     );
   }

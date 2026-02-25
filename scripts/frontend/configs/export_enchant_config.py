@@ -73,12 +73,29 @@ def export_config():
                 print(f"Warning: No DB ID found for {slot_str} {name} (Rank {rank_str})")
                 continue
                 
+            # Flatten effects: plain strings stay as-is,
+            # {condition, effect} dicts become "condition effect"
+            effects_list = []
+            for eff in item.get('effects', []):
+                if isinstance(eff, str):
+                    effects_list.append(eff)
+                elif isinstance(eff, dict):
+                    cond = eff.get('condition', '')
+                    effect = eff.get('effect', '')
+                    if cond and effect:
+                        effects_list.append(f"{cond} {effect}")
+                    elif effect:
+                        effects_list.append(effect)
+                    elif cond:
+                        effects_list.append(cond)
+
             entry = {
                 'id': db_id,
                 'name': name,
                 'slot': slot_int,
                 'rank': rank_int,
-                'rank_label': str(rank_str).upper()
+                'rank_label': str(rank_str).upper(),
+                'effects': effects_list,
             }
             # Optional: add synonym for searchability if present
             if 'synonym' in item:
