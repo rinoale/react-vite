@@ -69,5 +69,182 @@
     "guide5": "Type the text for each segment",
     "guide6": "Click \"Add All Segments to Dataset\"",
     "guide7": "Repeat for many tooltips, then download everything!"
+  },
+  "imageProcessLab": {
+    "title": "Image Processing Lab",
+    "subtitle": "Interactive tool for testing image processing techniques on tooltip screenshots",
+    "originalImage": "Original Image",
+    "processedImage": "Processed Image",
+    "uploadImage": "Upload Image",
+    "changeImage": "Change Image",
+    "noImage": "No image loaded",
+    "reset": "Reset to Original",
+    "download": "Download Processed",
+    "apply": "Apply",
+    "pixelated": "Pixelated",
+    "help": "Help",
+    "helpContent": {
+      "grayscale": "Converts a color image to a single-channel grayscale image.\n\nMethods:\n- BT.601: 0.299R + 0.587G + 0.114B — standard video formula (green-weighted). This is what cv2.cvtColor(BGR2GRAY) uses. Used in this project for all OCR preprocessing.\n- BT.709: 0.2126R + 0.7152G + 0.0722B — HDTV standard with heavier green weighting.\n- Equal: (R + G + B) / 3 — simple average, no perceptual weighting.\n- Single channel: Uses only one color channel. Green channel often gives best text contrast.\n\nProject usage: BT.601 is used in tooltip_line_splitter.py, mabinogi_tooltip_parser.py, and tooltip_segmenter.py for all grayscale conversion before thresholding.",
+      "threshold": "Converts a grayscale image to binary (black and white) by comparing each pixel against a threshold value.\n\nModes:\n- BINARY: Pixels above threshold become 255 (white), below become 0 (black). Used for dark background images.\n- BINARY_INV: Pixels above threshold become 0 (black), below become 255 (white). Produces black text on white background.\n\nProject usage: Fixed threshold=80 with BINARY_INV for content OCR preprocessing. Threshold=50 for header OCR. The training pipeline uses threshold 80 with random variation of -10 to +40 for robustness.",
+      "colorMask": "Isolates pixels matching a target RGB color within a per-channel tolerance.\n\nFor each pixel, checks: |R - targetR| <= tolerance AND |G - targetG| <= tolerance AND |B - targetB| <= tolerance.\n\nOutput modes:\n- Color mask: Matching pixels keep original color, non-matching become black.\n- Binary: Matching pixels become white (255), non-matching become black (0).\n\nProject usage:\n- Orange mask (R>150, 50<G<180, B<80) detects section headers in tooltip_segmenter.py.\n- White balance mask (max_ch>150, max/min ratio<1.4) isolates enchant header text.\n- Border detection uses RGB(132,132,132) with tolerance 5.\n\nDefault values (255,252,157) with tolerance 2 match the rgb_mask_test.py test configuration.",
+      "invert": "Inverts all pixel values: each channel becomes 255 minus its current value.\n\nWhite (255,255,255) becomes black (0,0,0) and vice versa. On grayscale images, this swaps foreground and background.\n\nEquivalent to cv2.bitwise_not().\n\nProject usage: Used in the oreo_flip preprocessing for enchant slot headers — after creating a white mask of enchant text, inversion produces the black-on-white format needed for OCR.",
+      "morphology": "Structural operations using a sliding kernel window over the image.\n\nOperations:\n- Erode: Each pixel becomes the minimum in its kernel neighborhood. Shrinks bright regions, removes small noise, thins text strokes.\n- Dilate: Each pixel becomes the maximum in its kernel neighborhood. Expands bright regions, fills gaps, thickens strokes.\n- Open (erode then dilate): Removes small bright noise while preserving larger object sizes.\n- Close (dilate then erode): Fills small dark holes/gaps while preserving object sizes.\n\nKernel size controls the neighborhood radius — larger kernels produce stronger effects.\n\nProject usage: Not currently used in the OCR pipeline. Was explored during enchant header investigation (dilating pure-white mask to fill characters) but abandoned because text strokes at 10-11px are too thin for morphological recovery.",
+      "filter": "Smoothing filters that reduce noise by averaging pixel neighborhoods.\n\nTypes:\n- Gaussian: Weighted average using a Gaussian (bell curve) kernel — pixels closer to center contribute more. Smooths noise while somewhat preserving edges.\n- Median: Replaces each pixel with the median value of its neighborhood. Excellent for salt-and-pepper noise without blurring edges.\n- Box (Mean): Simple unweighted average of all neighborhood pixels. Fast but blurs edges equally.\n\nKernel size determines the neighborhood radius — larger kernels produce more smoothing.\n\nProject usage: Not used in the OCR pipeline. Training data uses clean binary images with no augmentation, and real crops are already binary after thresholding.",
+      "edge": "Detects edges (sharp intensity transitions) in the image.\n\nDetectors:\n- Sobel: Computes first-order derivatives using 3x3 convolution kernels. Detects horizontal edges (Y direction), vertical edges (X direction), or combines both as sqrt(Gx^2 + Gy^2). Good for directional edge analysis.\n- Laplacian: Computes second-order derivative — detects edges as zero-crossings where intensity changes rapidly. Sensitive to noise; often used after smoothing.\n\nBoth produce a gradient magnitude image where bright pixels indicate strong edges.\n\nProject usage: Not used in the OCR pipeline. Line detection uses horizontal projection profiling instead — more reliable for structured tooltip layouts where text lines are axis-aligned."
+    },
+    "tabs": {
+      "grayscale": "Grayscale",
+      "threshold": "Threshold",
+      "colorMask": "Color Mask",
+      "invert": "Invert",
+      "morphology": "Morphology",
+      "filter": "Filter",
+      "edge": "Edge"
+    },
+    "grayscale": {
+      "method": "Method"
+    },
+    "threshold": {
+      "value": "Threshold",
+      "mode": "Mode"
+    },
+    "colorMask": {
+      "preview": "Preview",
+      "tolerance": "Tolerance",
+      "binaryOutput": "Binary output (white match / black non-match)"
+    },
+    "invert": {
+      "description": "Inverts all pixel values (255 - value for each channel). No parameters needed."
+    },
+    "morphology": {
+      "operation": "Operation",
+      "kernelSize": "Kernel Size"
+    },
+    "filter": {
+      "type": "Filter Type",
+      "kernelSize": "Kernel Size"
+    },
+    "edge": {
+      "type": "Edge Detector",
+      "direction": "Direction (Sobel)"
+    }
+  },
+  "v3Pipeline": {
+    "title": "V3 Pipeline Viewer",
+    "subtitle": "Step-by-step visualization of the V3 OCR preprocessing pipeline",
+    "uploadImage": "Upload Screenshot",
+    "runPipeline": "Run V3 Pipeline",
+    "step": "Step",
+    "help": "Help",
+    "interval": "Interval",
+    "pixelated": "Pixelated",
+    "noLines": "No lines detected",
+    "linesDetected": "{{count}} lines detected",
+    "enchantBandsDetected": "{{count}} enchant slot header bands detected",
+    "headersProcessed": "{{count}} header crops preprocessed at threshold=50",
+    "headerCropsLabel": "Individual header crops (threshold=50 BINARY_INV):",
+    "enchantHeader": "Header",
+    "enchantEffect": "Effect",
+    "enchantGrey": "Grey",
+    "steps": {
+      "original": {
+        "title": "Original Image",
+        "description": "The uploaded color screenshot as-is.",
+        "help": "This is the raw input image — an original color screenshot of a Mabinogi item tooltip.\n\nThe V3 pipeline receives this BGR color image and processes it through multiple stages to extract text. Unlike V2 (which receives a pre-binarized image from the frontend), V3 works with the original color data so it can use color-based detection for headers and sections."
+      },
+      "borderDetection": {
+        "title": "Border Detection",
+        "description": "Tooltip frame borders detected at RGB(132,132,132) ±5.",
+        "help": "Detects the tooltip frame borders to constrain the processing region.\n\nMethod: Scans for pixels matching RGB(132,132,132) with ±5 per-channel tolerance.\n- Bottom border: Scans rows from bottom upward, first row with >=30% border pixels.\n- Left/right borders: Scans columns inward from each edge, first column with >=30% border pixels.\n\nCyan lines show detected border positions. Everything outside these borders is excluded from further processing.\n\nCode: tooltip_segmenter.py → detect_bottom_border(), detect_vertical_borders()"
+      },
+      "tooltipCrop": {
+        "title": "Tooltip Crop",
+        "description": "Image cropped to detected border bounds.",
+        "help": "The image is cropped to the region inside the detected borders.\n\nCrop region: left_x+1 to right_x (exclusive), 0 to bottom_y.\n\nThis removes the game world background, UI elements, and other noise outside the tooltip, giving a clean region for header detection and content OCR.\n\nAll subsequent pipeline steps operate on this cropped region."
+      },
+      "orangeMask": {
+        "title": "Orange Color Mask",
+        "description": "Per-pixel orange detection: R>150, 50<G<180, B<80.",
+        "help": "Builds a binary mask of orange-colored pixels to locate section headers.\n\nMabinogi tooltips use orange text for section headers (인챈트, 세공, 에르그, etc.). The mask isolates these headers from the content text.\n\nThresholds: R > 150 AND 50 < G < 180 AND B < 80\n\nThis is a single-pass O(W×H) operation. The orange pixels are then projected horizontally to find header band positions.\n\nCode: tooltip_segmenter.py → detect_headers(), step 1"
+      },
+      "headerBands": {
+        "title": "Header Band Detection",
+        "description": "Orange bands filtered by min height (8px) and min pixels (40).",
+        "help": "Detects header bands from the orange mask using horizontal projection profiling.\n\nAlgorithm:\n1. Sum orange pixels per row → row_counts array\n2. Find contiguous runs of rows with orange pixels\n3. Filter bands: height >= 8 rows AND total pixels >= 40\n\nOrange rectangles show detected header band positions. In the full pipeline, these bands are then expanded to their black-square boundaries using near-black pixel density analysis.\n\nResult: 26/26 theme images detected correctly with 0 false positives.\n\nCode: tooltip_segmenter.py → detect_headers(), steps 2-3"
+      },
+      "segmentation": {
+        "title": "Segmentation",
+        "description": "Image split into pre-header, header, and content regions.",
+        "help": "Pairs each detected header with its content region below it.\n\nColor overlay:\n- Blue: Pre-header region (item name, attributes — above first header)\n- Orange: Header bands (section labels)\n- Green: Content regions (section text between headers)\n\nSegment structure:\n- Pre-header: y=0 to first header's y\n- For each header: content starts at header bottom, ends at next header's y (or tooltip bottom)\n\nEach segment is then processed independently — headers go through header OCR (threshold=50), content goes through content OCR (threshold=80).\n\nCode: tooltip_segmenter.py → build_segments()"
+      },
+      "headerPreprocess": {
+        "title": "Header OCR Preprocessing",
+        "description": "Each header crop: grayscale BT.601 → threshold=50 BINARY_INV (not 80).",
+        "help": "Each detected header crop (the black square containing orange section text) is preprocessed for the dedicated header OCR model.\n\nPreprocessing steps:\n1. Extract tight crop of the header region from the color tooltip image\n2. BT.601 grayscale: cv2.cvtColor(crop_bgr, cv2.COLOR_BGR2GRAY)\n3. Threshold at 50 with BINARY_INV: pixels > 50 → 0 (black), else → 255 (white)\n\nWhy threshold=50 instead of 80?\nOrange header text (R~200, G~120, B~30) converts to grayscale ~130 via BT.601. With threshold=80, this text becomes black correctly. But at threshold=50, the dark background pixels (near 0) become white while the orange text (grayscale ~130) becomes black — giving cleaner separation because the header's black-square background is much darker than typical tooltip backgrounds.\n\nThe result is black text on white background, which is then passed to the dedicated header OCR model (custom_header.pth, imgW=128, 22-char charset for the 9 section labels).\n\nCode: tooltip_segmenter.py → _preprocess_header_crop(), classify_header()"
+      },
+      "enchantWhiteMask": {
+        "title": "Enchant White Mask",
+        "description": "White-balanced pixel mask: max(R,G,B) > 150 AND max/min ratio < 1.4.",
+        "help": "Creates a mask of bright, color-balanced pixels to isolate enchant slot header text.\n\nEnchant slot headers (e.g. '[접두] 창백한 (랭크 A)') use white/gray text that is visually distinct from colored effect text (orange, blue, pink). This mask captures only balanced-brightness pixels.\n\nFormula per pixel:\n- max_ch = max(R, G, B)\n- min_ch = min(R, G, B)\n- Match if: max_ch > 150 AND max_ch / (min_ch + 1) < 1.4\n\nThe ratio check rejects colored pixels — orange text has high R but low B, so ratio >> 1.4. White/gray text has similar R, G, B values, so ratio ≈ 1.0.\n\nBorder strip: Left/right 3 edge columns with >50% white density are cleared (UI border artifacts).\n\nCode: mabinogi_tooltip_parser.py → _oreo_flip(), _strip_border_cols()"
+      },
+      "enchantOreoFlip": {
+        "title": "Enchant Oreo Flip",
+        "description": "White mask inverted to black-on-white + slot header bands detected.",
+        "help": "The white mask is inverted (bitwise_not) to produce black text on white background — the format needed for OCR.\n\nThis is called \"oreo flip\" because the enchant section has a dark background with bright text (like an Oreo cookie), and we flip it to standard OCR format.\n\nSlot header band detection (cyan rectangles):\n1. Horizontal projection of white mask pixels per row\n2. Find runs where row count >= 10 pixels\n3. Merge runs separated by gaps <= 2 rows\n4. Filter: 8 <= band height <= 15 AND total white pixels >= 150\n\nThese bands mark enchant slot headers, which are then used to classify each line as header vs effect vs grey.\n\nCode: mabinogi_tooltip_parser.py → _oreo_flip(), detect_enchant_slot_headers()"
+      },
+      "enchantClassification": {
+        "title": "Enchant Line Classification",
+        "description": "Each line classified as header (cyan), effect (pink), or grey by color saturation.",
+        "help": "After detecting enchant slot header bands and splitting lines, each line is classified:\n\n1. Header (cyan): Line overlaps vertically with a detected slot header band.\n\n2. Effect (pink): Mean text-pixel saturation > 0.15. Effect lines use colored text (orange for buffs, blue for debuffs, etc.) which has high channel imbalance.\n\n3. Grey (gray): Mean text-pixel saturation < 0.15. Description text, '인챈트 추출 불가', empty-slot explanations use desaturated (gray) text.\n\nSaturation formula per text pixel (foreground only, max_channel > 40):\n  sat = (max(R,G,B) - min(R,G,B)) / (max(R,G,B) + 1)\n  mean_sat = average of all text pixel saturations\n\nThis classification determines how each line is structured in the output — headers define prefix/suffix slots, effects are grouped under their parent slot.\n\nCode: mabinogi_tooltip_parser.py → classify_enchant_line()"
+      },
+      "grayscale": {
+        "title": "Grayscale (BT.601)",
+        "description": "Color to grayscale: 0.299R + 0.587G + 0.114B.",
+        "help": "Converts the cropped color image to grayscale using the BT.601 formula.\n\nFormula: gray = 0.299 * R + 0.587 * G + 0.114 * B\n\nThis is the same formula used by cv2.cvtColor(BGR2GRAY). The green channel gets the highest weight because human vision is most sensitive to green.\n\nThis grayscale image is the input to the next thresholding step. The same conversion is used throughout the pipeline (content OCR, header OCR, training data generation).\n\nCode: cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)"
+      },
+      "binarization": {
+        "title": "Binarization (Threshold 80)",
+        "description": "BINARY_INV at threshold=80: pixels > 80 → black (text), else → white (bg).",
+        "help": "Converts the grayscale image to strict binary (black and white).\n\nMode: BINARY_INV — pixels brighter than threshold become black (0), darker pixels become white (255).\nThreshold: 80 (fixed for content OCR)\n\nResult: Black text on white background — the format expected by the OCR model.\n\nFor header OCR, a lower threshold of 50 is used instead (orange text is darker than white content text).\n\nThe training data pipeline uses threshold 80 with random variation (-10 to +40) to build robustness.\n\nCode: cv2.threshold(gray, 80, 255, cv2.THRESH_BINARY_INV)"
+      },
+      "lineDetection": {
+        "title": "Line Detection",
+        "description": "Horizontal projection profiling detects individual text line positions.",
+        "help": "Splits the binary image into individual text lines using horizontal projection profiling.\n\nAlgorithm:\n1. Border removal: Mask narrow (<=3px) high-density vertical columns (UI borders that bridge line gaps)\n2. Horizontal projection: Sum white text pixels per row\n3. Text detection: Rows with pixel count > max(3, width * 1.5%) = text\n4. Gap closure: Close tiny gaps (<=2 rows) caused by thin character strokes\n5. Line clustering: Find contiguous text rows, filter by height (6-25px)\n6. Tall block splitting: Re-project oversized blocks with lower threshold\n7. Rescue pass: Re-scan large gaps between blocks with lower threshold to catch sparse lines\n\nColored rectangles show detected line bounds with splitter padding:\n- pad_x = max(2, line_height / 3)\n- pad_y = max(1, line_height / 5)\n\nThis replaces CRAFT text detection — more reliable for structured tooltip layouts.\n\nCode: tooltip_line_splitter.py → detect_text_lines()"
+      },
+      "lineCrops": {
+        "title": "Line Crops",
+        "description": "Individual line images extracted with padding — these are sent to the OCR model.",
+        "help": "The final preprocessing output: individual line crop images that are fed to the OCR model.\n\nEach crop is extracted from the binarized image at the detected line position, with padding:\n- Horizontal padding: pad_x = max(2, line_height / 3)\n- Vertical padding: pad_y = max(1, line_height / 5)\n\nThese crops match the format of synthetic training images (black text on white, tight-cropped with proportional padding).\n\nIn the full pipeline, each crop is processed by the DualReader:\n- Two font-specific models (mabinogi_classic + NanumGothicBold) run in parallel\n- Highest-confidence result wins per line\n- Fixed imgW=200, single PIL.BICUBIC resize (no double-dip)\n\nCode: mabinogi_tooltip_parser.py → _ocr_grouped_lines()"
+      }
+    },
+    "perSegSteps": {
+      "contentCrop": {
+        "title": "Content Crop",
+        "description": "Isolated content region for this segment.",
+        "help": "Extracts the content region of this segment from the cropped tooltip image.\n\nFor pre_header segments, this is the area above the first orange header band (typically containing the item name and basic attributes).\n\nFor content segments, this is the area between two header bands (or from the last header to the tooltip bottom), containing the section's text content.\n\nEach content crop is processed independently through the remaining pipeline steps."
+      },
+      "segGrayscale": {
+        "title": "Grayscale",
+        "description": "BT.601 grayscale on this segment's content crop.",
+        "help": "Converts this segment's color content crop to grayscale using BT.601.\n\nFormula: gray = 0.299 * R + 0.587 * G + 0.114 * B\n\nThis is applied independently per segment, matching how the actual V3 pipeline processes each segment's content region separately."
+      },
+      "segBinarization": {
+        "title": "Binarization",
+        "description": "BINARY_INV at threshold=80 on this segment.",
+        "help": "Converts this segment's grayscale image to binary.\n\nMode: BINARY_INV — pixels > 80 become black (text), <= 80 become white (background).\n\nThe result is black text on white background, ready for line detection and OCR."
+      },
+      "segLineDetection": {
+        "title": "Line Detection",
+        "description": "Horizontal projection line detection on this segment.",
+        "help": "Detects individual text lines within this segment using horizontal projection profiling.\n\nThe algorithm is the same as the full-image line detection, but applied only to this segment's binary image. This matches the actual V3 pipeline which runs line splitting per segment."
+      },
+      "segLineCrops": {
+        "title": "Line Crops",
+        "description": "Individual line images from this segment.",
+        "help": "The final output for this segment: individual line crop images extracted from the segment's binary image with proportional padding.\n\nThese crops are what get sent to the DualReader OCR model in the actual pipeline."
+      }
+    },
+    "segmentStepTitle": "Segment {{index}} ({{label}}) — {{step}}"
   }
 }

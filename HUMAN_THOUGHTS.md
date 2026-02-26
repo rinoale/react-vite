@@ -100,3 +100,10 @@ for row in db.query(OcrCorrection).all():
 
 db.close()
 ```
+
+## three pixel code
+```
+blue 74,149,238
+skyblue 190,204,254
+yellow 255,252,157
+```

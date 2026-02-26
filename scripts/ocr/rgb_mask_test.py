@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""RGB mask test tool for Mabinogi tooltip screenshots.
+"""RGB color masking test tool for Mabinogi tooltip screenshots.
 
 Keeps pixels matching exact RGB spots, tolerance, or explicit ranges.
-Masks everything else to black.
+Outputs both the color mask (white on black) and the binarized result
+(black text on white background) for OCR input.
 
 Usage:
     python3 scripts/ocr/rgb_mask_test.py <image_or_glob>... --rgb R,G,B [--rgb R,G,B ...]
@@ -81,8 +82,13 @@ def process(path, rgb_values, tolerance, ranges, out_dir):
                (b >= b1) & (b <= b2))
         mask |= rng
 
-    out = np.zeros_like(img)
-    out[mask] = [255, 255, 255]
+    # Color mask: white text on black background
+    color_masked = np.zeros_like(img)
+    color_masked[mask] = [255, 255, 255]
+
+    # Binarization: black text on white background (OCR input)
+    binarized = np.full_like(img, 255)
+    binarized[mask] = [0, 0, 0]
 
     basename = os.path.splitext(os.path.basename(path))[0]
     parts = []
@@ -92,12 +98,17 @@ def process(path, rgb_values, tolerance, ranges, out_dir):
         parts.append(f'{r1}.{g1}.{b1}-{r2}.{g2}.{b2}')
     label = '_'.join(parts)
     tol_label = f'_t{tolerance}' if tolerance > 0 else ''
-    out_path = os.path.join(out_dir, f'{basename}_rgb_{label}{tol_label}.png')
-    cv2.imwrite(out_path, out)
+
+    mask_path = os.path.join(out_dir, f'{basename}_rgb_{label}{tol_label}.png')
+    bin_path = os.path.join(out_dir, f'{basename}_rgb_{label}{tol_label}_binarized.png')
+    cv2.imwrite(mask_path, color_masked)
+    cv2.imwrite(bin_path, binarized)
 
     total = mask.size
     kept = int(mask.sum())
-    print(f"  {os.path.basename(path):40s}  {kept:6d} px ({100*kept/total:.1f}%)  -> {out_path}")
+    print(f"  {os.path.basename(path):40s}  {kept:6d} px ({100*kept/total:.1f}%)")
+    print(f"    mask → {mask_path}")
+    print(f"    bin  → {bin_path}")
 
 
 def main():
