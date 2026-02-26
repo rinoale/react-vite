@@ -10,7 +10,7 @@ from sqlalchemy import text
 from db.connector import get_db
 from db.models import OcrCorrection, Listing, ListingEnchantEffect, ListingReforgeOption, Enchant, EnchantEffect, ReforgeOption, GameItem
 from db.schemas import RegisterListingRequest
-from trade.schemas import UploadItemV3Response
+from trade.schemas import ExamineItemResponse
 from lib.log import logger
 from lib.v3_pipeline import init_pipeline, run_v3_pipeline, prepare_sections_for_response
 from crud.admin import get_listing_detail
@@ -128,10 +128,10 @@ def search_game_items(q: str = Query(default=""), limit: int = Query(default=20,
     return [dict(r) for r in rows]
 
 
-@router.post("/upload-item-v3",
-              response_model=UploadItemV3Response,
+@router.post("/examine-item",
+              response_model=ExamineItemResponse,
               response_model_exclude_none=True)
-async def upload_item_v3(file: UploadFile = File(...)):
+async def examine_item(file: UploadFile = File(...)):
     """Segment-first OCR pipeline.
 
     Accepts the original color screenshot (not preprocessed).
@@ -147,7 +147,7 @@ async def upload_item_v3(file: UploadFile = File(...)):
             raise HTTPException(status_code=400, detail="Could not decode image")
 
         h, w = img_bgr.shape[:2]
-        logger.info("upload-item-v3  file=%s  size=%dx%d", file.filename, w, h)
+        logger.info("examine-item  file=%s  size=%dx%d", file.filename, w, h)
 
         result = run_v3_pipeline(img_bgr, **_pipeline, save_crops=True)
 
@@ -157,7 +157,7 @@ async def upload_item_v3(file: UploadFile = File(...)):
         n_crops = sum(1 for l in all_lines if '_crop' not in l)  # crops already popped by pipeline
 
         logger.info(
-            "upload-item-v3  session=%s  sections=%s  lines=%d  crops=%d",
+            "examine-item  session=%s  sections=%s  lines=%d  crops=%d",
             session_id,
             list(sections.keys()),
             len(all_lines),
@@ -174,7 +174,7 @@ async def upload_item_v3(file: UploadFile = File(...)):
     except HTTPException:
         raise
     except Exception as e:
-        logger.exception("upload-item-v3 failed")
+        logger.exception("examine-item failed")
         raise HTTPException(status_code=500, detail=str(e))
 
 

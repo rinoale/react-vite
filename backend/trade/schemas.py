@@ -58,7 +58,7 @@ class OcrSectionResponse(BaseModel):
     parts: Optional[List[ColorPartResponse]] = None
 
 
-class UploadItemV3Response(BaseModel):
+class ExamineItemResponse(BaseModel):
     filename: str
     session_id: Optional[str] = None
     sections: Dict[str, OcrSectionResponse]

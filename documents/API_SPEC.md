@@ -8,9 +8,9 @@ This document serves as the contract between the Backend AI Agent and the Fronte
 
 ---
 
-## 1. Item Recognition (V3 Pipeline)
+## 1. Item Examination (V3 Pipeline)
 
-**Endpoint:** `/upload-item-v3`
+**Endpoint:** `/examine-item`
 **Method:** `POST`
 **Content-Type:** `multipart/form-data`
 
@@ -96,8 +96,7 @@ The frontend should always read `text` directly — it is the best available val
 | :--- | :--- | :--- | :--- |
 | `text` | `string` | Always | Best available text (FM-corrected if matched, otherwise raw OCR). |
 | `confidence` | `float` | Always | OCR confidence (0.0 to 1.0), rounded to 4 decimal places. |
-| `global_index` | `int` | Always | Unique line index within the session. Sent back in `/register-item` for correction mapping. |
-| `is_header` | `boolean` | Optional | Present and `true` only for orange section header lines (e.g. "인챈트"). Absent for content lines. |
+| `global_index` | `int` | Always | Unique line index within the session. Sent back in `/register-listing` for correction mapping. |
 
 #### Section Object Properties
 All sections contain `lines` (array of Line objects) unless `skipped: true`.
@@ -147,36 +146,151 @@ All sections contain `lines` (array of Line objects) unless `skipped: true`.
 
 ## 1b. Item Registration
 
-**Endpoint:** `/register-item`
+**Endpoint:** `/register-listing`
 **Method:** `POST`
 **Content-Type:** `application/json`
 
 ### Request Body
 ```json
 {
-  "name": "Dragon Blade",
   "session_id": "abc123",
+  "name": "Dragon Blade",
+  "price": "50000",
+  "category": "weapon",
+  "game_item_id": 1234,
+  "item_type": "양손 검",
+  "item_grade": "에픽",
+  "erg_grade": "S",
+  "erg_level": 25,
   "lines": [
     { "global_index": 0, "text": "Dragon Blade" },
     { "global_index": 2, "text": "공격 15~30" }
+  ],
+  "enchants": [
+    {
+      "slot": 0,
+      "name": "충격을",
+      "rank": "F",
+      "effects": [
+        { "text": "최대대미지 5 증가", "option_name": "최대대미지", "option_level": 5 }
+      ]
+    }
+  ],
+  "reforge_options": [
+    {
+      "name": "스매시 대미지",
+      "reforge_option_id": 42,
+      "level": 15,
+      "max_level": 20
+    }
   ]
 }
 ```
 
 | Field | Type | Required | Description |
 | :--- | :--- | :--- | :--- |
-| `name` | `string` | Yes | Item name for registration. |
-| `session_id` | `string` | No | Session ID from `/upload-item-v3`. Enables correction capture. |
+| `session_id` | `string` | No | Session ID from `/examine-item`. Enables correction capture. |
+| `name` | `string` | No | User-editable listing display name. |
+| `price` | `string` | No | Price string. |
+| `category` | `string` | No | Category. Default `weapon`. |
+| `game_item_id` | `int` | No | FK to `game_items`. Resolved from static config on the client. Falls back to name match on server. |
+| `item_type` | `string` | No | Equipment type, e.g. `양손 검`, `경갑옷`. Extracted from OCR `item_type` section. |
+| `item_grade` | `string` | No | Item grade, e.g. `에픽`, `레어`. Extracted from OCR `item_grade` section. |
+| `erg_grade` | `string` | No | ERG grade letter, e.g. `S`, `A`. Extracted from OCR `erg` section. |
+| `erg_level` | `int` | No | ERG level number, e.g. `25`. Extracted from OCR `erg` section. |
 | `lines` | `array` | No | Final line texts. Each has `global_index` (int) and `text` (string). Lines where `text` differs from the original OCR are saved as correction training data. |
+| `enchants` | `array` | No | Structured enchant data per slot. Each has `slot` (0=prefix, 1=suffix), `name`, `rank`, `effects[]`. |
+| `reforge_options` | `array` | No | Structured reforge options. Each has `name`, optional `reforge_option_id` (from static config), `level`, `max_level`. |
 
 ### Response
 ```json
 {
   "registered": true,
   "name": "Dragon Blade",
+  "listing_id": 7,
   "corrections_saved": 2
 }
 ```
+
+---
+
+## 1c. Listings
+
+### `GET /listings`
+Returns all listings, optionally filtered by game item.
+
+**Query params:**
+
+| Parameter | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `game_item_id` | `int` | (none) | Filter by game item FK. |
+
+**Response:** `Array<ListingOut>`
+```json
+[
+  {
+    "id": 7,
+    "name": "Dragon Blade",
+    "game_item_id": 1234,
+    "game_item_name": "드래곤 블레이드",
+    "prefix_enchant_name": "충격을",
+    "suffix_enchant_name": null,
+    "item_type": "양손 검",
+    "item_grade": "에픽",
+    "erg_grade": "S",
+    "erg_level": 25,
+    "created_at": "2026-02-26T12:00:00+00:00",
+    "reforge_count": 3
+  }
+]
+```
+
+### `GET /listings/{listing_id}`
+Returns full detail for a single listing, including enchant effects and reforge options.
+
+**Response:** `ListingDetailOut`
+```json
+{
+  "id": 7,
+  "name": "Dragon Blade",
+  "game_item_id": 1234,
+  "game_item_name": "드래곤 블레이드",
+  "item_type": "양손 검",
+  "item_grade": "에픽",
+  "erg_grade": "S",
+  "erg_level": 25,
+  "prefix_enchant": {
+    "slot": 0,
+    "enchant_name": "충격을",
+    "rank": 15,
+    "effects": [
+      { "raw_text": "최대대미지 16 증가", "min_value": 14, "max_value": 17, "value": 16 },
+      { "raw_text": "체력 40 감소", "min_value": -40, "max_value": -40, "value": null }
+    ]
+  },
+  "suffix_enchant": null,
+  "reforge_options": [
+    { "option_name": "스매시 대미지", "level": 15, "max_level": 20 }
+  ]
+}
+```
+
+#### Enchant effect display logic
+- `value` is non-null only for rolled (ranged) effects stored in `listing_enchant_effects`
+- `value` is null for fixed effects where `min_value == max_value` — the client displays `min_value` as the fixed value
+- All effects are returned (via LEFT JOIN from `enchant_effects`), not just rolled ones
+
+### `GET /game-items`
+Search game items by name substring.
+
+**Query params:**
+
+| Parameter | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `q` | `string` | `""` | Search query (ILIKE match). Empty returns `[]`. |
+| `limit` | `int` | `20` | Max results (1-100). |
+
+**Response:** `Array<{id, name}>`
 
 ---
 
@@ -204,7 +318,9 @@ Returns counts for all core entities.
     "enchants": 1168,
     "effects": 68,
     "enchant_effects": 4934,
-    "reforge_options": 527
+    "reforge_options": 527,
+    "listings": 0,
+    "game_items": 20166
   }
   ```
 
@@ -290,7 +406,7 @@ Fetches the master list of reforge options.
 
 ## 3. OCR Correction Review APIs
 
-These endpoints allow reviewing and approving user-submitted OCR corrections captured during `/register-item`.
+These endpoints allow reviewing and approving user-submitted OCR corrections captured during `/register-listing`.
 
 ### Endpoints
 
@@ -329,7 +445,7 @@ Fetches a paginated list of OCR corrections filtered by status.
 | Property | Type | Required | Description |
 | :--- | :--- | :--- | :--- |
 | `id` | `int` | Yes | Correction record ID. |
-| `session_id` | `string` | Yes | Session from `/upload-item-v3`. Maps to crop dir `tmp/ocr_crops/{session_id}/`. |
+| `session_id` | `string` | Yes | Session from `/examine-item`. Maps to crop dir `tmp/ocr_crops/{session_id}/`. |
 | `line_index` | `int` | Yes | Global line index. Crop image: `{session_id}/{line_index:03d}.png`. |
 | `original_text` | `string` | Yes | OCR output text (before user correction). |
 | `corrected_text` | `string` | Yes | User-submitted corrected text. |

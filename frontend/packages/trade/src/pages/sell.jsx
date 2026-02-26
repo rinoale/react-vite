@@ -3,7 +3,7 @@ import { Upload, Loader2, Save, X, Settings, RotateCw, AlertTriangle, CheckCircl
 import { useTranslation } from 'react-i18next';
 import SectionCard from '@mabi/shared/components/SectionCard';
 import { ColorPartsSection, EnchantSection, ReforgeSection, DefaultSection } from '@mabi/shared/components/sections';
-import { uploadItemV3, registerListing } from '@mabi/shared/api/items';
+import { examineItem, registerListing } from '@mabi/shared/api/items';
 
 const getGameItemsConfig = () => window.GAME_ITEMS_CONFIG || [];
 const findGameItemByName = (name) => getGameItemsConfig().find(gi => gi.name === name);
@@ -104,7 +104,7 @@ const Sell = () => {
     try {
       // Step 1: Segmentation and Initial OCR
       setLoadingStep('RECOGNIZING');
-      const { data } = await uploadItemV3(file);
+      const { data } = await examineItem(file);
       setOcrResult(data);
       setDetectedLines(data.all_lines || []);
       setSessionId(data.session_id || null);
@@ -198,10 +198,30 @@ const Sell = () => {
           {/* Left Column: Image Upload (4 cols) */}
           <div className="xl:col-span-4 space-y-6">
             <div className="bg-gray-800 rounded-2xl p-6 border border-gray-700 shadow-2xl">
-              <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-                <Upload className="w-5 h-5 text-orange-500" />
-                {t('sell.uploadTooltip')}
-              </h2>
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-lg font-bold flex items-center gap-2">
+                  <Upload className="w-5 h-5 text-orange-500" />
+                  {t('sell.uploadTooltip')}
+                </h2>
+                {file && !isLoading && (
+                  <button
+                    onClick={handleScan}
+                    className="bg-orange-600 hover:bg-orange-500 text-white px-4 py-2 rounded-lg flex items-center gap-2 font-black text-sm uppercase tracking-widest transition-all shadow-lg active:scale-95"
+                  >
+                    <RotateCw className="w-4 h-4" />
+                    {t('sell.scanTooltip')}
+                  </button>
+                )}
+                {isLoading && (
+                  <div className="flex items-center gap-2 text-gray-300">
+                    <Loader2 className="w-5 h-5 text-orange-500 animate-spin" />
+                    <span className="text-xs font-bold tracking-wide">
+                      {loadingStep === 'SEGMENTING' ? t('sell.detectingSections') :
+                       loadingStep === 'RECOGNIZING' ? t('sell.readingText') : t('sell.processing')}
+                    </span>
+                  </div>
+                )}
+              </div>
 
               {!previewUrl ? (
                 <div className="border-2 border-dashed border-gray-700 rounded-xl h-80 flex flex-col items-center justify-center text-gray-500 hover:border-orange-500 hover:bg-orange-500/5 transition-all cursor-pointer relative group">
@@ -233,29 +253,6 @@ const Sell = () => {
                             <X className="w-6 h-6" />
                         </button>
                     </div>
-                  </div>
-                </div>
-              )}
-
-              {file && !isLoading && (
-                <button
-                  onClick={handleScan}
-                  className="w-full mt-6 bg-orange-600 hover:bg-orange-500 text-white py-4 rounded-xl flex items-center justify-center gap-2 font-black uppercase tracking-widest transition-all shadow-lg active:scale-95"
-                >
-                  <RotateCw className="w-5 h-5" />
-                  {t('sell.scanTooltip')}
-                </button>
-              )}
-
-              {isLoading && (
-                <div className="w-full mt-6 bg-gray-700/50 text-gray-300 py-4 rounded-xl flex flex-col items-center justify-center gap-3 cursor-wait border border-gray-600">
-                  <Loader2 className="w-8 h-8 text-orange-500 animate-spin" />
-                  <div className="text-center">
-                    <p className="font-bold text-sm tracking-wide">
-                        {loadingStep === 'SEGMENTING' ? t('sell.detectingSections') :
-                         loadingStep === 'RECOGNIZING' ? t('sell.readingText') : t('sell.processing')}
-                    </p>
-                    <p className="text-[10px] text-gray-500 mt-1 uppercase">{t('sell.pipelineVersion')}</p>
                   </div>
                 </div>
               )}

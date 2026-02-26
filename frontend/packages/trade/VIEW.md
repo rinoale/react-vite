@@ -22,27 +22,35 @@
 
 ```
 +--header----------------------------------------------------------+
-| [bag] Marketplace                   [____Search for items...___] |
+| [bag] Marketplace               [____Search game items...____]   |
 +------------------------------------------------------------------+
 |                                     |                            |
 |  item-grid (lg:col-span-2)         |  detail-sidebar (col-1)    |
-|  +----------+  +----------+        |  +------------------------+|
-|  | name  cat|  | name  cat|        |  | Item Name              ||
-|  | desc...  |  | desc...  |        |  | [category]             ||
-|  +----------+  +----------+        |  | description...         ||
-|  +----------+  +----------+        |  |                        ||
-|  | name  cat|  | name  cat|        |  | [====Buy Now====]      ||
-|  | desc...  |  | desc...  |        |  |________________________||
-|  +----------+  +----------+        |  | * Recommended for You  ||
-|                                     |  | rec-item  87% match    ||
-|                                     |  | rec-item  74% match    ||
+|  +------------------------------+  |  +------------------------+|
+|  | [Prefix] Name [Suffix]       |  |  | Item Name              ||
+|  | item_type  item_grade        |  |  | game_item_name         ||
+|  | reforge ×3  ERG S-25         |  |  | item_type  item_grade  ||
+|  +------------------------------+  |  |                        ||
+|  +------------------------------+  |  | prefix_enchant:        ||
+|  | [Prefix] Name [Suffix]       |  |  |   effect  value        ||
+|  | item_type  item_grade        |  |  | suffix_enchant:        ||
+|  | reforge ×3  ERG S-25         |  |  |   effect  value        ||
+|  +------------------------------+  |  |                        ||
+|                                     |  | reforge_options:       ||
+|                                     |  |   option  Lv 15/20    ||
 |                                     |  +------------------------+|
 +-------------------------------------+----------------------------+
 ```
 
 - **Item cards**: 2-col grid on md+, click selects → detail sidebar populates
-- **Detail sidebar**: sticky, shows selected item + TF-IDF recommendations
-- **Empty state**: dashed box "Select an item to view details and recommendations"
+  - Shows `prefix_enchant_name` / `suffix_enchant_name` as colored badges
+  - Shows `item_type`, `item_grade`, `erg_grade`/`erg_level` inline
+  - Reforge count badge
+- **Detail sidebar**: sticky, shows selected listing detail
+  - Enchant effects: rolled `value` in cyan, fixed (from `min_value`) in gray
+  - Reforge options with `level`/`max_level`
+- **Game item filter**: typeahead search via API (`GET /game-items?q=...`), filters listings by `game_item_id`
+- **Empty state**: dashed box "Select an item to view details"
 
 ---
 
@@ -55,17 +63,17 @@
 +------------------------------------------------------------------+
 |                               |                                  |
 |  left-col (xl:4)              |  right-col (xl:8)                |
-|  +--Upload Tooltip----------+|  +--ITEM DETAILS----------------+|
+|  +--Upload Tooltip-[SCAN]---+|  +--ITEM DETAILS----------------+|
 |  |                           ||  | orange accent bar            ||
 |  |  [drop zone / preview]    ||  | ITEM DETAILS       V1.0     ||
 |  |                           ||  |                              ||
-|  |  [====Scan Tooltip====]   ||  | Item Name______  Price______ ||
-|  +---------------------------+|  |                              ||
-|                               |  | Detected Categories:         ||
-|  +--OCR METRICS--------------+|  | > Attributes  [v]            ||
-|  | Total Lines | Sections    ||  |   [line input_________]      ||
+|  +---------------------------+|  | Game Item [search] Name_ Price|
+|                               |  |                              ||
+|  +--OCR METRICS--------------+|  | Detected Categories:         ||
+|  | Total Lines | Sections    ||  | > Attributes  [v]            ||
 |  | 24          | 6           ||  |   [line input_________]      ||
-|  +---------------------------+|  | > Enchant  [v]               ||
+|  +---------------------------+|  |   [line input_________]      ||
+|                               |  | > Enchant  [v]               ||
 |                               |  |   prefix: name  Rank A       ||
 |                               |  |     - effect  [level]        ||
 |                               |  |   suffix: name  Rank 9       ||
@@ -80,11 +88,22 @@
 +-------------------------------+----------------------------------+
 ```
 
-- **Left column**: image upload with drag-drop zone, scan button, OCR metrics card
+- **Left column**: image upload with drag-drop zone, OCR metrics card
+  - **Scan button** is in the header row of "Upload Tooltip" card (always visible regardless of image height)
+  - Loading spinner replaces scan button during processing
 - **Right column**: structured form populated by OCR
+  - **Top row** (3 fields):
+    - Game Item selector: typeahead search against `window.GAME_ITEMS_CONFIG` (local, no API call). Sets `game_item_id` FK. Auto-populated from OCR item name.
+    - Listing Name: user-editable display name (independent of game item). Auto-populated from OCR.
+    - Price: numeric input with comma formatting.
   - `SectionCard` per detected category (collapsible)
   - `EnchantSection`: prefix/suffix slots with editable effects via `ConfigSearchInput`
-  - `ReforgeSection`: options with editable name/level
+  - `ReforgeSection`: options with editable name/level, `reforge_option_id` resolved from `window.REFORGES_CONFIG`
   - `ColorPartsSection`: 3-col RGB swatch grid
   - `DefaultSection`: generic text inputs with low-confidence warning
-- **Register**: submits session_id + edited lines to `/register-item`
+- **Register**: submits to `POST /register-listing` with:
+  - `session_id`, `name`, `price`, `game_item_id`
+  - `item_type`, `item_grade`, `erg_grade`, `erg_level` (from OCR sections)
+  - `enchants[]` (structured prefix/suffix with effects)
+  - `reforge_options[]` (with `reforge_option_id` from static config)
+  - `lines[]` (for OCR correction capture)
