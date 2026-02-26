@@ -304,14 +304,46 @@ const Sell = () => {
                   }
                 }
 
-                // Extract structured enchant data
+                // Extract structured enchant data, resolving enchant_effect_id from config
                 const enchants = [];
                 const enchantSec = formData.sections?.enchant;
+                const resolveEffects = (slotData, slotInt) => {
+                  const config = (window.ENCHANTS_CONFIG || []).find(
+                    e => e.name === slotData.name && e.slot === slotInt
+                  );
+                  const usedIdx = new Set();
+                  const findConfigEff = (ocrName) => {
+                    if (!config?.effects || !ocrName) return null;
+                    // Exact match first, then fuzzy (includes + longest match)
+                    let idx = config.effects.findIndex(
+                      (ce, i) => !usedIdx.has(i) && ce.option_name === ocrName
+                    );
+                    if (idx < 0) {
+                      const candidates = config.effects
+                        .map((ce, i) => ({ ce, i }))
+                        .filter(({ ce, i }) => !usedIdx.has(i) && ce.option_name && ocrName.includes(ce.option_name))
+                        .sort((a, b) => b.ce.option_name.length - a.ce.option_name.length);
+                      if (candidates.length) idx = candidates[0].i;
+                    }
+                    if (idx >= 0) { usedIdx.add(idx); return config.effects[idx]; }
+                    return null;
+                  };
+                  return (slotData.effects || []).map(eff => {
+                    if (eff.enchant_effect_id) return eff;
+                    const configEff = findConfigEff(eff.option_name);
+                    return {
+                      text: eff.text,
+                      option_name: configEff?.option_name ?? eff.option_name ?? null,
+                      option_level: eff.option_level ?? null,
+                      enchant_effect_id: configEff?.enchant_effect_id ?? null,
+                    };
+                  });
+                };
                 if (enchantSec?.prefix?.name) {
-                  enchants.push({ slot: 0, name: enchantSec.prefix.name, rank: enchantSec.prefix.rank || '', effects: enchantSec.prefix.effects || [] });
+                  enchants.push({ slot: 0, name: enchantSec.prefix.name, rank: enchantSec.prefix.rank || '', effects: resolveEffects(enchantSec.prefix, 0) });
                 }
                 if (enchantSec?.suffix?.name) {
-                  enchants.push({ slot: 1, name: enchantSec.suffix.name, rank: enchantSec.suffix.rank || '', effects: enchantSec.suffix.effects || [] });
+                  enchants.push({ slot: 1, name: enchantSec.suffix.name, rank: enchantSec.suffix.rank || '', effects: resolveEffects(enchantSec.suffix, 1) });
                 }
 
                 // Extract structured reforge data

@@ -16,8 +16,16 @@ const EffectRow = ({ eff, lineIdx, lineText, onLineChange, configEffects }) => {
   const [editingLevel, setEditingLevel] = useState(false);
   const [levelDraft, setLevelDraft] = useState('');
 
-  // Find matching config effect to get pre-computed suffix and ranged flag
-  const matchingConfig = configEffects?.find(ce => ce.option_name === eff.option_name) || null;
+  // Find matching config effect — fuzzy: OCR option_name may contain garbled
+  // condition text appended after the real effect name, so use includes + longest match
+  const matchingConfig = (() => {
+    if (!configEffects || !eff.option_name) return null;
+    const exact = configEffects.find(ce => ce.option_name === eff.option_name);
+    if (exact) return exact;
+    return configEffects
+      .filter(ce => ce.option_name && eff.option_name.includes(ce.option_name))
+      .sort((a, b) => b.option_name.length - a.option_name.length)[0] || null;
+  })();
   const isRanged = matchingConfig?.ranged ?? false;
 
   const commitLevel = (value) => {
@@ -25,8 +33,9 @@ const EffectRow = ({ eff, lineIdx, lineText, onLineChange, configEffects }) => {
     if (value === '' || value === String(eff.option_level)) return;
     const numLevel = value.includes('.') ? parseFloat(value) : parseInt(value, 10);
     if (isNaN(numLevel)) return;
-    const newEffText = eff.option_name + ' ' + numLevel + matchingConfig.suffix;
-    onLineChange(lineIdx, '- ' + newEffText, null, { option_name: eff.option_name, option_level: numLevel });
+    const canonName = matchingConfig.option_name;
+    const newEffText = canonName + ' ' + numLevel + matchingConfig.suffix;
+    onLineChange(lineIdx, '- ' + newEffText, null, { option_name: canonName, option_level: numLevel });
   };
 
   if (editingName && configEffects && configEffects.length > 0) {

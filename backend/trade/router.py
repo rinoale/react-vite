@@ -304,17 +304,38 @@ def register_listing(payload: RegisterListingRequest, db: Session = Depends(get_
 
         # --- Enchant effects (rolled values) ---
         for slot, (enchant_row, enc) in enchant_rows_by_slot.items():
-            for idx, eff in enumerate(enc.effects):
+            # Pre-load enchant_effects with effect names for name-based fallback
+            ee_rows = db.execute(text("""
+                SELECT ee.id, ee.effect_order, f.name AS effect_name
+                FROM enchant_effects ee
+                LEFT JOIN effects f ON f.id = ee.effect_id
+                WHERE ee.enchant_id = :eid
+                ORDER BY ee.effect_order
+            """), {"eid": enchant_row.id}).mappings()
+            ee_by_name = {}
+            for row in ee_rows:
+                if row['effect_name']:
+                    ee_by_name.setdefault(row['effect_name'], []).append(row['id'])
+
+            for eff in enc.effects:
                 if eff.option_level is None:
                     continue
-                ee_row = db.query(EnchantEffect).filter(
-                    EnchantEffect.enchant_id == enchant_row.id,
-                    EnchantEffect.effect_order == idx,
-                ).first()
-                if ee_row:
+                # Use direct ID from config when provided
+                ee_id = eff.enchant_effect_id
+                if not ee_id and eff.option_name:
+                    # Fallback: exact name match first, then fuzzy (longest substring)
+                    candidates = ee_by_name.get(eff.option_name, [])
+                    if not candidates:
+                        fuzzy = [(n, ids) for n, ids in ee_by_name.items() if n in eff.option_name and ids]
+                        if fuzzy:
+                            best_name = max(fuzzy, key=lambda x: len(x[0]))[0]
+                            candidates = ee_by_name[best_name]
+                    if candidates:
+                        ee_id = candidates.pop(0)  # consume to avoid reuse
+                if ee_id:
                     db.add(ListingEnchantEffect(
                         listing_id=listing.id,
-                        enchant_effect_id=ee_row.id,
+                        enchant_effect_id=ee_id,
                         value=eff.option_level,
                     ))
 

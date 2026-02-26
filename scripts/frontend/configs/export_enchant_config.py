@@ -53,13 +53,22 @@ def export_config():
         db_rows = db.execute(
             text("SELECT id, name, rank, slot FROM enchants")
         ).mappings()
-        
+
         # Build a lookup map: (name, rank_int, slot_int) -> id
         # slot: '접두' -> 0, '접미' -> 1
         id_map = {}
         for r in db_rows:
             key = (r['name'], r['rank'], r['slot'])
             id_map[key] = r['id']
+
+        # Fetch all enchant_effects in one query, keyed by enchant_id
+        # Each effect's enchant_effect_id allows direct FK matching at registration
+        ee_rows = db.execute(
+            text("SELECT id, enchant_id, effect_order FROM enchant_effects ORDER BY enchant_id, effect_order")
+        ).mappings()
+        ee_map = {}  # enchant_id -> [enchant_effect_id ordered by effect_order]
+        for r in ee_rows:
+            ee_map.setdefault(r['enchant_id'], []).append(r['id'])
 
         exported_data = []
         for item in yaml_data:
@@ -77,10 +86,12 @@ def export_config():
                 print(f"Warning: No DB ID found for {slot_str} {name} (Rank {rank_str})")
                 continue
                 
-            # Build structured effects: each is {text, option_name, suffix, ranged}
-            # so the frontend can reconstruct corrected text without regex.
+            # Build structured effects: each is {enchant_effect_id, text, option_name, suffix, ranged}
+            # so the frontend can reconstruct corrected text without regex
+            # and send enchant_effect_id for direct FK matching at registration.
+            ee_ids = ee_map.get(db_id, [])
             effects_list = []
-            for eff in item.get('effects', []):
+            for eff_idx, eff in enumerate(item.get('effects', [])):
                 if isinstance(eff, str):
                     eff_text = eff
                     parse_text = eff
@@ -95,10 +106,14 @@ def export_config():
                 else:
                     continue
 
+                # YAML effects and DB enchant_effects share the same ordering
+                ee_id = ee_ids[eff_idx] if eff_idx < len(ee_ids) else None
+
                 m = _NUM_RE.search(parse_text)
                 if m:
                     oname = parse_text[:m.start()].rstrip()
                     effects_list.append({
+                        'enchant_effect_id': ee_id,
                         'text': eff_text,
                         'option_name': oname if oname else None,
                         'suffix': parse_text[m.end():],
@@ -106,6 +121,7 @@ def export_config():
                     })
                 else:
                     effects_list.append({
+                        'enchant_effect_id': ee_id,
                         'text': eff_text,
                         'option_name': None,
                         'suffix': None,

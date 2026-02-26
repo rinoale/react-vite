@@ -127,6 +127,7 @@ class RegisterEnchantEffect(BaseModel):
     text: str
     option_name: Optional[str] = None
     option_level: Optional[Union[int, float]] = None
+    enchant_effect_id: Optional[int] = None
 
 class RegisterEnchantSlot(BaseModel):
     slot: int  # 0=prefix, 1=suffix
