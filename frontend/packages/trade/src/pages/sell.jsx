@@ -293,6 +293,16 @@ const Sell = () => {
               <form className="space-y-6" onSubmit={async (e) => {
                 e.preventDefault();
 
+                // Validate required fields
+                const missing = [];
+                if (!selectedGameItem) missing.push(t('sell.gameItem'));
+                if (!formData.name.trim()) missing.push(t('sell.itemName'));
+                if (!formData.price) missing.push(t('sell.price'));
+                if (missing.length) {
+                  alert(t('sell.requiredFields', { fields: missing.join(', ') }));
+                  return;
+                }
+
                 // Collect all lines with global_index + current text
                 const lines = [];
                 for (const secData of Object.values(formData.sections)) {

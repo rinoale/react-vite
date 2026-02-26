@@ -66,6 +66,7 @@ def get_listings(game_item_id: int | None = Query(default=None), db: Session = D
         SELECT
             l.id,
             l.name,
+            l.price,
             l.game_item_id,
             gi.name AS game_item_name,
             pe.name AS prefix_enchant_name,
@@ -288,8 +289,17 @@ def register_listing(payload: RegisterListingRequest, db: Session = Depends(get_
             suffix_enchant_id = enchant_row.id
 
     # Persist listing + join rows in a single transaction
+    # Parse price string to integer (frontend sends comma-stripped digits)
+    price_int = None
+    if payload.price:
+        try:
+            price_int = int(payload.price)
+        except ValueError:
+            pass
+
     listing = Listing(
         name=payload.name,
+        price=price_int,
         game_item_id=game_item_id,
         prefix_enchant_id=prefix_enchant_id,
         suffix_enchant_id=suffix_enchant_id,

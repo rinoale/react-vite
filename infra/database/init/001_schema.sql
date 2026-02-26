@@ -46,6 +46,7 @@ CREATE INDEX IF NOT EXISTS idx_game_items_name ON game_items(name);
 CREATE TABLE IF NOT EXISTS listings (
     id SERIAL PRIMARY KEY,
     name TEXT NOT NULL,
+    price BIGINT,
     game_item_id INTEGER REFERENCES game_items(id) ON DELETE SET NULL,
     prefix_enchant_id INTEGER REFERENCES enchants(id) ON DELETE SET NULL,
     suffix_enchant_id INTEGER REFERENCES enchants(id) ON DELETE SET NULL,

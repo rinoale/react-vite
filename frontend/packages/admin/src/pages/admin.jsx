@@ -405,8 +405,18 @@ const ListingsPanel = () => {
                         {listing.suffix_enchant_name}
                       </span>
                     )}
+                    {listing.game_item_name && (
+                      <span className="text-xs text-gray-400">
+                        {listing.game_item_name}
+                      </span>
+                    )}
                   </div>
                   <div className="flex items-center gap-4">
+                    {listing.price != null && (
+                      <span className="text-sm font-bold text-yellow-400">
+                        {t('listings.price', { price: Number(listing.price).toLocaleString() })}
+                      </span>
+                    )}
                     {listing.created_at && (
                       <span className="text-[10px] font-mono text-gray-500">
                         {new Date(listing.created_at).toLocaleString()}

@@ -47,7 +47,8 @@
     "unnamed": "(unnamed)",
     "refresh": "Refresh",
     "enchantCount": "{{count}} ENCHANT",
-    "enchantCount_plural": "{{count}} ENCHANTS"
+    "enchantCount_plural": "{{count}} ENCHANTS",
+    "price": "{{price}}골드"
   },
   "enchants": {
     "title": "ENCHANT ENTRIES",

@@ -86,6 +86,7 @@ class PaginatedReforgeResponse(BaseModel):
 class ListingOut(BaseModel):
     id: int
     name: str
+    price: Optional[int] = None
     game_item_id: Optional[int] = None
     game_item_name: Optional[str] = None
     prefix_enchant_name: Optional[str] = None
@@ -201,6 +202,7 @@ class ListingReforgeOptionOut(BaseModel):
 class ListingDetailOut(BaseModel):
     id: int
     name: str
+    price: Optional[int] = None
     game_item_id: Optional[int] = None
     game_item_name: Optional[str] = None
     item_type: Optional[str] = None

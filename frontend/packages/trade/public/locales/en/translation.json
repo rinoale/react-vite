@@ -36,7 +36,8 @@
     "errorScanning": "Error scanning image. Please try again.",
     "itemRegistered": "Item registered successfully.",
     "correctionsCapture": " ({{count}} correction(s) captured for training)",
-    "registerFailed": "Failed to register item."
+    "registerFailed": "Failed to register item.",
+    "requiredFields": "Please fill in the required fields: {{fields}}"
   },
   "categoryLabels": {
     "item_name": "Item Name",

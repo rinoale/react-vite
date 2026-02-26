@@ -100,6 +100,7 @@ def get_listings(db: Session, limit: int = 100, offset: int = 0):
             SELECT
                 l.id,
                 l.name,
+                l.price,
                 l.game_item_id,
                 gi.name AS game_item_name,
                 pe.name AS prefix_enchant_name,
@@ -193,6 +194,7 @@ def get_listing_detail(db: Session, listing_id: int):
     return {
         "id": listing.id,
         "name": listing.name,
+        "price": listing.price,
         "game_item_id": listing.game_item_id,
         "game_item_name": game_item_name,
         "item_type": listing.item_type,

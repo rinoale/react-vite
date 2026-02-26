@@ -93,6 +93,7 @@ class Listing(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(Text, nullable=False)
+    price = Column(Integer, nullable=True)
     game_item_id = Column(Integer, ForeignKey("game_items.id", ondelete="SET NULL"), nullable=True)
     prefix_enchant_id = Column(Integer, ForeignKey("enchants.id", ondelete="SET NULL"), nullable=True)
     suffix_enchant_id = Column(Integer, ForeignKey("enchants.id", ondelete="SET NULL"), nullable=True)
