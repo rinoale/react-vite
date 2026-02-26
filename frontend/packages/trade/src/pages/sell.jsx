@@ -1,9 +1,16 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Upload, Loader2, Save, X, Settings, RotateCw, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { Upload, Loader2, Save, X, Settings, RotateCw, AlertTriangle, CheckCircle2, Search } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import SectionCard from '@mabi/shared/components/SectionCard';
 import { ColorPartsSection, EnchantSection, ReforgeSection, DefaultSection } from '@mabi/shared/components/sections';
-import { uploadItemV3, registerItem } from '@mabi/shared/api/items';
+import { uploadItemV3, registerListing } from '@mabi/shared/api/items';
+
+const getGameItemsConfig = () => window.GAME_ITEMS_CONFIG || [];
+const findGameItemByName = (name) => getGameItemsConfig().find(gi => gi.name === name);
+const searchGameItemsLocal = (q, limit = 20) => {
+  const lower = q.toLowerCase();
+  return getGameItemsConfig().filter(gi => gi.name.toLowerCase().includes(lower)).slice(0, limit);
+};
 
 const Sell = () => {
   const { t } = useTranslation();
@@ -25,6 +32,17 @@ const Sell = () => {
 
   const [sessionId, setSessionId] = useState(null);
 
+  // Game item selector (uses static window.GAME_ITEMS_CONFIG)
+  const [gameItemQuery, setGameItemQuery] = useState('');
+  const [selectedGameItem, setSelectedGameItem] = useState(null);
+  const [showGameItemSuggestions, setShowGameItemSuggestions] = useState(false);
+  const gameItemRef = useRef(null);
+
+  const gameItemSuggestions = useMemo(() => {
+    if (!gameItemQuery.trim()) return [];
+    return searchGameItemsLocal(gameItemQuery.trim());
+  }, [gameItemQuery]);
+
   const [formData, setFormData] = useState({
     name: '',
     price: '',
@@ -32,6 +50,36 @@ const Sell = () => {
     description: '',
     sections: {}
   });
+
+  // Close game item suggestions on outside click
+  useEffect(() => {
+    const handleClick = (e) => {
+      if (gameItemRef.current && !gameItemRef.current.contains(e.target)) {
+        setShowGameItemSuggestions(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  const handleGameItemSearch = (q) => {
+    setGameItemQuery(q);
+    setSelectedGameItem(null);
+    setShowGameItemSuggestions(q.trim().length > 0);
+  };
+
+  const handleSelectGameItem = (gi) => {
+    setSelectedGameItem(gi);
+    setGameItemQuery(gi.name);
+    // Auto-fill listing name if empty
+    setFormData(prev => ({ ...prev, name: prev.name || gi.name }));
+    setShowGameItemSuggestions(false);
+  };
+
+  const clearGameItem = () => {
+    setSelectedGameItem(null);
+    setGameItemQuery('');
+  };
 
   const handleFileChange = (e) => {
     const selectedFile = e.target.files[0];
@@ -67,6 +115,17 @@ const Sell = () => {
       // Auto-populate some core fields
       const itemName = newSections.item_name?.text || '';
       const allText = (data.all_lines || []).map(l => l.text).join('\n');
+
+      // Auto-resolve game item from OCR item name (local config lookup)
+      if (itemName) {
+        setGameItemQuery(itemName);
+        const exact = findGameItemByName(itemName);
+        if (exact) {
+          setSelectedGameItem(exact);
+        } else {
+          setShowGameItemSuggestions(true);
+        }
+      }
 
       setFormData(prev => ({
         ...prev,
@@ -261,16 +320,36 @@ const Sell = () => {
                 // Extract structured reforge data
                 const reforge_options = (formData.sections?.reforge?.options || []).map(opt => ({
                   name: opt.option_name || opt.name || '',
+                  reforge_option_id: opt.reforge_option_id ?? null,
                   level: opt.option_level ?? opt.level ?? null,
                   max_level: opt.max_level ?? null,
                 }));
 
+                // Extract value-determining attributes from sections
+                const itemType = formData.sections?.item_type?.text || null;
+                const itemGrade = formData.sections?.item_grade?.text || null;
+                const ergSection = formData.sections?.erg;
+                let ergGrade = null;
+                let ergLevel = null;
+                if (ergSection?.lines?.length) {
+                  const ergText = ergSection.lines.map(l => l.text).join(' ');
+                  const gradeMatch = ergText.match(/\b([SABCDEF])\b/);
+                  if (gradeMatch) ergGrade = gradeMatch[1];
+                  const levelMatch = ergText.match(/(\d+)/);
+                  if (levelMatch) ergLevel = parseInt(levelMatch[1], 10);
+                }
+
                 try {
-                  const { data: result } = await registerItem({
+                  const { data: result } = await registerListing({
                     session_id: sessionId,
                     name: formData.name,
                     price: formData.price,
                     category: formData.category,
+                    game_item_id: selectedGameItem?.id || null,
+                    item_type: itemType,
+                    item_grade: itemGrade,
+                    erg_grade: ergGrade,
+                    erg_level: ergLevel,
                     lines,
                     enchants,
                     reforge_options,
@@ -285,7 +364,46 @@ const Sell = () => {
                 }
               }}>
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-                    <div className="md:col-span-8">
+                    {/* Game item selector */}
+                    <div className="md:col-span-5">
+                        <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">{t('sell.gameItem')}</label>
+                        <div className="relative" ref={gameItemRef}>
+                          <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-500 w-4 h-4" />
+                          <input
+                              type="text"
+                              value={gameItemQuery}
+                              onChange={(e) => handleGameItemSearch(e.target.value)}
+                              onFocus={() => { if (gameItemSuggestions.length > 0) setShowGameItemSuggestions(true); }}
+                              placeholder={t('sell.gameItemPlaceholder')}
+                              className={`w-full bg-gray-900 border rounded-xl pl-10 pr-10 py-3 text-sm font-bold text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all ${selectedGameItem ? 'border-green-700' : 'border-gray-700'}`}
+                          />
+                          {selectedGameItem && (
+                            <button
+                              type="button"
+                              onClick={clearGameItem}
+                              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          )}
+                          {showGameItemSuggestions && gameItemSuggestions.length > 0 && (
+                            <div className="absolute z-20 mt-1 w-full bg-gray-800 border border-gray-700 rounded-lg shadow-xl max-h-60 overflow-auto">
+                              {gameItemSuggestions.map((gi) => (
+                                <button
+                                  key={gi.id}
+                                  type="button"
+                                  onClick={() => handleSelectGameItem(gi)}
+                                  className="w-full text-left px-4 py-2 text-sm hover:bg-gray-700 transition-colors"
+                                >
+                                  {gi.name}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                    </div>
+                    {/* Listing name */}
+                    <div className="md:col-span-4">
                         <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">{t('sell.itemName')}</label>
                         <input
                             type="text"
@@ -293,10 +411,10 @@ const Sell = () => {
                             value={formData.name}
                             onChange={handleInputChange}
                             placeholder={t('sell.itemNamePlaceholder')}
-                            className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-lg font-bold text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all"
+                            className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-sm font-bold text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all"
                         />
                     </div>
-                    <div className="md:col-span-4">
+                    <div className="md:col-span-3">
                         <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">{t('sell.price')}</label>
                         <input
                             type="text"
@@ -367,6 +485,7 @@ const Sell = () => {
                     onClick={() => {
                         setOcrResult(null);
                         setFormData({ name: '', price: '', category: 'weapon', description: '', sections: {} });
+                        clearGameItem();
                     }}
                   >
                     <RotateCw className="w-5 h-5" />

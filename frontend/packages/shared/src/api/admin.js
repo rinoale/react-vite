@@ -20,8 +20,8 @@ export const approveCorrection = (correctionId) =>
 export const editCorrection = (correctionId, correctedText) =>
   client.patch(`/admin/corrections/${correctionId}`, { corrected_text: correctedText });
 
-export const getItems = ({ limit, offset }) =>
-  client.get('/admin/items', { params: { limit, offset } });
+export const getListings = ({ limit, offset }) =>
+  client.get('/admin/listings', { params: { limit, offset } });
 
-export const getItemDetail = (itemId) =>
-  client.get(`/admin/items/${itemId}/detail`);
+export const getListingDetail = (listingId) =>
+  client.get(`/admin/listings/${listingId}/detail`);

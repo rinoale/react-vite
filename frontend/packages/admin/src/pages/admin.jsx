@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { Loader2, ChevronDown, ChevronRight, Info, List, RefreshCw, Check, Image, Pencil, X, Save, Package } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { getSummary, getEnchantEntries, getEnchantEffects, getLinks, getCorrections, approveCorrection, editCorrection, getItems, getItemDetail } from '@mabi/shared/api/admin';
+import { getSummary, getEnchantEntries, getEnchantEffects, getLinks, getCorrections, approveCorrection, editCorrection, getListings, getListingDetail } from '@mabi/shared/api/admin';
 
 const toRankLabel = (rank) => {
   const n = Number(rank);
@@ -23,7 +23,8 @@ const normalizeSummary = (summary) => ({
   effects: summary?.effects ?? summary?.enchant_effects ?? 0,
   enchantEffects: summary?.enchant_effects ?? summary?.enchant_links ?? 0,
   reforgeOptions: summary?.reforge_options ?? 0,
-  items: summary?.items ?? 0,
+  listings: summary?.listings ?? 0,
+  gameItems: summary?.game_items ?? 0,
 });
 
 const formatEffectText = (effect) => {
@@ -290,49 +291,49 @@ const CorrectionsPanel = () => {
   );
 };
 
-const ItemsPanel = () => {
+const ListingsPanel = () => {
   const { t } = useTranslation();
-  const [items, setItems] = useState([]);
+  const [listings, setListings] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [pagination, setPagination] = useState({ limit: 50, offset: 0 });
-  const [expandedItemIds, setExpandedItemIds] = useState({});
-  const [detailByItem, setDetailByItem] = useState({});
+  const [expandedListingIds, setExpandedListingIds] = useState({});
+  const [detailByListing, setDetailByListing] = useState({});
   const [loadingDetail, setLoadingDetail] = useState({});
 
-  const fetchItems = useCallback(async () => {
+  const fetchListings = useCallback(async () => {
     setIsLoading(true);
     try {
-      const { data } = await getItems({ limit: pagination.limit, offset: pagination.offset });
-      setItems(data.rows || []);
+      const { data } = await getListings({ limit: pagination.limit, offset: pagination.offset });
+      setListings(data.rows || []);
     } catch (error) {
-      console.error('Error fetching items:', error);
-      setItems([]);
+      console.error('Error fetching listings:', error);
+      setListings([]);
     } finally {
       setIsLoading(false);
     }
   }, [pagination.offset, pagination.limit]);
 
   useEffect(() => {
-    fetchItems();
-  }, [fetchItems]);
+    fetchListings();
+  }, [fetchListings]);
 
-  const fetchItemDetail = async (itemId) => {
-    if (detailByItem[itemId] || loadingDetail[itemId]) return;
-    setLoadingDetail((prev) => ({ ...prev, [itemId]: true }));
+  const fetchListingDetail = async (listingId) => {
+    if (detailByListing[listingId] || loadingDetail[listingId]) return;
+    setLoadingDetail((prev) => ({ ...prev, [listingId]: true }));
     try {
-      const { data } = await getItemDetail(itemId);
-      setDetailByItem((prev) => ({ ...prev, [itemId]: data }));
+      const { data } = await getListingDetail(listingId);
+      setDetailByListing((prev) => ({ ...prev, [listingId]: data }));
     } catch (error) {
-      console.error(`Error fetching item detail ${itemId}:`, error);
-      setDetailByItem((prev) => ({ ...prev, [itemId]: { enchants: [], reforge_options: [] } }));
+      console.error(`Error fetching listing detail ${listingId}:`, error);
+      setDetailByListing((prev) => ({ ...prev, [listingId]: { enchants: [], reforge_options: [] } }));
     } finally {
-      setLoadingDetail((prev) => ({ ...prev, [itemId]: false }));
+      setLoadingDetail((prev) => ({ ...prev, [listingId]: false }));
     }
   };
 
-  const toggleItem = (id) => {
-    setExpandedItemIds((prev) => ({ ...prev, [id]: !prev[id] }));
-    fetchItemDetail(id);
+  const toggleListing = (id) => {
+    setExpandedListingIds((prev) => ({ ...prev, [id]: !prev[id] }));
+    fetchListingDetail(id);
   };
 
   return (
@@ -340,7 +341,7 @@ const ItemsPanel = () => {
       <div className="bg-gray-700/50 px-6 py-4 flex justify-between items-center">
         <h2 className="text-xl font-bold flex items-center gap-2">
           <Package className="w-5 h-5 text-cyan-500" />
-          {t('items.title')}
+          {t('listings.title')}
         </h2>
         <div className="flex items-center gap-4">
           <button
@@ -348,19 +349,19 @@ const ItemsPanel = () => {
             className="text-xs bg-gray-600 hover:bg-gray-500 px-3 py-1 rounded"
             disabled={pagination.offset === 0}
           >
-            {t('items.prev')}
+            {t('listings.prev')}
           </button>
           <span className="text-xs font-mono">
-            {pagination.offset + 1} - {pagination.offset + items.length}
+            {pagination.offset + 1} - {pagination.offset + listings.length}
           </span>
           <button
             onClick={() => setPagination((prev) => ({ ...prev, offset: prev.offset + prev.limit }))}
             className="text-xs bg-gray-600 hover:bg-gray-500 px-3 py-1 rounded"
-            disabled={items.length < pagination.limit}
+            disabled={listings.length < pagination.limit}
           >
-            {t('items.next')}
+            {t('listings.next')}
           </button>
-          <button onClick={fetchItems} className="p-1 hover:text-cyan-400" title={t('items.refresh')}>
+          <button onClick={fetchListings} className="p-1 hover:text-cyan-400" title={t('listings.refresh')}>
             <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
           </button>
         </div>
@@ -371,21 +372,21 @@ const ItemsPanel = () => {
           <div className="flex items-center justify-center py-12">
             <Loader2 className="w-8 h-8 text-cyan-500 animate-spin" />
           </div>
-        ) : items.length === 0 ? (
+        ) : listings.length === 0 ? (
           <div className="px-6 py-8 text-center text-xs text-gray-500 uppercase tracking-wide">
-            {t('items.noItems')}
+            {t('listings.noListings')}
           </div>
         ) : (
-          items.map((item) => {
-            const isExpanded = !!expandedItemIds[item.id];
-            const detail = detailByItem[item.id];
-            const isDetailLoading = !!loadingDetail[item.id];
+          listings.map((listing) => {
+            const isExpanded = !!expandedListingIds[listing.id];
+            const detail = detailByListing[listing.id];
+            const isDetailLoading = !!loadingDetail[listing.id];
 
             return (
-              <div key={item.id} className="transition-colors hover:bg-gray-700/30">
+              <div key={listing.id} className="transition-colors hover:bg-gray-700/30">
                 <div
                   className="px-6 py-4 flex items-center justify-between cursor-pointer"
-                  onClick={() => toggleItem(item.id)}
+                  onClick={() => toggleListing(listing.id)}
                 >
                   <div className="flex items-center gap-4">
                     {isExpanded ? (
@@ -393,21 +394,26 @@ const ItemsPanel = () => {
                     ) : (
                       <ChevronRight className="w-5 h-5 text-gray-500" />
                     )}
-                    <span className="text-lg font-black text-white">{item.name || t('items.unnamed')}</span>
-                    {item.enchant_count > 0 && (
-                      <span className="text-xs font-bold text-cyan-600 uppercase tracking-tighter">
-                        {t('items.enchantCount', { count: item.enchant_count })}{item.enchant_count !== 1 ? 'S' : ''}
+                    <span className="text-lg font-black text-white">{listing.name || t('listings.unnamed')}</span>
+                    {listing.prefix_enchant_name && (
+                      <span className="text-xs font-bold text-blue-400 uppercase tracking-tighter">
+                        {listing.prefix_enchant_name}
+                      </span>
+                    )}
+                    {listing.suffix_enchant_name && (
+                      <span className="text-xs font-bold text-red-400 uppercase tracking-tighter">
+                        {listing.suffix_enchant_name}
                       </span>
                     )}
                   </div>
                   <div className="flex items-center gap-4">
-                    {item.created_at && (
+                    {listing.created_at && (
                       <span className="text-[10px] font-mono text-gray-500">
-                        {new Date(item.created_at).toLocaleString()}
+                        {new Date(listing.created_at).toLocaleString()}
                       </span>
                     )}
                     <span className="text-[10px] font-mono text-gray-500 bg-black/30 px-2 py-0.5 rounded">
-                      ID: {item.id}
+                      ID: {listing.id}
                     </span>
                   </div>
                 </div>
@@ -418,35 +424,55 @@ const ItemsPanel = () => {
                       <div className="py-4 text-center">
                         <div className="flex items-center justify-center gap-2">
                           <Loader2 className="w-4 h-4 animate-spin text-gray-600" />
-                          <span className="text-xs text-gray-600 uppercase">{t('items.loadingDetails')}</span>
+                          <span className="text-xs text-gray-600 uppercase">{t('listings.loadingDetails')}</span>
                         </div>
                       </div>
                     ) : detail ? (
                       <>
-                        {detail.enchants?.length > 0 && (
+                        {(detail.item_type || detail.item_grade) && (
+                          <div className="mb-3">
+                            <p className="text-xs text-gray-400">
+                              {[detail.item_type, detail.item_grade].filter(Boolean).join(' / ')}
+                            </p>
+                          </div>
+                        )}
+
+                        {detail.erg_grade && (
+                          <div className="mb-3">
+                            <span className="text-xs px-2 py-1 bg-yellow-900/40 text-yellow-300 rounded">
+                              ERG {detail.erg_grade}{detail.erg_level != null ? ` Lv.${detail.erg_level}` : ''}
+                            </span>
+                          </div>
+                        )}
+
+                        {(detail.prefix_enchant || detail.suffix_enchant) && (
                           <div className="space-y-3">
                             <p className="text-[10px] font-black text-gray-600 uppercase tracking-widest border-b border-gray-800 pb-1">
-                              {t('items.enchants')}
+                              {t('listings.enchants')}
                             </p>
-                            {detail.enchants.map((enc, idx) => (
+                            {[detail.prefix_enchant, detail.suffix_enchant].filter(Boolean).map((enc, idx) => (
                               <div key={idx} className="bg-gray-800/50 p-3 rounded-lg border border-gray-700/50">
                                 <div className="flex items-center gap-3 mb-2">
                                   <span className={`text-xs font-bold uppercase px-1.5 py-0.5 rounded ${
                                     enc.slot === 0 ? 'bg-blue-900/50 text-blue-300' : 'bg-red-900/50 text-red-300'
                                   }`}>
-                                    {enc.slot === 0 ? t('items.prefix') : t('items.suffix')}
+                                    {enc.slot === 0 ? t('listings.prefix') : t('listings.suffix')}
                                   </span>
                                   <span className="text-sm font-bold text-white">{enc.enchant_name}</span>
-                                  <span className="text-xs text-gray-500">{t('items.rank', { rank: toRankLabel(enc.rank) })}</span>
+                                  <span className="text-xs text-gray-500">{t('listings.rank', { rank: toRankLabel(enc.rank) })}</span>
                                 </div>
                                 {enc.effects?.length > 0 && (
                                   <ul className="space-y-1 ml-4">
                                     {enc.effects.map((eff, effIdx) => (
                                       <li key={effIdx} className="flex items-center gap-2">
                                         <span className="text-sm text-gray-300">{eff.raw_text}</span>
-                                        {eff.value != null && (
+                                        {eff.value != null ? (
                                           <span className="text-xs font-bold text-cyan-400">
                                             = {eff.value}
+                                          </span>
+                                        ) : eff.min_value != null && (
+                                          <span className="text-xs text-gray-500">
+                                            = {eff.min_value === eff.max_value ? eff.min_value : `${eff.min_value}~${eff.max_value}`}
                                           </span>
                                         )}
                                       </li>
@@ -461,7 +487,7 @@ const ItemsPanel = () => {
                         {detail.reforge_options?.length > 0 && (
                           <div className="space-y-3">
                             <p className="text-[10px] font-black text-gray-600 uppercase tracking-widest border-b border-gray-800 pb-1">
-                              {t('items.reforgeOptions')}
+                              {t('listings.reforgeOptions')}
                             </p>
                             <ul className="space-y-2">
                               {detail.reforge_options.map((opt, idx) => (
@@ -470,7 +496,7 @@ const ItemsPanel = () => {
                                   <div className="flex items-center gap-2">
                                     {opt.level != null && (
                                       <span className="text-xs font-bold text-orange-400">
-                                        {t('items.level', { level: opt.level })}
+                                        {t('listings.level', { level: opt.level })}
                                       </span>
                                     )}
                                     {opt.max_level != null && (
@@ -485,8 +511,8 @@ const ItemsPanel = () => {
                           </div>
                         )}
 
-                        {(!detail.enchants?.length && !detail.reforge_options?.length) && (
-                          <p className="text-xs text-gray-600 uppercase">{t('items.noEnchantReforge')}</p>
+                        {(!detail.prefix_enchant && !detail.suffix_enchant && !detail.reforge_options?.length) && (
+                          <p className="text-xs text-gray-600 uppercase">{t('listings.noEnchantReforge')}</p>
                         )}
                       </>
                     ) : null}
@@ -515,7 +541,7 @@ const Admin = () => {
 
   const TABS = useMemo(() => [
     { key: 'enchants', label: t('tabs.enchants') },
-    { key: 'items', label: t('tabs.items') },
+    { key: 'listings', label: t('tabs.listings') },
     { key: 'corrections', label: t('tabs.corrections') },
   ], [t]);
 
@@ -606,8 +632,12 @@ const Admin = () => {
                 <span className="text-lg font-bold text-cyan-400">{stats.enchantEffects}</span>
               </div>
               <div className="bg-gray-800 px-4 py-2 rounded-lg border border-gray-700">
-                <span className="text-[10px] font-black text-gray-500 block uppercase">{t('stats.items')}</span>
-                <span className="text-lg font-bold text-cyan-400">{stats.items}</span>
+                <span className="text-[10px] font-black text-gray-500 block uppercase">{t('stats.listings')}</span>
+                <span className="text-lg font-bold text-cyan-400">{stats.listings}</span>
+              </div>
+              <div className="bg-gray-800 px-4 py-2 rounded-lg border border-gray-700">
+                <span className="text-[10px] font-black text-gray-500 block uppercase">{t('stats.gameItems')}</span>
+                <span className="text-lg font-bold text-cyan-400">{stats.gameItems}</span>
               </div>
             </div>
           )}
@@ -631,8 +661,8 @@ const Admin = () => {
 
         {activeTab === 'corrections' ? (
           <CorrectionsPanel />
-        ) : activeTab === 'items' ? (
-          <ItemsPanel />
+        ) : activeTab === 'listings' ? (
+          <ListingsPanel />
         ) : isLoading && !summary ? (
           <div className="flex flex-col items-center justify-center py-20">
             <Loader2 className="w-12 h-12 text-cyan-500 animate-spin mb-4" />

@@ -34,28 +34,34 @@ CREATE TABLE IF NOT EXISTS enchant_effects (
     UNIQUE (enchant_id, effect_order)
 );
 
--- Items
-CREATE TABLE IF NOT EXISTS items (
+-- Game item dictionary (from item_name.txt)
+CREATE TABLE IF NOT EXISTS game_items (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_game_items_name ON game_items(name);
+
+-- Listings (registered items for sale)
+CREATE TABLE IF NOT EXISTS listings (
     id SERIAL PRIMARY KEY,
     name TEXT NOT NULL,
+    game_item_id INTEGER REFERENCES game_items(id) ON DELETE SET NULL,
+    prefix_enchant_id INTEGER REFERENCES enchants(id) ON DELETE SET NULL,
+    suffix_enchant_id INTEGER REFERENCES enchants(id) ON DELETE SET NULL,
+    item_type TEXT,
+    item_grade TEXT,
+    erg_grade TEXT,
+    erg_level INTEGER,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+CREATE INDEX IF NOT EXISTS idx_listings_game_item_id ON listings(game_item_id);
 
--- Which enchant is applied to an item
-CREATE TABLE IF NOT EXISTS item_enchants (
+-- Actual rolled values for each effect on a listing
+CREATE TABLE IF NOT EXISTS listing_enchant_effects (
     id SERIAL PRIMARY KEY,
-    item_id INTEGER NOT NULL REFERENCES items(id) ON DELETE CASCADE,
-    enchant_id INTEGER NOT NULL REFERENCES enchants(id) ON DELETE RESTRICT,
-    slot SMALLINT NOT NULL CHECK (slot IN (0, 1)),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE (item_id, slot)                           -- one prefix + one suffix per item
-);
-
--- Actual rolled values for each effect on an item
-CREATE TABLE IF NOT EXISTS item_enchant_effects (
-    id SERIAL PRIMARY KEY,
-    item_id INTEGER NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+    listing_id INTEGER NOT NULL REFERENCES listings(id) ON DELETE CASCADE,
     enchant_effect_id INTEGER NOT NULL REFERENCES enchant_effects(id) ON DELETE RESTRICT,
     value NUMERIC NOT NULL,                          -- signed: the actual rolled number
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -67,6 +73,17 @@ CREATE TABLE IF NOT EXISTS reforge_options (
     option_name TEXT NOT NULL UNIQUE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Reforge options applied to a listing
+CREATE TABLE IF NOT EXISTS listing_reforge_options (
+    id SERIAL PRIMARY KEY,
+    listing_id INTEGER NOT NULL REFERENCES listings(id) ON DELETE CASCADE,
+    reforge_option_id INTEGER REFERENCES reforge_options(id) ON DELETE RESTRICT,
+    option_name TEXT NOT NULL,
+    level INTEGER,
+    max_level INTEGER,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- Trigger function for updated_at
@@ -96,9 +113,9 @@ BEFORE UPDATE ON enchant_effects
 FOR EACH ROW
 EXECUTE FUNCTION set_updated_at();
 
-DROP TRIGGER IF EXISTS trg_items_updated_at ON items;
-CREATE TRIGGER trg_items_updated_at
-BEFORE UPDATE ON items
+DROP TRIGGER IF EXISTS trg_listings_updated_at ON listings;
+CREATE TRIGGER trg_listings_updated_at
+BEFORE UPDATE ON listings
 FOR EACH ROW
 EXECUTE FUNCTION set_updated_at();
 

@@ -80,56 +80,57 @@ class OcrCorrection(Base):
     trained_version = Column(Text, nullable=True)
 
 
-class Item(Base):
-    __tablename__ = "items"
+class GameItem(Base):
+    __tablename__ = "game_items"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(Text, nullable=False, unique=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class Listing(Base):
+    __tablename__ = "listings"
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(Text, nullable=False)
+    game_item_id = Column(Integer, ForeignKey("game_items.id", ondelete="SET NULL"), nullable=True)
+    prefix_enchant_id = Column(Integer, ForeignKey("enchants.id", ondelete="SET NULL"), nullable=True)
+    suffix_enchant_id = Column(Integer, ForeignKey("enchants.id", ondelete="SET NULL"), nullable=True)
+    item_type = Column(Text, nullable=True)
+    item_grade = Column(Text, nullable=True)
+    erg_grade = Column(Text, nullable=True)
+    erg_level = Column(Integer, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
-    enchants = relationship("ItemEnchant", back_populates="item", cascade="all, delete-orphan")
-    enchant_effects = relationship("ItemEnchantEffect", back_populates="item", cascade="all, delete-orphan")
-    reforge_options = relationship("ItemReforgeOption", back_populates="item", cascade="all, delete-orphan")
+    game_item = relationship("GameItem")
+    prefix_enchant = relationship("Enchant", foreign_keys=[prefix_enchant_id])
+    suffix_enchant = relationship("Enchant", foreign_keys=[suffix_enchant_id])
+    enchant_effects = relationship("ListingEnchantEffect", back_populates="listing", cascade="all, delete-orphan")
+    reforge_options = relationship("ListingReforgeOption", back_populates="listing", cascade="all, delete-orphan")
 
-class ItemEnchant(Base):
-    __tablename__ = "item_enchants"
-
-    id = Column(Integer, primary_key=True, index=True)
-    item_id = Column(Integer, ForeignKey("items.id", ondelete="CASCADE"), nullable=False)
-    enchant_id = Column(Integer, ForeignKey("enchants.id", ondelete="RESTRICT"), nullable=False)
-    slot = Column(SmallInteger, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-
-    item = relationship("Item", back_populates="enchants")
-    enchant = relationship("Enchant")
-
-    __table_args__ = (
-        UniqueConstraint('item_id', 'slot', name='_item_slot_uc'),
-    )
-
-class ItemEnchantEffect(Base):
-    __tablename__ = "item_enchant_effects"
+class ListingEnchantEffect(Base):
+    __tablename__ = "listing_enchant_effects"
 
     id = Column(Integer, primary_key=True, index=True)
-    item_id = Column(Integer, ForeignKey("items.id", ondelete="CASCADE"), nullable=False)
+    listing_id = Column(Integer, ForeignKey("listings.id", ondelete="CASCADE"), nullable=False)
     enchant_effect_id = Column(Integer, ForeignKey("enchant_effects.id", ondelete="RESTRICT"), nullable=False)
     value = Column(Numeric, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    item = relationship("Item", back_populates="enchant_effects")
+    listing = relationship("Listing", back_populates="enchant_effects")
     enchant_effect = relationship("EnchantEffect")
 
-class ItemReforgeOption(Base):
-    __tablename__ = "item_reforge_options"
+class ListingReforgeOption(Base):
+    __tablename__ = "listing_reforge_options"
 
     id = Column(Integer, primary_key=True, index=True)
-    item_id = Column(Integer, ForeignKey("items.id", ondelete="CASCADE"), nullable=False)
+    listing_id = Column(Integer, ForeignKey("listings.id", ondelete="CASCADE"), nullable=False)
     reforge_option_id = Column(Integer, ForeignKey("reforge_options.id", ondelete="RESTRICT"), nullable=True)
     option_name = Column(Text, nullable=False)
     level = Column(Integer, nullable=True)
     max_level = Column(Integer, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    item = relationship("Item", back_populates="reforge_options")
+    listing = relationship("Listing", back_populates="reforge_options")
     reforge_option = relationship("ReforgeOption")

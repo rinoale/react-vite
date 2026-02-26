@@ -32,7 +32,7 @@ def _render_table(rows: list[Any]) -> str:
         headers = [k for k in rows[0].__dict__.keys() if not k.startswith('_')]
     else:
         headers = list(rows[0].keys())
-        
+
     th = "".join(f"<th>{escape(str(h))}</th>" for h in headers)
 
     body_rows = []
@@ -111,24 +111,35 @@ def admin_reforge_options(
     return {"limit": limit, "offset": offset, "rows": rows}
 
 
-@router.get("/items/{item_id}/detail", response_model=schemas.ItemDetailOut)
-def admin_item_detail(
-    item_id: int,
+@router.get("/listings/{listing_id}/detail", response_model=schemas.ListingDetailOut)
+def admin_listing_detail(
+    listing_id: int,
     db: Session = Depends(get_db),
 ):
-    result = crud_admin.get_item_detail(db, item_id)
+    result = crud_admin.get_listing_detail(db, listing_id)
     if result is None:
-        raise HTTPException(status_code=404, detail="Item not found")
+        raise HTTPException(status_code=404, detail="Listing not found")
     return result
 
 
-@router.get("/items", response_model=schemas.PaginatedItemResponse)
-def admin_items(
+@router.get("/listings", response_model=schemas.PaginatedListingResponse)
+def admin_listings(
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
 ):
-    rows = crud_admin.get_items(db, limit=limit, offset=offset)
+    rows = crud_admin.get_listings(db, limit=limit, offset=offset)
+    return {"limit": limit, "offset": offset, "rows": rows}
+
+
+@router.get("/game-items", response_model=schemas.PaginatedGameItemResponse)
+def admin_game_items(
+    q: str = Query(default=""),
+    limit: int = Query(default=100, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+):
+    rows = crud_admin.get_game_items(db, q=q or None, limit=limit, offset=offset)
     return {"limit": limit, "offset": offset, "rows": rows}
 
 
@@ -168,7 +179,8 @@ def admin_validate_page(
     effects={summary['effects']} |
     enchant_effects={summary['enchant_effects']} |
     reforge={summary['reforge_options']} |
-    items={summary['items']}
+    listings={summary['listings']} |
+    game_items={summary['game_items']}
   </p>
   <p>
     <a href=\"/admin/validate?tab=enchants&limit={limit}&offset=0\">enchants</a> |
@@ -183,7 +195,7 @@ def admin_validate_page(
   </p>
   {_render_table(rows)}
   <hr/>
-  <p>JSON endpoints: /admin/summary, /admin/enchant-entries, /admin/effects, /admin/links, /admin/reforge-options</p>
+  <p>JSON endpoints: /admin/summary, /admin/enchant-entries, /admin/effects, /admin/links, /admin/reforge-options, /admin/listings, /admin/game-items</p>
 </body>
 </html>
 """

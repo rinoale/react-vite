@@ -12,11 +12,12 @@
     "enchants": "Enchants",
     "effects": "Effects",
     "enchantEffects": "Enchant Effects",
-    "items": "Items"
+    "listings": "Listings",
+    "gameItems": "Game Items"
   },
   "tabs": {
     "enchants": "Enchants",
-    "items": "Items",
+    "listings": "Listings",
     "corrections": "Corrections"
   },
   "corrections": {
@@ -30,11 +31,11 @@
     "approve": "Approve",
     "refresh": "Refresh"
   },
-  "items": {
-    "title": "REGISTERED ITEMS",
+  "listings": {
+    "title": "REGISTERED LISTINGS",
     "prev": "PREV",
     "next": "NEXT",
-    "noItems": "No registered items found.",
+    "noListings": "No registered listings found.",
     "loadingDetails": "Loading details...",
     "enchants": "Enchants",
     "prefix": "Prefix",
@@ -42,7 +43,7 @@
     "rank": "Rank {{rank}}",
     "reforgeOptions": "Reforge Options",
     "level": "Lv. {{level}}",
-    "noEnchantReforge": "No enchant or reforge data for this item.",
+    "noEnchantReforge": "No enchant or reforge data for this listing.",
     "unnamed": "(unnamed)",
     "refresh": "Refresh",
     "enchantCount": "{{count}} ENCHANT",

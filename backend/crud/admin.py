@@ -9,7 +9,8 @@ def get_summary(db: Session):
         "effects": db.query(models.Effect).count(),
         "enchant_effects": db.query(models.EnchantEffect).count(),
         "reforge_options": db.query(models.ReforgeOption).count(),
-        "items": db.query(models.Item).count(),
+        "listings": db.query(models.Listing).count(),
+        "game_items": db.query(models.GameItem).count(),
     }
 
 def get_enchants(db: Session, limit: int = 100, offset: int = 0):
@@ -92,19 +93,30 @@ def get_enchant_effects_by_id(db: Session, enchant_id: int):
 def get_reforge_options(db: Session, limit: int = 100, offset: int = 0):
     return db.query(models.ReforgeOption).order_by(models.ReforgeOption.id).limit(limit).offset(offset).all()
 
-def get_items(db: Session, limit: int = 100, offset: int = 0):
+def get_listings(db: Session, limit: int = 100, offset: int = 0):
     rows = db.execute(
         text(
             """
             SELECT
-                i.id,
-                i.name,
-                i.created_at,
-                COUNT(ie.id) AS enchant_count
-            FROM items i
-            LEFT JOIN item_enchants ie ON ie.item_id = i.id
-            GROUP BY i.id
-            ORDER BY i.id DESC
+                l.id,
+                l.name,
+                l.game_item_id,
+                gi.name AS game_item_name,
+                pe.name AS prefix_enchant_name,
+                se.name AS suffix_enchant_name,
+                l.item_type,
+                l.item_grade,
+                l.erg_grade,
+                l.erg_level,
+                l.created_at,
+                COUNT(DISTINCT lro.id) AS reforge_count
+            FROM listings l
+            LEFT JOIN game_items gi ON gi.id = l.game_item_id
+            LEFT JOIN enchants pe ON pe.id = l.prefix_enchant_id
+            LEFT JOIN enchants se ON se.id = l.suffix_enchant_id
+            LEFT JOIN listing_reforge_options lro ON lro.listing_id = l.id
+            GROUP BY l.id, gi.name, pe.name, se.name
+            ORDER BY l.id DESC
             LIMIT :limit OFFSET :offset
             """
         ),
@@ -112,73 +124,113 @@ def get_items(db: Session, limit: int = 100, offset: int = 0):
     ).mappings()
     return [dict(r) for r in rows]
 
-def get_item_count(db: Session):
-    return db.query(models.Item).count()
+def get_listing_count(db: Session):
+    return db.query(models.Listing).count()
 
-def get_item_detail(db: Session, item_id: int):
-    item = db.query(models.Item).filter(models.Item.id == item_id).first()
-    if not item:
+def _build_enchant_detail(db: Session, listing_id: int, enchant_id: int, slot: int):
+    """Build enchant detail dict with all effects for a single enchant slot.
+
+    LEFT JOINs listing_enchant_effects so fixed effects (no rolled value)
+    also appear. Returns min_value/max_value from enchant_effects for display.
+    """
+    enc = db.query(models.Enchant).filter(models.Enchant.id == enchant_id).first()
+    if not enc:
         return None
-
-    # Enchants with their effects
-    enchant_rows = db.execute(
+    effect_rows = db.execute(
         text(
             """
-            SELECT
-                ie.slot,
-                e.name AS enchant_name,
-                e.rank
-            FROM item_enchants ie
-            JOIN enchants e ON e.id = ie.enchant_id
-            WHERE ie.item_id = :item_id
-            ORDER BY ie.slot
+            SELECT ee.raw_text, ee.min_value, ee.max_value, lee.value
+            FROM enchant_effects ee
+            LEFT JOIN listing_enchant_effects lee
+              ON lee.enchant_effect_id = ee.id
+              AND lee.listing_id = :listing_id
+            WHERE ee.enchant_id = :enchant_id
+            ORDER BY ee.effect_order
             """
         ),
-        {"item_id": item_id},
+        {"listing_id": listing_id, "enchant_id": enchant_id},
     ).mappings()
+    return {
+        "slot": slot,
+        "enchant_name": enc.name,
+        "rank": enc.rank,
+        "effects": [dict(e) for e in effect_rows],
+    }
 
-    enchants = []
-    for enc in enchant_rows:
-        effect_rows = db.execute(
-            text(
-                """
-                SELECT
-                    ee.raw_text,
-                    iee.value
-                FROM item_enchant_effects iee
-                JOIN enchant_effects ee ON ee.id = iee.enchant_effect_id
-                JOIN enchants e ON e.id = ee.enchant_id
-                WHERE iee.item_id = :item_id
-                  AND e.name = :enchant_name
-                  AND e.slot = :slot
-                ORDER BY ee.effect_order
-                """
-            ),
-            {"item_id": item_id, "enchant_name": enc["enchant_name"], "slot": enc["slot"]},
-        ).mappings()
-        enchants.append({
-            "slot": enc["slot"],
-            "enchant_name": enc["enchant_name"],
-            "rank": enc["rank"],
-            "effects": [dict(e) for e in effect_rows],
-        })
+
+def get_listing_detail(db: Session, listing_id: int):
+    listing = db.query(models.Listing).filter(models.Listing.id == listing_id).first()
+    if not listing:
+        return None
+
+    game_item_name = None
+    if listing.game_item_id:
+        gi = db.query(models.GameItem).filter(models.GameItem.id == listing.game_item_id).first()
+        if gi:
+            game_item_name = gi.name
+
+    prefix_enchant = None
+    if listing.prefix_enchant_id:
+        prefix_enchant = _build_enchant_detail(db, listing_id, listing.prefix_enchant_id, 0)
+
+    suffix_enchant = None
+    if listing.suffix_enchant_id:
+        suffix_enchant = _build_enchant_detail(db, listing_id, listing.suffix_enchant_id, 1)
 
     # Reforge options
     reforge_rows = db.execute(
         text(
             """
             SELECT option_name, level, max_level
-            FROM item_reforge_options
-            WHERE item_id = :item_id
+            FROM listing_reforge_options
+            WHERE listing_id = :listing_id
             ORDER BY id
             """
         ),
-        {"item_id": item_id},
+        {"listing_id": listing_id},
     ).mappings()
 
     return {
-        "id": item.id,
-        "name": item.name,
-        "enchants": enchants,
+        "id": listing.id,
+        "name": listing.name,
+        "game_item_id": listing.game_item_id,
+        "game_item_name": game_item_name,
+        "item_type": listing.item_type,
+        "item_grade": listing.item_grade,
+        "erg_grade": listing.erg_grade,
+        "erg_level": listing.erg_level,
+        "prefix_enchant": prefix_enchant,
+        "suffix_enchant": suffix_enchant,
         "reforge_options": [dict(r) for r in reforge_rows],
     }
+
+def get_game_items(db: Session, q: Optional[str] = None, limit: int = 20, offset: int = 0):
+    if q:
+        rows = db.execute(
+            text(
+                """
+                SELECT id, name
+                FROM game_items
+                WHERE name ILIKE :q
+                ORDER BY name
+                LIMIT :limit OFFSET :offset
+                """
+            ),
+            {"q": f"%{q}%", "limit": limit, "offset": offset},
+        ).mappings()
+    else:
+        rows = db.execute(
+            text(
+                """
+                SELECT id, name
+                FROM game_items
+                ORDER BY name
+                LIMIT :limit OFFSET :offset
+                """
+            ),
+            {"limit": limit, "offset": offset},
+        ).mappings()
+    return [dict(r) for r in rows]
+
+def get_game_item_count(db: Session):
+    return db.query(models.GameItem).count()

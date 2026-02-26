@@ -6,5 +6,5 @@ export const uploadItemV3 = (file) => {
   return client.post('/upload-item-v3', form);
 };
 
-export const registerItem = (payload) =>
-  client.post('/register-item', payload);
+export const registerListing = (payload) =>
+  client.post('/register-listing', payload);

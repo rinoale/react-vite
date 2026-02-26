@@ -136,6 +136,19 @@ def parse_reforge(path: Path) -> list[str]:
     return options
 
 
+def parse_game_items(path: Path) -> list[str]:
+    """Parse item_name.txt into deduplicated list of item names."""
+    seen = set()
+    names: list[str] = []
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line in seen:
+            continue
+        seen.add(line)
+        names.append(line)
+    return names
+
+
 def chunked(items: Iterable, size: int) -> Iterable[list]:
     buf: list = []
     for item in items:
@@ -277,9 +290,44 @@ def import_reforge(conn, reforge_options: list[str]) -> int:
     return count
 
 
+def import_game_items(conn, names: list[str]) -> int:
+    """Import game item names into game_items table. Returns count."""
+    count = 0
+    for batch in chunked(names, 500):
+        for name in batch:
+            conn.execute(
+                text(
+                    """
+                    INSERT INTO game_items (name)
+                    VALUES (:name)
+                    ON CONFLICT (name) DO NOTHING
+                    """
+                ),
+                {"name": name},
+            )
+            count += 1
+    return count
+
+
+def backfill_listings(conn) -> int:
+    """Set game_item_id on listings where name matches a game_item exactly."""
+    result = conn.execute(
+        text(
+            """
+            UPDATE listings l
+            SET game_item_id = gi.id
+            FROM game_items gi
+            WHERE l.name = gi.name
+              AND l.game_item_id IS NULL
+            """
+        )
+    )
+    return result.rowcount
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Import enchant/reforge dictionary files into PostgreSQL."
+        description="Import enchant/reforge/game-item dictionary files into PostgreSQL."
     )
     parser.add_argument(
         "--database-url",
@@ -306,11 +354,23 @@ def main() -> None:
         default="data/dictionary/reforge.txt",
         help="Path to reforge dictionary file.",
     )
+    parser.add_argument(
+        "--item-names-path",
+        default="data/dictionary/item_name.txt",
+        help="Path to game item names dictionary file.",
+    )
+    parser.add_argument(
+        "--backfill-listings",
+        action="store_true",
+        help="Backfill game_item_id on existing listings where name matches.",
+    )
     args = parser.parse_args()
 
     enchant_path = Path(args.enchant_path)
     effects_path = Path(args.effects_path)
     reforge_path = Path(args.reforge_path)
+    item_names_path = Path(args.item_names_path)
+
     if not enchant_path.exists():
         raise FileNotFoundError(f"Enchant file not found: {enchant_path}")
     if not effects_path.exists():
@@ -321,23 +381,43 @@ def main() -> None:
     effects_data = parse_effects_file(effects_path)
     enchant_entries = parse_enchant(enchant_path)
     reforge_options = parse_reforge(reforge_path)
-    db_url = _db_url_from_args(args)
 
+    # Game items are optional (file may not exist yet)
+    game_item_names = []
+    if item_names_path.exists():
+        game_item_names = parse_game_items(item_names_path)
+    else:
+        print(f"Warning: Item names file not found: {item_names_path} — skipping game_items import")
+
+    db_url = _db_url_from_args(args)
     engine = create_engine(db_url, pool_pre_ping=True)
+
     with engine.begin() as conn:
+        # Import game items first (no dependencies)
+        game_items_count = 0
+        if game_item_names:
+            game_items_count = import_game_items(conn, game_item_names)
+
         effect_name_to_id = import_effects(conn, effects_data)
         enchant_count, link_count = import_enchant(
             conn, enchant_entries, effect_name_to_id
         )
         reforge_count = import_reforge(conn, reforge_options)
 
+        backfill_count = 0
+        if args.backfill_listings:
+            backfill_count = backfill_listings(conn)
+
     print(
         "Imported dictionaries:"
+        f" game_items={game_items_count},"
         f" effects={len(effect_name_to_id)},"
         f" enchants={enchant_count},"
         f" enchant_effects={link_count},"
         f" reforge_options={reforge_count}"
     )
+    if args.backfill_listings:
+        print(f"Backfilled {backfill_count} listing(s) with game_item_id")
 
 
 if __name__ == "__main__":

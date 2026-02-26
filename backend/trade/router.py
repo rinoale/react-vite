@@ -2,18 +2,18 @@ import json
 import os
 import shutil
 
-from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
+from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from sqlalchemy import text
 
 from db.connector import get_db
-from db.models import OcrCorrection, Item, ItemEnchant, ItemEnchantEffect, ItemReforgeOption, Enchant, EnchantEffect, ReforgeOption
-from db.schemas import RegisterItemRequest
+from db.models import OcrCorrection, Listing, ListingEnchantEffect, ListingReforgeOption, Enchant, EnchantEffect, ReforgeOption, GameItem
+from db.schemas import RegisterListingRequest
 from trade.schemas import UploadItemV3Response
 from lib.log import logger
 from lib.v3_pipeline import init_pipeline, run_v3_pipeline, prepare_sections_for_response
-from crud.admin import get_item_detail
+from crud.admin import get_listing_detail
 
 router = APIRouter()
 
@@ -60,34 +60,72 @@ _CHARSETS = _load_charsets()
 _ALL_CHARS = set().union(*_CHARSETS.values()) if _CHARSETS else set()
 
 
-@router.get("/items")
-def get_items(db: Session = Depends(get_db)):
-    rows = db.execute(
-        text(
-            """
-            SELECT
-                i.id,
-                i.name,
-                i.created_at,
-                COUNT(DISTINCT ie.id) AS enchant_count,
-                COUNT(DISTINCT iro.id) AS reforge_count
-            FROM items i
-            LEFT JOIN item_enchants ie ON ie.item_id = i.id
-            LEFT JOIN item_reforge_options iro ON iro.item_id = i.id
-            GROUP BY i.id
-            ORDER BY i.id DESC
-            """
-        )
-    ).mappings()
+@router.get("/listings")
+def get_listings(game_item_id: int | None = Query(default=None), db: Session = Depends(get_db)):
+    base_sql = """
+        SELECT
+            l.id,
+            l.name,
+            l.game_item_id,
+            gi.name AS game_item_name,
+            pe.name AS prefix_enchant_name,
+            se.name AS suffix_enchant_name,
+            l.item_type,
+            l.item_grade,
+            l.erg_grade,
+            l.erg_level,
+            l.created_at,
+            COUNT(DISTINCT lro.id) AS reforge_count
+        FROM listings l
+        LEFT JOIN game_items gi ON gi.id = l.game_item_id
+        LEFT JOIN enchants pe ON pe.id = l.prefix_enchant_id
+        LEFT JOIN enchants se ON se.id = l.suffix_enchant_id
+        LEFT JOIN listing_reforge_options lro ON lro.listing_id = l.id
+    """
+    if game_item_id is not None:
+        rows = db.execute(
+            text(base_sql + """
+                WHERE l.game_item_id = :game_item_id
+                GROUP BY l.id, gi.name, pe.name, se.name
+                ORDER BY l.id DESC
+            """),
+            {"game_item_id": game_item_id},
+        ).mappings()
+    else:
+        rows = db.execute(
+            text(base_sql + """
+                GROUP BY l.id, gi.name, pe.name, se.name
+                ORDER BY l.id DESC
+            """)
+        ).mappings()
     return [dict(r) for r in rows]
 
 
-@router.get("/items/{item_id}")
-def get_item(item_id: int, db: Session = Depends(get_db)):
-    result = get_item_detail(db, item_id)
+@router.get("/listings/{listing_id}")
+def get_listing(listing_id: int, db: Session = Depends(get_db)):
+    result = get_listing_detail(db, listing_id)
     if result is None:
-        raise HTTPException(status_code=404, detail="Item not found")
+        raise HTTPException(status_code=404, detail="Listing not found")
     return result
+
+
+@router.get("/game-items")
+def search_game_items(q: str = Query(default=""), limit: int = Query(default=20, ge=1, le=100), db: Session = Depends(get_db)):
+    if not q.strip():
+        return []
+    rows = db.execute(
+        text(
+            """
+            SELECT id, name
+            FROM game_items
+            WHERE name ILIKE :q
+            ORDER BY name
+            LIMIT :limit
+            """
+        ),
+        {"q": f"%{q.strip()}%", "limit": limit},
+    ).mappings()
+    return [dict(r) for r in rows]
 
 
 @router.post("/upload-item-v3",
@@ -140,9 +178,9 @@ async def upload_item_v3(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/register-item")
-def register_item(payload: RegisterItemRequest, db: Session = Depends(get_db)):
-    """Register an item and implicitly capture any OCR corrections.
+@router.post("/register-listing")
+def register_listing(payload: RegisterListingRequest, db: Session = Depends(get_db)):
+    """Register a listing and implicitly capture any OCR corrections.
 
     The frontend sends the final line texts along with session_id.
     The server loads the original OCR results from the session dir,
@@ -150,7 +188,7 @@ def register_item(payload: RegisterItemRequest, db: Session = Depends(get_db)):
     correction training data.
     """
     logger.info(
-        "register-item  session=%s  name=%r  lines=%d",
+        "register-listing  session=%s  name=%r  lines=%d",
         payload.session_id, payload.name, len(payload.lines),
     )
     corrections_saved = 0
@@ -218,30 +256,54 @@ def register_item(payload: RegisterItemRequest, db: Session = Depends(get_db)):
             if corrections_saved:
                 try:
                     db.commit()
-                    logger.info("register-item  saved %d correction(s)", corrections_saved)
+                    logger.info("register-listing  saved %d correction(s)", corrections_saved)
                 except Exception:
                     db.rollback()
-                    logger.exception("register-item  DB commit failed for %d correction(s)", corrections_saved)
+                    logger.exception("register-listing  DB commit failed for %d correction(s)", corrections_saved)
                     corrections_saved = 0
 
-    # Persist item + join rows in a single transaction
-    item = Item(name=payload.name)
-    db.add(item)
+    # Resolve game_item FK: use explicit ID if provided, else match by name
+    game_item_id = payload.game_item_id
+    if not game_item_id and payload.name:
+        gi = db.query(GameItem).filter(GameItem.name == payload.name).first()
+        if gi:
+            game_item_id = gi.id
+
+    # Resolve enchant FKs
+    prefix_enchant_id = None
+    suffix_enchant_id = None
+    enchant_rows_by_slot = {}
+    for enc in payload.enchants:
+        enchant_row = db.query(Enchant).filter(
+            Enchant.name == enc.name,
+            Enchant.slot == enc.slot,
+        ).first()
+        if not enchant_row:
+            logger.warning("register-listing  enchant not found: name=%r slot=%d", enc.name, enc.slot)
+            continue
+        enchant_rows_by_slot[enc.slot] = (enchant_row, enc)
+        if enc.slot == 0:
+            prefix_enchant_id = enchant_row.id
+        elif enc.slot == 1:
+            suffix_enchant_id = enchant_row.id
+
+    # Persist listing + join rows in a single transaction
+    listing = Listing(
+        name=payload.name,
+        game_item_id=game_item_id,
+        prefix_enchant_id=prefix_enchant_id,
+        suffix_enchant_id=suffix_enchant_id,
+        item_type=payload.item_type,
+        item_grade=payload.item_grade,
+        erg_grade=payload.erg_grade,
+        erg_level=payload.erg_level,
+    )
+    db.add(listing)
     try:
-        db.flush()  # get item.id for FK references
+        db.flush()  # get listing.id for FK references
 
-        # --- Enchants ---
-        for enc in payload.enchants:
-            enchant_row = db.query(Enchant).filter(
-                Enchant.name == enc.name,
-                Enchant.slot == enc.slot,
-            ).first()
-            if not enchant_row:
-                logger.warning("register-item  enchant not found: name=%r slot=%d", enc.name, enc.slot)
-                continue
-
-            db.add(ItemEnchant(item_id=item.id, enchant_id=enchant_row.id, slot=enc.slot))
-
+        # --- Enchant effects (rolled values) ---
+        for slot, (enchant_row, enc) in enchant_rows_by_slot.items():
             for idx, eff in enumerate(enc.effects):
                 if eff.option_level is None:
                     continue
@@ -250,39 +312,42 @@ def register_item(payload: RegisterItemRequest, db: Session = Depends(get_db)):
                     EnchantEffect.effect_order == idx,
                 ).first()
                 if ee_row:
-                    db.add(ItemEnchantEffect(
-                        item_id=item.id,
+                    db.add(ListingEnchantEffect(
+                        listing_id=listing.id,
                         enchant_effect_id=ee_row.id,
                         value=eff.option_level,
                     ))
 
         # --- Reforge options ---
         for opt in payload.reforge_options:
-            reforge_row = db.query(ReforgeOption).filter(
-                ReforgeOption.option_name == opt.name,
-            ).first()
-            db.add(ItemReforgeOption(
-                item_id=item.id,
-                reforge_option_id=reforge_row.id if reforge_row else None,
+            reforge_option_id = opt.reforge_option_id
+            if not reforge_option_id:
+                reforge_row = db.query(ReforgeOption).filter(
+                    ReforgeOption.option_name == opt.name,
+                ).first()
+                reforge_option_id = reforge_row.id if reforge_row else None
+            db.add(ListingReforgeOption(
+                listing_id=listing.id,
+                reforge_option_id=reforge_option_id,
                 option_name=opt.name,
                 level=opt.level,
                 max_level=opt.max_level,
             ))
 
         db.commit()
-        db.refresh(item)
-        logger.info("register-item  persisted item id=%d name=%r enchants=%d reforges=%d",
-                     item.id, item.name, len(payload.enchants), len(payload.reforge_options))
+        db.refresh(listing)
+        logger.info("register-listing  persisted listing id=%d name=%r enchants=%d reforges=%d",
+                     listing.id, listing.name, len(payload.enchants), len(payload.reforge_options))
     except HTTPException:
         raise
     except Exception:
         db.rollback()
-        logger.exception("register-item  item persist failed")
-        raise HTTPException(status_code=500, detail="Failed to persist item")
+        logger.exception("register-listing  listing persist failed")
+        raise HTTPException(status_code=500, detail="Failed to persist listing")
 
     return {
         "registered": True,
         "name": payload.name,
-        "item_id": item.id,
+        "listing_id": listing.id,
         "corrections_saved": corrections_saved,
     }

@@ -25,7 +25,7 @@ class EffectBase(BaseModel):
 
 class Effect(EffectBase):
     id: int
-    
+
     class Config:
         from_attributes = True
 
@@ -51,7 +51,7 @@ class ReforgeOptionBase(BaseModel):
 
 class ReforgeOption(ReforgeOptionBase):
     id: int
-    
+
     class Config:
         from_attributes = True
 
@@ -60,7 +60,8 @@ class SummarySchema(BaseModel):
     effects: int
     enchant_effects: int
     reforge_options: int
-    items: int
+    listings: int
+    game_items: int
 
 class PaginatedEnchantResponse(BaseModel):
     limit: int
@@ -82,22 +83,45 @@ class PaginatedReforgeResponse(BaseModel):
     offset: int
     rows: List[ReforgeOption]
 
-class ItemOut(BaseModel):
+class ListingOut(BaseModel):
     id: int
     name: str
+    game_item_id: Optional[int] = None
+    game_item_name: Optional[str] = None
+    prefix_enchant_name: Optional[str] = None
+    suffix_enchant_name: Optional[str] = None
+    item_type: Optional[str] = None
+    item_grade: Optional[str] = None
+    erg_grade: Optional[str] = None
+    erg_level: Optional[int] = None
     created_at: Optional[datetime] = None
-    enchant_count: int = 0
+    reforge_count: int = 0
 
     class Config:
         from_attributes = True
 
-class PaginatedItemResponse(BaseModel):
+class PaginatedListingResponse(BaseModel):
     limit: int
     offset: int
-    rows: List[ItemOut]
+    rows: List[ListingOut]
 
 
-# --- Item registration + implicit correction capture ---
+# --- Game item catalog ---
+
+class GameItemOut(BaseModel):
+    id: int
+    name: str
+
+    class Config:
+        from_attributes = True
+
+class PaginatedGameItemResponse(BaseModel):
+    limit: int
+    offset: int
+    rows: List[GameItemOut]
+
+
+# --- Listing registration + implicit correction capture ---
 
 class RegisterEnchantEffect(BaseModel):
     text: str
@@ -112,19 +136,25 @@ class RegisterEnchantSlot(BaseModel):
 
 class RegisterReforgeOption(BaseModel):
     name: str
+    reforge_option_id: Optional[int] = None
     level: Optional[int] = None
     max_level: Optional[int] = None
 
-class RegisterItemLine(BaseModel):
+class RegisterListingLine(BaseModel):
     global_index: int
     text: str
 
-class RegisterItemRequest(BaseModel):
+class RegisterListingRequest(BaseModel):
     session_id: Optional[str] = None
     name: str = ''
     price: str = ''
     category: str = 'weapon'
-    lines: List[RegisterItemLine] = []
+    game_item_id: Optional[int] = None
+    item_type: Optional[str] = None
+    item_grade: Optional[str] = None
+    erg_grade: Optional[str] = None
+    erg_level: Optional[int] = None
+    lines: List[RegisterListingLine] = []
     enchants: List[RegisterEnchantSlot] = []
     reforge_options: List[RegisterReforgeOption] = []
 
@@ -148,25 +178,34 @@ class CorrectionOut(BaseModel):
         from_attributes = True
 
 
-# --- Item detail response ---
+# --- Listing detail response ---
 
-class ItemEnchantEffectOut(BaseModel):
+class ListingEnchantEffectOut(BaseModel):
     raw_text: str
+    min_value: Optional[Decimal] = None
+    max_value: Optional[Decimal] = None
     value: Optional[Decimal] = None
 
-class ItemEnchantOut(BaseModel):
+class ListingEnchantOut(BaseModel):
     slot: int
     enchant_name: str
     rank: int
-    effects: List[ItemEnchantEffectOut] = []
+    effects: List[ListingEnchantEffectOut] = []
 
-class ItemReforgeOptionOut(BaseModel):
+class ListingReforgeOptionOut(BaseModel):
     option_name: str
     level: Optional[int] = None
     max_level: Optional[int] = None
 
-class ItemDetailOut(BaseModel):
+class ListingDetailOut(BaseModel):
     id: int
     name: str
-    enchants: List[ItemEnchantOut] = []
-    reforge_options: List[ItemReforgeOptionOut] = []
+    game_item_id: Optional[int] = None
+    game_item_name: Optional[str] = None
+    item_type: Optional[str] = None
+    item_grade: Optional[str] = None
+    erg_grade: Optional[str] = None
+    erg_level: Optional[int] = None
+    prefix_enchant: Optional[ListingEnchantOut] = None
+    suffix_enchant: Optional[ListingEnchantOut] = None
+    reforge_options: List[ListingReforgeOptionOut] = []

@@ -31,15 +31,17 @@ const ReforgeOption = ({ opt, optIdx, lineIdx, onLineChange }) => {
       {editingName ? (
         <ConfigSearchInput
           items={reforgeItems}
-          getLabel={(item) => item}
-          onSelect={(name) => {
+          getLabel={(item) => typeof item === 'string' ? item : item.option_name}
+          onSelect={(item) => {
+            const name = typeof item === 'string' ? item : item.option_name;
+            const reforgeOptionId = typeof item === 'string' ? null : item.id;
             const newText = opt.level != null
               ? `- ${name} (${opt.level}/${opt.max_level} 레벨)`
               : `- ${name}`;
             onLineChange(lineIdx, newText, (sec) => {
               if (sec.options) {
                 const opts = [...sec.options];
-                opts[optIdx] = { ...opts[optIdx], name, option_name: name };
+                opts[optIdx] = { ...opts[optIdx], name, option_name: name, reforge_option_id: reforgeOptionId };
                 sec.options = opts;
               }
             });
