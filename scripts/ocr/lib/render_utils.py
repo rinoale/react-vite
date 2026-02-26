@@ -31,12 +31,14 @@ TEXT_COLOR = (220, 220, 220)
 FRONTEND_THRESHOLD = 120
 
 
-def render_line_gamelike(text, font_path, font_size, canvas_width=400):
-    """Render a text line using game-like bright-on-dark pipeline.
+def _render_and_threshold(text, font_path, font_size, threshold_noise=True):
+    """Shared render + threshold logic.
+
+    Args:
+        threshold_noise: If True, add random offset to threshold. If False, use fixed threshold.
 
     Returns:
-        (PIL Image mode 'L', bool success)
-        Image is binary (0/255), height ~14-15px, tight-cropped with padding.
+        (numpy binary array, bool success)
     """
     try:
         font = ImageFont.truetype(font_path, font_size)
@@ -63,10 +65,22 @@ def render_line_gamelike(text, font_path, font_size, canvas_width=400):
     gray = np.array(img)
 
     # Step 3: Threshold to binary
-    thresh = FRONTEND_THRESHOLD + random.randint(-10, 20)
+    if threshold_noise:
+        thresh = FRONTEND_THRESHOLD + random.randint(-10, 20)
+    else:
+        thresh = FRONTEND_THRESHOLD
     _, binary = cv2.threshold(gray, thresh, 255, cv2.THRESH_BINARY)
 
-    # Step 4: Tight-crop to ink bounds
+    return binary, True
+
+
+def _crop_and_pad(binary):
+    """Tight-crop to ink bounds + splitter-matching padding + quality gates.
+
+    Returns:
+        (PIL Image mode 'L', bool success)
+    """
+    # Tight-crop to ink bounds
     ink_rows = np.where(binary.min(axis=1) < 255)[0]
     ink_cols = np.where(binary.min(axis=0) < 255)[0]
 
@@ -79,7 +93,7 @@ def render_line_gamelike(text, font_path, font_size, canvas_width=400):
 
     crop_h, crop_w = cropped.shape
 
-    # Step 5: Splitter-matching padding
+    # Splitter-matching padding
     pad_y = max(1, crop_h // 5)
     pad_x = max(2, crop_h // 3)
 
@@ -88,7 +102,7 @@ def render_line_gamelike(text, font_path, font_size, canvas_width=400):
 
     final = padded
 
-    # Step 7: Quality gates
+    # Quality gates
     h_final, w_final = final.shape
     if w_final < MIN_WIDTH or h_final < MIN_HEIGHT:
         return None, False
@@ -101,6 +115,34 @@ def render_line_gamelike(text, font_path, font_size, canvas_width=400):
         return None, False
 
     return Image.fromarray(final, mode='L'), True
+
+
+def render_line_gamelike(text, font_path, font_size, canvas_width=400):
+    """Render a text line using game-like bright-on-dark pipeline.
+
+    Returns:
+        (PIL Image mode 'L', bool success)
+        Image is binary (0/255), height ~14-15px, tight-cropped with padding.
+    """
+    binary, ok = _render_and_threshold(text, font_path, font_size, threshold_noise=True)
+    if not ok:
+        return None, False
+
+    return _crop_and_pad(binary)
+
+
+def render_line_clean(text, font_path, font_size, canvas_width=400):
+    """Render a text line with zero noise (fixed threshold, no randomization).
+
+    Returns:
+        (PIL Image mode 'L', bool success)
+        Image is binary (0/255), height ~14-15px, tight-cropped with padding.
+    """
+    binary, ok = _render_and_threshold(text, font_path, font_size, threshold_noise=False)
+    if not ok:
+        return None, False
+
+    return _crop_and_pad(binary)
 
 
 def render_enchant_header(text, font_path, font_size, bg_range=(20, 45),

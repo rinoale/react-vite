@@ -1,11 +1,12 @@
 """Resolve OCR model version and training config path.
 
 Model types and their layout under backend/ocr/:
-  general                    → general_model/{version}/training_config.yaml
-  general_mabinogi_classic   → general_mabinogi_classic_model/{version}/training_config.yaml
-  general_nanum_gothic_bold  → general_nanum_gothic_bold_model/{version}/training_config.yaml
-  enchant_header             → enchant_header_model/{version}/training_config.yaml
-  category_header            → category_header_model/{version}/training_config.yaml
+  general                       → general_model/{version}/training_config.yaml
+  general_mabinogi_classic      → general_mabinogi_classic_model/{version}/training_config.yaml
+  general_nanum_gothic_bold     → general_nanum_gothic_bold_model/{version}/training_config.yaml
+  preheader_mabinogi_classic    → preheader_mabinogi_classic_model/{version}/training_config.yaml
+  enchant_header                → enchant_header_model/{version}/training_config.yaml
+  category_header               → category_header_model/{version}/training_config.yaml
 
 When --version is not specified, the active version is detected from the
 symlink target in backend/ocr/models/.
@@ -22,6 +23,7 @@ _MODEL_TYPES = {
     'general': ('general_model', 'custom_mabinogi.pth'),
     'general_mabinogi_classic': ('general_mabinogi_classic_model', 'custom_mabinogi_classic.pth'),
     'general_nanum_gothic_bold': ('general_nanum_gothic_bold_model', 'custom_nanum_gothic_bold.pth'),
+    'preheader_mabinogi_classic': ('preheader_mabinogi_classic_model', 'custom_preheader_mabinogi_classic.pth'),
     'enchant_header': ('enchant_header_model', 'custom_enchant_header.pth'),
     'category_header': ('category_header_model', 'custom_header.pth'),
 }

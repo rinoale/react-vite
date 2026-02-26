@@ -551,6 +551,14 @@ function runPipeline(ctx, originalImageData) {
     const contentCrop = cropImageData(ctx, cropped, 0, seg.y, segW, segH)
     steps.push({ id: 'contentCrop', segmentIndex: segIdx, segmentLabel: label, dataURL: canvasToDataURL(contentCrop) })
 
+    // Pre-header: special processing (TODO)
+    if (seg.type === 'pre_header') {
+      // TODO: add pre_header-specific processing logic here
+      return
+    }
+
+    // ─── Content segment processing ───
+
     // Grayscale
     const gray = cloneImageData(ctx, contentCrop)
     toGrayscale(gray)
