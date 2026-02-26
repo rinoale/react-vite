@@ -90,7 +90,8 @@
       "invert": "Inverts all pixel values: each channel becomes 255 minus its current value.\n\nWhite (255,255,255) becomes black (0,0,0) and vice versa. On grayscale images, this swaps foreground and background.\n\nEquivalent to cv2.bitwise_not().\n\nProject usage: Used in the oreo_flip preprocessing for enchant slot headers — after creating a white mask of enchant text, inversion produces the black-on-white format needed for OCR.",
       "morphology": "Structural operations using a sliding kernel window over the image.\n\nOperations:\n- Erode: Each pixel becomes the minimum in its kernel neighborhood. Shrinks bright regions, removes small noise, thins text strokes.\n- Dilate: Each pixel becomes the maximum in its kernel neighborhood. Expands bright regions, fills gaps, thickens strokes.\n- Open (erode then dilate): Removes small bright noise while preserving larger object sizes.\n- Close (dilate then erode): Fills small dark holes/gaps while preserving object sizes.\n\nKernel size controls the neighborhood radius — larger kernels produce stronger effects.\n\nProject usage: Not currently used in the OCR pipeline. Was explored during enchant header investigation (dilating pure-white mask to fill characters) but abandoned because text strokes at 10-11px are too thin for morphological recovery.",
       "filter": "Smoothing filters that reduce noise by averaging pixel neighborhoods.\n\nTypes:\n- Gaussian: Weighted average using a Gaussian (bell curve) kernel — pixels closer to center contribute more. Smooths noise while somewhat preserving edges.\n- Median: Replaces each pixel with the median value of its neighborhood. Excellent for salt-and-pepper noise without blurring edges.\n- Box (Mean): Simple unweighted average of all neighborhood pixels. Fast but blurs edges equally.\n\nKernel size determines the neighborhood radius — larger kernels produce more smoothing.\n\nProject usage: Not used in the OCR pipeline. Training data uses clean binary images with no augmentation, and real crops are already binary after thresholding.",
-      "edge": "Detects edges (sharp intensity transitions) in the image.\n\nDetectors:\n- Sobel: Computes first-order derivatives using 3x3 convolution kernels. Detects horizontal edges (Y direction), vertical edges (X direction), or combines both as sqrt(Gx^2 + Gy^2). Good for directional edge analysis.\n- Laplacian: Computes second-order derivative — detects edges as zero-crossings where intensity changes rapidly. Sensitive to noise; often used after smoothing.\n\nBoth produce a gradient magnitude image where bright pixels indicate strong edges.\n\nProject usage: Not used in the OCR pipeline. Line detection uses horizontal projection profiling instead — more reliable for structured tooltip layouts where text lines are axis-aligned."
+      "edge": "Detects edges (sharp intensity transitions) in the image.\n\nDetectors:\n- Sobel: Computes first-order derivatives using 3x3 convolution kernels. Detects horizontal edges (Y direction), vertical edges (X direction), or combines both as sqrt(Gx^2 + Gy^2). Good for directional edge analysis.\n- Laplacian: Computes second-order derivative — detects edges as zero-crossings where intensity changes rapidly. Sensitive to noise; often used after smoothing.\n\nBoth produce a gradient magnitude image where bright pixels indicate strong edges.\n\nProject usage: Not used in the OCR pipeline. Line detection uses horizontal projection profiling instead — more reliable for structured tooltip layouts where text lines are axis-aligned.",
+      "hueReject": "Rejects or isolates pixels by their HSV hue angle, ignoring brightness and saturation.\n\nHue is the color wheel angle (0-360°): Red=0°, Yellow=60°, Green=120°, Cyan=180°, Blue=240°, Magenta=300°.\n\nAnti-aliased text pixels have intermediate brightness but the SAME hue as the core color — so hue-based rejection catches both the text and all its AA fringes, unlike RGB-based approaches.\n\nModes:\n- Reject: Pixels in the hue range are set to black (removed).\n- Isolate: Only pixels in the hue range are kept; everything else becomes black.\n\nMin Saturation skips near-gray pixels (gray/white/black have undefined hue).\n\nPresets:\n- Blue+AA (210-330°): Blue text + purple AA fringes. Used in v3 pipeline pre_header preprocessing to eliminate blue UI text.\n- Blue only (210-270°): Core blue without purple AA.\n- Red, Green, Yellow: Common color ranges.\n\nWrap-around: If min > max, the range wraps past 360° (e.g., Red: 330°→30° covers 330-360 + 0-30).\n\nOpenCV note: OpenCV uses H=0-180 (÷2). The displayed OpenCV equivalent helps when matching pipeline code.\n\nProject usage: Used in _preprocess_nanum_gothic() (v3_pipeline.py) with H=210-330° (OpenCV 105-165) to reject blue enchant name text and its AA fringes from the pre_header region before BT.601+threshold processing."
     },
     "tabs": {
       "grayscale": "Grayscale",
@@ -99,7 +100,8 @@
       "invert": "Invert",
       "morphology": "Morphology",
       "filter": "Filter",
-      "edge": "Edge"
+      "edge": "Edge",
+      "hueReject": "Hue Reject"
     },
     "grayscale": {
       "method": "Method"
@@ -111,6 +113,7 @@
     "colorMask": {
       "preview": "Preview",
       "tolerance": "Tolerance",
+      "perChannel": "Per-channel tolerance",
       "binaryOutput": "Binary output (white match / black non-match)"
     },
     "invert": {
@@ -127,6 +130,16 @@
     "edge": {
       "type": "Edge Detector",
       "direction": "Direction (Sobel)"
+    },
+    "hueReject": {
+      "range": "Hue Range (0-360°)",
+      "hueMin": "Min",
+      "hueMax": "Max",
+      "presets": "Presets",
+      "satMin": "Min Saturation",
+      "mode": "Mode",
+      "modeReject": "Reject (black out matching hue)",
+      "modeIsolate": "Isolate (keep only matching hue)"
     }
   },
   "v3Pipeline": {

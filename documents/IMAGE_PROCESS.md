@@ -46,7 +46,7 @@ Legend: **[USED]** = actively used in this project, **[—]** = not used
 |-----------|--------|-------------|
 | Per-channel RGB threshold | **[USED]** | `(R > a) & (G > b) & (B < c)` — isolate colors by channel ranges. |
 | Channel balance ratio | **[USED]** | `max(R,G,B) / min(R,G,B)` — detect balanced (white/gray) vs colored pixels. |
-| RGB to HSV | [—] | Separates hue/saturation/value — easier color range selection (e.g., "all reds"). |
+| RGB to HSV | **[USED]** | Separates hue/saturation/value — easier color range selection (e.g., "all reds"). |
 | RGB to LAB | [—] | Perceptually uniform — Euclidean distance = perceived color difference. |
 | RGB to YCrCb | [—] | Separates luminance (Y) from chrominance — used in skin/text detection. |
 | Color quantization | [—] | Reduce image to N representative colors (k-means on pixel values). |
@@ -57,6 +57,138 @@ Legend: **[USED]** = actively used in this project, **[—]** = not used
 - Orange mask `(r>150) & (50<g<180) & (b<80)` for section header detection in `tooltip_segmenter.py`
 - White balance mask `(max_ch>150) & (ratio<1.4)` for enchant text in `mabinogi_tooltip_parser.py` (oreo_flip)
 - Pure-white mask `(r>=T) & (g>=T) & (b>=T)` explored for enchant header isolation
+- HSV hue rejection for blue text in nanum_gothic pre_header preprocessing (see §3.1)
+
+---
+
+### 3.1 HSV Hue Rejection — Removing Anti-Aliased Blue Text
+
+**Problem**: The pre_header region contains both white/yellow text (item name, enchant names) and blue text (UI descriptions). When applying BT.601 grayscale + threshold 80 for NanumGothicBold preprocessing, the blue text and all its anti-aliased (AA) fringe pixels survive the threshold, creating ghost lines in OCR.
+
+**Why RGB-based rejection fails**: Anti-aliasing creates a smooth gradient from the core blue color down to the dark background. These fringe pixels have intermediate RGB values that don't match the original blue color within any reasonable tolerance. Attempts tried and failed:
+
+| Approach | Problem |
+|----------|---------|
+| Exact color match (tolerance=40) | Only catches core pixels. AA fringes at e.g. `(146,126,157)` are 80+ away from the blue center `(190,204,254)`. |
+| Blue-dominant heuristic (`B > R+30`) | Margin too strict for dimmer fringes. Some AA pixels like `(131,100,125)` have R > B despite being blue text residue. |
+| Increasing tolerance | Risky — `(190,204,254)` is close to white `(255,255,255)`, so high tolerance starts matching white text. |
+
+**Solution — HSV hue rejection**: Convert to HSV color space and reject by hue angle. HSV separates color identity (hue) from brightness (value) and intensity (saturation), so all shades of blue — from bright core to dim AA fringe — share the same hue range.
+
+```
+HSV color wheel (OpenCV 0-180 range):
+  H=0-15     Red
+  H=15-35    Yellow      ← item name text (H≈29)
+  H=105-135  Blue        ← blue UI text core (H≈113)
+  H=135-165  Purple      ← blue text AA fringes
+```
+
+**Implementation** (`v3_pipeline.py` → `_preprocess_nanum_gothic()`):
+```python
+hsv = cv2.cvtColor(content_bgr, cv2.COLOR_BGR2HSV)
+h = hsv[:, :, 0]
+blue_mask = (h >= 105) & (h <= 165)  # blue + purple AA fringes
+masked = content_bgr.copy()
+masked[blue_mask] = 0                # set to black → below threshold 80
+```
+
+**Measured result on `predator_simple_fhd_ng_original.png`**:
+
+| Hue range | Pixel count | Above BT.601>80 | Category |
+|-----------|-------------|------------------|----------|
+| H=15-35 (yellow) | 837 | 837 | Item name text — KEPT |
+| H=105-135 (blue) | 828 | 828 | Blue UI text — REJECTED |
+| H=135-165 (purple) | 247 | 244 | Blue AA fringes — REJECTED |
+
+Eliminated all 4 blue ghost lines down to 0, while preserving the 1 legitimate item name line.
+
+**Why this works and RGB doesn't**: In RGB, a dim blue AA pixel `(80, 65, 90)` looks nothing like bright blue `(190, 204, 254)` — they're far apart in Euclidean distance. But in HSV, both map to H≈120 (blue hue). The hue angle is invariant to brightness and saturation changes that anti-aliasing produces.
+
+### 3.2 What Is Hue?
+
+Hue is the **angle on the color wheel** — it answers "what color is this?" regardless of brightness or saturation.
+
+```
+        Red (0°)
+         |
+Purple   |   Orange
+  \      |      /
+   \     |     /
+    Blue--+--Yellow
+   /     |     \
+  /      |      \
+Cyan     |   Green
+       (180°)
+```
+
+It is **not** a ratio. It is computed from which RGB channel is dominant and by how much:
+
+- R is highest → hue is between Yellow and Purple (0°/360° side)
+- G is highest → hue is between Yellow and Cyan (60°-180°)
+- B is highest → hue is between Cyan and Purple (180°-300°)
+
+Formula (simplified, when R is max):
+```
+H = 60° × (G - B) / (max - min)
+```
+
+**Example** — blue text `RGB(74, 149, 238)`:
+- B is max (238), min is R (74)
+- H = 60 × (R-G)/(max-min) + 240 = 60 × (74-149)/(238-74) + 240 = **213°**
+- OpenCV halves it → **H ≈ 106**
+
+Its dim AA fringe `RGB(37, 75, 119)`:
+- Same dominant channel (B), same proportions → **H ≈ 106**
+
+The angle stays the same as pixels get dimmer through anti-aliasing because the proportions between channels are preserved, just scaled down toward black.
+
+### 3.3 Applying HSV Hue Rejection to Other Colors
+
+HSV hue rejection works for **any color**, not just blue. Pick the hue range for the target:
+
+| Target color | Hue range to reject (OpenCV) | Would preserve |
+|---|---|---|
+| Blue text | H=105-165 | Yellow, white, red, green |
+| Red text | H=0-15 + H=165-180 (wraps around 0) | Blue, yellow, green |
+| Green text | H=35-85 | Blue, yellow, red, white |
+| Orange text | H=10-25 | Blue, white, purple |
+
+**White and black are immune**: white has near-zero saturation (S≈0), so its hue is undefined and won't match any hue range. Black has near-zero value (V≈0). Neither gets accidentally rejected.
+
+**When to use HSV vs RGB**:
+
+| Situation | Best approach |
+|---|---|
+| Isolate a specific known color (e.g. white ±5) | RGB exact match — precise |
+| Reject a color **and all its AA fringes** | HSV hue — catches the full gradient |
+| Separate warm vs cool colors broadly | HSV hue — one threshold splits the wheel |
+| Match multiple shades of "blue" without listing each | HSV hue — single range covers all |
+
+### 3.4 ELI5: HSV Hue Rejection
+
+HSV hue rejection is like sorting M&Ms by color.
+
+**The problem:** You have a picture with blue text you want to remove. But the edges of the text are blurry — they're not pure blue, they're dim, faded blue mixed with the dark background. If you try to match the exact blue color (RGB), you miss all these blurry edge pixels because their RGB numbers look completely different.
+
+**The insight:** Every color has three properties:
+- **Hue** — *what* color it is (blue, red, yellow...)
+- **Saturation** — how vivid it is (bright blue vs grayish blue)
+- **Value** — how bright it is (bright blue vs dark blue)
+
+A bright blue pixel and a dim, faded blue pixel have totally different brightness — but they're both **blue**. Their hue is the same.
+
+**Hue is like a compass pointing to a color.** It's an angle on a color wheel (0-360°):
+- 0° = Red
+- 60° = Yellow
+- 120° = Green
+- 240° = Blue
+- 300° = Purple
+
+No matter how bright or dim the pixel is, the compass still points to "blue" (around 240°).
+
+**The solution:** Instead of asking "is this pixel exactly RGB(74,149,238)?", ask "does this pixel's hue point to blue?" — That catches the bright blue text AND all the dim, faded edge pixels in one sweep.
+
+In the pipeline, we reject everything from 210° to 330° (blue through purple). Four ghost lines of blue text — gone.
 
 ---
 
@@ -277,7 +409,30 @@ Detects orange header text (e.g. 인챈트, 세공, 에르그) within black-squa
 
 Code: `tooltip_segmenter.py` → `_preprocess_header()`
 
-### 2. Content OCR
+### 2. Pre-Header OCR
+
+The pre_header region (above the first orange header) contains item name, enchant prefix/suffix names, and holywater effects. Two preprocessing paths run in parallel; the higher-confidence result per line wins.
+
+**Path A — mabinogi_classic** (color mask):
+
+| Step | Technique | Detail |
+|------|-----------|--------|
+| Color mask | Exact RGB match (§3) | Match white `(255,255,255)` and yellow `(255,252,157)` ±5 tolerance |
+| Invert | bitwise_not (§10) | White mask → black-on-white for OCR |
+
+**Path B — nanum_gothic** (BT.601 + blue rejection):
+
+| Step | Technique | Detail |
+|------|-----------|--------|
+| Blue rejection | HSV hue rejection (§3.1) | Reject H=105-165 (blue+purple) → set to black |
+| Grayscale | BT.601 weighted (§1) | `cv2.cvtColor(BGR2GRAY)` on blue-rejected image |
+| Threshold | Global fixed, BINARY_INV (§2) | threshold=80 |
+
+The winning preprocessing per line also determines which font the tooltip uses, enabling single-model routing for content segments (future optimization).
+
+Code: `v3_pipeline.py` → `_step_pre_header()`, `_preprocess_mabinogi_classic()`, `_preprocess_nanum_gothic()`
+
+### 3. Content OCR
 
 General text recognition for all non-enchant content sections (item stats, description, reforge, etc.)
 

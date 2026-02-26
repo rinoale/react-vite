@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from 'react'
-import { Upload, Download, RotateCcw, FlipHorizontal, SlidersHorizontal, Droplets, Grid3X3, Scan, Pipette, HelpCircle, Grid2X2 } from 'lucide-react'
+import { Upload, Download, RotateCcw, FlipHorizontal, SlidersHorizontal, Droplets, Grid3X3, Scan, Pipette, HelpCircle, Grid2X2, Palette } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 // --- Image processing kernels (pure functions on ImageData) ---
@@ -37,12 +37,12 @@ function applyThreshold(imageData, value, mode) {
   return imageData
 }
 
-function applyColorMask(imageData, targetR, targetG, targetB, tolerance, outputBinary) {
+function applyColorMask(imageData, targetR, targetG, targetB, tolR, tolG, tolB, outputBinary) {
   const d = imageData.data
   for (let i = 0; i < d.length; i += 4) {
-    const matchR = Math.abs(d[i] - targetR) <= tolerance
-    const matchG = Math.abs(d[i+1] - targetG) <= tolerance
-    const matchB = Math.abs(d[i+2] - targetB) <= tolerance
+    const matchR = Math.abs(d[i] - targetR) <= tolR
+    const matchG = Math.abs(d[i+1] - targetG) <= tolG
+    const matchB = Math.abs(d[i+2] - targetB) <= tolB
     const match = matchR && matchG && matchB
     if (outputBinary) {
       const val = match ? 255 : 0
@@ -172,6 +172,49 @@ function applyFilter(imageData, width, height, type, kernelSize) {
   return imageData
 }
 
+function rgbToHue(r, g, b) {
+  const max = Math.max(r, g, b)
+  const min = Math.min(r, g, b)
+  if (max === min) return 0
+  const d = max - min
+  let h
+  if (max === r) h = 60 * (((g - b) / d) % 6)
+  else if (max === g) h = 60 * ((b - r) / d + 2)
+  else h = 60 * ((r - g) / d + 4)
+  if (h < 0) h += 360
+  return h
+}
+
+function applyHueRejection(imageData, hueMin, hueMax, mode, satMin) {
+  const d = imageData.data
+  for (let i = 0; i < d.length; i += 4) {
+    const r = d[i], g = d[i+1], b = d[i+2]
+    const max = Math.max(r, g, b)
+    const min = Math.min(r, g, b)
+    const sat = max === 0 ? 0 : (max - min) / max
+
+    // Skip low-saturation pixels (gray/white/black)
+    if (sat < satMin / 100) continue
+
+    const hue = rgbToHue(r, g, b)
+
+    let inRange
+    if (hueMin <= hueMax) {
+      inRange = hue >= hueMin && hue <= hueMax
+    } else {
+      // Wraps around 360 (e.g., red: 330→30)
+      inRange = hue >= hueMin || hue <= hueMax
+    }
+
+    if (mode === 'reject') {
+      if (inRange) d[i] = d[i+1] = d[i+2] = 0
+    } else {
+      if (!inRange) d[i] = d[i+1] = d[i+2] = 0
+    }
+  }
+  return imageData
+}
+
 function applyEdge(imageData, width, height, type, direction) {
   const src = new Uint8ClampedArray(imageData.data)
   const d = imageData.data
@@ -217,6 +260,7 @@ const TABS = [
   { id: 'morphology', icon: Grid3X3 },
   { id: 'filter',     icon: Droplets },
   { id: 'edge',       icon: Scan },
+  { id: 'hueReject',  icon: Palette },
 ]
 
 const ImageProcessLab = () => {
@@ -234,7 +278,10 @@ const ImageProcessLab = () => {
   const [maskR, setMaskR] = useState(255)
   const [maskG, setMaskG] = useState(252)
   const [maskB, setMaskB] = useState(157)
-  const [maskTolerance, setMaskTolerance] = useState(2)
+  const [maskTolR, setMaskTolR] = useState(2)
+  const [maskTolG, setMaskTolG] = useState(2)
+  const [maskTolB, setMaskTolB] = useState(2)
+  const [maskPerChannel, setMaskPerChannel] = useState(false)
   const [maskBinary, setMaskBinary] = useState(false)
   const [morphOp, setMorphOp] = useState('erode')
   const [morphKernel, setMorphKernel] = useState(3)
@@ -242,6 +289,10 @@ const ImageProcessLab = () => {
   const [filterKernel, setFilterKernel] = useState(3)
   const [edgeType, setEdgeType] = useState('sobel')
   const [edgeDir, setEdgeDir] = useState('both')
+  const [hueMin, setHueMin] = useState(210)
+  const [hueMax, setHueMax] = useState(330)
+  const [hueMode, setHueMode] = useState('reject')
+  const [hueSatMin, setHueSatMin] = useState(10)
 
   const canvasRef = useRef(null)
   const fileInputRef = useRef(null)
@@ -300,11 +351,12 @@ const ImageProcessLab = () => {
     switch (activeTab) {
       case 'grayscale':  applyGrayscale(data, grayscaleMethod); break
       case 'threshold':  applyThreshold(data, thresholdValue, thresholdMode); break
-      case 'colorMask':  applyColorMask(data, maskR, maskG, maskB, maskTolerance, maskBinary); break
+      case 'colorMask':  applyColorMask(data, maskR, maskG, maskB, maskTolR, maskTolG, maskTolB, maskBinary); break
       case 'invert':     applyInvert(data); break
       case 'morphology': applyMorphology(data, width, height, morphOp, morphKernel); break
       case 'filter':     applyFilter(data, width, height, filterType, filterKernel); break
       case 'edge':       applyEdge(data, width, height, edgeType, edgeDir); break
+      case 'hueReject':  applyHueRejection(data, hueMin, hueMax, hueMode, hueSatMin); break
     }
     commitImageData(data)
   }
@@ -410,8 +462,8 @@ const ImageProcessLab = () => {
           </div>
         </div>
 
-        {/* Operation tabs */}
-        <div className="bg-gray-800 rounded-lg p-6">
+        {/* Operation tabs — sticky so controls are always visible */}
+        <div className="bg-gray-800 rounded-lg p-6 sticky bottom-0 z-10 shadow-[0_-4px_20px_rgba(0,0,0,0.5)] border-t border-gray-700">
           <div className="flex flex-wrap gap-2 mb-6">
             {TABS.map(tab => {
               const Icon = tab.icon
@@ -527,17 +579,58 @@ const ImageProcessLab = () => {
                     />
                   </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    {t('imageProcessLab.colorMask.tolerance')}: {maskTolerance}
-                  </label>
+                <label className="flex items-center gap-2">
                   <input
-                    type="range" min="0" max="100" step="1"
-                    value={maskTolerance}
-                    onChange={e => setMaskTolerance(parseInt(e.target.value))}
-                    className="w-full max-w-md"
+                    type="checkbox"
+                    checked={maskPerChannel}
+                    onChange={e => {
+                      setMaskPerChannel(e.target.checked)
+                      if (!e.target.checked) {
+                        // Sync all to R value when switching back
+                        setMaskTolG(maskTolR)
+                        setMaskTolB(maskTolR)
+                      }
+                    }}
+                    className="w-4 h-4"
                   />
-                </div>
+                  <span className="text-sm">{t('imageProcessLab.colorMask.perChannel')}</span>
+                </label>
+                {maskPerChannel ? (
+                  <div className="flex flex-wrap gap-4">
+                    {[
+                      ['R', maskTolR, setMaskTolR, 'text-red-400'],
+                      ['G', maskTolG, setMaskTolG, 'text-green-400'],
+                      ['B', maskTolB, setMaskTolB, 'text-blue-400'],
+                    ].map(([label, val, setter, color]) => (
+                      <div key={label} className="flex-1 min-w-[120px] max-w-[200px]">
+                        <label className={`block text-sm font-medium mb-1 ${color}`}>
+                          {t('imageProcessLab.colorMask.tolerance')} {label}: {val}
+                        </label>
+                        <input
+                          type="range" min="0" max="255" step="1"
+                          value={val}
+                          onChange={e => setter(parseInt(e.target.value))}
+                          className="w-full"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-sm font-medium mb-1">
+                      {t('imageProcessLab.colorMask.tolerance')}: {maskTolR}
+                    </label>
+                    <input
+                      type="range" min="0" max="255" step="1"
+                      value={maskTolR}
+                      onChange={e => {
+                        const v = parseInt(e.target.value)
+                        setMaskTolR(v); setMaskTolG(v); setMaskTolB(v)
+                      }}
+                      className="w-full max-w-md"
+                    />
+                  </div>
+                )}
                 <label className="flex items-center gap-2">
                   <input
                     type="checkbox"
@@ -638,6 +731,122 @@ const ImageProcessLab = () => {
                     </select>
                   </div>
                 )}
+              </div>
+            )}
+
+            {activeTab === 'hueReject' && (
+              <div className="space-y-3">
+                {/* Hue spectrum bar */}
+                <div>
+                  <label className="block text-sm font-medium mb-2">{t('imageProcessLab.hueReject.range')}</label>
+                  <div className="relative w-full max-w-md">
+                    <div
+                      className="h-6 rounded border border-gray-600"
+                      style={{
+                        background: 'linear-gradient(to right, hsl(0,100%,50%), hsl(60,100%,50%), hsl(120,100%,50%), hsl(180,100%,50%), hsl(240,100%,50%), hsl(300,100%,50%), hsl(360,100%,50%))'
+                      }}
+                    />
+                    {/* Selected range overlay */}
+                    {(() => {
+                      const pMin = (hueMin / 360) * 100
+                      const pMax = (hueMax / 360) * 100
+                      if (hueMin <= hueMax) {
+                        return (
+                          <div
+                            className="absolute top-0 h-6 border-2 border-white rounded"
+                            style={{ left: `${pMin}%`, width: `${pMax - pMin}%`, background: 'rgba(0,0,0,0.4)' }}
+                          />
+                        )
+                      } else {
+                        return (
+                          <>
+                            <div
+                              className="absolute top-0 h-6 border-l-2 border-y-2 border-white rounded-l"
+                              style={{ left: `${pMin}%`, width: `${100 - pMin}%`, background: 'rgba(0,0,0,0.4)' }}
+                            />
+                            <div
+                              className="absolute top-0 h-6 border-r-2 border-y-2 border-white rounded-r"
+                              style={{ left: '0%', width: `${pMax}%`, background: 'rgba(0,0,0,0.4)' }}
+                            />
+                          </>
+                        )
+                      }
+                    })()}
+                    {/* Degree labels */}
+                    <div className="flex justify-between text-xs text-gray-500 mt-1">
+                      <span>0</span><span>60</span><span>120</span><span>180</span><span>240</span><span>300</span><span>360</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">{t('imageProcessLab.hueReject.hueMin')}</label>
+                    <input
+                      type="number" min="0" max="360"
+                      value={hueMin}
+                      onChange={e => setHueMin(Math.min(360, Math.max(0, parseInt(e.target.value) || 0)))}
+                      className="w-20 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">{t('imageProcessLab.hueReject.hueMax')}</label>
+                    <input
+                      type="number" min="0" max="360"
+                      value={hueMax}
+                      onChange={e => setHueMax(Math.min(360, Math.max(0, parseInt(e.target.value) || 0)))}
+                      className="w-20 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">
+                      OpenCV
+                    </label>
+                    <span className="text-xs text-gray-400">{Math.round(hueMin / 2)}–{Math.round(hueMax / 2)}</span>
+                  </div>
+                </div>
+                {/* Presets */}
+                <div>
+                  <label className="block text-sm font-medium mb-1">{t('imageProcessLab.hueReject.presets')}</label>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { label: 'Blue+AA (210-330)', min: 210, max: 330, color: 'bg-blue-600' },
+                      { label: 'Blue only (210-270)', min: 210, max: 270, color: 'bg-blue-500' },
+                      { label: 'Red (330-30)', min: 330, max: 30, color: 'bg-red-500' },
+                      { label: 'Green (90-150)', min: 90, max: 150, color: 'bg-green-500' },
+                      { label: 'Yellow (30-90)', min: 30, max: 90, color: 'bg-yellow-500' },
+                    ].map(p => (
+                      <button
+                        key={p.label}
+                        onClick={() => { setHueMin(p.min); setHueMax(p.max) }}
+                        className={`px-2 py-1 rounded text-xs font-medium text-white ${p.color} hover:opacity-80 transition-opacity`}
+                      >
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    {t('imageProcessLab.hueReject.satMin')}: {hueSatMin}%
+                  </label>
+                  <input
+                    type="range" min="0" max="100" step="1"
+                    value={hueSatMin}
+                    onChange={e => setHueSatMin(parseInt(e.target.value))}
+                    className="w-full max-w-md"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">{t('imageProcessLab.hueReject.mode')}</label>
+                  <select
+                    value={hueMode}
+                    onChange={e => setHueMode(e.target.value)}
+                    className="w-full max-w-xs bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm"
+                  >
+                    <option value="reject">{t('imageProcessLab.hueReject.modeReject')}</option>
+                    <option value="isolate">{t('imageProcessLab.hueReject.modeIsolate')}</option>
+                  </select>
+                </div>
               </div>
             )}
           </div>
