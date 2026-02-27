@@ -215,22 +215,49 @@ For each enchant line (linear scan):
 
 This is the old path, still used as fallback when white-mask segmentation doesn't detect slot headers.
 
-### Condition-Stripped Effects + `fuzz.ratio`
+### Dual-Form Matching: Effect-Only + Full Condition+Effect
 
-**Method:** `match_enchant_effect()` uses `fuzz.ratio` against **condition-stripped** effects.
+**Methods:** `match_enchant_effect()`, `_dullahan_score_body()`, `identify_enchant_from_effects()`, `build_templated_effects()`
 
-**Why:** Mabinogi enchant effects have two parts: an optional **condition** (e.g., `파 어웨이 랭크 24 이상일 때`) and the actual **effect** (e.g., `최대대미지 20 ~ 45 증가`). Abbreviated tooltips show only the effect. `enchant.yaml` stores these as separate fields:
+Mabinogi enchant effects have two parts: an optional **condition** (e.g., `내츄럴 매직 실드 랭크 3 이상일 때`) and the actual **effect** (e.g., `마법 공격력 12 증가`). `enchant.yaml` stores these as separate fields:
 
 ```yaml
 # enchant.yaml structure
-- condition: 파 어웨이 랭크 24 이상일 때    # optional, kept for reference
-  effect: 최대대미지 20 ~ 45 증가           # used for FM matching
+- condition: 내츄럴 매직 실드 랭크 3 이상일 때
+  effect: 마법 공격력 5 ~ 15 증가
 - 수리비 200% 증가                          # plain string = no condition
 ```
 
-The loading code (`_load_enchant_structured`) extracts only the `effect` field for `effects_norm`. This means FM matching always compares OCR text against the effect-only portion.
+**Two parallel normalized lists** per DB entry:
+- `effects_norm` — effect-only: `마법 공격력 N ~ N 증가`
+- `effects_full_norm` — condition+effect: `내츄럴 매직 실드 랭크 N 이상일 때 마법 공격력 N ~ N 증가`
 
-**Why `ratio`, not `partial_ratio`:** With condition-stripped effects, all entries are short and similar length. `partial_ratio` inflates scores for very short entries (e.g., `지력 N 증가` trivially matches as a substring of any `...N 증가` text). `ratio` correctly penalizes length differences:
+For plain strings (no condition), both forms are identical.
+
+**Why both forms:** Abbreviated tooltips show only the effect — `effects_norm` wins. But after `merge_fragments` rejoins wrapped lines, the OCR text includes the condition prefix. Matching against `effects_norm` tanks because the unmatched condition prefix inflates edit distance. `effects_full_norm` provides the correct template.
+
+**Matching:** Every scoring site tries both forms and picks the higher `fuzz.ratio` score:
+
+```
+OCR (merged):  "내츄럴 매직 실드 랭크 3 이상일 때 마법 공격력 12 증가"
+effect-only:   "마법 공격력 N ~ N 증가"                    → ratio=48 ✗
+full form:     "내츄럴 매직 실드 랭크 N 이상일 때 마법 공격력 N ~ N 증가"  → ratio=89 ✓
+```
+
+**Number re-injection with full form:**
+
+```
+Full norm template: "내츄럴 매직 실드 랭크 N 이상일 때 마법 공격력 N ~ N 증가"  (3 N's)
+OCR numbers:        ['3', '12']                                                  (2 values)
+
+len(numbers)=2 < n_placeholders=3 → "last N" trim does NOT fire
+Inject: N→3, N→12 → "...랭크 3 이상일 때 마법 공격력 12 ~ N 증가"
+Cleanup ~ N       → "...랭크 3 이상일 때 마법 공격력 12 증가"  ✓
+```
+
+**Min/max extraction:** Always uses `effects[idx]` (effect-only raw text), never the full form. Condition numbers (e.g., `랭크 3`) must not pollute range parsing.
+
+**Why `ratio`, not `partial_ratio`:** `partial_ratio` inflates scores for very short entries (e.g., `지력 N 증가` trivially matches as a substring of any `...N 증가` text). `ratio` correctly penalizes length differences:
 
 ```
 OCR:                    "피어싱 레벨 N 증가"
@@ -239,7 +266,7 @@ DB effect (wrong):      "지력 N 증가"              → ratio=56 ✗  (loses)
                                                       partial_ratio=92 ✗ (would win!)
 ```
 
-**Decision:** `fuzz.ratio` with condition-stripped effects, threshold 75. No fallback.
+**Decision:** `fuzz.ratio` with dual-form matching, threshold 75 for effect FM.
 
 ---
 

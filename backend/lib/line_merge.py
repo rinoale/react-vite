@@ -12,6 +12,8 @@ All detection functions are pure (return indices, no mutation).
 Mutation helpers are separate and explicit.
 """
 
+import numpy as np
+
 
 def detect_gap_outlier(active_items):
     """Find where a vertical gap outlier starts, scanning from the bottom.
@@ -77,11 +79,41 @@ def mark_trimmed(lines, active_items, trim_position):
         lines[orig_idx]['_merged'] = True
 
 
+def _stitch_crops(target, source, prepend=False):
+    """Horizontally concatenate two crop images, padding to equal height.
+
+    Args:
+        target: line dict receiving the merged crop (mutated in place).
+        source: line dict whose crop is being absorbed.
+        prepend: if True, source goes left of target; else right.
+    """
+    t_crop = target.get('_crop')
+    s_crop = source.get('_crop')
+    if t_crop is None or s_crop is None:
+        return
+
+    h_t, h_s = t_crop.shape[0], s_crop.shape[0]
+    max_h = max(h_t, h_s)
+    # Pad shorter crop with white (255) at the bottom
+    if h_t < max_h:
+        pad = np.full((max_h - h_t, t_crop.shape[1]), 255, dtype=t_crop.dtype)
+        t_crop = np.vstack([t_crop, pad])
+    if h_s < max_h:
+        pad = np.full((max_h - h_s, s_crop.shape[1]), 255, dtype=s_crop.dtype)
+        s_crop = np.vstack([s_crop, pad])
+
+    if prepend:
+        target['_crop'] = np.hstack([s_crop, t_crop])
+    else:
+        target['_crop'] = np.hstack([t_crop, s_crop])
+
+
 def merge_fragments(lines, fragment_indices):
     """Merge each fragment into its nearest active neighbor.
 
     For each fragment (sorted by index): find nearest preceding active line
     and append text. If no preceding neighbor exists, merge forward.
+    Also stitches crop images side by side when ``_crop`` is present.
 
     Args:
         lines: full list of line dicts (mutated in place).
@@ -102,10 +134,12 @@ def merge_fragments(lines, fragment_indices):
                     neighbor = j
                     break
         if neighbor is not None and neighbor != idx:
-            if idx > neighbor:
-                lines[neighbor]['text'] = f"{lines[neighbor]['text']} {fragment_text}".strip()
-            else:
+            prepend = idx < neighbor
+            if prepend:
                 lines[neighbor]['text'] = f"{fragment_text} {lines[neighbor]['text']}".strip()
+            else:
+                lines[neighbor]['text'] = f"{lines[neighbor]['text']} {fragment_text}".strip()
+            _stitch_crops(lines[neighbor], lines[idx], prepend=prepend)
         # Clear absorbed fragment
         lines[idx]['text'] = ''
         lines[idx]['_merged'] = True

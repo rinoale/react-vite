@@ -62,7 +62,9 @@ def test_image(pipeline, image_path, gt_path=None, verbose=True):
         print(f"  ERROR: cannot read {image_path}")
         return None
 
-    result = run_v3_pipeline(img_bgr, **pipeline)
+    save_crops_dir = os.environ.get('SAVE_OCR_CROPS')
+    result = run_v3_pipeline(img_bgr, **pipeline, save_crops=bool(save_crops_dir),
+                             save_crops_dir=save_crops_dir)
     ocr_lines = result['all_lines']
     sections  = result['sections']
     tagged    = result['tagged_segments']

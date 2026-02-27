@@ -521,7 +521,7 @@ def run_v3_pipeline(img_bgr, header_reader, section_patterns, config,
                     enchant_header_reader,
                     preheader_mc_reader, preheader_ng_reader,
                     parser, corrector,
-                    save_crops=False):
+                    save_crops=False, save_crops_dir=None):
     """Run the full v3 pipeline on a color screenshot.
 
     Steps:
@@ -540,8 +540,11 @@ def run_v3_pipeline(img_bgr, header_reader, section_patterns, config,
     crop_session_dir = None
     if save_crops:
         session_id = str(uuid.uuid4())
-        crop_session_dir = os.path.join(
-            BASE_DIR, '..', 'tmp', 'ocr_crops', session_id)
+        if save_crops_dir:
+            crop_session_dir = os.path.join(save_crops_dir, session_id)
+        else:
+            crop_session_dir = os.path.join(
+                BASE_DIR, '..', 'tmp', 'ocr_crops', session_id)
         os.makedirs(crop_session_dir, exist_ok=True)
 
     # Step 1: Detect orange headers → segment into pre_header + tagged sections
@@ -567,19 +570,12 @@ def run_v3_pipeline(img_bgr, header_reader, section_patterns, config,
     for idx, line in enumerate(all_lines):
         line['global_index'] = idx
 
-    # Save crop images before FM (FM mutates text, crops should reflect raw OCR)
-    if crop_session_dir:
-        for line in all_lines:
-            crop = line.pop('_crop', None)
-            if crop is not None:
-                fname = f"{line['global_index']:03d}.png"
-                cv2.imwrite(os.path.join(crop_session_dir, fname), crop)
-
     # Snapshot raw OCR text before FM overwrites it
     for line in all_lines:
         line['raw_text'] = line.get('text', '')
 
     # Step 3: Fuzzy match OCR text against per-section dictionaries
+    # (includes merge_fragments which stitches _crop arrays side by side)
     _step_fm(all_lines, sections, corrector)
 
     # Remove merged fragment lines so line counts match expected effects
@@ -590,6 +586,16 @@ def run_v3_pipeline(img_bgr, header_reader, section_patterns, config,
     # Re-index after filtering so frontend gets consecutive indices
     for idx, line in enumerate(all_lines):
         line['global_index'] = idx
+
+    # Save crop images after FM+merge so stitched crops are included.
+    # Original image + per-line crops (merged lines already filtered out).
+    if crop_session_dir:
+        cv2.imwrite(os.path.join(crop_session_dir, 'original.png'), img_bgr)
+        for line in all_lines:
+            crop = line.pop('_crop', None)
+            if crop is not None:
+                fname = f"{line['global_index']:03d}.png"
+                cv2.imwrite(os.path.join(crop_session_dir, fname), crop)
 
     # Step 4: Rebuild enchant prefix/suffix slots and reforge options from corrected text
     _step_rebuild_structured(sections, parser)

@@ -136,22 +136,27 @@ class TextCorrector:
         for item in data:
             header = f"[{item['slot']}] {item['name']} (랭크 {item['rank']})"
             raw_effects = item.get('effects', [])
-            # Extract effect-only text: dicts have condition/effect fields,
-            # strings are plain effects without conditions.
+            # Extract effect-only text and full condition+effect text.
+            # Dicts have condition/effect fields; strings are plain effects.
             effects = []
+            effects_full = []
             for eff in raw_effects:
                 if isinstance(eff, dict):
                     effects.append(eff['effect'])
+                    effects_full.append(f"{eff['condition']} {eff['effect']}")
                 else:
                     effects.append(eff)
+                    effects_full.append(eff)
             entry = {
-                'header':       header,
-                'header_norm':  _normalize_nums(header),
-                'slot':         item['slot'],
-                'name':         item['name'],
-                'rank':         str(item['rank']),
-                'effects':      effects,
-                'effects_norm': [(_normalize_nums(e), e) for e in effects],
+                'header':           header,
+                'header_norm':      _normalize_nums(header),
+                'slot':             item['slot'],
+                'name':             item['name'],
+                'rank':             str(item['rank']),
+                'effects':          effects,
+                'effects_norm':     [(_normalize_nums(e), e) for e in effects],
+                'effects_full':     effects_full,
+                'effects_full_norm': [(_normalize_nums(e), e) for e in effects_full],
             }
             db.append(entry)
 
@@ -206,6 +211,7 @@ class TextCorrector:
         effects_norm = entry.get('effects_norm', [])
         if not effects_norm:
             return text, 0
+        effects_full_norm = entry.get('effects_full_norm', [])
 
         # Strip leading '-' prefix before matching, re-attach after
         prefix_m = _PREFIX_PAT.match(text)
@@ -222,11 +228,19 @@ class TextCorrector:
 
         best_score = 0
         best_norm = None
-        for norm_entry, _ in effects_norm:
+        best_used_full = False
+        for idx, (norm_entry, _) in enumerate(effects_norm):
             score = fuzz.ratio(norm_core, norm_entry)
-            if score > best_score:
-                best_score = score
-                best_norm = norm_entry
+            # Also try full condition+effect form
+            score_full = 0
+            if effects_full_norm:
+                norm_full, _ = effects_full_norm[idx]
+                score_full = fuzz.ratio(norm_core, norm_full)
+            pick = max(score, score_full)
+            if pick > best_score:
+                best_score = pick
+                best_norm = norm_full if score_full > score else norm_entry
+                best_used_full = score_full > score
 
         # Condition text (e.g. "랭크 1 이상일 때") prepends extra numbers.
         # Take only the last N numbers matching template placeholders.
@@ -266,6 +280,7 @@ class TextCorrector:
         effects_norm = entry.get('effects_norm', [])
         if not effects_norm or not norm_effects:
             return 0
+        effects_full_norm = entry.get('effects_full_norm', [])
         used = set()
         total = 0
         for norm in norm_effects:
@@ -274,6 +289,8 @@ class TextCorrector:
                 if idx in used:
                     continue
                 s = fuzz.ratio(norm, norm_eff)
+                if effects_full_norm:
+                    s = max(s, fuzz.ratio(norm, effects_full_norm[idx][0]))
                 if s > best_s:
                     best_s = s
                     best_idx = idx
@@ -440,6 +457,7 @@ class TextCorrector:
                 n_eff = len(entry['effects_norm'])
                 if n_eff == 0:
                     continue
+                efn = entry.get('effects_full_norm', [])
                 # 1:1 matching: each entry effect matched at most once
                 used = set()
                 total = 0
@@ -449,6 +467,8 @@ class TextCorrector:
                         if idx in used:
                             continue
                         score = fuzz.ratio(norm, norm_eff)
+                        if efn:
+                            score = max(score, fuzz.ratio(norm, efn[idx][0]))
                         if score > best_score:
                             best_score = score
                             best_idx = idx
@@ -516,6 +536,7 @@ class TextCorrector:
 
         effects = entry.get('effects', [])
         effects_norm = entry.get('effects_norm', [])
+        effects_full_norm = entry.get('effects_full_norm', [])
         if not effects:
             return []
 
@@ -539,15 +560,21 @@ class TextCorrector:
             ocr_line = ocr_effect_lines[ocr_idx]
             gi = ocr_line.get('global_index') if isinstance(ocr_line, dict) else None
 
-            # Find best-matching DB effect for this OCR line
-            best_score, best_db_idx = 0, -1
+            # Find best-matching DB effect for this OCR line (try both forms)
+            best_score, best_db_idx, best_used_full = 0, -1, False
             for db_idx, (norm_db, raw_db) in enumerate(effects_norm):
                 if db_idx in used_db:
                     continue
                 score = fuzz.ratio(norm_ocr, norm_db)
-                if score > best_score:
-                    best_score = score
+                score_full = 0
+                if effects_full_norm:
+                    norm_full, _ = effects_full_norm[db_idx]
+                    score_full = fuzz.ratio(norm_ocr, norm_full)
+                pick = max(score, score_full)
+                if pick > best_score:
+                    best_score = pick
                     best_db_idx = db_idx
+                    best_used_full = score_full > score
 
             if best_score < 50 or best_db_idx < 0:
                 # No DB match — keep OCR text as-is
@@ -560,11 +587,20 @@ class TextCorrector:
                 continue
 
             used_db.add(best_db_idx)
-            norm_db, raw_db = effects_norm[best_db_idx]
+
+            # Use winning form's template for re-injection
+            if best_used_full and effects_full_norm:
+                norm_db, raw_db = effects_full_norm[best_db_idx]
+            else:
+                norm_db, raw_db = effects_norm[best_db_idx]
+
+            # Always use effect-only raw for min/max extraction —
+            # condition numbers must not pollute range parsing.
+            raw_effect_only = effects[best_db_idx]
 
             # Extract OCR numbers (rolled values) and DB numbers (range)
             ocr_numbers = _NUM_PAT.findall(ocr_core)
-            db_numbers = _NUM_PAT.findall(raw_db)
+            db_numbers = _NUM_PAT.findall(raw_effect_only)
 
             # Condition text (e.g. "랭크 1 이상일 때") prepends extra numbers.
             # DB template has only effect placeholders, so take the LAST N
@@ -585,7 +621,7 @@ class TextCorrector:
 
             eff = {
                 'text': corrected,
-                'db_effect': raw_db,
+                'db_effect': raw_effect_only,
                 'global_index': gi,
             }
 
