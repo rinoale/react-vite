@@ -490,3 +490,120 @@ This ensures the enchant header OCR model sees the same pixel distribution durin
 Standard grayscale + threshold=80 (used for general content) fails on enchant headers:
 - White text (R≈G≈B≈220) on dark bg (R≈G≈B≈30) → grayscale avg ≈ 220 → above threshold → becomes white background, text disappears
 - The oreo_flip approach uses a **color-balanced brightness mask** instead of a simple luminance threshold, which correctly isolates white text while rejecting colored elements (orange section headers, tinted UI elements)
+
+---
+
+## 10. Item Name Parsing (`parse_item_name`)
+
+**File:** `backend/lib/text_corrector.py`
+**Method:** `TextCorrector.parse_item_name()`
+**Constants:** `_HOLYWATER`, `_EGO_KEYWORD`
+
+### Problem
+
+The pre_header region contains a single line with multiple components concatenated:
+
+```
+[holywater] [enchant_prefix] [enchant_suffix] [정령] item_name
+```
+
+All components except `item_name` are optional. The OCR outputs this as a flat string — the algorithm must decompose it into structured fields. This is challenging because:
+- Enchant prefix/suffix names can be 1-4 words (e.g., `창백한` or `피닉스의 불꽃`)
+- Some item names coincidentally start with words that are also enchant prefix names (e.g., `파멸의 로브` where `파멸의` is both an enchant prefix AND part of the item name)
+- OCR errors mean exact string matching won't work
+
+### Algorithm (right-to-left anchor)
+
+The key insight: **item_name is the longest, most unique component** and always appears at the rightmost position. Anchor it first, then parse what remains.
+
+```
+Input: "각인된 창백한 명사수 정령 나이트브링어 프레데터"
+
+Step 1 — Holywater strip:
+    words = [각인된, 창백한, 명사수, 정령, 나이트브링어, 프레데터]
+    fuzz.ratio('각인된', '각인된') = 100 ≥ 70 → holywater = '각인된'
+    words = [창백한, 명사수, 정령, 나이트브링어, 프레데터]
+
+Step 2 — Ego strip:
+    Scan all words for '정령' match (fuzz.ratio ≥ 70)
+    fuzz.ratio('정령', '정령') = 100 → ego = True, remove
+    words = [창백한, 명사수, 나이트브링어, 프레데터]
+
+Step 3 — Item name anchor (right-to-left):
+    Try progressively longer suffixes against item_name.txt (~20K entries):
+    i=0: '창백한 명사수 나이트브링어 프레데터'  → score=73
+    i=1: '명사수 나이트브링어 프레데터'          → score=85
+    i=2: '나이트브링어 프레데터'                 → score=100 ← BEST
+    i=3: '프레데터'                              → None
+    best_split = 2, item_name = '나이트브링어 프레데터'
+
+Step 4 — Prefix/suffix split (multi-word):
+    left_words = [창백한, 명사수]
+    Try every split point k of left_words:
+    k=0: prefix=None,           suffix='창백한 명사수' → total=0
+    k=1: prefix='창백한'(100),  suffix='명사수'(100)   → total=200 ← BEST
+    k=2: prefix='창백한 명사수', suffix=None            → total=0
+
+Output: holywater=각인된, ego=True, prefix=창백한, suffix=명사수,
+        item_name=나이트브링어 프레데터
+```
+
+### Multi-Word Example
+
+```
+Input: "축복받은 꿈결 같은 별 조각 크로스보우"
+
+After holywater strip: [꿈결, 같은, 별, 조각, 크로스보우]
+Step 3: item_name = '크로스보우' (from right)
+Step 4: left_words = [꿈결, 같은, 별, 조각]
+
+    k=0: suffix='꿈결 같은 별 조각'         → no match         → total=0
+    k=1: prefix='꿈결', suffix='같은 별 조각' → no good match   → total≈0
+    k=2: prefix='꿈결 같은'(100), suffix='별 조각'(100)         → total=200 ← BEST
+    k=3: prefix='꿈결 같은 별', suffix='조각' → no match        → total≈0
+    k=4: prefix='꿈결 같은 별 조각'          → no match         → total=0
+
+Output: prefix=꿈결 같은, suffix=별 조각
+```
+
+The split-point enumeration naturally discovers the optimal boundary between multi-word prefix and multi-word suffix without needing n-gram combinations.
+
+### Threshold Safety Analysis
+
+Holywater and ego detection use `fuzz.ratio ≥ 70` on individual words.
+
+**Holywater — verified safe at 70:**
+
+| Holywater word | Closest enchant name | Score | Margin |
+|----------------|---------------------|-------|--------|
+| `각인된` | (none above 60) | — | safe |
+| `축복받은` | (none above 60) | — | safe |
+| `신성한` | `각성한`, `성실한`, `신속한`, `신중한` | 67 | **3 points** |
+
+`신성한` has the tightest margin — 4 enchant prefixes score 67, just 3 points below the 70 cutoff.
+
+**Ego keyword `정령` — verified safe at 70:** No enchant prefix or suffix scores above 60.
+
+**Item name / prefix / suffix use `fuzz.ratio` with cutoff 60.** These operate on longer strings where the scoring has more granularity, so 60 is sufficient.
+
+### Dictionaries
+
+| Dict | Source | Entries | Word counts |
+|------|--------|---------|-------------|
+| Holywater | hardcoded `_HOLYWATER` | 3 | `각인된`, `축복받은`, `신성한` |
+| Ego | hardcoded `_EGO_KEYWORD` | 1 | `정령` |
+| Item names | `item_name.txt` | ~20K | Pure base names (no enchant decorations) |
+| Enchant prefix | `enchant_prefix.txt` | 587 | 527×1w + 52×2w + 7×3w + 1×4w |
+| Enchant suffix | `enchant_suffix.txt` | 577 | 544×1w + 29×2w + 4×3w |
+
+### Known Edge Cases
+
+- **Coincidental prefix overlap:** ~1847/20166 item names start with an enchant prefix word (e.g., `파멸의 로브`). Step 3 correctly anchors the full item name, leaving no words for Step 4. No false prefix extraction.
+- **OCR corruption in holywater/ego:** Single-character errors (e.g., `각인딘` → `각인된`) tolerated by fuzzy threshold. Multi-character corruption fails to match — the word falls through to prefix/suffix matching instead (graceful degradation).
+
+### Maintenance Rules
+
+1. **New holywater types added to game** → add to `_HOLYWATER`, re-run threshold safety check against all enchant prefixes/suffixes.
+2. **New enchant prefixes/suffixes added** with names similar to holywater (especially 3-char names similar to `신성한`) → re-verify the margin is still ≥ 3.
+3. **`item_name.txt` regenerated** → no algorithm changes needed, FM handles dynamically.
+4. **Threshold values (70 for holywater/ego, 60 for item_name/prefix/suffix) must not be changed** without re-running the full safety analysis across all dictionaries.

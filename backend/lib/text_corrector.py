@@ -5,6 +5,8 @@ import re
 
 import yaml
 
+from lib.mabinogi_tooltip_parser import _parse_effect_number
+
 # Load canonical prefix characters from tooltip config (game constants, not model-specific).
 _tooltip_cfg = yaml.safe_load((Path(__file__).parents[2] / 'configs' / 'mabinogi_tooltip.yaml').read_text())
 _BULLET = _tooltip_cfg['prefixes']['bullet']
@@ -42,6 +44,9 @@ class TextCorrector:
         # Structured enchant DB for two-phase matching
         self._enchant_db = []                    # list of enchant entry dicts
         self._enchant_headers_norm = []          # [(norm_header, entry)] for phase-1 FM
+        # Separate prefix/suffix lists for item name parsing
+        self._enchant_prefixes = []              # enchant prefix names
+        self._enchant_suffixes = []              # enchant suffix names
 
         if dict_dir and os.path.exists(dict_dir):
             self.load_dict_dir(dict_dir)
@@ -80,6 +85,12 @@ class TextCorrector:
 
             with open(path, 'r', encoding='utf-8') as f:
                 entries = [line.strip() for line in f if line.strip()]
+
+            # Keep separate prefix/suffix lists for item name parsing
+            if fname == 'enchant_prefix.txt':
+                self._enchant_prefixes = list(entries)
+            elif fname == 'enchant_suffix.txt':
+                self._enchant_suffixes = list(entries)
 
             if section in self._section_dicts:
                 self._section_dicts[section].extend(entries)
@@ -450,6 +461,135 @@ class TextCorrector:
 
         return _score(self._enchant_db)
 
+    def lookup_enchant_by_name(self, name, slot_type=None):
+        """Look up enchant DB entry by name and optional slot type.
+
+        Returns entry dict on match, None on miss.
+        Tries exact match first, then fuzzy (score >= 85).
+        """
+        if not name or not self._enchant_db:
+            return None
+        # Exact match
+        for entry in self._enchant_db:
+            if entry['name'] == name and (not slot_type or entry['slot'] == slot_type):
+                return entry
+        # Fuzzy fallback (P1 name might have minor OCR noise)
+        best_score, best_entry = 0, None
+        for entry in self._enchant_db:
+            if slot_type and entry['slot'] != slot_type:
+                continue
+            score = fuzz.ratio(name, entry['name'])
+            if score > best_score:
+                best_score, best_entry = score, entry
+        return best_entry if best_score >= 85 else None
+
+    def build_templated_effects(self, entry, ocr_effect_texts):
+        """Match OCR effect lines to DB effects, extract rolled values.
+
+        For each DB effect: normalize to N, find best-matching OCR line,
+        extract OCR number as rolled_value, parse DB range as min/max.
+
+        Args:
+            entry: enchant DB entry dict (from _enchant_db)
+            ocr_effect_texts: list of OCR effect text strings
+
+        Returns:
+            list of enriched effect dicts with keys:
+                text, option_name, option_level, db_effect,
+                min_value, max_value, rolled_value
+        """
+        if not entry or not ocr_effect_texts:
+            return []
+
+        effects = entry.get('effects', [])
+        effects_norm = entry.get('effects_norm', [])
+        if not effects:
+            return []
+
+        # Pre-normalize OCR texts (strip bullet prefixes)
+        ocr_cores = []
+        for text in ocr_effect_texts:
+            m = _PREFIX_PAT.match(text)
+            core = text[m.end():] if m else text
+            ocr_cores.append(core.strip())
+
+        ocr_norms = [_normalize_nums(c) for c in ocr_cores]
+
+        result = []
+        used_ocr = set()
+
+        for db_idx, (norm_db, raw_db) in enumerate(effects_norm):
+            # Find best-matching OCR line for this DB effect
+            best_score, best_ocr_idx = 0, -1
+            for ocr_idx, norm_ocr in enumerate(ocr_norms):
+                if ocr_idx in used_ocr:
+                    continue
+                score = fuzz.ratio(norm_ocr, norm_db)
+                if score > best_score:
+                    best_score = score
+                    best_ocr_idx = ocr_idx
+
+            if best_score < 50 or best_ocr_idx < 0:
+                # No OCR match — use DB effect as-is
+                eff = {'text': raw_db, 'db_effect': raw_db}
+                opt_name, opt_level = _parse_effect_number(raw_db)
+                if opt_name is not None:
+                    eff['option_name'] = opt_name
+                    eff['option_level'] = opt_level
+                result.append(eff)
+                continue
+
+            used_ocr.add(best_ocr_idx)
+            ocr_core = ocr_cores[best_ocr_idx]
+
+            # Extract OCR numbers (rolled values) and DB numbers (range)
+            ocr_numbers = _NUM_PAT.findall(ocr_core)
+            db_numbers = _NUM_PAT.findall(raw_db)
+
+            # Build corrected text: DB template with OCR numbers injected
+            corrected = norm_db
+            for num in ocr_numbers:
+                corrected = corrected.replace('N', num, 1)
+            # Clean up leftover range placeholders
+            corrected = re.sub(r'\s*~\s*N', '', corrected)
+            corrected = re.sub(r'N\s*~\s*', '', corrected)
+            # Replace any remaining N with empty (shouldn't happen normally)
+            corrected = corrected.replace('N', '').strip()
+
+            eff = {
+                'text': corrected,
+                'db_effect': raw_db,
+            }
+
+            # Parse rolled value from OCR numbers
+            if ocr_numbers:
+                num_str = ocr_numbers[0]
+                eff['rolled_value'] = float(num_str) if '.' in num_str else int(num_str)
+
+            # Parse DB range (min/max)
+            if db_numbers:
+                if len(db_numbers) >= 2:
+                    # Range: "N ~ N" → min, max
+                    n1, n2 = db_numbers[0], db_numbers[1]
+                    eff['min_value'] = float(n1) if '.' in n1 else int(n1)
+                    eff['max_value'] = float(n2) if '.' in n2 else int(n2)
+                else:
+                    # Single value
+                    n1 = db_numbers[0]
+                    val = float(n1) if '.' in n1 else int(n1)
+                    eff['min_value'] = val
+                    eff['max_value'] = val
+
+            # Extract option_name / option_level from corrected text
+            opt_name, opt_level = _parse_effect_number(corrected)
+            if opt_name is not None:
+                eff['option_name'] = opt_name
+                eff['option_level'] = opt_level
+
+            result.append(eff)
+
+        return result
+
     def correct(self, text, cutoff_score=80):
         """
         Fuzzy match against the combined dictionary (no number normalization).
@@ -564,6 +704,149 @@ class TextCorrector:
 
         return text, 0
 
+    # ------------------------------------------------------------------
+    # Item-name parsing: extract holywater, prefix, suffix, ego, item_name
+    # ------------------------------------------------------------------
+
+    _HOLYWATER = ['각인된', '축복받은', '신성한']
+    _EGO_KEYWORD = '정령'
+
+    def parse_item_name(self, full_text):
+        """Parse a full item name line into structured components.
+
+        Format: [holywater] [enchant_prefix] [enchant_suffix] [정령] item_name
+
+        Strategy — right-to-left item_name anchor:
+          1. Strip holywater from start (fuzzy match, score >= 70)
+          2. Strip 정령 keyword
+          3. Anchor item_name from the right — try progressively longer
+             suffixes against item_name.txt, pick highest score
+          4. Remaining left part → match against enchant prefix/suffix dicts
+
+        Args:
+            full_text: OCR text of the item name line
+
+        Returns:
+            dict with keys: item_name, enchant_prefix, enchant_suffix,
+            _holywater, _ego, raw_text
+        """
+        result = {
+            'item_name': full_text,
+            'enchant_prefix': None,
+            'enchant_suffix': None,
+            '_holywater': None,
+            '_ego': False,
+            'raw_text': full_text,
+        }
+
+        if not full_text or not full_text.strip():
+            return result
+
+        words = full_text.strip().split()
+        if not words:
+            return result
+
+        # Step 1: Strip holywater from start
+        first = words[0]
+        for hw in self._HOLYWATER:
+            if fuzz.ratio(first, hw) >= 70:
+                result['_holywater'] = hw
+                words = words[1:]
+                break
+
+        if not words:
+            return result
+
+        # Step 2: Strip 정령 keyword (scan all positions)
+        ego_idx = None
+        for i, w in enumerate(words):
+            if fuzz.ratio(w, self._EGO_KEYWORD) >= 70:
+                ego_idx = i
+                break
+        if ego_idx is not None:
+            result['_ego'] = True
+            words = words[:ego_idx] + words[ego_idx + 1:]
+
+        if not words:
+            return result
+
+        # Step 3: Anchor item_name from the right
+        item_names = self._section_dicts.get('item_name', [])
+        if not item_names:
+            result['item_name'] = ' '.join(words)
+            return result
+
+        best_item_score = 0
+        best_item_text = None
+        best_split = len(words)  # default: all words are item_name
+
+        for i in range(len(words)):
+            candidate = ' '.join(words[i:])
+            match = process.extractOne(
+                candidate, item_names, scorer=fuzz.ratio, score_cutoff=60)
+            if match:
+                matched_text, score, _ = match
+                # Prefer longer matches (more words) when scores are close
+                if score > best_item_score or (
+                        score == best_item_score and i < best_split):
+                    best_item_score = score
+                    best_item_text = matched_text
+                    best_split = i
+
+        if best_item_text:
+            result['item_name'] = best_item_text
+        else:
+            result['item_name'] = ' '.join(words)
+            return result
+
+        # Step 4: Remaining left part → match prefix/suffix (multi-word)
+        # Try all split points: words[0:k] → prefix, words[k:n] → suffix.
+        # Pick split with highest combined score.
+        left_words = words[:best_split]
+        if not left_words:
+            return result
+
+        n = len(left_words)
+        best_score = 0
+        best_prefix = None
+        best_suffix = None
+
+        for k in range(n + 1):
+            p_text = ' '.join(left_words[:k]) if k > 0 else None
+            s_text = ' '.join(left_words[k:]) if k < n else None
+
+            p_match = None
+            p_score = 0
+            s_match = None
+            s_score = 0
+
+            if p_text and self._enchant_prefixes:
+                pm = process.extractOne(
+                    p_text, self._enchant_prefixes, scorer=fuzz.ratio,
+                    score_cutoff=60)
+                if pm:
+                    p_match, p_score = pm[0], pm[1]
+
+            if s_text and self._enchant_suffixes:
+                sm = process.extractOne(
+                    s_text, self._enchant_suffixes, scorer=fuzz.ratio,
+                    score_cutoff=60)
+                if sm:
+                    s_match, s_score = sm[0], sm[1]
+
+            total = p_score + s_score
+            if total > best_score:
+                best_score = total
+                best_prefix = p_match
+                best_suffix = s_match
+
+        if best_prefix:
+            result['enchant_prefix'] = best_prefix
+        if best_suffix:
+            result['enchant_suffix'] = best_suffix
+
+        return result
+
     def apply_fm(self, all_lines, sections):
         """Apply section-aware FM correction to OCR output lines.
 
@@ -648,6 +931,7 @@ class TextCorrector:
 
                 for hdr_line, effect_lines in slots:
                     raw_hdr = hdr_line.get('text', '')
+                    hdr_line['_raw_enchant_header'] = raw_hdr   # P2 snapshot before Dullahan
                     effect_texts = [l.get('text', '') for l in effect_lines
                                     if l.get('text', '').strip()
                                     and not l.get('is_grey')]
@@ -659,6 +943,7 @@ class TextCorrector:
                     if fm_score > 0:
                         hdr_line['text'] = fm_hdr
                         hdr_line['fm_applied'] = True
+                        hdr_line['_dullahan_score'] = fm_score   # P3 score
                         if entry:
                             hdr_line['enchant_slot'] = entry['slot']
                             hdr_line['enchant_name'] = entry['name']

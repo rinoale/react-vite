@@ -93,6 +93,16 @@ def test_image(pipeline, image_path, gt_path=None, verbose=True):
                       f"ocr='{seg['header_ocr_text']}'  "
                       f"conf={seg['header_ocr_conf']:.2f}  "
                       f"score={seg['header_match_score']}")
+        parsed = sections.get('pre_header', {}).get('parsed_item_name')
+        if parsed:
+            parts = []
+            if parsed.get('_holywater'):    parts.append(f"holy={parsed['_holywater']}")
+            if parsed.get('_ego'):          parts.append('ego')
+            if parsed.get('enchant_prefix'):parts.append(f"prefix={parsed['enchant_prefix']}")
+            if parsed.get('enchant_suffix'):parts.append(f"suffix={parsed['enchant_suffix']}")
+            parts.append(f"item={parsed['item_name']}")
+            print(f"  Item Name: {', '.join(parts)}")
+
         if has_gt:
             print(f"  GT lines: {len(gt_lines)}, OCR lines: {len(ocr_lines)}, comparing: {compare_count}")
         else:
@@ -196,6 +206,40 @@ def test_image(pipeline, image_path, gt_path=None, verbose=True):
 
     if has_gt and len(ocr_lines) > len(gt_lines) and verbose:
         print(f"\n  ({len(ocr_lines) - len(gt_lines)} extra OCR lines beyond GT — not scored)")
+
+    # Enchant resolution display
+    enchant_res = sections.get('enchant', {}).get('resolution')
+    if enchant_res and verbose:
+        print(f"\n  Enchant Resolution:")
+        for slot_key in ['prefix', 'suffix']:
+            r = enchant_res.get(slot_key)
+            if not r:
+                continue
+            parts = []
+            if r.get('p1'):
+                parts.append(f"P1={r['p1']['name']}({r['p1']['score']})")
+            else:
+                parts.append('P1=-')
+            if r.get('p2'):
+                parts.append(f"P2={r['p2']['name']}")
+            else:
+                parts.append('P2=-')
+            if r.get('p3'):
+                parts.append(f"P3={r['p3']['name']}({r['p3']['score']})")
+            else:
+                parts.append('P3=-')
+
+            winner = r.get('winner', '-')
+            # Show winner's enriched slot info if available
+            slot_data = sections.get('enchant', {}).get(slot_key)
+            if slot_data and isinstance(slot_data, dict):
+                slot_info = f"{slot_data.get('name', '')} (랭크 {slot_data.get('rank', '')})"
+            else:
+                slot_info = ''
+
+            label = slot_key.upper()
+            print(f"    {label}:  {'  '.join(parts)}  -> {winner}"
+                  + (f" -> {slot_info}" if slot_info else ''))
 
     # Summary metrics — exclude skipped (grey) lines
     counted = [r for r in results if not r.get('skipped')]

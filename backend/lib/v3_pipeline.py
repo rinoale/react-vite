@@ -5,6 +5,7 @@ Shared by /upload-item-v3 endpoint and test scripts.
 
 import json
 import os
+import re
 import uuid
 
 import cv2
@@ -118,6 +119,8 @@ def init_pipeline():
         'header_reader': header_reader,
         'enchant_header_reader': enchant_header_reader,
         'content_reader': content_reader,
+        'content_mc_reader': classic_reader,
+        'content_ng_reader': nanum_reader,
         'preheader_mc_reader': preheader_mc_reader,
         'preheader_ng_reader': preheader_ng_reader,
         'parser': parser,
@@ -252,8 +255,13 @@ def _step_pre_header(pre_header_seg, parser, preheader_mc_reader,
     sections = parser._parse_pre_header(ocr_results)
     lines = sections.get('pre_header', {}).get('lines', [])
 
-    logger.info("v3 pre_header  %d lines", len(lines))
-    return lines, sections
+    # Determine dominant font from pre_header results
+    mc_count = sum(1 for l in ocr_results if l.get('preprocess') == 'mabinogi_classic')
+    ng_count = sum(1 for l in ocr_results if l.get('preprocess') == 'nanum_gothic')
+    detected_font = 'nanum_gothic' if ng_count > mc_count else 'mabinogi_classic'
+
+    logger.info("v3 pre_header  %d lines  font=%s", len(lines), detected_font)
+    return lines, sections, detected_font
 
 
 def _pick_best_per_line(mc_results, ng_results):
@@ -353,6 +361,136 @@ def _step_rebuild_structured(sections, parser):
         sections['reforge'].update(reforge_updated)
 
 
+def _step_parse_item_name(sections, corrector):
+    """Step 5: Parse the first pre_header line into structured item name components.
+
+    Extracts holywater, enchant_prefix, enchant_suffix, ego, and item_name
+    from the OCR text. Stores result in sections['pre_header']['parsed_item_name'].
+    """
+    ph = sections.get('pre_header', {})
+    ph_lines = ph.get('lines', [])
+    if not ph_lines:
+        return
+
+    first_text = ph_lines[0].get('text', '')
+    if not first_text:
+        return
+
+    parsed = corrector.parse_item_name(first_text)
+    ph['parsed_item_name'] = parsed
+
+
+def _step_resolve_enchant(sections, corrector):
+    """Step 6: Three-strategy enchant resolution (P1/P2/P3).
+
+    Collects enchant name candidates from three sources:
+      P1: Item name parsing (pre_header OCR → FM against enchant dicts)
+      P2: Raw enchant header OCR (pre-Dullahan snapshot)
+      P3: Dullahan result (header + effect body matching)
+
+    P1 is prioritized. When the winner is found in the DB, its effects
+    serve as templates with OCR numbers injected as rolled values.
+
+    Mutates sections['enchant'] in place.
+    """
+    enchant = sections.get('enchant')
+    if not enchant:
+        return
+
+    parsed = sections.get('pre_header', {}).get('parsed_item_name')
+    enchant_lines = enchant.get('lines', [])
+
+    resolution = {}
+
+    for slot_key, slot_type, p1_field in [
+        ('prefix', '접두', 'enchant_prefix'),
+        ('suffix', '접미', 'enchant_suffix'),
+    ]:
+        p1_name, p1_entry, p1_score = None, None, 0
+        p2_name, p2_raw = None, None
+        p3_name, p3_score = None, 0
+
+        # Collect P1: from parsed item name
+        if parsed and parsed.get(p1_field):
+            p1_name = parsed[p1_field]
+            p1_entry = corrector.lookup_enchant_by_name(p1_name, slot_type=slot_type)
+            if p1_entry:
+                p1_score = 100  # exact name match from item_name parser
+
+        # Collect P2 and P3 from enchant header lines
+        for line in enchant_lines:
+            if not line.get('is_enchant_hdr'):
+                continue
+            line_slot = line.get('enchant_slot', '')
+            if line_slot != slot_type:
+                continue
+
+            # P2: raw header OCR (before Dullahan)
+            raw_hdr = line.get('_raw_enchant_header', '')
+            if raw_hdr:
+                p2_raw = raw_hdr
+                # Extract name from raw header: '[접두] name' or '[접두] name (랭크 X)'
+                m = re.match(r'\[?(접두|접미)\]?\s+(.+?)(?:\s*\(랭크\s*[A-F0-9]+\))?\s*$', raw_hdr)
+                if m:
+                    p2_name = m.group(2).strip()
+
+            # P3: Dullahan result
+            if line.get('enchant_name'):
+                p3_name = line['enchant_name']
+                p3_score = line.get('_dullahan_score', 0)
+
+        # Priority: P1 > P2+P3 (existing)
+        winner = None
+        winner_entry = None
+        winner_source = None
+
+        if p1_entry:
+            winner = p1_name
+            winner_entry = p1_entry
+            winner_source = 'P1_item_name'
+        elif p3_name:
+            # P3 (Dullahan) already applied to sections['enchant'] via rebuild_structured
+            winner = p3_name
+            winner_source = 'P3_dullahan'
+        elif p2_name:
+            winner = p2_name
+            winner_source = 'P2_header_ocr'
+
+        slot_resolution = {
+            'winner': winner_source,
+            'p1': {'name': p1_name, 'score': p1_score} if p1_name else None,
+            'p2': {'name': p2_name, 'raw_text': p2_raw} if p2_name else None,
+            'p3': {'name': p3_name, 'score': p3_score} if p3_name else None,
+        }
+        resolution[slot_key] = slot_resolution
+
+        # When P1 wins with a DB entry, enrich the enchant slot with templated effects
+        if winner_source == 'P1_item_name' and winner_entry:
+            # Collect OCR effect texts for this slot
+            ocr_effect_texts = []
+            in_slot = False
+            for line in enchant_lines:
+                if line.get('is_enchant_hdr'):
+                    in_slot = (line.get('enchant_slot', '') == slot_type)
+                    continue
+                if in_slot and not line.get('is_grey'):
+                    text = line.get('text', '').strip()
+                    if text:
+                        ocr_effect_texts.append(text)
+
+            templated = corrector.build_templated_effects(winner_entry, ocr_effect_texts)
+            enchant[slot_key] = {
+                'text': f"[{slot_type}] {winner_entry['name']} (랭크 {winner_entry['rank']})",
+                'name': winner_entry['name'],
+                'rank': winner_entry['rank'],
+                'effects': templated,
+                'source': 'P1_item_name',
+            }
+
+    enchant['resolution'] = resolution
+    logger.info("v3 resolve_enchant  %s", {k: v.get('winner') for k, v in resolution.items()})
+
+
 def _save_crops(all_lines, crop_session_dir, session_id):
     """Persist OCR results JSON for correction training.
 
@@ -378,7 +516,8 @@ def _save_crops(all_lines, crop_session_dir, session_id):
 
 @timed("v3 pipeline total")
 def run_v3_pipeline(img_bgr, header_reader, section_patterns, config,
-                    content_reader, enchant_header_reader,
+                    content_reader, content_mc_reader, content_ng_reader,
+                    enchant_header_reader,
                     preheader_mc_reader, preheader_ng_reader,
                     parser, corrector,
                     save_raw=False, save_crops=False):
@@ -390,6 +529,8 @@ def run_v3_pipeline(img_bgr, header_reader, section_patterns, config,
       2b. content    — content OCR per segment
       3. fm          — prefix stripping + section-aware fuzzy matching
       4. rebuild     — structured data for enchant/reforge sections
+      5. parse_item_name — extract enchant prefix/suffix from item name
+      6. resolve_enchant — three-strategy resolution (P1/P2/P3)
 
     Returns:
         dict with 'sections', 'all_lines', 'tagged_segments', and optionally 'session_id'
@@ -407,13 +548,14 @@ def run_v3_pipeline(img_bgr, header_reader, section_patterns, config,
         img_bgr, header_reader, section_patterns, config)
 
     # Step 2a: Pre-header — dedicated preheader models for both fonts, pick best
-    pre_header_lines, pre_header_sections = _step_pre_header(
+    pre_header_lines, pre_header_sections, detected_font = _step_pre_header(
         pre_header_seg, parser, preheader_mc_reader,
         preheader_ng_reader, crop_session_dir)
 
-    # Step 2b: Content — per-segment grayscale preprocess → line split → DualReader OCR
+    # Step 2b: Content — font-matched single reader + BT.601 grayscale
+    font_reader = content_ng_reader if detected_font == 'nanum_gothic' else content_mc_reader
     content_lines, content_sections = _step_content_ocr(
-        content_segments, parser, content_reader,
+        content_segments, parser, font_reader,
         enchant_header_reader, crop_session_dir)
 
     # Merge pre_header and content results
@@ -442,6 +584,12 @@ def run_v3_pipeline(img_bgr, header_reader, section_patterns, config,
 
     # Step 4: Rebuild enchant prefix/suffix slots and reforge options from corrected text
     _step_rebuild_structured(sections, parser)
+
+    # Step 5: Parse item name from pre_header first line
+    _step_parse_item_name(sections, corrector)
+
+    # Step 6: Three-strategy enchant resolution (P1/P2/P3)
+    _step_resolve_enchant(sections, corrector)
 
     # Persist OCR results JSON for correction training
     if crop_session_dir:

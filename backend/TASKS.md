@@ -125,6 +125,61 @@ These color constants are game engine invariants — they work across all themes
 - **Cleaner training crops**: Isolate exactly the pixels that matter, remove noise from adjacent lines
 - **Same approach for content models**: What worked for enchant headers (real sample mixing) should work for content OCR too — once we have clean, well-classified crops
 
+## Per-Segment Dedicated Content Models
+
+### Background
+
+The v3 pipeline now detects the tooltip font from the pre_header region (mabinogi_classic vs nanum_gothic) and routes all content segments to a single font-matched model. Currently using preheader models (trained on item names only) as a stopgap — they have good charset coverage (1181 chars, superset of general's 554) but lack content-specific training data.
+
+Results: **193/313 exact, 87.6% char_acc** — improved item_attrs (+4), enchant (+2) vs DualReader, but regressed item_mod (-2) and erg (-1) due to missing content patterns.
+
+### What's Needed
+
+Train per-segment models for each font (mabinogi_classic + nanum_gothic):
+
+| Segment | Key Patterns |
+|---------|-------------|
+| item_attrs | 공격, 부상률, 크리티컬, 밸런스, 내구력, 피어싱, 성수 효과, hashtag lines |
+| item_mod | 일반 개조, 보석 강화, 특별 개조, 강화N, 최소/최대 공격력, 밸런스 |
+| erg | 등급 S, 최종 단계, 기본/추가 효과, skill cooldowns |
+| set_item | 발동 조건, skill 강화, 최종 대미지 증가 |
+| item_grade | 마스터, 장비 레벨, 등급 보너스 |
+| ego | spirit weapon 레벨, 최대 레벨 |
+
+### Key Constraints
+
+- **Keep BT.601 grayscale preprocessing** for content — color-based preprocessing (detect_cm/detect_ng) kills too many lines due to diverse text colors (grey, blue, colored stats)
+- Font decision is already wired: pre_header detects font → single reader passed to content OCR
+- Enchant and reforge currently use DualReader — may switch to font-matched once models are ready
+
+### Enchant Effect FM: Condition Mismatch Problem
+
+Enchant effects with conditions (e.g. `탐험 레벨이 15 이상일때 최대대미지 15 증가`) are rejected by FM because:
+- DB stores effect-only: `최대대미지 N ~ N 증가`
+- OCR outputs full line: `탐험 레벨이 N 이상일때 최대대미지 N 증가 (N계~N`
+- `fuzz.ratio` penalizes length mismatch → score=45 (below cutoff 75)
+
+Attempted fix: include `condition + effect` in DB. Result: +7 FM matches but **wrong enchant entries' similar conditions** (e.g. `요리 랭크 N 이상일 때`) corrupt correct OCR text when phase-1 header is misidentified. Reverted.
+
+**Root cause:** Phase-1 header misidentification. When header OCR picks the wrong enchant, the shared condition template (`N 랭크 N 이상일 때`) causes false high scores. Fix header accuracy first, then revisit condition matching.
+
+### Future: Enchant Slot Filtering by Item Type
+
+`enchant.yaml` entries include availability constraints like `~~에 인챈트 가능` (e.g., `무기에 인챈트 가능`, `방어구에 인챈트 가능`). This means some enchants can only be applied to certain item types. If we know the item type (weapon, armor, accessory, etc.), we can narrow the candidate list for enchant identification.
+
+**Not yet usable:** We only have `item_name.txt` (pure names) — no item-type attribute mapping. Once we have an item attribute DB (name → type), this constraint can filter Dullahan candidates and reduce false matches.
+
+## Philosophy: Two-Track Strategy
+
+Every complementing strategy (Dullahan, item name parsing, slot filtering, effect-guided matching) exists because OCR accuracy is not yet perfect. With perfect OCR, none of these would be needed — the raw text would be the answer.
+
+But we want to productize this service as soon as possible. Running two tracks in parallel achieves this:
+
+1. **Track A — Improve OCR:** Better models, real-crop mixed training, per-segment dedicated models. This raises the accuracy floor over time.
+2. **Track B — Complementing strategies:** Fuzzy matching, item name parsing, Dullahan, slot filtering. These compensate for current OCR gaps and make the service usable now.
+
+Both tracks reinforce each other: better OCR makes strategies more reliable (cleaner input), and strategies provide training signal (user corrections → new real samples). The goal is convergence — as OCR improves, strategies become confirmations rather than corrections.
+
 ## User Guidance for Better Recognition
 
 Tips to show users for optimal OCR results:
