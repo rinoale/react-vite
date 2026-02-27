@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Pencil } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import ConfigSearchInput from '../ConfigSearchInput';
+import { LINE_BULLET } from '../../lib/constants';
 
 /** Find enchant config entry matching name + slot */
 function findEnchantConfig(name, slotInt) {
@@ -72,19 +73,19 @@ const EffectRow = ({ eff, lineIdx, onLineChange, configEffects }) => {
     if (isNaN(numLevel)) return;
     const canonName = matchingConfig.option_name;
     const newEffText = canonName + ' ' + numLevel + matchingConfig.suffix;
-    onLineChange(lineIdx, '- ' + newEffText, null, { option_name: canonName, option_level: numLevel });
+    onLineChange(lineIdx, LINE_BULLET + newEffText, null, { option_name: canonName, option_level: numLevel });
   };
 
   if (editingName && configEffects && configEffects.length > 0) {
     return (
       <div className="flex items-center gap-1">
-        <span className="text-gray-600 mr-1">-</span>
+        <span className="text-gray-600 mr-1">.</span>
         <ConfigSearchInput
           items={configEffects}
           getLabel={(item) => item.text}
           onSelect={(selected) => {
             const newEffText = selected.option_name + ' ' + eff.option_level + selected.suffix;
-            onLineChange(lineIdx, '- ' + newEffText, null, { option_name: selected.option_name });
+            onLineChange(lineIdx, LINE_BULLET + newEffText, null, { option_name: selected.option_name });
             setEditingName(false);
           }}
           onCancel={() => setEditingName(false)}
@@ -105,7 +106,7 @@ const EffectRow = ({ eff, lineIdx, onLineChange, configEffects }) => {
 
   return (
     <div className="group flex items-center gap-1 text-xs text-gray-400">
-      <span className="text-gray-600 mr-1">-</span>
+      <span className="text-gray-600 mr-1">.</span>
       {eff.option_name != null ? (
         <>
           <span>{eff.option_name} </span>
@@ -213,7 +214,7 @@ const EnchantSlot = ({ slot, slotLabel, headerLineIdx, lines, onLineChange }) =>
             : -1;
           const handleEffectChange = (li, newText, extraUpdate, effectMeta) => {
             const sk = slotLabel === 'Prefix' ? 'prefix' : 'suffix';
-            const effText = newText.startsWith('- ') ? newText.slice(2) : newText;
+            const effText = newText.startsWith(LINE_BULLET) ? newText.slice(LINE_BULLET.length) : newText;
             onLineChange(li, newText, (sec) => {
               if (sec[sk]) {
                 const effs = [...sec[sk].effects];

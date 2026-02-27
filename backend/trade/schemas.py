@@ -57,6 +57,7 @@ class ReforgeOptionResponse(BaseModel):
     level: Optional[int] = None
     max_level: Optional[int] = None
     effect: Optional[str] = None
+    global_index: Optional[int] = None
 
 
 class ColorPartResponse(BaseModel):

@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Pencil } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import ConfigSearchInput from '../ConfigSearchInput';
+import { LINE_BULLET } from '../../lib/constants';
 
 const ReforgeOption = ({ opt, optIdx, lineIdx, onLineChange }) => {
   const { t } = useTranslation();
@@ -16,7 +17,7 @@ const ReforgeOption = ({ opt, optIdx, lineIdx, onLineChange }) => {
     if (value === '' || value === String(opt.level)) return;
     const numLevel = parseInt(value, 10);
     if (isNaN(numLevel)) return;
-    const newText = `- ${opt.name} (${numLevel}/${opt.max_level} 레벨)`;
+    const newText = `${LINE_BULLET}${opt.name} (${numLevel}/${opt.max_level} 레벨)`;
     onLineChange(lineIdx, newText, (sec) => {
       if (sec.options) {
         const opts = [...sec.options];
@@ -36,8 +37,8 @@ const ReforgeOption = ({ opt, optIdx, lineIdx, onLineChange }) => {
             const name = typeof item === 'string' ? item : item.option_name;
             const reforgeOptionId = typeof item === 'string' ? null : item.id;
             const newText = opt.level != null
-              ? `- ${name} (${opt.level}/${opt.max_level} 레벨)`
-              : `- ${name}`;
+              ? `${LINE_BULLET}${name} (${opt.level}/${opt.max_level} 레벨)`
+              : `${LINE_BULLET}${name}`;
             onLineChange(lineIdx, newText, (sec) => {
               if (sec.options) {
                 const opts = [...sec.options];
@@ -94,34 +95,24 @@ const ReforgeOption = ({ opt, optIdx, lineIdx, onLineChange }) => {
 };
 
 const ReforgeSection = ({ options, lines, onLineChange }) => {
-  const optionLineIndices = useMemo(() => {
-    if (!lines || !options?.length) return [];
-    const indices = [];
-    let optIdx = 0;
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      if (line.is_header) continue;
-      if (line.is_reforge_sub) continue;
-      if (optIdx < options.length) {
-        indices.push(i);
-        optIdx++;
-      }
-    }
-    return indices;
-  }, [lines, options]);
-
   if (options?.length > 0) {
     return (
       <div className="space-y-3">
-        {options.map((opt, idx) => (
-          <ReforgeOption
-            key={idx}
-            opt={opt}
-            optIdx={idx}
-            lineIdx={optionLineIndices[idx]}
-            onLineChange={onLineChange}
-          />
-        ))}
+        {options.map((opt, idx) => {
+          // Resolve section-local line index from option's global_index
+          const lineIdx = opt.global_index != null
+            ? lines?.findIndex(l => l.global_index === opt.global_index) ?? -1
+            : -1;
+          return (
+            <ReforgeOption
+              key={idx}
+              opt={opt}
+              optIdx={idx}
+              lineIdx={lineIdx}
+              onLineChange={onLineChange}
+            />
+          );
+        })}
       </div>
     );
   }

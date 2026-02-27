@@ -940,6 +940,7 @@ class MabinogiTooltipParser(TooltipLineSplitter):
                     'option_name':  name,
                     'option_level': level,
                     'effect':       None,
+                    'global_index': line.get('global_index'),
                 }
                 options.append(current)
 

@@ -227,6 +227,12 @@ class TextCorrector:
                 best_score = score
                 best_norm = norm_entry
 
+        # Condition text (e.g. "랭크 1 이상일 때") prepends extra numbers.
+        # Take only the last N numbers matching template placeholders.
+        n_placeholders = best_norm.count('N') if best_norm else 0
+        if n_placeholders > 0 and len(numbers) > n_placeholders:
+            numbers = numbers[-n_placeholders:]
+
         if best_score >= cutoff_score and best_norm is not None:
             result = best_norm
             for num in numbers:
@@ -319,11 +325,10 @@ class TextCorrector:
 
         norm_name = _normalize_nums(ocr_name)
 
-        # Format: add rank only when the name was actually corrected
+        # Always include rank for consistent display to users.
+        # Correction data strips rank on the frontend (registrationPayload.js).
         def _fmt(entry):
-            if entry['name'] == ocr_name:
-                return f"[{entry['slot']}] {entry['name']}"
-            return entry['header']  # full form with rank
+            return entry['header']
 
         # Score all entries by name similarity
         candidates = []
@@ -559,6 +564,13 @@ class TextCorrector:
             # Extract OCR numbers (rolled values) and DB numbers (range)
             ocr_numbers = _NUM_PAT.findall(ocr_core)
             db_numbers = _NUM_PAT.findall(raw_db)
+
+            # Condition text (e.g. "랭크 1 이상일 때") prepends extra numbers.
+            # DB template has only effect placeholders, so take the LAST N
+            # numbers from OCR to skip condition numbers.
+            n_placeholders = norm_db.count('N')
+            if n_placeholders > 0 and len(ocr_numbers) > n_placeholders:
+                ocr_numbers = ocr_numbers[-n_placeholders:]
 
             # Build corrected text: DB template with OCR numbers injected
             corrected = norm_db
