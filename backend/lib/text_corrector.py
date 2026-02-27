@@ -26,6 +26,9 @@ _REFORGE_SUB_RE    = re.compile(r'^\s*ㄴ')
 _ENCHANT_HDR_PAT   = re.compile(r'^\[?(접두|접미)\]?\s+(.+?)\s*\(랭크\s*[A-F0-9]+\)')
 # enchant: dictionary file header '[접미] 관리자 (랭크 6)' — strict form for parsing
 _ENCHANT_FILE_HDR  = re.compile(r'^\[(접두|접미)\]\s+(.+?)\s*\(랭크\s*([A-F0-9]+)\)\s*$')
+# Tooltip parenthesized info — '(50~55)', '(9.0%~11.2%)', '(전용 일시 해제)' etc.
+# Display-only: DB already has ranges, and other parenthesized text is noise for matching.
+_PAREN_PAT = re.compile(r'\s*\([^)]*\)')
 
 
 def _normalize_nums(text):
@@ -211,7 +214,9 @@ class TextCorrector:
         if not core:
             return text, 0
 
-        numbers = _NUM_PAT.findall(core)
+        # Strip tooltip range display "(50~55)" before extracting rolled numbers
+        core_for_nums = _PAREN_PAT.sub('', core)
+        numbers = _NUM_PAT.findall(core_for_nums)
         norm_core = _normalize_nums(core)
 
         best_score = 0
@@ -507,11 +512,13 @@ class TextCorrector:
         if not effects:
             return []
 
-        # Pre-normalize OCR texts (strip bullet prefixes)
+        # Pre-normalize OCR texts (strip bullet prefixes + tooltip range display)
         ocr_cores = []
         for text in ocr_effect_texts:
             m = _PREFIX_PAT.match(text)
             core = text[m.end():] if m else text
+            # Strip tooltip range display "(50~55)" so only rolled value remains
+            core = _PAREN_PAT.sub('', core)
             ocr_cores.append(core.strip())
 
         ocr_norms = [_normalize_nums(c) for c in ocr_cores]
