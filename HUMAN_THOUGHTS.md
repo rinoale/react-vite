@@ -44,6 +44,12 @@ Now I'm asking to implement Mabinogi-specified human-eye efficient OCR.
 Asking to find header sections lead the AI to search certain fixed coordinates or fixed shape.
 The header sections were having black square so I indicated to implement the logic finding black squares and told 'they are headers'.
 
+### AI makes me study harder
+I've learned about many image process algorithms to understand what AI is doing.
+If I want just a result without understanding, All I need to do is just insert command and wait while hitting enter button.
+Which would lead me tons of wasted tokens, time and hurting eyeballs.
+I's been required to understand what AI's been doing. AI also get lost and I need to guide.
+
 ## Commands
 
 ### generate segmentation

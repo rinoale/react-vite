@@ -24,6 +24,7 @@ _MODEL_TYPES = {
     'general_mabinogi_classic': ('general_mabinogi_classic_model', 'custom_mabinogi_classic.pth'),
     'general_nanum_gothic_bold': ('general_nanum_gothic_bold_model', 'custom_nanum_gothic_bold.pth'),
     'preheader_mabinogi_classic': ('preheader_mabinogi_classic_model', 'custom_preheader_mabinogi_classic.pth'),
+    'preheader_nanum_gothic': ('preheader_nanum_gothic_model', 'custom_preheader_nanum_gothic.pth'),
     'enchant_header': ('enchant_header_model', 'custom_enchant_header.pth'),
     'category_header': ('category_header_model', 'custom_header.pth'),
 }

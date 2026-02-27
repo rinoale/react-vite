@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Generate synthetic training images for the pre-header mabinogi_classic font OCR model.
+Generate synthetic training images for the pre-header NanumGothicBold font OCR model.
 
 Specialized for pre_header region content only:
   - Item names with optional enchant prefix/suffix and holywater prefix
@@ -9,8 +9,8 @@ Specialized for pre_header region content only:
 Uses zero-noise rendering (fixed threshold, no randomization) at font 11-13.
 
 Run from project root:
-    python3 scripts/ocr/preheader_mabinogi_classic_model/generate_training_data.py
-    python3 scripts/ocr/preheader_mabinogi_classic_model/generate_training_data.py --version v1
+    python3 scripts/ocr/preheader_nanum_gothic_model/generate_training_data.py
+    python3 scripts/ocr/preheader_nanum_gothic_model/generate_training_data.py --version v1
 """
 
 import argparse
@@ -28,7 +28,7 @@ from scripts.ocr.lib.render_utils import (
     MIN_INK_RATIO, MIN_WIDTH, MIN_HEIGHT,
 )
 
-MODEL_TYPE = 'preheader_mabinogi_classic'
+MODEL_TYPE = 'preheader_nanum_gothic'
 
 # === Configuration ===
 _parser = argparse.ArgumentParser(add_help=False)
@@ -39,7 +39,7 @@ _config = load_training_config(MODEL_TYPE, _VERSION)
 print(f"Version: {_VERSION}")
 
 FONT_PATH = _config['font']['path']
-OUTPUT_DIR = f"backend/ocr/preheader_mabinogi_classic_model/{_VERSION}/train_data"
+OUTPUT_DIR = f"backend/ocr/preheader_nanum_gothic_model/{_VERSION}/train_data"
 IMAGES_DIR = os.path.join(OUTPUT_DIR, "images")
 LABELS_DIR = os.path.join(OUTPUT_DIR, "labels")
 
@@ -146,7 +146,7 @@ def generate_data():
         all_chars.update(label)
     chars_sorted = sorted(all_chars)
     chars_path = os.path.join(
-        f"backend/ocr/preheader_mabinogi_classic_model/{_VERSION}",
+        f"backend/ocr/preheader_nanum_gothic_model/{_VERSION}",
         "unique_chars.txt"
     )
     with open(chars_path, 'w', encoding='utf-8') as f:

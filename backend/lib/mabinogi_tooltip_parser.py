@@ -112,6 +112,39 @@ def _oreo_flip(content_bgr):
     return white_mask, ocr_input
 
 
+def _hsv_yellow_binary(content_bgr):
+    """HSV yellow-isolate + threshold 120 BINARY_INV for enchant slot headers.
+
+    Isolates yellow-hued pixels (H=25-40, OpenCV scale) while preserving
+    white/gray text (low saturation → skipped). All other colored pixels
+    (pink rank text, blue, etc.) are set to black.
+
+    Returns:
+        (detect_mask, ocr_binary)
+        - detect_mask: boolean mask of text pixels (for band detection)
+        - ocr_binary: black text on white background (for OCR)
+    """
+    hsv = cv2.cvtColor(content_bgr, cv2.COLOR_BGR2HSV)
+    h = hsv[:, :, 0]  # 0-180 in OpenCV
+    s = hsv[:, :, 1]  # 0-255 in OpenCV
+
+    # Isolate yellow hue (H=25-40), skip low-saturation pixels (white/black)
+    sat_mask = s >= 38  # ~15% of 255
+    not_yellow = ~((h >= 25) & (h <= 40))
+    reject_mask = sat_mask & not_yellow
+
+    masked = content_bgr.copy()
+    masked[reject_mask] = 0
+
+    gray = cv2.cvtColor(masked, cv2.COLOR_BGR2GRAY)
+    _, ocr_binary = cv2.threshold(gray, 120, 255, cv2.THRESH_BINARY_INV)
+
+    detect_mask = ocr_binary == 0  # ink pixels = True
+    detect_mask = _strip_border_cols(detect_mask)
+
+    return detect_mask, ocr_binary
+
+
 def detect_enchant_slot_headers(content_bgr):
     """Detect enchant slot header lines using white-text color mask.
 
