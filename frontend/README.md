@@ -78,42 +78,40 @@ docker compose logs -f frontend         # Watch logs
 - The Dockerfile CMD runs `npm install` (to create workspace symlinks from the volume mount), then backgrounds all three `npm run dev:*` commands.
 - `--host` is baked into each package's `dev` script so Vite binds to `0.0.0.0` inside the container. Do **not** pass `-- --host 0.0.0.0` from compose — npm intercepts the flag and Vite receives `0.0.0.0` as a positional root-dir argument, causing 404s.
 
-## Static Configuration (Enchants)
+## Static Configs (Prerequisites)
 
-For zero-latency searching, the enchant dictionary is available as a static configuration file.
+The trade app depends on three static JS config files generated from the database. These must be exported before running the dev server for the first time, and re-exported whenever the database or source data changes.
 
-### Static Configuration File
-- **Path:** `packages/trade/public/enchants_config.js`
-- **Global Variable:** `window.ENCHANTS_CONFIG` (Array of objects)
+### Quick Start
 
-### Data Structure
-Each object in `window.ENCHANTS_CONFIG` contains:
-| Property | Type | Description |
-| :--- | :--- | :--- |
-| `id` | `integer` | Database ID (required for fetching details). |
-| `name` | `string` | Enchant name. |
-| `slot` | `integer` | `0` = 접두 (Prefix), `1` = 접미 (Suffix). |
-| `rank` | `integer` | Numeric rank (1-15). |
-| `rank_label` | `string` | Display rank (1-9, A-F). |
-| `synonym` | `string` | (Optional) Alternative name for searching. |
+```bash
+# Prerequisites: PostgreSQL running, dictionaries imported (see project root CLAUDE.md)
+npm run export-configs    # Generates all three config files
+npm run dev:trade         # Now the app has data to work with
+```
 
-### Usage Workflow
-1. **Include Script:** Ensure the config is included in `packages/trade/index.html` via `<script src="/enchants_config.js"></script>`.
-2. **Search Locally:** Perform all filtering and searching using `window.ENCHANTS_CONFIG`.
-3. **Fetch Details:** When a user expands an entry, call the API: `GET /admin/enchant-entries/{id}/effects`.
+### What It Generates
 
-## Generating Static Config
+| File | Global Variable | Source | Records |
+| :--- | :--- | :--- | :--- |
+| `packages/trade/public/enchants_config.js` | `window.ENCHANTS_CONFIG` | `enchant.yaml` + DB | ~1170 enchants |
+| `packages/trade/public/reforges_config.js` | `window.REFORGES_CONFIG` | DB `reforge_options` | ~530 options |
+| `packages/trade/public/game_items_config.js` | `window.GAME_ITEMS_CONFIG` | DB `game_items` | ~20k items |
 
-The static configuration file should be regenerated whenever the database or `data/source_of_truth/enchant.yaml` is updated.
+Each file is included via `<script>` tags in `packages/trade/index.html` and exposes a global `window.*` variable for zero-latency client-side searching.
 
-### Export Script
-Run the following script from the project root:
+### Individual Export Scripts
+
+To regenerate a single config, run from the project root:
 
 ```bash
 python3 scripts/frontend/configs/export_enchant_config.py
+python3 scripts/frontend/configs/export_reforge_config.py
+python3 scripts/frontend/configs/export_game_items_config.py
 ```
 
-This script:
-1.  Reads enchant metadata from `data/source_of_truth/enchant.yaml`.
-2.  Fetches matching database IDs for each entry.
-3.  Exports the combined data as a static JavaScript configuration file for the frontend.
+### When to Re-export
+
+- After running `python3 scripts/db/import_dictionaries.py`
+- After editing `data/source_of_truth/enchant.yaml`
+- After any DB migration that changes enchants, reforge_options, or game_items tables

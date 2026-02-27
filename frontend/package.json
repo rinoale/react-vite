@@ -7,6 +7,7 @@
     "packages/*"
   ],
   "scripts": {
+    "export-configs": "python3 ../scripts/frontend/configs/export_all.py",
     "dev:trade": "npm run dev -w @mabi/trade",
     "dev:admin": "npm run dev -w @mabi/admin",
     "dev:misc": "npm run dev -w @mabi/misc",

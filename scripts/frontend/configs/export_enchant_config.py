@@ -21,7 +21,7 @@ sys.path.append(os.path.join(PROJECT_ROOT, 'backend'))
 from db.connector import SessionLocal
 
 SOURCE_PATH = os.path.join(PROJECT_ROOT, 'data', 'source_of_truth', 'enchant.yaml')
-OUTPUT_PATH = os.path.join(PROJECT_ROOT, 'frontend', 'public', 'enchants_config.js')
+OUTPUT_PATH = os.path.join(PROJECT_ROOT, 'frontend', 'packages', 'trade', 'public', 'enchants_config.js')
 
 RANK_MAP = {
     "A": 10, "B": 11, "C": 12, "D": 13, "E": 14, "F": 15

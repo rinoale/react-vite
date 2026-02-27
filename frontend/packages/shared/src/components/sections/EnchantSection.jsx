@@ -139,7 +139,7 @@ const EffectRow = ({ eff, lineIdx, onLineChange, configEffects }) => {
           ) : (
             <span className="inline-flex items-center gap-1">
               <span
-                className={'text-orange-400 font-bold' + (isRanged ? ' cursor-pointer hover:underline' : '')}
+                className={isRanged ? 'text-orange-400 font-bold cursor-pointer hover:underline' : ''}
                 onClick={isRanged ? () => { setLevelDraft(eff.option_level != null ? String(eff.option_level) : ''); setEditingLevel(true); } : undefined}
                 title={isRanged ? t('sections.enchant.clickToEditValue') : undefined}
               >
