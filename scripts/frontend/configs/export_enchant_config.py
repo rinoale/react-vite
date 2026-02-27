@@ -112,13 +112,21 @@ def export_config():
                 m = _NUM_RE.search(parse_text)
                 if m:
                     oname = parse_text[:m.start()].rstrip()
-                    effects_list.append({
+                    is_ranged = '~' in m.group()
+                    eff_entry = {
                         'enchant_effect_id': ee_id,
                         'text': eff_text,
                         'option_name': oname if oname else None,
                         'suffix': parse_text[m.end():],
-                        'ranged': '~' in m.group(),
-                    })
+                        'ranged': is_ranged,
+                    }
+                    if is_ranged:
+                        parts = m.group().split('~')
+                        lo = parts[0].strip()
+                        hi = parts[1].strip()
+                        eff_entry['min'] = float(lo) if '.' in lo else int(lo)
+                        eff_entry['max'] = float(hi) if '.' in hi else int(hi)
+                    effects_list.append(eff_entry)
                 else:
                     effects_list.append({
                         'enchant_effect_id': ee_id,

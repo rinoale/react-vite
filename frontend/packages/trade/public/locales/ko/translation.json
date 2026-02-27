@@ -28,6 +28,10 @@
     "itemNamePlaceholder": "예: 내 드래곤 블레이드 +5",
     "detectedCategories": "Detected Categories",
     "itemClassification": "Item Classification",
+    "addSection": "섹션 추가",
+    "addSectionPlaceholder": "추가할 섹션을 선택하세요...",
+    "removeSection": "섹션 삭제",
+    "noSectionsYet": "섹션이 없습니다. 툴팁을 업로드하거나 직접 섹션을 추가하세요.",
     "emptyTitle": "Upload and scan an item tooltip to populate details",
     "emptySubtitle": "Structured parsing will automatically organize the data.",
     "registerItem": "Register Item",
@@ -78,15 +82,19 @@
       "correctEffect": "Correct effect",
       "searchEffect": "Search effect...",
       "searchEnchant": "Search enchant...",
+      "addPrefix": "접두 인챈트 추가",
+      "addSuffix": "접미 인챈트 추가",
       "clickToEditValue": "Click to edit value",
       "rolledValue": "실측: {{value}}",
       "valueRange": "범위: {{min}} ~ {{max}}",
       "dbEffect": "DB: {{effect}}",
-      "source": "출처: {{source}}"
+      "source": "출처: {{source}}",
+      "outOfRange": "범위 초과 ({{min}}~{{max}})"
     },
     "reforge": {
       "correct": "Correct",
       "clickToEditLevel": "Click to edit level",
+      "addOption": "세공 옵션 추가",
       "searchReforgeOption": "Search reforge option...",
       "levelDisplay": "Lv. {{level}} / {{maxLevel}}"
     },

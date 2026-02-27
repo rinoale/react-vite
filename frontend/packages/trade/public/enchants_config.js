@@ -334,7 +334,9 @@ window.ENCHANTS_CONFIG = [
         "text": "마법 공격력 8 ~ 9 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 8,
+        "max": 9
       },
       {
         "enchant_effect_id": 39,
@@ -364,7 +366,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최대대미지 6 ~ 7 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 6,
+        "max": 7
       },
       {
         "enchant_effect_id": 42,
@@ -607,7 +611,9 @@ window.ENCHANTS_CONFIG = [
         "text": "내츄럴 매직 실드 랭크 3 이상일 때 마법 공격력 8 ~ 15 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 8,
+        "max": 15
       },
       {
         "enchant_effect_id": 69,
@@ -651,7 +657,9 @@ window.ENCHANTS_CONFIG = [
         "text": "파이어볼 랭크 1 이상일 때 마법 공격력 15 ~ 20 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 15,
+        "max": 20
       },
       {
         "enchant_effect_id": 74,
@@ -725,7 +733,9 @@ window.ENCHANTS_CONFIG = [
         "text": "라이트닝로드 랭크 2 이상일 때 마법 공격력 8 ~ 17 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 8,
+        "max": 17
       },
       {
         "enchant_effect_id": 82,
@@ -762,7 +772,9 @@ window.ENCHANTS_CONFIG = [
         "text": "헤일스톰 랭크 1 이상일 때 마법 공격력 18 ~ 25 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 18,
+        "max": 25
       },
       {
         "enchant_effect_id": 86,
@@ -813,7 +825,9 @@ window.ENCHANTS_CONFIG = [
         "text": "썬더 랭크 2 이상일 때 마법 공격력 14 ~ 17 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 14,
+        "max": 17
       },
       {
         "enchant_effect_id": 92,
@@ -850,7 +864,9 @@ window.ENCHANTS_CONFIG = [
         "text": "메테오 스트라이크 랭크 1 이상일 때 마법 공격력 25 ~ 30 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 25,
+        "max": 30
       },
       {
         "enchant_effect_id": 96,
@@ -952,7 +968,9 @@ window.ENCHANTS_CONFIG = [
         "text": "아이스볼트 랭크 3단 이상일 때 마법 공격력 50 ~ 65 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 50,
+        "max": 65
       },
       {
         "enchant_effect_id": 108,
@@ -1003,14 +1021,18 @@ window.ENCHANTS_CONFIG = [
         "text": "아이스 스피어 랭크 3단 이상일 때 마법 공격력 50 ~ 65 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 50,
+        "max": 65
       },
       {
         "enchant_effect_id": 114,
         "text": "썬더 랭크 3단 이상일 때 마나 소비 감소 2 ~ 6 증가",
         "option_name": "마나 소비 감소",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 6
       },
       {
         "enchant_effect_id": 115,
@@ -1061,14 +1083,18 @@ window.ENCHANTS_CONFIG = [
         "text": "스타 데토네이션 랭크 3단 이상일 때 마법 공격력 45 ~ 60 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 45,
+        "max": 60
       },
       {
         "enchant_effect_id": 121,
         "text": "최대마나 100 ~ 200 증가",
         "option_name": "최대마나",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 100,
+        "max": 200
       },
       {
         "enchant_effect_id": 122,
@@ -1112,14 +1138,18 @@ window.ENCHANTS_CONFIG = [
         "text": "랜스 차지 랭크 3단 이상일 때 최대대미지 50 ~ 70 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 50,
+        "max": 70
       },
       {
         "enchant_effect_id": 127,
         "text": "최소대미지 20 ~ 40 증가",
         "option_name": "최소대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 20,
+        "max": 40
       },
       {
         "enchant_effect_id": 128,
@@ -1156,7 +1186,9 @@ window.ENCHANTS_CONFIG = [
         "text": "윈드밀 랭크 3단 이상일 때 최대대미지 50 ~ 60 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 50,
+        "max": 60
       },
       {
         "enchant_effect_id": 132,
@@ -1200,14 +1232,18 @@ window.ENCHANTS_CONFIG = [
         "text": "배쉬 랭크 1 이상일 때 최대대미지 45 ~ 60 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 45,
+        "max": 60
       },
       {
         "enchant_effect_id": 137,
         "text": "최소대미지 30 ~ 40 증가",
         "option_name": "최소대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 30,
+        "max": 40
       },
       {
         "enchant_effect_id": 138,
@@ -1251,14 +1287,18 @@ window.ENCHANTS_CONFIG = [
         "text": "피어싱 레벨이 있을 때 피어싱 레벨 2 ~ 3 증가",
         "option_name": "피어싱 레벨",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 3
       },
       {
         "enchant_effect_id": 143,
         "text": "매그넘 샷 랭크 3단 이상일 때 최대대미지 70 ~ 85 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 70,
+        "max": 85
       },
       {
         "enchant_effect_id": 144,
@@ -1302,7 +1342,9 @@ window.ENCHANTS_CONFIG = [
         "text": "라이프 드레인 랭크 1 이상일 때 모든 속성 연금술 대미지 100 ~ 110 증가",
         "option_name": "모든 속성 연금술 대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 100,
+        "max": 110
       },
       {
         "enchant_effect_id": 149,
@@ -1346,7 +1388,9 @@ window.ENCHANTS_CONFIG = [
         "text": "4막: 질투의 화신 랭크 3단 이상일 때 마리오네트 최대대미지 30 ~ 50 증가",
         "option_name": "마리오네트 최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 30,
+        "max": 50
       },
       {
         "enchant_effect_id": 154,
@@ -1404,7 +1448,9 @@ window.ENCHANTS_CONFIG = [
         "text": "연속기 : 대쉬 펀치 랭크 3단 이상일 때 최대대미지 50 ~ 60 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 50,
+        "max": 60
       },
       {
         "enchant_effect_id": 161,
@@ -1418,7 +1464,9 @@ window.ENCHANTS_CONFIG = [
         "text": "의지 10 ~ 20 증가",
         "option_name": "의지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 20
       },
       {
         "enchant_effect_id": 163,
@@ -1455,7 +1503,9 @@ window.ENCHANTS_CONFIG = [
         "text": "슈팅 러쉬 랭크 3단 이상일 때 최대대미지 50 ~ 60 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 50,
+        "max": 60
       },
       {
         "enchant_effect_id": 167,
@@ -1469,7 +1519,9 @@ window.ENCHANTS_CONFIG = [
         "text": "공격 속도 4 ~ 6 증가",
         "option_name": "공격 속도",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 4,
+        "max": 6
       },
       {
         "enchant_effect_id": 169,
@@ -1506,7 +1558,9 @@ window.ENCHANTS_CONFIG = [
         "text": "수리검 돌진 랭크 3단 이상일 때 최대대미지 50 ~ 60 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 50,
+        "max": 60
       },
       {
         "enchant_effect_id": 173,
@@ -1550,7 +1604,9 @@ window.ENCHANTS_CONFIG = [
         "text": "데스 마커 랭크 3단 이상일 때 최대대미지 50 ~ 60 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 50,
+        "max": 60
       },
       {
         "enchant_effect_id": 178,
@@ -1564,7 +1620,9 @@ window.ENCHANTS_CONFIG = [
         "text": "행운 10 ~ 30 증가",
         "option_name": "행운",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 30
       },
       {
         "enchant_effect_id": 180,
@@ -1601,7 +1659,9 @@ window.ENCHANTS_CONFIG = [
         "text": "실드 마스터리 랭크 1 이상일 때 방어 30 ~ 70 증가",
         "option_name": "방어",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 30,
+        "max": 70
       },
       {
         "enchant_effect_id": 184,
@@ -1652,7 +1712,9 @@ window.ENCHANTS_CONFIG = [
         "text": "마나 리커버리 랭크 1 이상일 때 마법 공격력 10 ~ 20 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 20
       },
       {
         "enchant_effect_id": 190,
@@ -1689,7 +1751,9 @@ window.ENCHANTS_CONFIG = [
         "text": "앵콜 랭크 1 이상일 때 음악버프 스킬 효과 4 ~ 7 증가",
         "option_name": "음악버프 스킬 효과",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 4,
+        "max": 7
       },
       {
         "enchant_effect_id": 194,
@@ -1747,14 +1811,18 @@ window.ENCHANTS_CONFIG = [
         "text": "파이어볼 랭크 3단 이상일 때 마법 공격력 50 ~ 60 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 50,
+        "max": 60
       },
       {
         "enchant_effect_id": 201,
         "text": "마나 소비 감소 4 ~ 8 증가",
         "option_name": "마나 소비 감소",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 4,
+        "max": 8
       },
       {
         "enchant_effect_id": 202,
@@ -1798,14 +1866,18 @@ window.ENCHANTS_CONFIG = [
         "text": "피어싱 레벨이 있을 때 피어싱 레벨 2 ~ 3 증가",
         "option_name": "피어싱 레벨",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 3
       },
       {
         "enchant_effect_id": 207,
         "text": "스핀 스퍼트 랭크 3단 이상일 때 마법 공격력 40 ~ 55 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 40,
+        "max": 55
       },
       {
         "enchant_effect_id": 208,
@@ -1849,14 +1921,18 @@ window.ENCHANTS_CONFIG = [
         "text": "랜스 카운터 랭크 1 이상일 때 최대대미지 100 ~ 110 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 100,
+        "max": 110
       },
       {
         "enchant_effect_id": 213,
         "text": "최소대미지 50 ~ 70 증가",
         "option_name": "최소대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 50,
+        "max": 70
       },
       {
         "enchant_effect_id": 214,
@@ -1900,14 +1976,18 @@ window.ENCHANTS_CONFIG = [
         "text": "피어싱 레벨이 있을 때 피어싱 레벨 2 ~ 3 증가",
         "option_name": "피어싱 레벨",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 3
       },
       {
         "enchant_effect_id": 219,
         "text": "다운 어택 랭크 3단 이상일 때 최대대미지 60 ~ 80 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 60,
+        "max": 80
       },
       {
         "enchant_effect_id": 220,
@@ -1944,14 +2024,18 @@ window.ENCHANTS_CONFIG = [
         "text": "피어싱 레벨이 있을 때 피어싱 레벨 1 ~ 2 증가",
         "option_name": "피어싱 레벨",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 2
       },
       {
         "enchant_effect_id": 224,
         "text": "컴뱃 마스터리 랭크 3단 이상일 때 최대대미지 60 ~ 70 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 60,
+        "max": 70
       },
       {
         "enchant_effect_id": 225,
@@ -2002,7 +2086,9 @@ window.ENCHANTS_CONFIG = [
         "text": "크래시샷 랭크 3단 이상일 때 최대대미지 30 ~ 50 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 30,
+        "max": 50
       },
       {
         "enchant_effect_id": 231,
@@ -2016,7 +2102,9 @@ window.ENCHANTS_CONFIG = [
         "text": "솜씨 20 ~ 40 증가",
         "option_name": "솜씨",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 20,
+        "max": 40
       },
       {
         "enchant_effect_id": 233,
@@ -2053,14 +2141,18 @@ window.ENCHANTS_CONFIG = [
         "text": "피어싱 레벨이 있을 때 피어싱 레벨 1 ~ 2 증가",
         "option_name": "피어싱 레벨",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 2
       },
       {
         "enchant_effect_id": 237,
         "text": "샌드 버스트 랭크 3단 이상일 때 모든 속성 연금술 대미지 100 ~ 110 증가",
         "option_name": "모든 속성 연금술 대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 100,
+        "max": 110
       },
       {
         "enchant_effect_id": 238,
@@ -2097,14 +2189,18 @@ window.ENCHANTS_CONFIG = [
         "text": "피어싱 레벨이 있을 때 피어싱 레벨 1 ~ 2 증가",
         "option_name": "피어싱 레벨",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 2
       },
       {
         "enchant_effect_id": 242,
         "text": "6막: 유혹의 올가미 랭크 3단 이상일 때 마리오네트 최대대미지 55 ~ 65 증가",
         "option_name": "마리오네트 최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 55,
+        "max": 65
       },
       {
         "enchant_effect_id": 243,
@@ -2148,14 +2244,18 @@ window.ENCHANTS_CONFIG = [
         "text": "피어싱 레벨이 있을 때 피어싱 레벨 2 ~ 3 증가",
         "option_name": "피어싱 레벨",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 3
       },
       {
         "enchant_effect_id": 248,
         "text": "연속기 : 파운딩 랭크 3단 이상일 때 최대대미지 60 ~ 80 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 60,
+        "max": 80
       },
       {
         "enchant_effect_id": 249,
@@ -2206,14 +2306,18 @@ window.ENCHANTS_CONFIG = [
         "text": "피어싱 레벨이 있을 때 피어싱 레벨 2 ~ 3 증가",
         "option_name": "피어싱 레벨",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 3
       },
       {
         "enchant_effect_id": 255,
         "text": "크로스 버스터 랭크 3단 이상일 때 최대대미지 60 ~ 80 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 60,
+        "max": 80
       },
       {
         "enchant_effect_id": 256,
@@ -2264,14 +2368,18 @@ window.ENCHANTS_CONFIG = [
         "text": "피어싱 레벨이 있을 때 피어싱 레벨 2 ~ 3 증가",
         "option_name": "피어싱 레벨",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 3
       },
       {
         "enchant_effect_id": 262,
         "text": "수리검 폭풍 랭크 3단 이상일 때 최대대미지 60 ~ 80 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 60,
+        "max": 80
       },
       {
         "enchant_effect_id": 263,
@@ -2322,14 +2430,18 @@ window.ENCHANTS_CONFIG = [
         "text": "피어싱 레벨이 있을 때 피어싱 레벨 2 ~ 3 증가",
         "option_name": "피어싱 레벨",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 3
       },
       {
         "enchant_effect_id": 269,
         "text": "스피닝 슬래시 랭크 3단 이상일 때 최대대미지 60 ~ 80 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 60,
+        "max": 80
       },
       {
         "enchant_effect_id": 270,
@@ -2380,14 +2492,18 @@ window.ENCHANTS_CONFIG = [
         "text": "디펜스 랭크 1 이상일 때 보호 3 ~ 5 증가",
         "option_name": "보호",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 3,
+        "max": 5
       },
       {
         "enchant_effect_id": 276,
         "text": "마법 보호 1 ~ 2 증가",
         "option_name": "마법 보호",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 2
       },
       {
         "enchant_effect_id": 277,
@@ -2431,7 +2547,9 @@ window.ENCHANTS_CONFIG = [
         "text": "그라비테이셔널 풀 랭크 1 이상일 때 마법 공격력 10 ~ 15 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 15
       },
       {
         "enchant_effect_id": 282,
@@ -2468,7 +2586,9 @@ window.ENCHANTS_CONFIG = [
         "text": "자장가 랭크 1 이상일 때 음악버프 스킬 효과 2 ~ 3 증가",
         "option_name": "음악버프 스킬 효과",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 3
       },
       {
         "enchant_effect_id": 286,
@@ -2519,7 +2639,9 @@ window.ENCHANTS_CONFIG = [
         "text": "사이드 슬래시 랭크 3단 이상일 때 마법 공격력 15 ~ 20 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 15,
+        "max": 20
       },
       {
         "enchant_effect_id": 292,
@@ -2658,14 +2780,18 @@ window.ENCHANTS_CONFIG = [
         "text": "마법 공격력 10 ~ 15 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 15
       },
       {
         "enchant_effect_id": 308,
         "text": "지력 10 ~ 20 증가",
         "option_name": "지력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 20
       },
       {
         "enchant_effect_id": 309,
@@ -2702,14 +2828,18 @@ window.ENCHANTS_CONFIG = [
         "text": "마법 공격력 10 ~ 20 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 20
       },
       {
         "enchant_effect_id": 313,
         "text": "지력 10 ~ 25 증가",
         "option_name": "지력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 25
       },
       {
         "enchant_effect_id": 314,
@@ -2753,14 +2883,18 @@ window.ENCHANTS_CONFIG = [
         "text": "마법 공격력 17 ~ 25 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 17,
+        "max": 25
       },
       {
         "enchant_effect_id": 319,
         "text": "마나 소비 감소 1 ~ 3 증가",
         "option_name": "마나 소비 감소",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 3
       },
       {
         "enchant_effect_id": 320,
@@ -2811,14 +2945,18 @@ window.ENCHANTS_CONFIG = [
         "text": "마법 공격력 10 ~ 15 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 15
       },
       {
         "enchant_effect_id": 326,
         "text": "지력 20 ~ 50 증가",
         "option_name": "지력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 20,
+        "max": 50
       },
       {
         "enchant_effect_id": 327,
@@ -2862,14 +3000,18 @@ window.ENCHANTS_CONFIG = [
         "text": "마법 공격력 15 ~ 20 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 15,
+        "max": 20
       },
       {
         "enchant_effect_id": 332,
         "text": "지력 45 ~ 60 증가",
         "option_name": "지력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 45,
+        "max": 60
       },
       {
         "enchant_effect_id": 333,
@@ -2913,7 +3055,9 @@ window.ENCHANTS_CONFIG = [
         "text": "마법 공격력 35 ~ 45 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 35,
+        "max": 45
       },
       {
         "enchant_effect_id": 338,
@@ -2971,7 +3115,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최대대미지 20 ~ 25 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 20,
+        "max": 25
       },
       {
         "enchant_effect_id": 345,
@@ -2985,7 +3131,9 @@ window.ENCHANTS_CONFIG = [
         "text": "마리오네트 최대대미지 15 ~ 20 증가",
         "option_name": "마리오네트 최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 15,
+        "max": 20
       },
       {
         "enchant_effect_id": 347,
@@ -3036,7 +3184,9 @@ window.ENCHANTS_CONFIG = [
         "text": "마법 공격력 22 ~ 25 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 22,
+        "max": 25
       },
       {
         "enchant_effect_id": 353,
@@ -3145,7 +3295,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최대대미지 34 ~ 40 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 34,
+        "max": 40
       },
       {
         "enchant_effect_id": 366,
@@ -3166,7 +3318,9 @@ window.ENCHANTS_CONFIG = [
         "text": "보호 4 ~ 5 증가",
         "option_name": "보호",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 4,
+        "max": 5
       },
       {
         "enchant_effect_id": 369,
@@ -3203,7 +3357,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최대대미지 50 ~ 55 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 50,
+        "max": 55
       },
       {
         "enchant_effect_id": 373,
@@ -3275,7 +3431,9 @@ window.ENCHANTS_CONFIG = [
         "text": "마법 공격력 50 ~ 55 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 50,
+        "max": 55
       },
       {
         "enchant_effect_id": 382,
@@ -3333,14 +3491,18 @@ window.ENCHANTS_CONFIG = [
         "text": "최대대미지 22 ~ 26 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 22,
+        "max": 26
       },
       {
         "enchant_effect_id": 389,
         "text": "마리오네트 최대대미지 15 ~ 20 증가",
         "option_name": "마리오네트 최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 15,
+        "max": 20
       },
       {
         "enchant_effect_id": 390,
@@ -3384,7 +3546,9 @@ window.ENCHANTS_CONFIG = [
         "text": "마법 공격력 23 ~ 26 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 23,
+        "max": 26
       },
       {
         "enchant_effect_id": 395,
@@ -3472,7 +3636,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최대대미지 20 ~ 24 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 20,
+        "max": 24
       },
       {
         "enchant_effect_id": 405,
@@ -3509,7 +3675,9 @@ window.ENCHANTS_CONFIG = [
         "text": "마법 공격력 14 ~ 15 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 14,
+        "max": 15
       },
       {
         "enchant_effect_id": 409,
@@ -3590,7 +3758,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최대대미지 24 ~ 28 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 24,
+        "max": 28
       },
       {
         "enchant_effect_id": 418,
@@ -3655,7 +3825,9 @@ window.ENCHANTS_CONFIG = [
         "text": "마법 공격력 25 ~ 28 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 25,
+        "max": 28
       },
       {
         "enchant_effect_id": 426,
@@ -3750,7 +3922,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최대대미지 34 ~ 40 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 34,
+        "max": 40
       },
       {
         "enchant_effect_id": 437,
@@ -3771,7 +3945,9 @@ window.ENCHANTS_CONFIG = [
         "text": "마법 보호 4 ~ 5 증가",
         "option_name": "마법 보호",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 4,
+        "max": 5
       },
       {
         "enchant_effect_id": 440,
@@ -3815,7 +3991,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최대대미지 50 ~ 55 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 50,
+        "max": 55
       },
       {
         "enchant_effect_id": 445,
@@ -3887,7 +4065,9 @@ window.ENCHANTS_CONFIG = [
         "text": "마법 공격력 50 ~ 55 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 50,
+        "max": 55
       },
       {
         "enchant_effect_id": 454,
@@ -3952,14 +4132,18 @@ window.ENCHANTS_CONFIG = [
         "text": "최대대미지 20 ~ 24 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 20,
+        "max": 24
       },
       {
         "enchant_effect_id": 462,
         "text": "마리오네트 최대대미지 15 ~ 20 증가",
         "option_name": "마리오네트 최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 15,
+        "max": 20
       },
       {
         "enchant_effect_id": 463,
@@ -4010,7 +4194,9 @@ window.ENCHANTS_CONFIG = [
         "text": "마법 공격력 22 ~ 24 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 22,
+        "max": 24
       },
       {
         "enchant_effect_id": 469,
@@ -4061,7 +4247,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최대대미지 10 ~ 15 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 15
       },
       {
         "enchant_effect_id": 475,
@@ -4105,7 +4293,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최대대미지 10 ~ 12 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 12
       },
       {
         "enchant_effect_id": 480,
@@ -4142,7 +4332,9 @@ window.ENCHANTS_CONFIG = [
         "text": "마법 공격력 14 ~ 17 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 14,
+        "max": 17
       },
       {
         "enchant_effect_id": 484,
@@ -4295,7 +4487,9 @@ window.ENCHANTS_CONFIG = [
         "text": "데스 마커 랭크 3단 이상일 때 최대대미지 20 ~ 45 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 20,
+        "max": 45
       },
       {
         "enchant_effect_id": 502,
@@ -4316,7 +4510,9 @@ window.ENCHANTS_CONFIG = [
         "text": "피어싱 레벨이 있을 때 피어싱 레벨 1 ~ 3 증가",
         "option_name": "피어싱 레벨",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 3
       },
       {
         "enchant_effect_id": 505,
@@ -4353,7 +4549,9 @@ window.ENCHANTS_CONFIG = [
         "text": "수리검 돌진 랭크 3단 이상일 때 최대대미지 25 ~ 50 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 25,
+        "max": 50
       },
       {
         "enchant_effect_id": 509,
@@ -4374,7 +4572,9 @@ window.ENCHANTS_CONFIG = [
         "text": "피어싱 레벨이 있을 때 피어싱 레벨 1 ~ 3 증가",
         "option_name": "피어싱 레벨",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 3
       },
       {
         "enchant_effect_id": 512,
@@ -4411,7 +4611,9 @@ window.ENCHANTS_CONFIG = [
         "text": "크로스 버스터 랭크 3단 이상일 때 최대대미지 20 ~ 45 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 20,
+        "max": 45
       },
       {
         "enchant_effect_id": 516,
@@ -4432,7 +4634,9 @@ window.ENCHANTS_CONFIG = [
         "text": "피어싱 레벨이 있을 때 피어싱 레벨 1 ~ 3 증가",
         "option_name": "피어싱 레벨",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 3
       },
       {
         "enchant_effect_id": 519,
@@ -4543,14 +4747,18 @@ window.ENCHANTS_CONFIG = [
         "text": "라이트 아머 마스터리 랭크 1 이상일 때 마법 방어 1 ~ 2 증가",
         "option_name": "마법 방어",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 2
       },
       {
         "enchant_effect_id": 531,
         "text": "디펜스 랭크 1 이상일 때 마법 보호 1 ~ 2 증가",
         "option_name": "마법 보호",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 2
       },
       {
         "enchant_effect_id": 532,
@@ -4587,14 +4795,18 @@ window.ENCHANTS_CONFIG = [
         "text": "현혹의 연주 랭크 1 이상일 때 음악버프 스킬 효과 1 ~ 2 증가",
         "option_name": "음악버프 스킬 효과",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 2
       },
       {
         "enchant_effect_id": 536,
         "text": "볼트 마법 조합 랭크 1 이상일 때 마법 공격력 2 ~ 4 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 4
       },
       {
         "enchant_effect_id": 537,
@@ -4632,14 +4844,18 @@ window.ENCHANTS_CONFIG = [
         "text": "현혹의 연주 랭크 1 이상일 때 음악버프 스킬 효과 1 ~ 2 증가",
         "option_name": "음악버프 스킬 효과",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 2
       },
       {
         "enchant_effect_id": 541,
         "text": "볼트 마법 조합 랭크 1 이상일 때 마법 공격력 2 ~ 4 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 4
       },
       {
         "enchant_effect_id": 542,
@@ -4684,7 +4900,9 @@ window.ENCHANTS_CONFIG = [
         "text": "연성 마스터리 랭크 1 이상일 때 최대마나 30 ~ 70 증가",
         "option_name": "최대마나",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 30,
+        "max": 70
       },
       {
         "enchant_effect_id": 547,
@@ -4714,14 +4932,18 @@ window.ENCHANTS_CONFIG = [
         "text": "최소대미지 25 ~ 35 증가",
         "option_name": "최소대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 25,
+        "max": 35
       },
       {
         "enchant_effect_id": 550,
         "text": "최대대미지 60 ~ 70 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 60,
+        "max": 70
       },
       {
         "enchant_effect_id": 551,
@@ -4758,7 +4980,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최대대미지 65 ~ 75 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 65,
+        "max": 75
       },
       {
         "enchant_effect_id": 555,
@@ -4809,7 +5033,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최대대미지 55 ~ 65 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 55,
+        "max": 65
       },
       {
         "enchant_effect_id": 561,
@@ -4830,7 +5056,9 @@ window.ENCHANTS_CONFIG = [
         "text": "피어싱 레벨이 있을 때 피어싱 레벨 2 ~ 3 증가",
         "option_name": "피어싱 레벨",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 3
       },
       {
         "enchant_effect_id": 564,
@@ -4860,14 +5088,18 @@ window.ENCHANTS_CONFIG = [
         "text": "불 속성 연금술 대미지 40 ~ 50 증가",
         "option_name": "불 속성 연금술 대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 40,
+        "max": 50
       },
       {
         "enchant_effect_id": 567,
         "text": "물 속성 연금술 대미지 60 ~ 70 증가",
         "option_name": "물 속성 연금술 대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 60,
+        "max": 70
       },
       {
         "enchant_effect_id": 568,
@@ -4918,7 +5150,9 @@ window.ENCHANTS_CONFIG = [
         "text": "체력 40 ~ 50 증가",
         "option_name": "체력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 40,
+        "max": 50
       },
       {
         "enchant_effect_id": 574,
@@ -4948,7 +5182,9 @@ window.ENCHANTS_CONFIG = [
         "text": "마법 공격력 45 ~ 55 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 45,
+        "max": 55
       },
       {
         "enchant_effect_id": 577,
@@ -4962,7 +5198,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최대마나 75 ~ 100 증가",
         "option_name": "최대마나",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 75,
+        "max": 100
       },
       {
         "enchant_effect_id": 579,
@@ -4999,7 +5237,9 @@ window.ENCHANTS_CONFIG = [
         "text": "마나 포밍 랭크 1 이상일 때 최대대미지 10 ~ 14 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 14
       },
       {
         "enchant_effect_id": 583,
@@ -5051,7 +5291,9 @@ window.ENCHANTS_CONFIG = [
         "text": "마나 포밍 랭크 1 이상일 때 최대대미지 10 ~ 14 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 14
       },
       {
         "enchant_effect_id": 589,
@@ -5096,14 +5338,18 @@ window.ENCHANTS_CONFIG = [
         "text": "레벨이 100 이상일때 최대대미지 9 ~ 16 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 9,
+        "max": 16
       },
       {
         "enchant_effect_id": 594,
         "text": "어전트 샷 랭크 1 이상일 때 솜씨 17 ~ 25 증가",
         "option_name": "솜씨",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 17,
+        "max": 25
       },
       {
         "enchant_effect_id": 595,
@@ -5148,14 +5394,18 @@ window.ENCHANTS_CONFIG = [
         "text": "레벨이 100 이상일때 최대대미지 9 ~ 16 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 9,
+        "max": 16
       },
       {
         "enchant_effect_id": 600,
         "text": "어전트 샷 랭크 1 이상일 때 솜씨 17 ~ 25 증가",
         "option_name": "솜씨",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 17,
+        "max": 25
       },
       {
         "enchant_effect_id": 601,
@@ -5200,14 +5450,18 @@ window.ENCHANTS_CONFIG = [
         "text": "1막: 우연한 충돌 랭크 1 이상일 때 최대대미지 9 ~ 16 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 9,
+        "max": 16
       },
       {
         "enchant_effect_id": 606,
         "text": "와이어 바인딩 랭크 1 이상일 때 체력 17 ~ 25 증가",
         "option_name": "체력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 17,
+        "max": 25
       },
       {
         "enchant_effect_id": 607,
@@ -5258,7 +5512,9 @@ window.ENCHANTS_CONFIG = [
         "text": "탐험 레벨이 20 이상일때 최대대미지 7 ~ 15 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 7,
+        "max": 15
       },
       {
         "enchant_effect_id": 613,
@@ -5272,7 +5528,9 @@ window.ENCHANTS_CONFIG = [
         "text": "마법 공격력 2 ~ 5 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 5
       },
       {
         "enchant_effect_id": 615,
@@ -5323,7 +5581,9 @@ window.ENCHANTS_CONFIG = [
         "text": "크로스 버스터 랭크 7 이상일 때 최대대미지 5 ~ 12 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 12
       },
       {
         "enchant_effect_id": 621,
@@ -5353,14 +5613,18 @@ window.ENCHANTS_CONFIG = [
         "text": "볼트 마스터리 랭크 8 이상일 때 마법 공격력 5 ~ 7 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 7
       },
       {
         "enchant_effect_id": 624,
         "text": "매직 마스터리 랭크 9 이상일 때 마나 소비 감소 2 ~ 4 증가",
         "option_name": "마나 소비 감소",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 4
       },
       {
         "enchant_effect_id": 625,
@@ -5397,14 +5661,18 @@ window.ENCHANTS_CONFIG = [
         "text": "스매시 랭크 9 이상일 때 최소대미지 6 ~ 9 증가",
         "option_name": "최소대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 6,
+        "max": 9
       },
       {
         "enchant_effect_id": 629,
         "text": "윈드밀 랭크 9 이상일 때 최대대미지 6 ~ 9 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 6,
+        "max": 9
       },
       {
         "enchant_effect_id": 630,
@@ -5434,14 +5702,18 @@ window.ENCHANTS_CONFIG = [
         "text": "마리오네트 조종술 랭크 1 이상일 때 마리오네트 최소대미지 15 ~ 20 증가",
         "option_name": "마리오네트 최소대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 15,
+        "max": 20
       },
       {
         "enchant_effect_id": 633,
         "text": "7막: 광란의 질주 랭크 1 이상일 때 마리오네트 최대대미지 20 ~ 30 증가",
         "option_name": "마리오네트 최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 20,
+        "max": 30
       },
       {
         "enchant_effect_id": 634,
@@ -5478,7 +5750,9 @@ window.ENCHANTS_CONFIG = [
         "text": "2막: 솟구치는 분노 랭크 1 이상일 때 마리오네트 최대대미지 7 ~ 12 증가",
         "option_name": "마리오네트 최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 7,
+        "max": 12
       },
       {
         "enchant_effect_id": 638,
@@ -5492,7 +5766,9 @@ window.ENCHANTS_CONFIG = [
         "text": "콜로서스 마리오네트 랭크 1 이상일 때 최대대미지 8 ~ 10 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 8,
+        "max": 10
       },
       {
         "enchant_effect_id": 640,
@@ -5536,14 +5812,18 @@ window.ENCHANTS_CONFIG = [
         "text": "프로즌 블래스트 랭크 1 이상일 때 물 속성 연금술 대미지 20 ~ 30 증가",
         "option_name": "물 속성 연금술 대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 20,
+        "max": 30
       },
       {
         "enchant_effect_id": 645,
         "text": "샌드 버스트 랭크 1 이상일 때 흙 속성 연금술 대미지 25 ~ 35 증가",
         "option_name": "흙 속성 연금술 대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 25,
+        "max": 35
       },
       {
         "enchant_effect_id": 646,
@@ -5594,7 +5874,9 @@ window.ENCHANTS_CONFIG = [
         "text": "방호벽 랭크 1 이상일 때 방어 7 ~ 12 증가",
         "option_name": "방어",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 7,
+        "max": 12
       },
       {
         "enchant_effect_id": 652,
@@ -5645,14 +5927,18 @@ window.ENCHANTS_CONFIG = [
         "text": "썬더 랭크 1 이상일 때 마법 공격력 4 ~ 7 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 4,
+        "max": 7
       },
       {
         "enchant_effect_id": 658,
         "text": "아이스 스피어 랭크 1 이상일 때 지력 20 ~ 45 증가",
         "option_name": "지력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 20,
+        "max": 45
       },
       {
         "enchant_effect_id": 659,
@@ -5690,14 +5976,18 @@ window.ENCHANTS_CONFIG = [
         "text": "썬더 랭크 1 이상일 때 마법 공격력 4 ~ 7 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 4,
+        "max": 7
       },
       {
         "enchant_effect_id": 663,
         "text": "아이스 스피어 랭크 1 이상일 때 지력 20 ~ 45 증가",
         "option_name": "지력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 20,
+        "max": 45
       },
       {
         "enchant_effect_id": 664,
@@ -5735,14 +6025,18 @@ window.ENCHANTS_CONFIG = [
         "text": "라이트닝로드 랭크 1 이상일 때 마법 공격력 3 ~ 7 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 3,
+        "max": 7
       },
       {
         "enchant_effect_id": 668,
         "text": "메테오 스트라이크 랭크 3 이상일 때 최대대미지 4 ~ 8 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 4,
+        "max": 8
       },
       {
         "enchant_effect_id": 669,
@@ -5786,14 +6080,18 @@ window.ENCHANTS_CONFIG = [
         "text": "불 연금술 마스터리 랭크 1 이상일 때 불 속성 연금술 대미지 10 ~ 20 증가",
         "option_name": "불 속성 연금술 대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 20
       },
       {
         "enchant_effect_id": 674,
         "text": "물 연금술 마스터리 랭크 1 이상일 때 물 속성 연금술 대미지 10 ~ 20 증가",
         "option_name": "물 속성 연금술 대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 20
       },
       {
         "enchant_effect_id": 675,
@@ -5837,14 +6135,18 @@ window.ENCHANTS_CONFIG = [
         "text": "볼트 마법 조합 랭크 1 이상일 때 마법 공격력 4 ~ 8 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 4,
+        "max": 8
       },
       {
         "enchant_effect_id": 680,
         "text": "매직 마스터리 랭크 1 이상일 때 방어 2 ~ 5 증가",
         "option_name": "방어",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 5
       },
       {
         "enchant_effect_id": 681,
@@ -5882,14 +6184,18 @@ window.ENCHANTS_CONFIG = [
         "text": "볼트 마법 조합 랭크 1 이상일 때 마법 공격력 4 ~ 8 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 4,
+        "max": 8
       },
       {
         "enchant_effect_id": 685,
         "text": "매직 마스터리 랭크 1 이상일 때 방어 2 ~ 5 증가",
         "option_name": "방어",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 5
       },
       {
         "enchant_effect_id": 686,
@@ -5927,14 +6233,18 @@ window.ENCHANTS_CONFIG = [
         "text": "파 어웨이 랭크 1 이상일 때 최대대미지 18 ~ 25 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 18,
+        "max": 25
       },
       {
         "enchant_effect_id": 690,
         "text": "리로드 랭크 1 이상일 때 공격 속도 3 ~ 6 증가",
         "option_name": "공격 속도",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 3,
+        "max": 6
       },
       {
         "enchant_effect_id": 691,
@@ -5971,14 +6281,18 @@ window.ENCHANTS_CONFIG = [
         "text": "매그넘 샷 랭크 1 이상일 때 최소대미지 10 ~ 20 증가",
         "option_name": "최소대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 20
       },
       {
         "enchant_effect_id": 695,
         "text": "어전트 샷 랭크 1 이상일 때 최대대미지 18 ~ 25 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 18,
+        "max": 25
       },
       {
         "enchant_effect_id": 696,
@@ -6016,14 +6330,18 @@ window.ENCHANTS_CONFIG = [
         "text": "매그넘 샷 랭크 1 이상일 때 최소대미지 10 ~ 20 증가",
         "option_name": "최소대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 20
       },
       {
         "enchant_effect_id": 700,
         "text": "어전트 샷 랭크 1 이상일 때 최대대미지 18 ~ 25 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 18,
+        "max": 25
       },
       {
         "enchant_effect_id": 701,
@@ -6061,14 +6379,18 @@ window.ENCHANTS_CONFIG = [
         "text": "소드 마스터리 랭크 1 이상일 때 최소대미지 10 ~ 20 증가",
         "option_name": "최소대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 20
       },
       {
         "enchant_effect_id": 705,
         "text": "스매시 랭크 1 이상일 때 최대대미지 24 ~ 32 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 24,
+        "max": 32
       },
       {
         "enchant_effect_id": 706,
@@ -6105,14 +6427,18 @@ window.ENCHANTS_CONFIG = [
         "text": "랜스 차지 랭크 1 이상일 때 최소대미지 15 ~ 25 증가",
         "option_name": "최소대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 15,
+        "max": 25
       },
       {
         "enchant_effect_id": 710,
         "text": "랜스 카운터 랭크 1 이상일 때 최대대미지 24 ~ 34 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 24,
+        "max": 34
       },
       {
         "enchant_effect_id": 711,
@@ -6163,14 +6489,18 @@ window.ENCHANTS_CONFIG = [
         "text": "슈팅 러쉬 랭크 1 이상일 때 최대대미지 20 ~ 35 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 20,
+        "max": 35
       },
       {
         "enchant_effect_id": 717,
         "text": "듀얼건 마스터리 랭크 1 이상일 때 공격 속도 3 ~ 6 증가",
         "option_name": "공격 속도",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 3,
+        "max": 6
       },
       {
         "enchant_effect_id": 718,
@@ -6200,14 +6530,18 @@ window.ENCHANTS_CONFIG = [
         "text": "레인지 컴뱃 마스터리 랭크 1 이상일 때 최소대미지 10 ~ 20 증가",
         "option_name": "최소대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 20
       },
       {
         "enchant_effect_id": 721,
         "text": "서포트 샷 랭크 1 이상일 때 최대대미지 15 ~ 20 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 15,
+        "max": 20
       },
       {
         "enchant_effect_id": 722,
@@ -6251,14 +6585,18 @@ window.ENCHANTS_CONFIG = [
         "text": "배쉬 랭크 1 이상일 때 최대대미지 30 ~ 40 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 30,
+        "max": 40
       },
       {
         "enchant_effect_id": 727,
         "text": "카운터 어택 랭크 1 이상일 때 체력 20 ~ 30 증가",
         "option_name": "체력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 20,
+        "max": 30
       },
       {
         "enchant_effect_id": 728,
@@ -6295,14 +6633,18 @@ window.ENCHANTS_CONFIG = [
         "text": "레이지 임팩트 랭크 1 이상일 때 최소대미지 20 ~ 30 증가",
         "option_name": "최소대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 20,
+        "max": 30
       },
       {
         "enchant_effect_id": 732,
         "text": "다운 어택 랭크 1 이상일 때 최대대미지 28 ~ 36 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 28,
+        "max": 36
       },
       {
         "enchant_effect_id": 733,
@@ -6353,14 +6695,18 @@ window.ENCHANTS_CONFIG = [
         "text": "수리검 폭쇄 랭크 9 이상일 때 최소대미지 5 ~ 10 증가",
         "option_name": "최소대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 10
       },
       {
         "enchant_effect_id": 739,
         "text": "수리검 폭풍 랭크 6 이상일 때 최대대미지 10 ~ 12 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 12
       },
       {
         "enchant_effect_id": 740,
@@ -6404,14 +6750,18 @@ window.ENCHANTS_CONFIG = [
         "text": "랜스 차지 랭크 5 이상일 때 최소대미지 7 ~ 14 증가",
         "option_name": "최소대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 7,
+        "max": 14
       },
       {
         "enchant_effect_id": 745,
         "text": "랜스 카운터 랭크 7 이상일 때 최대대미지 7 ~ 14 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 7,
+        "max": 14
       },
       {
         "enchant_effect_id": 746,
@@ -6441,14 +6791,18 @@ window.ENCHANTS_CONFIG = [
         "text": "플레이머 랭크 1 이상일 때 불 속성 연금술 대미지 20 ~ 30 증가",
         "option_name": "불 속성 연금술 대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 20,
+        "max": 30
       },
       {
         "enchant_effect_id": 749,
         "text": "윈드 블래스트 랭크 1 이상일 때 바람 속성 연금술 대미지 25 ~ 35 증가",
         "option_name": "바람 속성 연금술 대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 25,
+        "max": 35
       },
       {
         "enchant_effect_id": 750,
@@ -6492,14 +6846,18 @@ window.ENCHANTS_CONFIG = [
         "text": "플레이머 랭크 1 이상일 때 불 속성 연금술 대미지 10 ~ 20 증가",
         "option_name": "불 속성 연금술 대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 20
       },
       {
         "enchant_effect_id": 755,
         "text": "레인 캐스팅 랭크 1 이상일 때 물 속성 연금술 대미지 10 ~ 20 증가",
         "option_name": "물 속성 연금술 대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 20
       },
       {
         "enchant_effect_id": 756,
@@ -6551,14 +6909,18 @@ window.ENCHANTS_CONFIG = [
         "text": "플레이머 랭크 1 이상일 때 불 속성 연금술 대미지 10 ~ 20 증가",
         "option_name": "불 속성 연금술 대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 20
       },
       {
         "enchant_effect_id": 762,
         "text": "레인 캐스팅 랭크 1 이상일 때 물 속성 연금술 대미지 10 ~ 20 증가",
         "option_name": "물 속성 연금술 대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 20
       },
       {
         "enchant_effect_id": 763,
@@ -6610,14 +6972,18 @@ window.ENCHANTS_CONFIG = [
         "text": "6막: 유혹의 올가미 랭크 1 이상일 때 마리오네트 최대대미지 11 ~ 15 증가",
         "option_name": "마리오네트 최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 11,
+        "max": 15
       },
       {
         "enchant_effect_id": 769,
         "text": "1막: 우연한 충돌 랭크 3 이상일 때 마리오네트 조종술 크리티컬 5 ~ 10 증가",
         "option_name": "마리오네트 조종술 크리티컬",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 10
       },
       {
         "enchant_effect_id": 770,
@@ -6668,7 +7034,9 @@ window.ENCHANTS_CONFIG = [
         "text": "연속기 마스터리 랭크 9 이상일 때 최소대미지 10 ~ 20 증가",
         "option_name": "최소대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 20
       },
       {
         "enchant_effect_id": 776,
@@ -6705,14 +7073,18 @@ window.ENCHANTS_CONFIG = [
         "text": "4막: 질투의 화신 랭크 1 이상일 때 마리오네트 최대대미지 10 ~ 15 증가",
         "option_name": "마리오네트 최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 15
       },
       {
         "enchant_effect_id": 780,
         "text": "1막: 우연한 충돌 랭크 3 이상일 때 마리오네트 조종술 크리티컬 5 ~ 8 증가",
         "option_name": "마리오네트 조종술 크리티컬",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 8
       },
       {
         "enchant_effect_id": 781,
@@ -6764,14 +7136,18 @@ window.ENCHANTS_CONFIG = [
         "text": "4막: 질투의 화신 랭크 1 이상일 때 마리오네트 최대대미지 10 ~ 15 증가",
         "option_name": "마리오네트 최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 15
       },
       {
         "enchant_effect_id": 787,
         "text": "1막: 우연한 충돌 랭크 3 이상일 때 마리오네트 조종술 크리티컬 5 ~ 8 증가",
         "option_name": "마리오네트 조종술 크리티컬",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 8
       },
       {
         "enchant_effect_id": 788,
@@ -6830,7 +7206,9 @@ window.ENCHANTS_CONFIG = [
         "text": "연금술 마스터리 랭크 1 이상일 때 최대대미지 6 ~ 7 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 6,
+        "max": 7
       },
       {
         "enchant_effect_id": 795,
@@ -6860,14 +7238,18 @@ window.ENCHANTS_CONFIG = [
         "text": "매직 마스터리 랭크 1 이상일 때 마법 공격력 8 ~ 10 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 8,
+        "max": 10
       },
       {
         "enchant_effect_id": 798,
         "text": "무빙 캐스팅 랭크 1 이상일 때 지력 10 ~ 20 증가",
         "option_name": "지력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 20
       },
       {
         "enchant_effect_id": 799,
@@ -6897,14 +7279,18 @@ window.ENCHANTS_CONFIG = [
         "text": "매직 웨폰 마스터리 랭크 1 이상일 때 마법 공격력 6 ~ 9 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 6,
+        "max": 9
       },
       {
         "enchant_effect_id": 802,
         "text": "마나 리커버리 랭크 1 이상일 때 마나 소비 감소 2 ~ 4 증가",
         "option_name": "마나 소비 감소",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 4
       },
       {
         "enchant_effect_id": 803,
@@ -6934,14 +7320,18 @@ window.ENCHANTS_CONFIG = [
         "text": "컴뱃 마스터리 랭크 1 이상일 때 최대대미지 11 ~ 16 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 11,
+        "max": 16
       },
       {
         "enchant_effect_id": 806,
         "text": "디펜스 랭크 1 이상일 때 최소대미지 5 ~ 10 증가",
         "option_name": "최소대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 10
       },
       {
         "enchant_effect_id": 807,
@@ -6972,14 +7362,18 @@ window.ENCHANTS_CONFIG = [
         "text": "컴뱃 마스터리 랭크 1 이상일 때 최대대미지 11 ~ 16 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 11,
+        "max": 16
       },
       {
         "enchant_effect_id": 810,
         "text": "디펜스 랭크 1 이상일 때 최소대미지 5 ~ 10 증가",
         "option_name": "최소대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 10
       },
       {
         "enchant_effect_id": 811,
@@ -7003,14 +7397,18 @@ window.ENCHANTS_CONFIG = [
         "text": "최대대미지 3 ~ 6 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 3,
+        "max": 6
       },
       {
         "enchant_effect_id": 813,
         "text": "마법 공격력 2 ~ 4 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 4
       }
     ]
   },
@@ -7033,14 +7431,18 @@ window.ENCHANTS_CONFIG = [
         "text": "힘의 결속 특성 8 레벨 이상일 때 최대대미지 13 ~ 15 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 13,
+        "max": 15
       },
       {
         "enchant_effect_id": 816,
         "text": "시간 왜곡 특성 5 레벨 이상일 때 크리티컬 5 ~ 10 증가",
         "option_name": "크리티컬",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 10
       },
       {
         "enchant_effect_id": 817,
@@ -7091,14 +7493,18 @@ window.ENCHANTS_CONFIG = [
         "text": "굳건한 의지 특성 8 레벨 이상일 때 최대대미지 18 ~ 25 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 18,
+        "max": 25
       },
       {
         "enchant_effect_id": 823,
         "text": "재생의 영역 특성 5 레벨 이상일 때 최대스태미나 20 ~ 30 증가",
         "option_name": "최대스태미나",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 20,
+        "max": 30
       },
       {
         "enchant_effect_id": 824,
@@ -7149,14 +7555,18 @@ window.ENCHANTS_CONFIG = [
         "text": "급소 관통 특성 8 레벨 이상일 때 최대대미지 18 ~ 25 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 18,
+        "max": 25
       },
       {
         "enchant_effect_id": 830,
         "text": "상태 지원 특성 5 레벨 이상일 때 크리티컬 10 ~ 15 증가",
         "option_name": "크리티컬",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 15
       },
       {
         "enchant_effect_id": 831,
@@ -7207,14 +7617,18 @@ window.ENCHANTS_CONFIG = [
         "text": "원소 연마 특성 8 레벨 이상일 때 최대대미지 14 ~ 17 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 14,
+        "max": 17
       },
       {
         "enchant_effect_id": 837,
         "text": "기사회생 특성 5 레벨 이상일 때 최소대미지 5 ~ 10 증가",
         "option_name": "최소대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 10
       },
       {
         "enchant_effect_id": 838,
@@ -7295,7 +7709,9 @@ window.ENCHANTS_CONFIG = [
         "text": "탐험 레벨이 15 이상일때 최대대미지 8 ~ 15 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 8,
+        "max": 15
       },
       {
         "enchant_effect_id": 847,
@@ -7376,7 +7792,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최대대미지 4 ~ 8 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 4,
+        "max": 8
       }
     ]
   },
@@ -7399,14 +7817,18 @@ window.ENCHANTS_CONFIG = [
         "text": "윈드밀 랭크 1 이상일 때 최대대미지 8 ~ 17 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 8,
+        "max": 17
       },
       {
         "enchant_effect_id": 858,
         "text": "크리티컬 히트 랭크 1 이상일 때 크리티컬 5 ~ 10 증가",
         "option_name": "크리티컬",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 10
       },
       {
         "enchant_effect_id": 859,
@@ -7444,14 +7866,18 @@ window.ENCHANTS_CONFIG = [
         "text": "윈드밀 랭크 1 이상일 때 최대대미지 8 ~ 17 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 8,
+        "max": 17
       },
       {
         "enchant_effect_id": 863,
         "text": "크리티컬 히트 랭크 1 이상일 때 크리티컬 5 ~ 10 증가",
         "option_name": "크리티컬",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 10
       },
       {
         "enchant_effect_id": 864,
@@ -7489,14 +7915,18 @@ window.ENCHANTS_CONFIG = [
         "text": "체력 15 ~ 30 증가",
         "option_name": "체력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 15,
+        "max": 30
       },
       {
         "enchant_effect_id": 868,
         "text": "최대대미지 8 ~ 17 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 8,
+        "max": 17
       },
       {
         "enchant_effect_id": 869,
@@ -7534,14 +7964,18 @@ window.ENCHANTS_CONFIG = [
         "text": "체력 15 ~ 30 증가",
         "option_name": "체력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 15,
+        "max": 30
       },
       {
         "enchant_effect_id": 873,
         "text": "최대대미지 8 ~ 17 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 8,
+        "max": 17
       },
       {
         "enchant_effect_id": 874,
@@ -7586,14 +8020,18 @@ window.ENCHANTS_CONFIG = [
         "text": "워터 캐논 랭크 3단 이상일 때 물 속성 연금술 대미지 10 ~ 14 증가",
         "option_name": "물 속성 연금술 대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 14
       },
       {
         "enchant_effect_id": 879,
         "text": "플레이머 랭크 3단 이상일 때 불 속성 연금술 대미지 10 ~ 14 증가",
         "option_name": "불 속성 연금술 대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 14
       },
       {
         "enchant_effect_id": 880,
@@ -7644,14 +8082,18 @@ window.ENCHANTS_CONFIG = [
         "text": "최소대미지 5 ~ 10 증가",
         "option_name": "최소대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 10
       },
       {
         "enchant_effect_id": 886,
         "text": "최대대미지 38 ~ 52 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 38,
+        "max": 52
       },
       {
         "enchant_effect_id": 887,
@@ -7709,7 +8151,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최대대미지 6 ~ 8 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 6,
+        "max": 8
       },
       {
         "enchant_effect_id": 894,
@@ -7740,7 +8184,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최대대미지 6 ~ 8 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 6,
+        "max": 8
       },
       {
         "enchant_effect_id": 897,
@@ -7771,14 +8217,18 @@ window.ENCHANTS_CONFIG = [
         "text": "전장의 서곡 랭크 1 이상일 때 최대대미지 15 ~ 18 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 15,
+        "max": 18
       },
       {
         "enchant_effect_id": 900,
         "text": "작곡 랭크 1 이상일 때 음악버프 스킬 효과 4 ~ 6 증가",
         "option_name": "음악버프 스킬 효과",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 4,
+        "max": 6
       },
       {
         "enchant_effect_id": 901,
@@ -7829,7 +8279,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최대대미지 25 ~ 40 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 25,
+        "max": 40
       },
       {
         "enchant_effect_id": 907,
@@ -7850,7 +8302,9 @@ window.ENCHANTS_CONFIG = [
         "text": "피어싱 레벨 1 ~ 3 증가",
         "option_name": "피어싱 레벨",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 3
       },
       {
         "enchant_effect_id": 910,
@@ -7894,7 +8348,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최대대미지 25 ~ 50 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 25,
+        "max": 50
       },
       {
         "enchant_effect_id": 915,
@@ -7915,7 +8371,9 @@ window.ENCHANTS_CONFIG = [
         "text": "피어싱 레벨 1 ~ 3 증가",
         "option_name": "피어싱 레벨",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 3
       },
       {
         "enchant_effect_id": 918,
@@ -7959,7 +8417,9 @@ window.ENCHANTS_CONFIG = [
         "text": "마법 공격력 15 ~ 30 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 15,
+        "max": 30
       },
       {
         "enchant_effect_id": 923,
@@ -7973,7 +8433,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최대마나 10 ~ 50 증가",
         "option_name": "최대마나",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 50
       },
       {
         "enchant_effect_id": 925,
@@ -8038,7 +8500,9 @@ window.ENCHANTS_CONFIG = [
         "text": "공격 속도 1 ~ 3 증가",
         "option_name": "공격 속도",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 3
       },
       {
         "enchant_effect_id": 933,
@@ -8103,14 +8567,18 @@ window.ENCHANTS_CONFIG = [
         "text": "최소대미지 15 ~ 30 증가",
         "option_name": "최소대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 15,
+        "max": 30
       },
       {
         "enchant_effect_id": 941,
         "text": "최대대미지 25 ~ 45 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 25,
+        "max": 45
       },
       {
         "enchant_effect_id": 942,
@@ -8154,7 +8622,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최대대미지 25 ~ 50 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 25,
+        "max": 50
       },
       {
         "enchant_effect_id": 947,
@@ -8168,7 +8638,9 @@ window.ENCHANTS_CONFIG = [
         "text": "피어싱 레벨 1 ~ 3 증가",
         "option_name": "피어싱 레벨",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 3
       },
       {
         "enchant_effect_id": 949,
@@ -8235,14 +8707,18 @@ window.ENCHANTS_CONFIG = [
         "text": "스피닝 슬래시 랭크 3단 이상일 때 최대대미지 16 ~ 18 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 16,
+        "max": 18
       },
       {
         "enchant_effect_id": 956,
         "text": "데스 마커 랭크 1단 이상일 때 최소대미지 5 ~ 10 증가",
         "option_name": "최소대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 10
       },
       {
         "enchant_effect_id": 957,
@@ -8300,14 +8776,18 @@ window.ENCHANTS_CONFIG = [
         "text": "크리티컬 히트 랭크 1 이상일 때 최소대미지 10 ~ 28 증가",
         "option_name": "최소대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 28
       },
       {
         "enchant_effect_id": 964,
         "text": "윈드밀 랭크 1 이상일 때 최대대미지 20 ~ 39 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 20,
+        "max": 39
       },
       {
         "enchant_effect_id": 965,
@@ -8358,7 +8838,9 @@ window.ENCHANTS_CONFIG = [
         "text": "배쉬 랭크 1 이상일 때 최대대미지 22 ~ 48 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 22,
+        "max": 48
       },
       {
         "enchant_effect_id": 971,
@@ -8379,7 +8861,9 @@ window.ENCHANTS_CONFIG = [
         "text": "피어싱 레벨이 있을 때 피어싱 레벨 1 ~ 3 증가",
         "option_name": "피어싱 레벨",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 3
       },
       {
         "enchant_effect_id": 974,
@@ -8423,14 +8907,18 @@ window.ENCHANTS_CONFIG = [
         "text": "다운 어택 랭크 1 이상일 때 최대대미지 15 ~ 39 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 15,
+        "max": 39
       },
       {
         "enchant_effect_id": 979,
         "text": "크리티컬 히트 랭크 1 이상일 때 크리티컬 5 ~ 10 증가",
         "option_name": "크리티컬",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 10
       },
       {
         "enchant_effect_id": 980,
@@ -8467,7 +8955,9 @@ window.ENCHANTS_CONFIG = [
         "text": "윈드밀 랭크 1 이상일 때 최대대미지 15 ~ 32 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 15,
+        "max": 32
       },
       {
         "enchant_effect_id": 984,
@@ -8481,7 +8971,9 @@ window.ENCHANTS_CONFIG = [
         "text": "회피 랭크 6 이상일 때 체력 20 ~ 45 증가",
         "option_name": "체력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 20,
+        "max": 45
       },
       {
         "enchant_effect_id": 986,
@@ -8525,7 +9017,9 @@ window.ENCHANTS_CONFIG = [
         "text": "체인 크러시 랭크 9 이상일 때 행운 3 ~ 5 증가",
         "option_name": "행운",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 3,
+        "max": 5
       },
       {
         "enchant_effect_id": 991,
@@ -8555,14 +9049,18 @@ window.ENCHANTS_CONFIG = [
         "text": "체인 블레이드 마스터리 랭크 1 이상일 때 최대대미지 17 ~ 25 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 17,
+        "max": 25
       },
       {
         "enchant_effect_id": 994,
         "text": "도르카 컨버전 랭크 5 이상일 때 행운 13 ~ 20 증가",
         "option_name": "행운",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 13,
+        "max": 20
       },
       {
         "enchant_effect_id": 995,
@@ -8606,14 +9104,18 @@ window.ENCHANTS_CONFIG = [
         "text": "투아림 익스플로전 랭크 5 이상일 때 솜씨 5 ~ 10 증가",
         "option_name": "솜씨",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 10
       },
       {
         "enchant_effect_id": 1000,
         "text": "크리티컬 3 ~ 8 증가",
         "option_name": "크리티컬",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 3,
+        "max": 8
       },
       {
         "enchant_effect_id": 1001,
@@ -8643,14 +9145,18 @@ window.ENCHANTS_CONFIG = [
         "text": "체인 블레이드 마스터리 랭크 5 이상일 때 최대대미지 8 ~ 16 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 8,
+        "max": 16
       },
       {
         "enchant_effect_id": 1004,
         "text": "체인 임페일 랭크 9 이상일 때 행운 5 ~ 10 증가",
         "option_name": "행운",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 10
       },
       {
         "enchant_effect_id": 1005,
@@ -8680,14 +9186,18 @@ window.ENCHANTS_CONFIG = [
         "text": "도르카 마스터리 랭크 1 이상일 때 최대대미지 13 ~ 20 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 13,
+        "max": 20
       },
       {
         "enchant_effect_id": 1008,
         "text": "데스 마커 랭크 5 이상일 때 솜씨 13 ~ 20 증가",
         "option_name": "솜씨",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 13,
+        "max": 20
       },
       {
         "enchant_effect_id": 1009,
@@ -8805,14 +9315,18 @@ window.ENCHANTS_CONFIG = [
         "text": "앵커 러시 랭크 5 이상일 때 행운 5 ~ 10 증가",
         "option_name": "행운",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 10
       },
       {
         "enchant_effect_id": 1022,
         "text": "대미지밸런스 8 ~ 15 증가",
         "option_name": "대미지밸런스",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 8,
+        "max": 15
       },
       {
         "enchant_effect_id": 1023,
@@ -8849,7 +9363,9 @@ window.ENCHANTS_CONFIG = [
         "text": "스피닝 슬래시 랭크 9 이상일 때 솜씨 3 ~ 5 증가",
         "option_name": "솜씨",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 3,
+        "max": 5
       },
       {
         "enchant_effect_id": 1027,
@@ -8879,14 +9395,18 @@ window.ENCHANTS_CONFIG = [
         "text": "도르카 마스터리 랭크 5 이상일 때 최대대미지 8 ~ 16 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 8,
+        "max": 16
       },
       {
         "enchant_effect_id": 1030,
         "text": "체인 스위핑 랭크 9 이상일 때 솜씨 5 ~ 10 증가",
         "option_name": "솜씨",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 10
       },
       {
         "enchant_effect_id": 1031,
@@ -9012,7 +9532,9 @@ window.ENCHANTS_CONFIG = [
         "text": "수리검 폭풍 랭크 1단 이상일 때 최소대미지 10 ~ 12 증가",
         "option_name": "최소대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 12
       },
       {
         "enchant_effect_id": 1040,
@@ -9026,7 +9548,9 @@ window.ENCHANTS_CONFIG = [
         "text": "수리검 돌진 랭크 1단 이상일 때 최대대미지 15 ~ 20 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 15,
+        "max": 20
       },
       {
         "enchant_effect_id": 1042,
@@ -9084,7 +9608,9 @@ window.ENCHANTS_CONFIG = [
         "text": "슈팅 러쉬 랭크 1단 이상일 때 최소대미지 12 ~ 15 증가",
         "option_name": "최소대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 12,
+        "max": 15
       },
       {
         "enchant_effect_id": 1049,
@@ -9098,7 +9624,9 @@ window.ENCHANTS_CONFIG = [
         "text": "크로스 버스터 랭크 1단 이상일 때 최대대미지 20 ~ 25 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 20,
+        "max": 25
       },
       {
         "enchant_effect_id": 1051,
@@ -9163,7 +9691,9 @@ window.ENCHANTS_CONFIG = [
         "text": "6막: 유혹의 올가미 랭크 3단 이상일 때 마리오네트 최대대미지 14 ~ 18 증가",
         "option_name": "마리오네트 최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 14,
+        "max": 18
       },
       {
         "enchant_effect_id": 1059,
@@ -9177,7 +9707,9 @@ window.ENCHANTS_CONFIG = [
         "text": "4막: 질투의 화신 랭크 3단 이상일 때 마리오네트 최소대미지 9 ~ 12 증가",
         "option_name": "마리오네트 최소대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 9,
+        "max": 12
       },
       {
         "enchant_effect_id": 1061,
@@ -9228,14 +9760,18 @@ window.ENCHANTS_CONFIG = [
         "text": "스크류 어퍼 랭크 2단 이상일 때 최소대미지 13 ~ 16 증가",
         "option_name": "최소대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 13,
+        "max": 16
       },
       {
         "enchant_effect_id": 1067,
         "text": "파운딩 랭크 1단 이상일 때 최대대미지 15 ~ 24 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 15,
+        "max": 24
       },
       {
         "enchant_effect_id": 1068,
@@ -9279,7 +9815,9 @@ window.ENCHANTS_CONFIG = [
         "text": "파이어볼트 랭크 3단 이상일 때 마법 공격력 12 ~ 20 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 12,
+        "max": 20
       },
       {
         "enchant_effect_id": 1073,
@@ -9437,7 +9975,9 @@ window.ENCHANTS_CONFIG = [
         "text": "레인지 컴뱃 마스터리 랭크 1단 이상일 때 최대대미지 10 ~ 14 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 14
       },
       {
         "enchant_effect_id": 1093,
@@ -9502,14 +10042,18 @@ window.ENCHANTS_CONFIG = [
         "text": "다운 어택 랭크 1단 이상일 때 최소대미지 10 ~ 17 증가",
         "option_name": "최소대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 17
       },
       {
         "enchant_effect_id": 1101,
         "text": "윈드밀 랭크 2단 이상일 때 최대대미지 18 ~ 23 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 18,
+        "max": 23
       },
       {
         "enchant_effect_id": 1102,
@@ -9662,7 +10206,9 @@ window.ENCHANTS_CONFIG = [
         "text": "교역 마스터리 랭크 6 이상일 때 교역 중 최대대미지 8 ~ 12 증가",
         "option_name": "교역 중 최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 8,
+        "max": 12
       },
       {
         "enchant_effect_id": 1120,
@@ -9794,7 +10340,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최대대미지 1 ~ 3 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 3
       },
       {
         "enchant_effect_id": 1135,
@@ -10494,7 +11042,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최대대미지 15 ~ 20 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 15,
+        "max": 20
       },
       {
         "enchant_effect_id": 1217,
@@ -10508,7 +11058,9 @@ window.ENCHANTS_CONFIG = [
         "text": "핸디크래프트 랭크 5 이상일 때 솜씨 15 ~ 20 증가",
         "option_name": "솜씨",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 15,
+        "max": 20
       },
       {
         "enchant_effect_id": 1219,
@@ -10546,7 +11098,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최대대미지 15 ~ 20 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 15,
+        "max": 20
       },
       {
         "enchant_effect_id": 1223,
@@ -10560,7 +11114,9 @@ window.ENCHANTS_CONFIG = [
         "text": "핸디크래프트 랭크 5 이상일 때 솜씨 15 ~ 20 증가",
         "option_name": "솜씨",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 15,
+        "max": 20
       },
       {
         "enchant_effect_id": 1225,
@@ -10672,14 +11228,18 @@ window.ENCHANTS_CONFIG = [
         "text": "레벨이 105 이상일때 최소대미지 1 ~ 5 증가",
         "option_name": "최소대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 5
       },
       {
         "enchant_effect_id": 1237,
         "text": "레벨이 105 이상일때 최대대미지 1 ~ 10 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 10
       }
     ]
   },
@@ -10695,7 +11255,9 @@ window.ENCHANTS_CONFIG = [
         "text": "의지 9 ~ 12 감소",
         "option_name": "의지",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 9,
+        "max": 12
       }
     ],
     "synonym": "암흑"
@@ -10770,7 +11332,9 @@ window.ENCHANTS_CONFIG = [
         "text": "어전트 샷 랭크 A 이상일 때 크리티컬 10 ~ 20 증가",
         "option_name": "크리티컬",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 20
       },
       {
         "enchant_effect_id": 1247,
@@ -10814,7 +11378,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최강의 서번트 타이틀을 달고 있을때 행운 15 ~ 30 증가",
         "option_name": "행운",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 15,
+        "max": 30
       },
       {
         "enchant_effect_id": 1252,
@@ -10865,7 +11431,9 @@ window.ENCHANTS_CONFIG = [
         "text": "배쉬 랭크 8 이상일 때 최대대미지 30 ~ 40 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 30,
+        "max": 40
       },
       {
         "enchant_effect_id": 1258,
@@ -10909,7 +11477,9 @@ window.ENCHANTS_CONFIG = [
         "text": "수리검 마스터리 랭크 1 이상일 때 최대대미지 15 ~ 20 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 15,
+        "max": 20
       },
       {
         "enchant_effect_id": 1263,
@@ -10923,7 +11493,9 @@ window.ENCHANTS_CONFIG = [
         "text": "그림자 속박 랭크 1 이상일 때 최대스태미나 15 ~ 20 증가",
         "option_name": "최대스태미나",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 15,
+        "max": 20
       },
       {
         "enchant_effect_id": 1265,
@@ -10960,7 +11532,9 @@ window.ENCHANTS_CONFIG = [
         "text": "수리검 폭풍 랭크 1 이상일 때 의지 12 ~ 17 증가",
         "option_name": "의지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 12,
+        "max": 17
       },
       {
         "enchant_effect_id": 1269,
@@ -11041,7 +11615,9 @@ window.ENCHANTS_CONFIG = [
         "text": "수리검 폭풍 랭크 B 이상일 때 최소대미지 2 ~ 4 증가",
         "option_name": "최소대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 4
       }
     ]
   },
@@ -11078,14 +11654,18 @@ window.ENCHANTS_CONFIG = [
         "text": "그림자 속박 랭크 1 이상일 때 체력 15 ~ 20 증가",
         "option_name": "체력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 15,
+        "max": 20
       },
       {
         "enchant_effect_id": 1282,
         "text": "잿빛 연막술 랭크 2 이상일 때 크리티컬 8 ~ 12 증가",
         "option_name": "크리티컬",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 8,
+        "max": 12
       },
       {
         "enchant_effect_id": 1283,
@@ -11115,7 +11695,9 @@ window.ENCHANTS_CONFIG = [
         "text": "수리검 마스터리 랭크 7 이상일 때 최소대미지 3 ~ 6 증가",
         "option_name": "최소대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 3,
+        "max": 6
       },
       {
         "enchant_effect_id": 1286,
@@ -11152,7 +11734,9 @@ window.ENCHANTS_CONFIG = [
         "text": "수리검 마스터리 랭크 5 이상일 때 최대대미지 10 ~ 14 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 14
       },
       {
         "enchant_effect_id": 1290,
@@ -11166,7 +11750,9 @@ window.ENCHANTS_CONFIG = [
         "text": "수리검 폭풍 랭크 5 이상일 때 체력 10 ~ 14 증가",
         "option_name": "체력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 14
       },
       {
         "enchant_effect_id": 1292,
@@ -11196,14 +11782,18 @@ window.ENCHANTS_CONFIG = [
         "text": "최소대미지 1 ~ 3 증가",
         "option_name": "최소대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 3
       },
       {
         "enchant_effect_id": 1295,
         "text": "수리검 마스터리 랭크 B 이상일 때 최대대미지 5 ~ 8 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 8
       }
     ]
   },
@@ -11307,14 +11897,18 @@ window.ENCHANTS_CONFIG = [
         "text": "파이어볼트 랭크 3 이상일 때 마법 공격력 4 ~ 12 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 4,
+        "max": 12
       },
       {
         "enchant_effect_id": 1307,
         "text": "아이스볼트 랭크 3 이상일 때 최대마나 10 ~ 50 증가",
         "option_name": "최대마나",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 50
       },
       {
         "enchant_effect_id": 1308,
@@ -11366,14 +11960,18 @@ window.ENCHANTS_CONFIG = [
         "text": "파이어볼트 랭크 3 이상일 때 마법 공격력 4 ~ 12 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 4,
+        "max": 12
       },
       {
         "enchant_effect_id": 1314,
         "text": "아이스볼트 랭크 3 이상일 때 최대마나 10 ~ 50 증가",
         "option_name": "최대마나",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 50
       },
       {
         "enchant_effect_id": 1315,
@@ -11425,14 +12023,18 @@ window.ENCHANTS_CONFIG = [
         "text": "파이어볼트 랭크 3 이상일 때 마법 공격력 4 ~ 12 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 4,
+        "max": 12
       },
       {
         "enchant_effect_id": 1321,
         "text": "아이스볼트 랭크 3 이상일 때 마나 소비 감소 1 ~ 2 증가",
         "option_name": "마나 소비 감소",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 2
       },
       {
         "enchant_effect_id": 1322,
@@ -11484,14 +12086,18 @@ window.ENCHANTS_CONFIG = [
         "text": "파이어볼트 랭크 3 이상일 때 마법 공격력 4 ~ 12 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 4,
+        "max": 12
       },
       {
         "enchant_effect_id": 1328,
         "text": "아이스볼트 랭크 3 이상일 때 마나 소비 감소 1 ~ 2 증가",
         "option_name": "마나 소비 감소",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 2
       },
       {
         "enchant_effect_id": 1329,
@@ -11543,14 +12149,18 @@ window.ENCHANTS_CONFIG = [
         "text": "라이트닝로드 랭크 5 이상일 때 마법 공격력 8 ~ 16 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 8,
+        "max": 16
       },
       {
         "enchant_effect_id": 1335,
         "text": "라이트닝로드 랭크 5 이상일 때 지력 30 ~ 60 증가",
         "option_name": "지력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 30,
+        "max": 60
       },
       {
         "enchant_effect_id": 1336,
@@ -11609,14 +12219,18 @@ window.ENCHANTS_CONFIG = [
         "text": "라이트닝로드 랭크 5 이상일 때 마법 공격력 8 ~ 16 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 8,
+        "max": 16
       },
       {
         "enchant_effect_id": 1343,
         "text": "라이트닝로드 랭크 5 이상일 때 지력 30 ~ 60 증가",
         "option_name": "지력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 30,
+        "max": 60
       },
       {
         "enchant_effect_id": 1344,
@@ -11675,14 +12289,18 @@ window.ENCHANTS_CONFIG = [
         "text": "라이트닝로드 랭크 5 이상일 때 마법 공격력 12 ~ 20 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 12,
+        "max": 20
       },
       {
         "enchant_effect_id": 1351,
         "text": "라이트닝로드 랭크 5 이상일 때 지력 40 ~ 70 증가",
         "option_name": "지력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 40,
+        "max": 70
       },
       {
         "enchant_effect_id": 1352,
@@ -11741,14 +12359,18 @@ window.ENCHANTS_CONFIG = [
         "text": "라이트닝로드 랭크 5 이상일 때 마법 공격력 12 ~ 20 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 12,
+        "max": 20
       },
       {
         "enchant_effect_id": 1359,
         "text": "라이트닝로드 랭크 5 이상일 때 지력 40 ~ 70 증가",
         "option_name": "지력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 40,
+        "max": 70
       },
       {
         "enchant_effect_id": 1360,
@@ -11807,14 +12429,18 @@ window.ENCHANTS_CONFIG = [
         "text": "썬더 랭크 7 이상일 때 마법 공격력 4 ~ 8 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 4,
+        "max": 8
       },
       {
         "enchant_effect_id": 1367,
         "text": "아이스 스피어 랭크 7 이상일 때 마나 소비 감소 2 ~ 4 증가",
         "option_name": "마나 소비 감소",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 4
       },
       {
         "enchant_effect_id": 1368,
@@ -11866,14 +12492,18 @@ window.ENCHANTS_CONFIG = [
         "text": "썬더 랭크 7 이상일 때 마법 공격력 4 ~ 8 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 4,
+        "max": 8
       },
       {
         "enchant_effect_id": 1374,
         "text": "아이스 스피어 랭크 7 이상일 때 마나 소비 감소 2 ~ 4 증가",
         "option_name": "마나 소비 감소",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 4
       },
       {
         "enchant_effect_id": 1375,
@@ -11925,7 +12555,9 @@ window.ENCHANTS_CONFIG = [
         "text": "썬더 랭크 7 이상일 때 마법 공격력 4 ~ 8 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 4,
+        "max": 8
       },
       {
         "enchant_effect_id": 1381,
@@ -11939,7 +12571,9 @@ window.ENCHANTS_CONFIG = [
         "text": "파이어볼 랭크 7 이상일 때 마나 소비 감소 1 ~ 2 증가",
         "option_name": "마나 소비 감소",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 2
       },
       {
         "enchant_effect_id": 1383,
@@ -11984,7 +12618,9 @@ window.ENCHANTS_CONFIG = [
         "text": "썬더 랭크 7 이상일 때 마법 공격력 4 ~ 8 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 4,
+        "max": 8
       },
       {
         "enchant_effect_id": 1388,
@@ -11998,7 +12634,9 @@ window.ENCHANTS_CONFIG = [
         "text": "파이어볼 랭크 7 이상일 때 마나 소비 감소 1 ~ 2 증가",
         "option_name": "마나 소비 감소",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 2
       },
       {
         "enchant_effect_id": 1390,
@@ -12043,7 +12681,9 @@ window.ENCHANTS_CONFIG = [
         "text": "마법 공격력 10 ~ 20 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 20
       },
       {
         "enchant_effect_id": 1395,
@@ -12057,7 +12697,9 @@ window.ENCHANTS_CONFIG = [
         "text": "마나 소비 감소 2 ~ 4 증가",
         "option_name": "마나 소비 감소",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 4
       },
       {
         "enchant_effect_id": 1397,
@@ -12102,7 +12744,9 @@ window.ENCHANTS_CONFIG = [
         "text": "마법 공격력 10 ~ 20 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 20
       },
       {
         "enchant_effect_id": 1402,
@@ -12116,7 +12760,9 @@ window.ENCHANTS_CONFIG = [
         "text": "마나 소비 감소 2 ~ 4 증가",
         "option_name": "마나 소비 감소",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 4
       },
       {
         "enchant_effect_id": 1404,
@@ -12161,14 +12807,18 @@ window.ENCHANTS_CONFIG = [
         "text": "마법 공격력 10 ~ 20 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 20
       },
       {
         "enchant_effect_id": 1409,
         "text": "지력 10 ~ 20 증가",
         "option_name": "지력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 20
       },
       {
         "enchant_effect_id": 1410,
@@ -12213,14 +12863,18 @@ window.ENCHANTS_CONFIG = [
         "text": "마법 공격력 10 ~ 20 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 20
       },
       {
         "enchant_effect_id": 1415,
         "text": "지력 10 ~ 20 증가",
         "option_name": "지력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 20
       },
       {
         "enchant_effect_id": 1416,
@@ -12404,7 +13058,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최소대미지 10 ~ 15 증가",
         "option_name": "최소대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 15
       },
       {
         "enchant_effect_id": 1437,
@@ -12441,7 +13097,9 @@ window.ENCHANTS_CONFIG = [
         "text": "컴뱃 마스터리 랭크 1 이상일 때 체력 13 ~ 18 증가",
         "option_name": "체력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 13,
+        "max": 18
       },
       {
         "enchant_effect_id": 1441,
@@ -12455,7 +13113,9 @@ window.ENCHANTS_CONFIG = [
         "text": "윈드밀 랭크 1 이상일 때 최대대미지 25 ~ 30 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 25,
+        "max": 30
       },
       {
         "enchant_effect_id": 1443,
@@ -12645,7 +13305,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최소대미지 8 ~ 13 증가",
         "option_name": "최소대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 8,
+        "max": 13
       },
       {
         "enchant_effect_id": 1465,
@@ -12682,14 +13344,18 @@ window.ENCHANTS_CONFIG = [
         "text": "크리티컬 히트 랭크 1 이상일 때 체력 15 ~ 20 증가",
         "option_name": "체력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 15,
+        "max": 20
       },
       {
         "enchant_effect_id": 1469,
         "text": "다운 어택 랭크 1 이상일 때 최대대미지 18 ~ 23 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 18,
+        "max": 23
       },
       {
         "enchant_effect_id": 1470,
@@ -12740,7 +13406,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최대대미지 30 ~ 35 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 30,
+        "max": 35
       },
       {
         "enchant_effect_id": 1476,
@@ -12754,7 +13422,9 @@ window.ENCHANTS_CONFIG = [
         "text": "체력 30 ~ 50 증가",
         "option_name": "체력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 30,
+        "max": 50
       },
       {
         "enchant_effect_id": 1478,
@@ -12805,14 +13475,18 @@ window.ENCHANTS_CONFIG = [
         "text": "물 속성 연금술 대미지 14 ~ 17 증가",
         "option_name": "물 속성 연금술 대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 14,
+        "max": 17
       },
       {
         "enchant_effect_id": 1484,
         "text": "불 속성 연금술 대미지 14 ~ 17 증가",
         "option_name": "불 속성 연금술 대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 14,
+        "max": 17
       },
       {
         "enchant_effect_id": 1485,
@@ -12849,7 +13523,9 @@ window.ENCHANTS_CONFIG = [
         "text": "마법 공격력 5 ~ 8 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 8
       },
       {
         "enchant_effect_id": 1489,
@@ -12863,7 +13539,9 @@ window.ENCHANTS_CONFIG = [
         "text": "실드 오브 트러스트 랭크 5 이상일 때 최대마나 30 ~ 50 증가",
         "option_name": "최대마나",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 30,
+        "max": 50
       },
       {
         "enchant_effect_id": 1491,
@@ -12893,7 +13571,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최대대미지 10 ~ 12 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 12
       },
       {
         "enchant_effect_id": 1494,
@@ -12907,7 +13587,9 @@ window.ENCHANTS_CONFIG = [
         "text": "저지먼트 블레이드 랭크 5 이상일 때 최대대미지 2 ~ 5 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 5
       },
       {
         "enchant_effect_id": 1496,
@@ -12937,7 +13619,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최대대미지 12 ~ 16 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 12,
+        "max": 16
       },
       {
         "enchant_effect_id": 1499,
@@ -12951,7 +13635,9 @@ window.ENCHANTS_CONFIG = [
         "text": "실드 오브 트러스트 랭크 5 이상일 때 최대생명력 50 ~ 80 증가",
         "option_name": "최대생명력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 50,
+        "max": 80
       },
       {
         "enchant_effect_id": 1501,
@@ -12981,7 +13667,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최대대미지 18 ~ 23 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 18,
+        "max": 23
       },
       {
         "enchant_effect_id": 1504,
@@ -12995,7 +13683,9 @@ window.ENCHANTS_CONFIG = [
         "text": "저지먼트 블레이드 랭크 5 이상일 때 최대생명력 50 ~ 80 증가",
         "option_name": "최대생명력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 50,
+        "max": 80
       },
       {
         "enchant_effect_id": 1506,
@@ -13025,7 +13715,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최대대미지 20 ~ 27 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 20,
+        "max": 27
       },
       {
         "enchant_effect_id": 1509,
@@ -13039,7 +13731,9 @@ window.ENCHANTS_CONFIG = [
         "text": "셀레스티얼 스파이크 랭크 5 이상일 때 최대생명력 50 ~ 80 증가",
         "option_name": "최대생명력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 50,
+        "max": 80
       },
       {
         "enchant_effect_id": 1511,
@@ -13069,14 +13763,18 @@ window.ENCHANTS_CONFIG = [
         "text": "레벨이 22 이상일때 최소 부상률 1 ~ 2 증가",
         "option_name": "최소 부상률",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 2
       },
       {
         "enchant_effect_id": 1514,
         "text": "레벨이 22 이상일때 최대 부상률 1 ~ 4 증가",
         "option_name": "최대 부상률",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 4
       }
     ]
   },
@@ -13099,7 +13797,9 @@ window.ENCHANTS_CONFIG = [
         "text": "레벨이 62 이상일때 체력 5 ~ 7 증가",
         "option_name": "체력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 7
       }
     ],
     "synonym": "기사"
@@ -13123,14 +13823,18 @@ window.ENCHANTS_CONFIG = [
         "text": "레벨이 55 이상일때 최소 부상률 1 ~ 3 증가",
         "option_name": "최소 부상률",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 3
       },
       {
         "enchant_effect_id": 1519,
         "text": "레벨이 55 이상일때 최대 부상률 1 ~ 6 증가",
         "option_name": "최대 부상률",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 6
       }
     ],
     "synonym": "독수리"
@@ -13154,14 +13858,18 @@ window.ENCHANTS_CONFIG = [
         "text": "크리티컬 히트 랭크 1 이상일 때 최소대미지 25 ~ 35 증가",
         "option_name": "최소대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 25,
+        "max": 35
       },
       {
         "enchant_effect_id": 1522,
         "text": "윈드밀 랭크 1 이상일 때 최대대미지 28 ~ 35 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 28,
+        "max": 35
       },
       {
         "enchant_effect_id": 1523,
@@ -13205,14 +13913,18 @@ window.ENCHANTS_CONFIG = [
         "text": "컴뱃 마스터리 랭크 1 이상일 때 체력 10 ~ 20 증가",
         "option_name": "체력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 20
       },
       {
         "enchant_effect_id": 1528,
         "text": "다운 어택 랭크 1 이상일 때 최대대미지 15 ~ 20 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 15,
+        "max": 20
       },
       {
         "enchant_effect_id": 1529,
@@ -13256,14 +13968,18 @@ window.ENCHANTS_CONFIG = [
         "text": "다운 어택 랭크 1 이상일 때 최대대미지 30 ~ 40 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 30,
+        "max": 40
       },
       {
         "enchant_effect_id": 1534,
         "text": "카운터 어택 랭크 1 이상일 때 체력 15 ~ 20 증가",
         "option_name": "체력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 15,
+        "max": 20
       },
       {
         "enchant_effect_id": 1535,
@@ -13321,14 +14037,18 @@ window.ENCHANTS_CONFIG = [
         "text": "회피 랭크 6 이상일 때 최대대미지 20 ~ 35 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 20,
+        "max": 35
       },
       {
         "enchant_effect_id": 1542,
         "text": "디펜스 랭크 1 이상일 때 체력 50 ~ 60 증가",
         "option_name": "체력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 50,
+        "max": 60
       },
       {
         "enchant_effect_id": 1543,
@@ -13365,7 +14085,9 @@ window.ENCHANTS_CONFIG = [
         "text": "마법 공격력 2 ~ 4 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 4
       },
       {
         "enchant_effect_id": 1547,
@@ -13409,7 +14131,9 @@ window.ENCHANTS_CONFIG = [
         "text": "크리티컬 5 ~ 15 증가",
         "option_name": "크리티컬",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 15
       },
       {
         "enchant_effect_id": 1552,
@@ -13453,7 +14177,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최대대미지 10 ~ 20 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 20
       },
       {
         "enchant_effect_id": 1557,
@@ -13490,7 +14216,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최대대미지 5 ~ 15 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 15
       },
       {
         "enchant_effect_id": 1561,
@@ -13643,7 +14371,9 @@ window.ENCHANTS_CONFIG = [
         "text": "누적레벨이 1000 이하일때 방어 1 ~ 4 증가",
         "option_name": "방어",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 4
       },
       {
         "enchant_effect_id": 1579,
@@ -13673,7 +14403,9 @@ window.ENCHANTS_CONFIG = [
         "text": "누적레벨이 1000 이하일때 최대생명력 5 ~ 15 증가",
         "option_name": "최대생명력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 15
       },
       {
         "enchant_effect_id": 1582,
@@ -13740,14 +14472,18 @@ window.ENCHANTS_CONFIG = [
         "text": "누적레벨이 1000 이하일때 마법 공격력 1 ~ 2 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 2
       },
       {
         "enchant_effect_id": 1589,
         "text": "누적레벨이 1000 이하일때 최대마나 5 ~ 12 증가",
         "option_name": "최대마나",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 12
       },
       {
         "enchant_effect_id": 1590,
@@ -13777,14 +14513,18 @@ window.ENCHANTS_CONFIG = [
         "text": "누적레벨이 1000 이하일때 최소대미지 3 ~ 6 증가",
         "option_name": "최소대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 3,
+        "max": 6
       },
       {
         "enchant_effect_id": 1593,
         "text": "누적레벨이 1000 이하일때 최대대미지 3 ~ 6 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 3,
+        "max": 6
       },
       {
         "enchant_effect_id": 1594,
@@ -14047,7 +14787,9 @@ window.ENCHANTS_CONFIG = [
         "text": "불릿 스톰 랭크 1 이상일 때 지력 8 ~ 15 증가",
         "option_name": "지력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 8,
+        "max": 15
       },
       {
         "enchant_effect_id": 1622,
@@ -14107,7 +14849,9 @@ window.ENCHANTS_CONFIG = [
         "text": "클로저 랭크 1 이상일 때 체력 8 ~ 15 증가",
         "option_name": "체력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 8,
+        "max": 15
       },
       {
         "enchant_effect_id": 1628,
@@ -14151,14 +14895,18 @@ window.ENCHANTS_CONFIG = [
         "text": "리로드 랭크 9 이상일 때 밸런스 5 ~ 15 증가",
         "option_name": "밸런스",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 15
       },
       {
         "enchant_effect_id": 1633,
         "text": "파 어웨이 랭크 A 이상일 때 크리티컬 5 ~ 10 증가",
         "option_name": "크리티컬",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 10
       }
     ]
   },
@@ -14174,14 +14922,18 @@ window.ENCHANTS_CONFIG = [
         "text": "매직 크래프트 랭크 9 이상일 때 지력 3 ~ 8 증가",
         "option_name": "지력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 3,
+        "max": 8
       },
       {
         "enchant_effect_id": 1635,
         "text": "매직 크래프트 랭크 5 이상일 때 행운 1 ~ 10 증가",
         "option_name": "행운",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 10
       },
       {
         "enchant_effect_id": 1636,
@@ -14218,14 +14970,18 @@ window.ENCHANTS_CONFIG = [
         "text": "희귀 광물학 랭크 5 이상일 때 체력 5 ~ 12 증가",
         "option_name": "체력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 12
       },
       {
         "enchant_effect_id": 1640,
         "text": "희귀 광물학 랭크 3 이상일 때 행운 1 ~ 10 증가",
         "option_name": "행운",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 10
       },
       {
         "enchant_effect_id": 1641,
@@ -14269,7 +15025,9 @@ window.ENCHANTS_CONFIG = [
         "text": "슈팅 러쉬 랭크 7 이상일 때 크리티컬 10 ~ 15 증가",
         "option_name": "크리티컬",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 15
       }
     ]
   },
@@ -14292,14 +15050,18 @@ window.ENCHANTS_CONFIG = [
         "text": "최소대미지 1 ~ 3 증가",
         "option_name": "최소대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 3
       },
       {
         "enchant_effect_id": 1648,
         "text": "듀얼건 마스터리 랭크 B 이상일 때 최대대미지 5 ~ 8 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 8
       }
     ]
   },
@@ -14322,7 +15084,9 @@ window.ENCHANTS_CONFIG = [
         "text": "듀얼건 마스터리 랭크 3 이상일 때 최대대미지 3 ~ 9 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 3,
+        "max": 9
       }
     ]
   },
@@ -14345,14 +15109,18 @@ window.ENCHANTS_CONFIG = [
         "text": "듀얼건 마스터리 랭크 7 이상일 때 최소대미지 2 ~ 5 증가",
         "option_name": "최소대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 5
       },
       {
         "enchant_effect_id": 1653,
         "text": "클로저 랭크 5 이상일 때 최대대미지 5 ~ 10 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 10
       },
       {
         "enchant_effect_id": 1654,
@@ -14382,7 +15150,9 @@ window.ENCHANTS_CONFIG = [
         "text": "실리엔 생태학 랭크 3 이상일 때 솜씨 8 ~ 15 증가",
         "option_name": "솜씨",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 8,
+        "max": 15
       },
       {
         "enchant_effect_id": 1657,
@@ -14419,14 +15189,18 @@ window.ENCHANTS_CONFIG = [
         "text": "듀얼건 마스터리 랭크 1 이상일 때 최소대미지 4 ~ 8 증가",
         "option_name": "최소대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 4,
+        "max": 8
       },
       {
         "enchant_effect_id": 1661,
         "text": "프렌지 랭크 1 이상일 때 최대대미지 10 ~ 28 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 28
       },
       {
         "enchant_effect_id": 1662,
@@ -14463,14 +15237,18 @@ window.ENCHANTS_CONFIG = [
         "text": "불릿 스톰 랭크 3 이상일 때 최소대미지 2 ~ 8 증가",
         "option_name": "최소대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 8
       },
       {
         "enchant_effect_id": 1666,
         "text": "불릿 스톰 랭크 1 이상일 때 최대대미지 10 ~ 22 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 22
       },
       {
         "enchant_effect_id": 1667,
@@ -14507,14 +15285,18 @@ window.ENCHANTS_CONFIG = [
         "text": "힐웬 공학 랭크 9 이상일 때 체력 3 ~ 10 증가",
         "option_name": "체력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 3,
+        "max": 10
       },
       {
         "enchant_effect_id": 1671,
         "text": "힐웬 공학 랭크 5 이상일 때 솜씨 5 ~ 12 증가",
         "option_name": "솜씨",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 12
       },
       {
         "enchant_effect_id": 1672,
@@ -14558,7 +15340,9 @@ window.ENCHANTS_CONFIG = [
         "text": "마법 공격력 3 ~ 7 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 3,
+        "max": 7
       },
       {
         "enchant_effect_id": 1677,
@@ -14603,7 +15387,9 @@ window.ENCHANTS_CONFIG = [
         "text": "마법 공격력 3 ~ 7 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 3,
+        "max": 7
       },
       {
         "enchant_effect_id": 1682,
@@ -14641,7 +15427,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최대대미지 10 ~ 13 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 13
       },
       {
         "enchant_effect_id": 1686,
@@ -14679,7 +15467,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최대대미지 10 ~ 13 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 13
       },
       {
         "enchant_effect_id": 1690,
@@ -14768,14 +15558,18 @@ window.ENCHANTS_CONFIG = [
         "text": "1막: 우연한 충돌 랭크 1 이상일 때 마리오네트 조종술 크리티컬 5 ~ 10 증가",
         "option_name": "마리오네트 조종술 크리티컬",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 10
       },
       {
         "enchant_effect_id": 1700,
         "text": "콜로서스 마리오네트 랭크 1 이상일 때 체력 25 ~ 35 증가",
         "option_name": "체력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 25,
+        "max": 35
       },
       {
         "enchant_effect_id": 1701,
@@ -14840,14 +15634,18 @@ window.ENCHANTS_CONFIG = [
         "text": "멜로디 쇼크 랭크 1 이상일 때 최대대미지 20 ~ 25 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 20,
+        "max": 25
       },
       {
         "enchant_effect_id": 1709,
         "text": "행운 10 ~ 25 증가",
         "option_name": "행운",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 25
       },
       {
         "enchant_effect_id": 1710,
@@ -14906,14 +15704,18 @@ window.ENCHANTS_CONFIG = [
         "text": "멜로디 쇼크 랭크 1 이상일 때 최대대미지 20 ~ 25 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 20,
+        "max": 25
       },
       {
         "enchant_effect_id": 1717,
         "text": "행운 10 ~ 25 증가",
         "option_name": "행운",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 25
       },
       {
         "enchant_effect_id": 1718,
@@ -14958,14 +15760,18 @@ window.ENCHANTS_CONFIG = [
         "text": "히트 버스터 랭크 1 이상일 때 불 속성 연금술 대미지 15 ~ 25 증가",
         "option_name": "불 속성 연금술 대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 15,
+        "max": 25
       },
       {
         "enchant_effect_id": 1723,
         "text": "레인 캐스팅 랭크 1 이상일 때 물 속성 연금술 대미지 30 ~ 50 증가",
         "option_name": "물 속성 연금술 대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 30,
+        "max": 50
       },
       {
         "enchant_effect_id": 1724,
@@ -15016,14 +15822,18 @@ window.ENCHANTS_CONFIG = [
         "text": "블레이즈 랭크 1 이상일 때 마법 공격력 2 ~ 4 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 4
       },
       {
         "enchant_effect_id": 1730,
         "text": "볼트 마법 조합 랭크 1 이상일 때 크리티컬 2 ~ 5 증가",
         "option_name": "크리티컬",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 5
       },
       {
         "enchant_effect_id": 1731,
@@ -15067,7 +15877,9 @@ window.ENCHANTS_CONFIG = [
         "text": "파이어볼 랭크 1 이상일 때 지력 40 ~ 70 증가",
         "option_name": "지력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 40,
+        "max": 70
       },
       {
         "enchant_effect_id": 1736,
@@ -15081,7 +15893,9 @@ window.ENCHANTS_CONFIG = [
         "text": "볼트 마법 조합 랭크 1 이상일 때 크리티컬 5 ~ 10 증가",
         "option_name": "크리티컬",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 10
       },
       {
         "enchant_effect_id": 1738,
@@ -15125,14 +15939,18 @@ window.ENCHANTS_CONFIG = [
         "text": "매그넘 샷 랭크 1 이상일 때 크리티컬 8 ~ 15 증가",
         "option_name": "크리티컬",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 8,
+        "max": 15
       },
       {
         "enchant_effect_id": 1743,
         "text": "레인지 컴뱃 마스터리 랭크 1 이상일 때 최대대미지 5 ~ 10 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 10
       },
       {
         "enchant_effect_id": 1744,
@@ -15183,14 +16001,18 @@ window.ENCHANTS_CONFIG = [
         "text": "차징 피스트 랭크 1 이상일 때 최대대미지 25 ~ 30 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 25,
+        "max": 30
       },
       {
         "enchant_effect_id": 1750,
         "text": "연속기 마스터리 랭크 1 이상일 때 크리티컬 5 ~ 10 증가",
         "option_name": "크리티컬",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 10
       },
       {
         "enchant_effect_id": 1751,
@@ -15241,14 +16063,18 @@ window.ENCHANTS_CONFIG = [
         "text": "윈드밀 랭크 1 이상일 때 최대대미지 20 ~ 25 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 20,
+        "max": 25
       },
       {
         "enchant_effect_id": 1757,
         "text": "파이널 히트 랭크 1 이상일 때 최소대미지 10 ~ 15 증가",
         "option_name": "최소대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 15
       },
       {
         "enchant_effect_id": 1758,
@@ -15292,14 +16118,18 @@ window.ENCHANTS_CONFIG = [
         "text": "컴뱃 마스터리 랭크 1 이상일 때 최대대미지 8 ~ 15 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 8,
+        "max": 15
       },
       {
         "enchant_effect_id": 1763,
         "text": "윈드밀 랭크 1 이상일 때 크리티컬 5 ~ 8 증가",
         "option_name": "크리티컬",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 8
       },
       {
         "enchant_effect_id": 1764,
@@ -15343,14 +16173,18 @@ window.ENCHANTS_CONFIG = [
         "text": "돌진 랭크 1 이상일 때 체력 25 ~ 40 증가",
         "option_name": "체력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 25,
+        "max": 40
       },
       {
         "enchant_effect_id": 1769,
         "text": "크리티컬 히트 랭크 1 이상일 때 방어 1 ~ 3 증가",
         "option_name": "방어",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 3
       },
       {
         "enchant_effect_id": 1770,
@@ -15394,14 +16228,18 @@ window.ENCHANTS_CONFIG = [
         "text": "제련 랭크 1 이상일 때 최대대미지 8 ~ 15 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 8,
+        "max": 15
       },
       {
         "enchant_effect_id": 1775,
         "text": "요리 랭크 6 이상일 때 솜씨 10 ~ 15 증가",
         "option_name": "솜씨",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 15
       },
       {
         "enchant_effect_id": 1776,
@@ -15466,14 +16304,18 @@ window.ENCHANTS_CONFIG = [
         "text": "야금술 랭크 1 이상일 때 최대대미지 6 ~ 10 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 6,
+        "max": 10
       },
       {
         "enchant_effect_id": 1784,
         "text": "행운 10 ~ 15 증가",
         "option_name": "행운",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 15
       },
       {
         "enchant_effect_id": 1785,
@@ -15561,7 +16403,9 @@ window.ENCHANTS_CONFIG = [
         "text": "라이트닝 매직실드 랭크 1 이상일 때 지력 10 ~ 30 증가",
         "option_name": "지력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 30
       },
       {
         "enchant_effect_id": 1795,
@@ -15575,7 +16419,9 @@ window.ENCHANTS_CONFIG = [
         "text": "방어 3 ~ 5 감소",
         "option_name": "방어",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 3,
+        "max": 5
       },
       {
         "enchant_effect_id": 1797,
@@ -15633,7 +16479,9 @@ window.ENCHANTS_CONFIG = [
         "text": "솜씨 20 ~ 30 감소",
         "option_name": "솜씨",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 20,
+        "max": 30
       },
       {
         "enchant_effect_id": 1804,
@@ -15670,14 +16518,18 @@ window.ENCHANTS_CONFIG = [
         "text": "6막: 유혹의 올가미 랭크 1 이상일 때 마리오네트 최대대미지 7 ~ 15 증가",
         "option_name": "마리오네트 최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 7,
+        "max": 15
       },
       {
         "enchant_effect_id": 1808,
         "text": "9막: 깨어나는 생명 랭크 1 이상일 때 최대대미지 10 ~ 15 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 15
       },
       {
         "enchant_effect_id": 1809,
@@ -15779,14 +16631,18 @@ window.ENCHANTS_CONFIG = [
         "text": "금속 변환 랭크 1 이상일 때 연금술 생산 성공률 2 ~ 4 증가",
         "option_name": "연금술 생산 성공률",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 4
       },
       {
         "enchant_effect_id": 1821,
         "text": "연성 마스터리 랭크 1 이상일 때 최대대미지 6 ~ 10 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 6,
+        "max": 10
       },
       {
         "enchant_effect_id": 1822,
@@ -15830,14 +16686,18 @@ window.ENCHANTS_CONFIG = [
         "text": "연속기 : 대쉬 펀치 랭크 1 이상일 때 의지 5 ~ 10 증가",
         "option_name": "의지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 10
       },
       {
         "enchant_effect_id": 1827,
         "text": "스크류 어퍼 랭크 1 이상일 때 최대대미지 10 ~ 15 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 15
       },
       {
         "enchant_effect_id": 1828,
@@ -15881,14 +16741,18 @@ window.ENCHANTS_CONFIG = [
         "text": "랜스 마스터리 랭크 1 이상일 때 최대대미지 12 ~ 15 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 12,
+        "max": 15
       },
       {
         "enchant_effect_id": 1833,
         "text": "크리티컬 히트 랭크 1 이상일 때 크리티컬 3 ~ 5 증가",
         "option_name": "크리티컬",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 3,
+        "max": 5
       },
       {
         "enchant_effect_id": 1834,
@@ -15946,14 +16810,18 @@ window.ENCHANTS_CONFIG = [
         "text": "행진곡 랭크 1 이상일 때 음악버프 스킬 지속시간 5 ~ 10 증가",
         "option_name": "음악버프 스킬 지속시간",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 10
       },
       {
         "enchant_effect_id": 1841,
         "text": "악기 연주 랭크 1 이상일 때 음악버프 스킬 효과 2 ~ 3 증가",
         "option_name": "음악버프 스킬 효과",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 3
       },
       {
         "enchant_effect_id": 1842,
@@ -16005,14 +16873,18 @@ window.ENCHANTS_CONFIG = [
         "text": "행진곡 랭크 1 이상일 때 음악버프 스킬 지속시간 5 ~ 10 증가",
         "option_name": "음악버프 스킬 지속시간",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 10
       },
       {
         "enchant_effect_id": 1848,
         "text": "악기 연주 랭크 1 이상일 때 음악버프 스킬 효과 2 ~ 3 증가",
         "option_name": "음악버프 스킬 효과",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 3
       },
       {
         "enchant_effect_id": 1849,
@@ -16057,7 +16929,9 @@ window.ENCHANTS_CONFIG = [
         "text": "분해 랭크 1 이상일 때 연금술 생산 성공률 2 ~ 4 증가",
         "option_name": "연금술 생산 성공률",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 4
       },
       {
         "enchant_effect_id": 1854,
@@ -16071,7 +16945,9 @@ window.ENCHANTS_CONFIG = [
         "text": "솜씨 10 ~ 20 증가",
         "option_name": "솜씨",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 20
       },
       {
         "enchant_effect_id": 1856,
@@ -16108,14 +16984,18 @@ window.ENCHANTS_CONFIG = [
         "text": "불 연금술 마스터리 랭크 1 이상일 때 불 속성 연금술 대미지 3 ~ 5 증가",
         "option_name": "불 속성 연금술 대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 3,
+        "max": 5
       },
       {
         "enchant_effect_id": 1860,
         "text": "물 연금술 마스터리 랭크 1 이상일 때 물 속성 연금술 대미지 7 ~ 10 증가",
         "option_name": "물 속성 연금술 대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 7,
+        "max": 10
       },
       {
         "enchant_effect_id": 1861,
@@ -16166,14 +17046,18 @@ window.ENCHANTS_CONFIG = [
         "text": "백스텝 랭크 1 이상일 때 의지 15 ~ 25 증가",
         "option_name": "의지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 15,
+        "max": 25
       },
       {
         "enchant_effect_id": 1867,
         "text": "너클 마스터리 랭크 1 이상일 때 크리티컬 5 ~ 7 증가",
         "option_name": "크리티컬",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 7
       },
       {
         "enchant_effect_id": 1868,
@@ -16217,7 +17101,9 @@ window.ENCHANTS_CONFIG = [
         "text": "크래시샷 랭크 1 이상일 때 솜씨 30 ~ 40 증가",
         "option_name": "솜씨",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 30,
+        "max": 40
       },
       {
         "enchant_effect_id": 1873,
@@ -16268,7 +17154,9 @@ window.ENCHANTS_CONFIG = [
         "text": "컴뱃 마스터리 랭크 1 이상일 때 체력 25 ~ 40 증가",
         "option_name": "체력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 25,
+        "max": 40
       },
       {
         "enchant_effect_id": 1879,
@@ -16282,7 +17170,9 @@ window.ENCHANTS_CONFIG = [
         "text": "디펜스 랭크 1 이상일 때 방어 1 ~ 3 증가",
         "option_name": "방어",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 3
       },
       {
         "enchant_effect_id": 1881,
@@ -16326,14 +17216,18 @@ window.ENCHANTS_CONFIG = [
         "text": "볼트 마스터리 랭크 1 이상일 때 지력 15 ~ 30 증가",
         "option_name": "지력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 15,
+        "max": 30
       },
       {
         "enchant_effect_id": 1886,
         "text": "썬더 랭크 1 이상일 때 마법 공격력 3 ~ 5 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 3,
+        "max": 5
       },
       {
         "enchant_effect_id": 1887,
@@ -16384,14 +17278,18 @@ window.ENCHANTS_CONFIG = [
         "text": "4막: 질투의 화신 랭크 1 이상일 때 마리오네트 최대대미지 10 ~ 15 증가",
         "option_name": "마리오네트 최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 15
       },
       {
         "enchant_effect_id": 1893,
         "text": "의지 10 ~ 30 감소",
         "option_name": "의지",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 30
       },
       {
         "enchant_effect_id": 1894,
@@ -16435,7 +17333,9 @@ window.ENCHANTS_CONFIG = [
         "text": "방직 랭크 1 이상일 때 최대대미지 7 ~ 10 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 7,
+        "max": 10
       },
       {
         "enchant_effect_id": 1899,
@@ -16479,14 +17379,18 @@ window.ENCHANTS_CONFIG = [
         "text": "카운터 어택 랭크 1 이상일 때 최대대미지 10 ~ 15 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 15
       },
       {
         "enchant_effect_id": 1904,
         "text": "레벨이 40 이상일때 체력 25 ~ 35 증가",
         "option_name": "체력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 25,
+        "max": 35
       },
       {
         "enchant_effect_id": 1905,
@@ -16537,7 +17441,9 @@ window.ENCHANTS_CONFIG = [
         "text": "2막: 솟구치는 분노 랭크 1 이상일 때 마리오네트 최대대미지 15 ~ 20 증가",
         "option_name": "마리오네트 최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 15,
+        "max": 20
       },
       {
         "enchant_effect_id": 1911,
@@ -16551,7 +17457,9 @@ window.ENCHANTS_CONFIG = [
         "text": "마리오네트 조종술 랭크 1 이상일 때 최대대미지 10 ~ 15 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 15
       },
       {
         "enchant_effect_id": 1913,
@@ -16602,14 +17510,18 @@ window.ENCHANTS_CONFIG = [
         "text": "제련 랭크 1 이상일 때 최대대미지 7 ~ 15 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 7,
+        "max": 15
       },
       {
         "enchant_effect_id": 1919,
         "text": "행운 15 ~ 25 증가",
         "option_name": "행운",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 15,
+        "max": 25
       },
       {
         "enchant_effect_id": 1920,
@@ -16653,14 +17565,18 @@ window.ENCHANTS_CONFIG = [
         "text": "랜스 차지 랭크 1 이상일 때 최대대미지 15 ~ 20 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 15,
+        "max": 20
       },
       {
         "enchant_effect_id": 1925,
         "text": "랜스 마스터리 랭크 1 이상일 때 크리티컬 7 ~ 12 증가",
         "option_name": "크리티컬",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 7,
+        "max": 12
       },
       {
         "enchant_effect_id": 1926,
@@ -16704,14 +17620,18 @@ window.ENCHANTS_CONFIG = [
         "text": "파운딩 랭크 1 이상일 때 의지 35 ~ 50 증가",
         "option_name": "의지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 35,
+        "max": 50
       },
       {
         "enchant_effect_id": 1931,
         "text": "드롭킥 랭크 1 이상일 때 크리티컬 10 ~ 12 증가",
         "option_name": "크리티컬",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 12
       },
       {
         "enchant_effect_id": 1932,
@@ -16769,7 +17689,9 @@ window.ENCHANTS_CONFIG = [
         "text": "서포트 샷 랭크 1 이상일 때 최대대미지 5 ~ 7 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 7
       },
       {
         "enchant_effect_id": 1939,
@@ -16834,14 +17756,18 @@ window.ENCHANTS_CONFIG = [
         "text": "플레이머 랭크 1 이상일 때 불 속성 연금술 대미지 5 ~ 7 증가",
         "option_name": "불 속성 연금술 대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 7
       },
       {
         "enchant_effect_id": 1947,
         "text": "워터 캐논 랭크 1 이상일 때 물 속성 연금술 대미지 10 ~ 15 증가",
         "option_name": "물 속성 연금술 대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 15
       },
       {
         "enchant_effect_id": 1948,
@@ -16899,7 +17825,9 @@ window.ENCHANTS_CONFIG = [
         "text": "자장가 랭크 1 이상일 때 최대대미지 10 ~ 15 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 15
       },
       {
         "enchant_effect_id": 1955,
@@ -16913,7 +17841,9 @@ window.ENCHANTS_CONFIG = [
         "text": "음악적 지식 랭크 1 이상일 때 음악버프 스킬 지속시간 5 ~ 10 증가",
         "option_name": "음악버프 스킬 지속시간",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 10
       },
       {
         "enchant_effect_id": 1957,
@@ -16964,14 +17894,18 @@ window.ENCHANTS_CONFIG = [
         "text": "헤일스톰 랭크 5 이상일 때 지력 15 ~ 30 증가",
         "option_name": "지력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 15,
+        "max": 30
       },
       {
         "enchant_effect_id": 1963,
         "text": "인챈트 랭크 1 이상일 때 마법 공격력 3 ~ 5 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 3,
+        "max": 5
       },
       {
         "enchant_effect_id": 1964,
@@ -17015,14 +17949,18 @@ window.ENCHANTS_CONFIG = [
         "text": "마나 포밍 랭크 1 이상일 때 연금술 생산 성공률 2 ~ 4 증가",
         "option_name": "연금술 생산 성공률",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 4
       },
       {
         "enchant_effect_id": 1969,
         "text": "연금술 마스터리 랭크 1 이상일 때 최대대미지 7 ~ 12 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 7,
+        "max": 12
       },
       {
         "enchant_effect_id": 1970,
@@ -17080,7 +18018,9 @@ window.ENCHANTS_CONFIG = [
         "text": "크로스보우 마스터리 랭크 1 이상일 때 최대대미지 5 ~ 8 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 8
       },
       {
         "enchant_effect_id": 1977,
@@ -17131,14 +18071,18 @@ window.ENCHANTS_CONFIG = [
         "text": "랜스 차지 랭크 1 이상일 때 최대대미지 10 ~ 15 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 15
       },
       {
         "enchant_effect_id": 1983,
         "text": "랜스 카운터 랭크 1 이상일 때 크리티컬 10 ~ 15 증가",
         "option_name": "크리티컬",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 15
       },
       {
         "enchant_effect_id": 1984,
@@ -17189,14 +18133,18 @@ window.ENCHANTS_CONFIG = [
         "text": "체력 10 ~ 15 증가",
         "option_name": "체력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 15
       },
       {
         "enchant_effect_id": 1990,
         "text": "솜씨 7 ~ 10 증가",
         "option_name": "솜씨",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 7,
+        "max": 10
       },
       {
         "enchant_effect_id": 1991,
@@ -17227,14 +18175,18 @@ window.ENCHANTS_CONFIG = [
         "text": "체력 10 ~ 15 증가",
         "option_name": "체력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 15
       },
       {
         "enchant_effect_id": 1994,
         "text": "솜씨 7 ~ 10 증가",
         "option_name": "솜씨",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 7,
+        "max": 10
       },
       {
         "enchant_effect_id": 1995,
@@ -17341,7 +18293,9 @@ window.ENCHANTS_CONFIG = [
         "text": "마리오네트 조종술 랭크 5 이상일 때 마리오네트 최대대미지 10 ~ 20 증가",
         "option_name": "마리오네트 최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 20
       },
       {
         "enchant_effect_id": 2006,
@@ -17386,7 +18340,9 @@ window.ENCHANTS_CONFIG = [
         "text": "마리오네트 조종술 랭크 5 이상일 때 마리오네트 최대대미지 10 ~ 20 증가",
         "option_name": "마리오네트 최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 20
       },
       {
         "enchant_effect_id": 2011,
@@ -17514,14 +18470,18 @@ window.ENCHANTS_CONFIG = [
         "text": "마리오네트 조종술 랭크 7 이상일 때 크리티컬 3 ~ 6 증가",
         "option_name": "크리티컬",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 3,
+        "max": 6
       },
       {
         "enchant_effect_id": 2025,
         "text": "마리오네트 조종술 크리티컬 6 ~ 9 증가",
         "option_name": "마리오네트 조종술 크리티컬",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 6,
+        "max": 9
       },
       {
         "enchant_effect_id": 2026,
@@ -17566,14 +18526,18 @@ window.ENCHANTS_CONFIG = [
         "text": "마리오네트 조종술 랭크 7 이상일 때 크리티컬 3 ~ 6 증가",
         "option_name": "크리티컬",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 3,
+        "max": 6
       },
       {
         "enchant_effect_id": 2031,
         "text": "마리오네트 조종술 크리티컬 6 ~ 9 증가",
         "option_name": "마리오네트 조종술 크리티컬",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 6,
+        "max": 9
       },
       {
         "enchant_effect_id": 2032,
@@ -17611,7 +18575,9 @@ window.ENCHANTS_CONFIG = [
         "text": "레벨이 20 이상일때 최대대미지 5 ~ 9 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 9
       },
       {
         "enchant_effect_id": 2036,
@@ -17642,7 +18608,9 @@ window.ENCHANTS_CONFIG = [
         "text": "레벨이 20 이상일때 최대대미지 5 ~ 9 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 9
       },
       {
         "enchant_effect_id": 2039,
@@ -17673,7 +18641,9 @@ window.ENCHANTS_CONFIG = [
         "text": "4막: 질투의 화신 랭크 8 이상일 때 마리오네트 최대대미지 5 ~ 10 증가",
         "option_name": "마리오네트 최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 10
       },
       {
         "enchant_effect_id": 2042,
@@ -17704,7 +18674,9 @@ window.ENCHANTS_CONFIG = [
         "text": "4막: 질투의 화신 랭크 8 이상일 때 마리오네트 최대대미지 5 ~ 10 증가",
         "option_name": "마리오네트 최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 10
       },
       {
         "enchant_effect_id": 2045,
@@ -17880,7 +18852,9 @@ window.ENCHANTS_CONFIG = [
         "text": "피에로 마리오네트 랭크 7 이상일 때 최대대미지 15 ~ 20 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 15,
+        "max": 20
       },
       {
         "enchant_effect_id": 2063,
@@ -17918,7 +18892,9 @@ window.ENCHANTS_CONFIG = [
         "text": "피에로 마리오네트 랭크 7 이상일 때 최대대미지 15 ~ 20 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 15,
+        "max": 20
       },
       {
         "enchant_effect_id": 2067,
@@ -17956,7 +18932,9 @@ window.ENCHANTS_CONFIG = [
         "text": "콜로서스 마리오네트 랭크 7 이상일 때 마리오네트 최대대미지 10 ~ 15 증가",
         "option_name": "마리오네트 최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 15
       },
       {
         "enchant_effect_id": 2071,
@@ -17994,7 +18972,9 @@ window.ENCHANTS_CONFIG = [
         "text": "콜로서스 마리오네트 랭크 7 이상일 때 마리오네트 최대대미지 10 ~ 15 증가",
         "option_name": "마리오네트 최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 15
       },
       {
         "enchant_effect_id": 2075,
@@ -18122,7 +19102,9 @@ window.ENCHANTS_CONFIG = [
         "text": "9막: 깨어나는 생명 랭크 6 이상일 때 크리티컬 5 ~ 10 증가",
         "option_name": "크리티컬",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 10
       }
     ],
     "synonym": "드라마틱"
@@ -18153,7 +19135,9 @@ window.ENCHANTS_CONFIG = [
         "text": "9막: 깨어나는 생명 랭크 6 이상일 때 크리티컬 5 ~ 10 증가",
         "option_name": "크리티컬",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 10
       }
     ],
     "synonym": "극적인"
@@ -18177,7 +19161,9 @@ window.ENCHANTS_CONFIG = [
         "text": "크리티컬 3 ~ 5 증가",
         "option_name": "크리티컬",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 3,
+        "max": 5
       },
       {
         "enchant_effect_id": 2094,
@@ -18215,7 +19201,9 @@ window.ENCHANTS_CONFIG = [
         "text": "크리티컬 3 ~ 5 증가",
         "option_name": "크리티컬",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 3,
+        "max": 5
       },
       {
         "enchant_effect_id": 2098,
@@ -18260,7 +19248,9 @@ window.ENCHANTS_CONFIG = [
         "text": "마리오네트 조종술 크리티컬 3 ~ 7 증가",
         "option_name": "마리오네트 조종술 크리티컬",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 3,
+        "max": 7
       },
       {
         "enchant_effect_id": 2103,
@@ -18298,7 +19288,9 @@ window.ENCHANTS_CONFIG = [
         "text": "마리오네트 조종술 크리티컬 3 ~ 7 증가",
         "option_name": "마리오네트 조종술 크리티컬",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 3,
+        "max": 7
       },
       {
         "enchant_effect_id": 2107,
@@ -18769,14 +19761,18 @@ window.ENCHANTS_CONFIG = [
         "text": "워터 캐논 랭크 1 이상일 때 불 속성 연금술 대미지 5 ~ 8 증가",
         "option_name": "불 속성 연금술 대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 8
       },
       {
         "enchant_effect_id": 2161,
         "text": "플레이머 랭크 9 이상일 때 물 속성 연금술 대미지 8 ~ 12 증가",
         "option_name": "물 속성 연금술 대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 8,
+        "max": 12
       },
       {
         "enchant_effect_id": 2162,
@@ -19283,7 +20279,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최대스태미나 20 ~ 30 증가",
         "option_name": "최대스태미나",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 20,
+        "max": 30
       },
       {
         "enchant_effect_id": 2219,
@@ -19651,7 +20649,9 @@ window.ENCHANTS_CONFIG = [
         "text": "크리티컬 2 ~ 5 증가",
         "option_name": "크리티컬",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 5
       },
       {
         "enchant_effect_id": 2260,
@@ -19688,14 +20688,18 @@ window.ENCHANTS_CONFIG = [
         "text": "크리티컬 5 ~ 10 증가",
         "option_name": "크리티컬",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 10
       },
       {
         "enchant_effect_id": 2264,
         "text": "피닉스의 탄생을 지켜본 타이틀을 달고 있을때 최대대미지 1 ~ 3 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 3
       },
       {
         "enchant_effect_id": 2265,
@@ -19725,14 +20729,18 @@ window.ENCHANTS_CONFIG = [
         "text": "크리티컬 7 ~ 9 증가",
         "option_name": "크리티컬",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 7,
+        "max": 9
       },
       {
         "enchant_effect_id": 2268,
         "text": "최대대미지 6 ~ 8 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 6,
+        "max": 8
       },
       {
         "enchant_effect_id": 2269,
@@ -19769,7 +20777,9 @@ window.ENCHANTS_CONFIG = [
         "text": "피닉스의 탄생을 지켜본 타이틀을 달고 있을때 행운 5 ~ 25 증가",
         "option_name": "행운",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 25
       }
     ]
   },
@@ -19792,14 +20802,18 @@ window.ENCHANTS_CONFIG = [
         "text": "지력 4 ~ 6 증가",
         "option_name": "지력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 4,
+        "max": 6
       },
       {
         "enchant_effect_id": 2275,
         "text": "피닉스의 탄생을 지켜본 타이틀을 달고 있을때 마나 소비 감소 1 ~ 4 증가",
         "option_name": "마나 소비 감소",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 4
       }
     ]
   },
@@ -19822,14 +20836,18 @@ window.ENCHANTS_CONFIG = [
         "text": "마나 소비 감소 1 ~ 4 증가",
         "option_name": "마나 소비 감소",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 4
       },
       {
         "enchant_effect_id": 2278,
         "text": "마법 공격력 1 ~ 3 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 3
       },
       {
         "enchant_effect_id": 2279,
@@ -19905,14 +20923,18 @@ window.ENCHANTS_CONFIG = [
         "text": "연속기 마스터리 랭크 1 이상일 때 의지 8 ~ 16 증가",
         "option_name": "의지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 8,
+        "max": 16
       },
       {
         "enchant_effect_id": 2286,
         "text": "연속기 마스터리 랭크 5 이상일 때 최대대미지 8 ~ 12 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 8,
+        "max": 12
       },
       {
         "enchant_effect_id": 2287,
@@ -19956,7 +20978,9 @@ window.ENCHANTS_CONFIG = [
         "text": "스크류 어퍼 랭크 3 이상일 때 최대대미지 13 ~ 20 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 13,
+        "max": 20
       },
       {
         "enchant_effect_id": 2292,
@@ -19970,7 +20994,9 @@ window.ENCHANTS_CONFIG = [
         "text": "의지 12 ~ 20 증가",
         "option_name": "의지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 12,
+        "max": 20
       },
       {
         "enchant_effect_id": 2294,
@@ -20030,7 +21056,9 @@ window.ENCHANTS_CONFIG = [
         "text": "마나실드 사용 상태일때 최대대미지 7 ~ 12 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 7,
+        "max": 12
       }
     ],
     "synonym": "버터플라이"
@@ -20054,7 +21082,9 @@ window.ENCHANTS_CONFIG = [
         "text": "마나실드 사용 상태일때 최대대미지 7 ~ 12 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 7,
+        "max": 12
       }
     ],
     "synonym": "나비"
@@ -20085,7 +21115,9 @@ window.ENCHANTS_CONFIG = [
         "text": "리스토어 랭크 5 이상일 때 의지 8 ~ 16 증가",
         "option_name": "의지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 8,
+        "max": 16
       },
       {
         "enchant_effect_id": 2305,
@@ -20115,7 +21147,9 @@ window.ENCHANTS_CONFIG = [
         "text": "체력 25 ~ 35 증가",
         "option_name": "체력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 25,
+        "max": 35
       }
     ]
   },
@@ -20168,7 +21202,9 @@ window.ENCHANTS_CONFIG = [
         "text": "파운딩 랭크 1 이상일 때 최대대미지 17 ~ 25 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 17,
+        "max": 25
       },
       {
         "enchant_effect_id": 2313,
@@ -20219,14 +21255,18 @@ window.ENCHANTS_CONFIG = [
         "text": "드롭킥 랭크 3 이상일 때 최대대미지 8 ~ 10 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 8,
+        "max": 10
       },
       {
         "enchant_effect_id": 2319,
         "text": "섬머솔트 랭크 5 이상일 때 의지 8 ~ 15 증가",
         "option_name": "의지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 8,
+        "max": 15
       },
       {
         "enchant_effect_id": 2320,
@@ -20279,14 +21319,18 @@ window.ENCHANTS_CONFIG = [
         "text": "너클 마스터리 랭크 5 이상일 때 의지 20 ~ 30 증가",
         "option_name": "의지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 20,
+        "max": 30
       },
       {
         "enchant_effect_id": 2325,
         "text": "너클 마스터리 랭크 9 이상일 때 의지 18 ~ 25 증가",
         "option_name": "의지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 18,
+        "max": 25
       },
       {
         "enchant_effect_id": 2326,
@@ -20316,7 +21360,9 @@ window.ENCHANTS_CONFIG = [
         "text": "체력 20 ~ 40 증가",
         "option_name": "체력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 20,
+        "max": 40
       }
     ]
   },
@@ -20634,14 +21680,18 @@ window.ENCHANTS_CONFIG = [
         "text": "파이어 마스터리 랭크 3 이상일 때 마법 공격력 1 ~ 2 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 2
       },
       {
         "enchant_effect_id": 2361,
         "text": "라이트닝 마스터리 랭크 3 이상일 때 마법 공격력 1 ~ 2 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 2
       }
     ]
   },
@@ -20701,14 +21751,18 @@ window.ENCHANTS_CONFIG = [
         "text": "공격 속도 2 ~ 3 증가",
         "option_name": "공격 속도",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 3
       },
       {
         "enchant_effect_id": 2368,
         "text": "솜씨 5 ~ 10 증가",
         "option_name": "솜씨",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 10
       },
       {
         "enchant_effect_id": 2369,
@@ -20884,7 +21938,9 @@ window.ENCHANTS_CONFIG = [
         "text": "블런트 마스터리 랭크 1 이상일 때 최대대미지 7 ~ 11 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 7,
+        "max": 11
       },
       {
         "enchant_effect_id": 2389,
@@ -20921,14 +21977,18 @@ window.ENCHANTS_CONFIG = [
         "text": "레인 캐스팅 랭크 D 이상일 때 크리티컬 3 ~ 7 증가",
         "option_name": "크리티컬",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 3,
+        "max": 7
       },
       {
         "enchant_effect_id": 2393,
         "text": "회피 랭크 E 이상일 때 최대대미지 11 ~ 25 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 11,
+        "max": 25
       },
       {
         "enchant_effect_id": 2394,
@@ -20972,7 +22032,9 @@ window.ENCHANTS_CONFIG = [
         "text": "볼트 마스터리 랭크 1 이상일 때 마법 공격력 1 ~ 2 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 2
       },
       {
         "enchant_effect_id": 2399,
@@ -21010,7 +22072,9 @@ window.ENCHANTS_CONFIG = [
         "text": "볼트 마스터리 랭크 1 이상일 때 마법 공격력 1 ~ 2 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 2
       },
       {
         "enchant_effect_id": 2403,
@@ -21210,14 +22274,18 @@ window.ENCHANTS_CONFIG = [
         "text": "불 연금술 마스터리 랭크 3 이상일 때 불 속성 연금술 대미지 4 ~ 6 증가",
         "option_name": "불 속성 연금술 대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 4,
+        "max": 6
       },
       {
         "enchant_effect_id": 2425,
         "text": "히트 버스터 랭크 3 이상일 때 불 속성 연금술 대미지 4 ~ 6 증가",
         "option_name": "불 속성 연금술 대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 4,
+        "max": 6
       }
     ]
   },
@@ -21240,14 +22308,18 @@ window.ENCHANTS_CONFIG = [
         "text": "헤일스톰 랭크 A 이상일 때 마법 공격력 1 ~ 2 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 2
       },
       {
         "enchant_effect_id": 2428,
         "text": "헤일스톰 랭크 5 이상일 때 마법 공격력 1 ~ 2 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 2
       }
     ]
   },
@@ -21291,7 +22363,9 @@ window.ENCHANTS_CONFIG = [
         "text": "보호 1 ~ 3 감소",
         "option_name": "보호",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 3
       }
     ]
   },
@@ -21314,14 +22388,18 @@ window.ENCHANTS_CONFIG = [
         "text": "워터 캐논 랭크 1 이상일 때 물 속성 연금술 대미지 5 ~ 27 증가",
         "option_name": "물 속성 연금술 대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 27
       },
       {
         "enchant_effect_id": 2436,
         "text": "플레이머 랭크 1 이상일 때 불 속성 연금술 대미지 1 ~ 10 증가",
         "option_name": "불 속성 연금술 대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 10
       },
       {
         "enchant_effect_id": 2437,
@@ -21402,14 +22480,18 @@ window.ENCHANTS_CONFIG = [
         "text": "돌진 랭크 A 이상일 때 최대대미지 9 ~ 12 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 9,
+        "max": 12
       },
       {
         "enchant_effect_id": 2446,
         "text": "다운 어택 랭크 A 이상일 때 크리티컬 2 ~ 4 증가",
         "option_name": "크리티컬",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 4
       },
       {
         "enchant_effect_id": 2447,
@@ -21483,14 +22565,18 @@ window.ENCHANTS_CONFIG = [
         "text": "회피 랭크 D 이상일 때 최대대미지 3 ~ 6 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 3,
+        "max": 6
       },
       {
         "enchant_effect_id": 2455,
         "text": "윈드밀 랭크 9 이상일 때 최대대미지 3 ~ 6 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 3,
+        "max": 6
       },
       {
         "enchant_effect_id": 2456,
@@ -21527,14 +22613,18 @@ window.ENCHANTS_CONFIG = [
         "text": "플레이머 랭크 E 이상일 때 크리티컬 3 ~ 9 증가",
         "option_name": "크리티컬",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 3,
+        "max": 9
       },
       {
         "enchant_effect_id": 2460,
         "text": "히트 버스터 랭크 E 이상일 때 최대대미지 2 ~ 5 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 5
       },
       {
         "enchant_effect_id": 2461,
@@ -21592,7 +22682,9 @@ window.ENCHANTS_CONFIG = [
         "text": "나이가 13 이하일때 솜씨 13 ~ 17 증가",
         "option_name": "솜씨",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 13,
+        "max": 17
       },
       {
         "enchant_effect_id": 2468,
@@ -21687,7 +22779,9 @@ window.ENCHANTS_CONFIG = [
         "text": "솜씨 1 ~ 10 증가",
         "option_name": "솜씨",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 10
       },
       {
         "enchant_effect_id": 2479,
@@ -21904,14 +22998,18 @@ window.ENCHANTS_CONFIG = [
         "text": "약초학 랭크 5 이상일 때 솜씨 8 ~ 14 증가",
         "option_name": "솜씨",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 8,
+        "max": 14
       },
       {
         "enchant_effect_id": 2502,
         "text": "포션 조제 랭크 5 이상일 때 행운 8 ~ 14 증가",
         "option_name": "행운",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 8,
+        "max": 14
       },
       {
         "enchant_effect_id": 2503,
@@ -21969,7 +23067,9 @@ window.ENCHANTS_CONFIG = [
         "text": "세월을 낚는 타이틀을 달고 있을때 최대대미지 2 ~ 12 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 12
       },
       {
         "enchant_effect_id": 2510,
@@ -22013,7 +23113,9 @@ window.ENCHANTS_CONFIG = [
         "text": "미식의 달인 타이틀을 달고 있을때 최대대미지 2 ~ 10 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 10
       },
       {
         "enchant_effect_id": 2515,
@@ -22050,14 +23152,18 @@ window.ENCHANTS_CONFIG = [
         "text": "미식의 달인 타이틀을 달고 있을때 크리티컬 3 ~ 6 증가",
         "option_name": "크리티컬",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 3,
+        "max": 6
       },
       {
         "enchant_effect_id": 2519,
         "text": "자연을 상대한 타이틀을 달고 있을때 크리티컬 3 ~ 6 증가",
         "option_name": "크리티컬",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 3,
+        "max": 6
       },
       {
         "enchant_effect_id": 2520,
@@ -22115,7 +23221,9 @@ window.ENCHANTS_CONFIG = [
         "text": "자연을 상대한 타이틀을 달고 있을때 마법 공격력 2 ~ 4 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 4
       },
       {
         "enchant_effect_id": 2527,
@@ -22138,7 +23246,9 @@ window.ENCHANTS_CONFIG = [
         "text": "행운 1 ~ 3 감소",
         "option_name": "행운",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 3
       }
     ]
   },
@@ -22240,14 +23350,18 @@ window.ENCHANTS_CONFIG = [
         "text": "워터 캐논 랭크 1 이상일 때 물 속성 연금술 대미지 30 ~ 40 증가",
         "option_name": "물 속성 연금술 대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 30,
+        "max": 40
       },
       {
         "enchant_effect_id": 2541,
         "text": "플레이머 랭크 1 이상일 때 불 속성 연금술 대미지 10 ~ 15 증가",
         "option_name": "불 속성 연금술 대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 15
       },
       {
         "enchant_effect_id": 2542,
@@ -22360,7 +23474,9 @@ window.ENCHANTS_CONFIG = [
         "text": "랜스 마스터리 랭크 8 이상일 때 최대대미지 6 ~ 14 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 6,
+        "max": 14
       },
       {
         "enchant_effect_id": 2554,
@@ -22412,7 +23528,9 @@ window.ENCHANTS_CONFIG = [
         "text": "랜스 마스터리 랭크 8 이상일 때 최대대미지 6 ~ 14 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 6,
+        "max": 14
       },
       {
         "enchant_effect_id": 2560,
@@ -22457,7 +23575,9 @@ window.ENCHANTS_CONFIG = [
         "text": "랜스 차지 랭크 6 이상일 때 최대대미지 10 ~ 18 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 18
       },
       {
         "enchant_effect_id": 2565,
@@ -22516,7 +23636,9 @@ window.ENCHANTS_CONFIG = [
         "text": "랜스 차지 랭크 6 이상일 때 최대대미지 10 ~ 18 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 18
       },
       {
         "enchant_effect_id": 2572,
@@ -22635,7 +23757,9 @@ window.ENCHANTS_CONFIG = [
         "text": "힐링 랭크 5 이상일 때 크리티컬 6 ~ 9 증가",
         "option_name": "크리티컬",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 6,
+        "max": 9
       },
       {
         "enchant_effect_id": 2585,
@@ -22656,7 +23780,9 @@ window.ENCHANTS_CONFIG = [
         "text": "파티 힐링 랭크 9 이상일 때 최대생명력 10 ~ 15 증가",
         "option_name": "최대생명력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 15
       },
       {
         "enchant_effect_id": 2588,
@@ -22753,7 +23879,9 @@ window.ENCHANTS_CONFIG = [
         "text": "공격 속도 2 ~ 4 증가",
         "option_name": "공격 속도",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 4
       },
       {
         "enchant_effect_id": 2598,
@@ -22783,7 +23911,9 @@ window.ENCHANTS_CONFIG = [
         "text": "워터 캐논 랭크 1 이상일 때 물 속성 연금술 대미지 15 ~ 25 증가",
         "option_name": "물 속성 연금술 대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 15,
+        "max": 25
       },
       {
         "enchant_effect_id": 2601,
@@ -22820,7 +23950,9 @@ window.ENCHANTS_CONFIG = [
         "text": "공격 속도 1 ~ 3 증가",
         "option_name": "공격 속도",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 3
       },
       {
         "enchant_effect_id": 2605,
@@ -22915,7 +24047,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최대생명력 10 ~ 15 증가",
         "option_name": "최대생명력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 15
       },
       {
         "enchant_effect_id": 2616,
@@ -22952,7 +24086,9 @@ window.ENCHANTS_CONFIG = [
         "text": "크리티컬 히트 랭크 3 이상일 때 공격 속도 1 ~ 3 증가",
         "option_name": "공격 속도",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 3
       },
       {
         "enchant_effect_id": 2620,
@@ -22966,7 +24102,9 @@ window.ENCHANTS_CONFIG = [
         "text": "다운 어택 랭크 6 이상일 때 체력 10 ~ 20 증가",
         "option_name": "체력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 20
       },
       {
         "enchant_effect_id": 2622,
@@ -23040,7 +24178,9 @@ window.ENCHANTS_CONFIG = [
         "text": "스파크 랭크 9 이상일 때 크리티컬 12 ~ 14 증가",
         "option_name": "크리티컬",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 12,
+        "max": 14
       },
       {
         "enchant_effect_id": 2630,
@@ -23401,7 +24541,9 @@ window.ENCHANTS_CONFIG = [
         "text": "레벨이 30 이상일때 최대대미지 10 ~ 15 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 15
       },
       {
         "enchant_effect_id": 2670,
@@ -23438,7 +24580,9 @@ window.ENCHANTS_CONFIG = [
         "text": "공격 속도 1 ~ 3 증가",
         "option_name": "공격 속도",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 3
       },
       {
         "enchant_effect_id": 2674,
@@ -23491,7 +24635,9 @@ window.ENCHANTS_CONFIG = [
         "text": "공격 속도 1 ~ 2 증가",
         "option_name": "공격 속도",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 2
       },
       {
         "enchant_effect_id": 2679,
@@ -23521,7 +24667,9 @@ window.ENCHANTS_CONFIG = [
         "text": "공격 속도 1 ~ 3 증가",
         "option_name": "공격 속도",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 3
       },
       {
         "enchant_effect_id": 2682,
@@ -23676,7 +24824,9 @@ window.ENCHANTS_CONFIG = [
         "text": "지력 3 ~ 6 증가",
         "option_name": "지력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 3,
+        "max": 6
       }
     ]
   },
@@ -23902,14 +25052,18 @@ window.ENCHANTS_CONFIG = [
         "text": "폭발 저항 1 ~ 3 증가",
         "option_name": "폭발 저항",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 3
       },
       {
         "enchant_effect_id": 2721,
         "text": "스톰프 저항 1 ~ 3 증가",
         "option_name": "스톰프 저항",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 3
       },
       {
         "enchant_effect_id": 2722,
@@ -23967,14 +25121,18 @@ window.ENCHANTS_CONFIG = [
         "text": "매직 마스터리 랭크 5 이상일 때 마법 공격력 1 ~ 2 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 2
       },
       {
         "enchant_effect_id": 2729,
         "text": "블레이즈 랭크 7 이상일 때 마법 공격력 1 ~ 2 증가",
         "option_name": "마법 공격력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 2
       },
       {
         "enchant_effect_id": 2730,
@@ -24011,14 +25169,18 @@ window.ENCHANTS_CONFIG = [
         "text": "레벨이 40 이상일때 행운 20 ~ 35 증가",
         "option_name": "행운",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 20,
+        "max": 35
       },
       {
         "enchant_effect_id": 2734,
         "text": "방직 랭크 6 이상일 때 솜씨 10 ~ 15 증가",
         "option_name": "솜씨",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 15
       },
       {
         "enchant_effect_id": 2735,
@@ -24048,7 +25210,9 @@ window.ENCHANTS_CONFIG = [
         "text": "블런트 마스터리 랭크 6 이상일 때 공격 속도 1 ~ 3 증가",
         "option_name": "공격 속도",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 3
       },
       {
         "enchant_effect_id": 2738,
@@ -24062,7 +25226,9 @@ window.ENCHANTS_CONFIG = [
         "text": "소드 마스터리 랭크 6 이상일 때 체력 20 ~ 30 증가",
         "option_name": "체력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 20,
+        "max": 30
       },
       {
         "enchant_effect_id": 2740,
@@ -24099,7 +25265,9 @@ window.ENCHANTS_CONFIG = [
         "text": "공격 속도 2 ~ 4 증가",
         "option_name": "공격 속도",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 4
       },
       {
         "enchant_effect_id": 2744,
@@ -24157,14 +25325,18 @@ window.ENCHANTS_CONFIG = [
         "text": "워터 캐논 랭크 1 이상일 때 불 속성 연금술 대미지 3 ~ 7 증가",
         "option_name": "불 속성 연금술 대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 3,
+        "max": 7
       },
       {
         "enchant_effect_id": 2751,
         "text": "플레이머 랭크 9 이상일 때 물 속성 연금술 대미지 7 ~ 11 증가",
         "option_name": "물 속성 연금술 대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 7,
+        "max": 11
       },
       {
         "enchant_effect_id": 2752,
@@ -24201,7 +25373,9 @@ window.ENCHANTS_CONFIG = [
         "text": "낚시 랭크 3 이상일 때 행운 25 ~ 40 증가",
         "option_name": "행운",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 25,
+        "max": 40
       },
       {
         "enchant_effect_id": 2756,
@@ -24282,14 +25456,18 @@ window.ENCHANTS_CONFIG = [
         "text": "최소대미지 6 ~ 10 증가",
         "option_name": "최소대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 6,
+        "max": 10
       },
       {
         "enchant_effect_id": 2765,
         "text": "레벨이 40 이상일때 최대대미지 10 ~ 14 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 14
       },
       {
         "enchant_effect_id": 2766,
@@ -24319,7 +25497,9 @@ window.ENCHANTS_CONFIG = [
         "text": "썬더 랭크 9 이상일 때 마나 소비 감소 2 ~ 4 증가",
         "option_name": "마나 소비 감소",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 4
       },
       {
         "enchant_effect_id": 2769,
@@ -24400,14 +25580,18 @@ window.ENCHANTS_CONFIG = [
         "text": "솜씨 5 ~ 10 증가",
         "option_name": "솜씨",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 10
       },
       {
         "enchant_effect_id": 2778,
         "text": "레벨이 45 이상일때 크리티컬 6 ~ 10 증가",
         "option_name": "크리티컬",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 6,
+        "max": 10
       },
       {
         "enchant_effect_id": 2779,
@@ -24525,7 +25709,9 @@ window.ENCHANTS_CONFIG = [
         "text": "메디테이션 랭크 9 이상일 때 마나 소비 감소 2 ~ 3 증가",
         "option_name": "마나 소비 감소",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 3
       },
       {
         "enchant_effect_id": 2792,
@@ -24712,14 +25898,18 @@ window.ENCHANTS_CONFIG = [
         "text": "폭발 저항 1 ~ 2 증가",
         "option_name": "폭발 저항",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 2
       },
       {
         "enchant_effect_id": 2811,
         "text": "스톰프 저항 1 ~ 2 증가",
         "option_name": "스톰프 저항",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 2
       },
       {
         "enchant_effect_id": 2812,
@@ -25168,14 +26358,18 @@ window.ENCHANTS_CONFIG = [
         "text": "파이어볼 랭크 D 이상일 때 최대마나 10 ~ 20 증가",
         "option_name": "최대마나",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 20
       },
       {
         "enchant_effect_id": 2858,
         "text": "파이어 매직 실드 랭크 B 이상일 때 크리티컬 2 ~ 5 증가",
         "option_name": "크리티컬",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 5
       },
       {
         "enchant_effect_id": 2859,
@@ -25227,14 +26421,18 @@ window.ENCHANTS_CONFIG = [
         "text": "파이어볼 랭크 D 이상일 때 최대마나 10 ~ 20 증가",
         "option_name": "최대마나",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 20
       },
       {
         "enchant_effect_id": 2865,
         "text": "파이어 매직 실드 랭크 B 이상일 때 크리티컬 2 ~ 5 증가",
         "option_name": "크리티컬",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 5
       },
       {
         "enchant_effect_id": 2866,
@@ -25279,7 +26477,9 @@ window.ENCHANTS_CONFIG = [
         "text": "크리티컬 히트 랭크 9 이상일 때 크리티컬 1 ~ 4 증가",
         "option_name": "크리티컬",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 4
       },
       {
         "enchant_effect_id": 2871,
@@ -25293,7 +26493,9 @@ window.ENCHANTS_CONFIG = [
         "text": "컴뱃 마스터리 랭크 4 이상일 때 최대대미지 7 ~ 11 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 7,
+        "max": 11
       },
       {
         "enchant_effect_id": 2873,
@@ -25338,7 +26540,9 @@ window.ENCHANTS_CONFIG = [
         "text": "크리티컬 히트 랭크 9 이상일 때 크리티컬 1 ~ 4 증가",
         "option_name": "크리티컬",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 4
       },
       {
         "enchant_effect_id": 2878,
@@ -25352,7 +26556,9 @@ window.ENCHANTS_CONFIG = [
         "text": "컴뱃 마스터리 랭크 4 이상일 때 최대대미지 7 ~ 11 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 7,
+        "max": 11
       },
       {
         "enchant_effect_id": 2880,
@@ -25397,14 +26603,18 @@ window.ENCHANTS_CONFIG = [
         "text": "약초학 랭크 A 이상일 때 솜씨 8 ~ 14 증가",
         "option_name": "솜씨",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 8,
+        "max": 14
       },
       {
         "enchant_effect_id": 2885,
         "text": "포션 조제 랭크 B 이상일 때 체력 8 ~ 14 증가",
         "option_name": "체력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 8,
+        "max": 14
       },
       {
         "enchant_effect_id": 2886,
@@ -25449,14 +26659,18 @@ window.ENCHANTS_CONFIG = [
         "text": "약초학 랭크 A 이상일 때 솜씨 8 ~ 14 증가",
         "option_name": "솜씨",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 8,
+        "max": 14
       },
       {
         "enchant_effect_id": 2891,
         "text": "포션 조제 랭크 B 이상일 때 체력 8 ~ 14 증가",
         "option_name": "체력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 8,
+        "max": 14
       },
       {
         "enchant_effect_id": 2892,
@@ -25508,7 +26722,9 @@ window.ENCHANTS_CONFIG = [
         "text": "조련 랭크 9 이상일 때 최대대미지 5 ~ 7 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 7
       },
       {
         "enchant_effect_id": 2898,
@@ -25545,7 +26761,9 @@ window.ENCHANTS_CONFIG = [
         "text": "카운터 어택 랭크 6 이상일 때 크리티컬 2 ~ 5 증가",
         "option_name": "크리티컬",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 5
       },
       {
         "enchant_effect_id": 2902,
@@ -25559,7 +26777,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최대생명력 10 ~ 16 증가",
         "option_name": "최대생명력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 16
       },
       {
         "enchant_effect_id": 2904,
@@ -25604,7 +26824,9 @@ window.ENCHANTS_CONFIG = [
         "text": "카운터 어택 랭크 6 이상일 때 크리티컬 2 ~ 5 증가",
         "option_name": "크리티컬",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 5
       },
       {
         "enchant_effect_id": 2909,
@@ -25618,7 +26840,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최대생명력 10 ~ 16 증가",
         "option_name": "최대생명력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 16
       },
       {
         "enchant_effect_id": 2911,
@@ -25663,14 +26887,18 @@ window.ENCHANTS_CONFIG = [
         "text": "크리티컬 5 ~ 7 증가",
         "option_name": "크리티컬",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 7
       },
       {
         "enchant_effect_id": 2916,
         "text": "대미지밸런스 10 ~ 12 증가",
         "option_name": "대미지밸런스",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 12
       },
       {
         "enchant_effect_id": 2917,
@@ -25735,7 +26963,9 @@ window.ENCHANTS_CONFIG = [
         "text": "크리티컬 히트 랭크 1 이상일 때 크리티컬 6 ~ 12 증가",
         "option_name": "크리티컬",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 6,
+        "max": 12
       },
       {
         "enchant_effect_id": 2925,
@@ -25793,14 +27023,18 @@ window.ENCHANTS_CONFIG = [
         "text": "스매시 랭크 1 일 때 최대대미지 3 ~ 6 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 3,
+        "max": 6
       },
       {
         "enchant_effect_id": 2932,
         "text": "카운터 어택 랭크 6 이상일 때 최대대미지 3 ~ 6 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 3,
+        "max": 6
       },
       {
         "enchant_effect_id": 2933,
@@ -25844,14 +27078,18 @@ window.ENCHANTS_CONFIG = [
         "text": "컴뱃 마스터리 랭크 1 일 때 체력 35 ~ 42 증가",
         "option_name": "체력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 35,
+        "max": 42
       },
       {
         "enchant_effect_id": 2938,
         "text": "파이널 히트 랭크 5 이상일 때 체력 18 ~ 22 증가",
         "option_name": "체력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 18,
+        "max": 22
       },
       {
         "enchant_effect_id": 2939,
@@ -25923,7 +27161,9 @@ window.ENCHANTS_CONFIG = [
         "text": "컴뱃 마스터리 랭크 1 이상일 때 최대대미지 8 ~ 14 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 8,
+        "max": 14
       },
       {
         "enchant_effect_id": 2948,
@@ -25967,7 +27207,9 @@ window.ENCHANTS_CONFIG = [
         "text": "작곡 랭크 9 이상일 때 크리티컬 3 ~ 5 증가",
         "option_name": "크리티컬",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 3,
+        "max": 5
       },
       {
         "enchant_effect_id": 2953,
@@ -26032,14 +27274,18 @@ window.ENCHANTS_CONFIG = [
         "text": "마나 실드 랭크 B 이상일 때 최대대미지 5 ~ 7 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 7
       },
       {
         "enchant_effect_id": 2961,
         "text": "레인지 컴뱃 마스터리 랭크 4 이상일 때 최대대미지 6 ~ 8 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 6,
+        "max": 8
       },
       {
         "enchant_effect_id": 2962,
@@ -26091,14 +27337,18 @@ window.ENCHANTS_CONFIG = [
         "text": "마나 실드 랭크 B 이상일 때 최대대미지 5 ~ 7 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 7
       },
       {
         "enchant_effect_id": 2968,
         "text": "레인지 컴뱃 마스터리 랭크 4 이상일 때 최대대미지 6 ~ 8 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 6,
+        "max": 8
       },
       {
         "enchant_effect_id": 2969,
@@ -26150,7 +27400,9 @@ window.ENCHANTS_CONFIG = [
         "text": "컴뱃 마스터리 랭크 9 이상일 때 크리티컬 4 ~ 7 증가",
         "option_name": "크리티컬",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 4,
+        "max": 7
       },
       {
         "enchant_effect_id": 2975,
@@ -26201,14 +27453,18 @@ window.ENCHANTS_CONFIG = [
         "text": "악기 연주 랭크 8 이상일 때 보호 1 ~ 3 증가",
         "option_name": "보호",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 3
       },
       {
         "enchant_effect_id": 2981,
         "text": "매직 마스터리 랭크 A 이상일 때 폭발 저항 2 ~ 5 증가",
         "option_name": "폭발 저항",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 5
       },
       {
         "enchant_effect_id": 2982,
@@ -26259,14 +27515,18 @@ window.ENCHANTS_CONFIG = [
         "text": "목공 랭크 8 이상일 때 체력 7 ~ 15 증가",
         "option_name": "체력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 7,
+        "max": 15
       },
       {
         "enchant_effect_id": 2988,
         "text": "목공 랭크 4 이상일 때 체력 7 ~ 15 증가",
         "option_name": "체력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 7,
+        "max": 15
       },
       {
         "enchant_effect_id": 2989,
@@ -26317,7 +27577,9 @@ window.ENCHANTS_CONFIG = [
         "text": "조련 랭크 7 이상일 때 최대대미지 3 ~ 6 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 3,
+        "max": 6
       },
       {
         "enchant_effect_id": 2995,
@@ -26354,14 +27616,18 @@ window.ENCHANTS_CONFIG = [
         "text": "악기 연주 랭크 A 이상일 때 최대스태미나 25 ~ 30 증가",
         "option_name": "최대스태미나",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 25,
+        "max": 30
       },
       {
         "enchant_effect_id": 2999,
         "text": "음악적 지식 랭크 A 이상일 때 최대마나 25 ~ 30 증가",
         "option_name": "최대마나",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 25,
+        "max": 30
       },
       {
         "enchant_effect_id": 3000,
@@ -26406,14 +27672,18 @@ window.ENCHANTS_CONFIG = [
         "text": "악기 연주 랭크 A 이상일 때 최대스태미나 25 ~ 30 증가",
         "option_name": "최대스태미나",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 25,
+        "max": 30
       },
       {
         "enchant_effect_id": 3005,
         "text": "음악적 지식 랭크 A 이상일 때 최대마나 25 ~ 30 증가",
         "option_name": "최대마나",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 25,
+        "max": 30
       },
       {
         "enchant_effect_id": 3006,
@@ -26474,14 +27744,18 @@ window.ENCHANTS_CONFIG = [
         "text": "최대 부상률 5 ~ 9 증가",
         "option_name": "최대 부상률",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 9
       },
       {
         "enchant_effect_id": 3012,
         "text": "레벨이 40 이상일때 크리티컬 2 ~ 5 증가",
         "option_name": "크리티컬",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 5
       },
       {
         "enchant_effect_id": 3013,
@@ -26533,14 +27807,18 @@ window.ENCHANTS_CONFIG = [
         "text": "최대 부상률 5 ~ 9 증가",
         "option_name": "최대 부상률",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 9
       },
       {
         "enchant_effect_id": 3019,
         "text": "레벨이 40 이상일때 크리티컬 2 ~ 5 증가",
         "option_name": "크리티컬",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 5
       },
       {
         "enchant_effect_id": 3020,
@@ -26629,7 +27907,9 @@ window.ENCHANTS_CONFIG = [
         "text": "의지 1 ~ 3 감소",
         "option_name": "의지",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 3
       }
     ]
   },
@@ -27107,14 +28387,18 @@ window.ENCHANTS_CONFIG = [
         "text": "레인지 컴뱃 마스터리 랭크 B 이상일 때 최대대미지 4 ~ 8 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 4,
+        "max": 8
       },
       {
         "enchant_effect_id": 3075,
         "text": "레인지 컴뱃 마스터리 랭크 8 이상일 때 최대대미지 4 ~ 8 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 4,
+        "max": 8
       },
       {
         "enchant_effect_id": 3076,
@@ -27159,14 +28443,18 @@ window.ENCHANTS_CONFIG = [
         "text": "레인지 컴뱃 마스터리 랭크 B 이상일 때 최대대미지 4 ~ 8 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 4,
+        "max": 8
       },
       {
         "enchant_effect_id": 3081,
         "text": "레인지 컴뱃 마스터리 랭크 8 이상일 때 최대대미지 4 ~ 8 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 4,
+        "max": 8
       },
       {
         "enchant_effect_id": 3082,
@@ -27388,7 +28676,9 @@ window.ENCHANTS_CONFIG = [
         "text": "돌진 랭크 8 이상일 때 최대대미지 1 ~ 4 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 4
       },
       {
         "enchant_effect_id": 3104,
@@ -27433,7 +28723,9 @@ window.ENCHANTS_CONFIG = [
         "text": "돌진 랭크 8 이상일 때 최대대미지 1 ~ 4 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 4
       },
       {
         "enchant_effect_id": 3109,
@@ -27485,14 +28777,18 @@ window.ENCHANTS_CONFIG = [
         "text": "파티 힐링 랭크 B 이상일 때 최대마나 15 ~ 20 증가",
         "option_name": "최대마나",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 15,
+        "max": 20
       },
       {
         "enchant_effect_id": 3115,
         "text": "파티 힐링 랭크 8 이상일 때 최대마나 15 ~ 20 증가",
         "option_name": "최대마나",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 15,
+        "max": 20
       },
       {
         "enchant_effect_id": 3116,
@@ -27544,14 +28840,18 @@ window.ENCHANTS_CONFIG = [
         "text": "파티 힐링 랭크 B 이상일 때 최대마나 15 ~ 20 증가",
         "option_name": "최대마나",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 15,
+        "max": 20
       },
       {
         "enchant_effect_id": 3122,
         "text": "파티 힐링 랭크 8 이상일 때 최대마나 15 ~ 20 증가",
         "option_name": "최대마나",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 15,
+        "max": 20
       },
       {
         "enchant_effect_id": 3123,
@@ -27881,14 +29181,18 @@ window.ENCHANTS_CONFIG = [
         "text": "소울 오브 카오스 랭크 A 이상일 때 체력 15 ~ 25 증가",
         "option_name": "체력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 15,
+        "max": 25
       },
       {
         "enchant_effect_id": 3156,
         "text": "데몬 오브 피시스 랭크 A 이상일 때 체력 15 ~ 25 증가",
         "option_name": "체력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 15,
+        "max": 25
       },
       {
         "enchant_effect_id": 3157,
@@ -27940,14 +29244,18 @@ window.ENCHANTS_CONFIG = [
         "text": "소울 오브 카오스 랭크 A 이상일 때 체력 15 ~ 25 증가",
         "option_name": "체력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 15,
+        "max": 25
       },
       {
         "enchant_effect_id": 3163,
         "text": "데몬 오브 피시스 랭크 A 이상일 때 체력 15 ~ 25 증가",
         "option_name": "체력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 15,
+        "max": 25
       },
       {
         "enchant_effect_id": 3164,
@@ -28202,7 +29510,9 @@ window.ENCHANTS_CONFIG = [
         "text": "레벨이 8 이상일때 의지 1 ~ 2 증가",
         "option_name": "의지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 2
       }
     ]
   },
@@ -29032,7 +30342,9 @@ window.ENCHANTS_CONFIG = [
         "text": "대미지밸런스 24 ~ 30 감소",
         "option_name": "대미지밸런스",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 24,
+        "max": 30
       }
     ],
     "synonym": "페이퍼"
@@ -29049,7 +30361,9 @@ window.ENCHANTS_CONFIG = [
         "text": "대미지밸런스 24 ~ 30 감소",
         "option_name": "대미지밸런스",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 24,
+        "max": 30
       }
     ],
     "synonym": "종이공작으로 만든"
@@ -29066,7 +30380,9 @@ window.ENCHANTS_CONFIG = [
         "text": "레벨이 3 이상일때 밸런스 1 ~ 3 증가",
         "option_name": "밸런스",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 3
       }
     ],
     "synonym": "굿"
@@ -29083,7 +30399,9 @@ window.ENCHANTS_CONFIG = [
         "text": "레벨이 3 이상일때 밸런스 1 ~ 3 증가",
         "option_name": "밸런스",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 3
       }
     ],
     "synonym": "좋은"
@@ -29100,7 +30418,9 @@ window.ENCHANTS_CONFIG = [
         "text": "레벨이 42 이하일때 솜씨 1 ~ 4 증가",
         "option_name": "솜씨",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 4
       },
       {
         "enchant_effect_id": 3283,
@@ -29114,7 +30434,9 @@ window.ENCHANTS_CONFIG = [
         "text": "레인지 컴뱃 마스터리 랭크 4 이상일 때 독면역 1 ~ 3 증가",
         "option_name": "독면역",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 3
       }
     ]
   },
@@ -29211,7 +30533,9 @@ window.ENCHANTS_CONFIG = [
         "text": "글래디에이터 타이틀을 달고 있을때 최대대미지 3 ~ 7 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 3,
+        "max": 7
       }
     ]
   },
@@ -29630,7 +30954,9 @@ window.ENCHANTS_CONFIG = [
         "text": "레벨이 44 이상일때 솜씨 6 ~ 12 증가",
         "option_name": "솜씨",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 6,
+        "max": 12
       }
     ],
     "synonym": "궁수"
@@ -29802,7 +31128,9 @@ window.ENCHANTS_CONFIG = [
         "text": "체력 9 ~ 12 감소",
         "option_name": "체력",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 9,
+        "max": 12
       }
     ],
     "synonym": "루저"
@@ -29819,7 +31147,9 @@ window.ENCHANTS_CONFIG = [
         "text": "체력 9 ~ 12 감소",
         "option_name": "체력",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 9,
+        "max": 12
       }
     ],
     "synonym": "패배자의"
@@ -29947,7 +31277,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최대생명력 3 ~ 4 감소",
         "option_name": "최대생명력",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 3,
+        "max": 4
       }
     ]
   },
@@ -29970,7 +31302,9 @@ window.ENCHANTS_CONFIG = [
         "text": "레벨이 28 이상일때 최대마나 12 ~ 16 증가",
         "option_name": "최대마나",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 12,
+        "max": 16
       }
     ]
   },
@@ -29993,7 +31327,9 @@ window.ENCHANTS_CONFIG = [
         "text": "레벨이 38 이상일때 최대스태미나 12 ~ 16 증가",
         "option_name": "최대스태미나",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 12,
+        "max": 16
       }
     ]
   },
@@ -30203,7 +31539,9 @@ window.ENCHANTS_CONFIG = [
         "text": "레벨이 28 이상일때 의지 5 ~ 10 증가",
         "option_name": "의지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 10
       }
     ]
   },
@@ -30309,7 +31647,9 @@ window.ENCHANTS_CONFIG = [
         "text": "체력 3 ~ 6 감소",
         "option_name": "체력",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 3,
+        "max": 6
       }
     ]
   },
@@ -30602,7 +31942,9 @@ window.ENCHANTS_CONFIG = [
         "text": "지력 1 ~ 3 감소",
         "option_name": "지력",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 3
       }
     ]
   },
@@ -30662,7 +32004,9 @@ window.ENCHANTS_CONFIG = [
         "text": "레벨이 24 이상일때 최대 부상률 5 ~ 10 증가",
         "option_name": "최대 부상률",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 10
       }
     ]
   },
@@ -30685,7 +32029,9 @@ window.ENCHANTS_CONFIG = [
         "text": "레벨이 29 이상일때 최대생명력 12 ~ 16 증가",
         "option_name": "최대생명력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 12,
+        "max": 16
       }
     ]
   },
@@ -30782,7 +32128,9 @@ window.ENCHANTS_CONFIG = [
         "text": "레벨이 31 이상일때 지력 5 ~ 10 증가",
         "option_name": "지력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 10
       }
     ],
     "synonym": "날리지"
@@ -30806,7 +32154,9 @@ window.ENCHANTS_CONFIG = [
         "text": "레벨이 31 이상일때 지력 5 ~ 10 증가",
         "option_name": "지력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 10
       }
     ],
     "synonym": "지식의"
@@ -30920,7 +32270,9 @@ window.ENCHANTS_CONFIG = [
         "text": "솜씨 9 ~ 12 감소",
         "option_name": "솜씨",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 9,
+        "max": 12
       }
     ],
     "synonym": "스네일"
@@ -30937,7 +32289,9 @@ window.ENCHANTS_CONFIG = [
         "text": "솜씨 9 ~ 12 감소",
         "option_name": "솜씨",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 9,
+        "max": 12
       }
     ],
     "synonym": "달팽이의"
@@ -31049,7 +32403,9 @@ window.ENCHANTS_CONFIG = [
         "text": "자이언트이거나 자이언트를 지지중일때 체력 2 ~ 8 증가",
         "option_name": "체력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 8
       },
       {
         "enchant_effect_id": 3480,
@@ -31063,7 +32419,9 @@ window.ENCHANTS_CONFIG = [
         "text": "스매시 랭크 5 이상일 때 폭발 저항 1 ~ 3 증가",
         "option_name": "폭발 저항",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 3
       }
     ]
   },
@@ -31231,7 +32589,9 @@ window.ENCHANTS_CONFIG = [
         "text": "체력 1 ~ 3 감소",
         "option_name": "체력",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 3
       }
     ],
     "synonym": "파머"
@@ -31248,7 +32608,9 @@ window.ENCHANTS_CONFIG = [
         "text": "체력 1 ~ 3 감소",
         "option_name": "체력",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 3
       }
     ],
     "synonym": "농부의"
@@ -31265,7 +32627,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최대마나 3 ~ 4 감소",
         "option_name": "최대마나",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 3,
+        "max": 4
       }
     ],
     "synonym": "티어드랍"
@@ -31282,7 +32646,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최대마나 3 ~ 4 감소",
         "option_name": "최대마나",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 3,
+        "max": 4
       }
     ],
     "synonym": "눈물의"
@@ -31343,14 +32709,18 @@ window.ENCHANTS_CONFIG = [
         "text": "독면역 1 ~ 4 증가",
         "option_name": "독면역",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 4
       },
       {
         "enchant_effect_id": 3508,
         "text": "레벨이 20 이상일때 솜씨 1 ~ 6 증가",
         "option_name": "솜씨",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 6
       },
       {
         "enchant_effect_id": 3509,
@@ -31498,7 +32868,9 @@ window.ENCHANTS_CONFIG = [
         "text": "매그넘 샷 랭크 8 이상일 때 독면역 1 ~ 3 증가",
         "option_name": "독면역",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 3
       },
       {
         "enchant_effect_id": 3525,
@@ -31512,7 +32884,9 @@ window.ENCHANTS_CONFIG = [
         "text": "엘프이거나 엘프를 지지중일때 최대스태미나 6 ~ 9 증가",
         "option_name": "최대스태미나",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 6,
+        "max": 9
       }
     ]
   },
@@ -32559,7 +33933,9 @@ window.ENCHANTS_CONFIG = [
         "text": "엘프이거나 엘프를 지지중일때 지력 2 ~ 5 증가",
         "option_name": "지력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 5
       },
       {
         "enchant_effect_id": 3632,
@@ -32573,7 +33949,9 @@ window.ENCHANTS_CONFIG = [
         "text": "아이스 스피어 랭크 A 이상일 때 마나 소비 감소 1 ~ 3 증가",
         "option_name": "마나 소비 감소",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 3
       }
     ]
   },
@@ -32596,7 +33974,9 @@ window.ENCHANTS_CONFIG = [
         "text": "레벨이 28 이상일때 행운 5 ~ 10 증가",
         "option_name": "행운",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 10
       }
     ],
     "synonym": "조이"
@@ -32620,7 +34000,9 @@ window.ENCHANTS_CONFIG = [
         "text": "레벨이 28 이상일때 행운 5 ~ 10 증가",
         "option_name": "행운",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 10
       }
     ],
     "synonym": "기쁨의"
@@ -32667,7 +34049,9 @@ window.ENCHANTS_CONFIG = [
         "text": "분해 랭크 A 이상일 때 크리티컬 1 ~ 3 증가",
         "option_name": "크리티컬",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 3
       }
     ]
   },
@@ -33259,14 +34643,18 @@ window.ENCHANTS_CONFIG = [
         "text": "최대스태미나 5 ~ 10 증가",
         "option_name": "최대스태미나",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 10
       },
       {
         "enchant_effect_id": 3709,
         "text": "체력 4 ~ 8 증가",
         "option_name": "체력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 4,
+        "max": 8
       },
       {
         "enchant_effect_id": 3710,
@@ -33311,14 +34699,18 @@ window.ENCHANTS_CONFIG = [
         "text": "최대스태미나 5 ~ 10 증가",
         "option_name": "최대스태미나",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 10
       },
       {
         "enchant_effect_id": 3715,
         "text": "체력 4 ~ 8 증가",
         "option_name": "체력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 4,
+        "max": 8
       },
       {
         "enchant_effect_id": 3716,
@@ -33370,7 +34762,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최대생명력 6 ~ 12 증가",
         "option_name": "최대생명력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 6,
+        "max": 12
       },
       {
         "enchant_effect_id": 3722,
@@ -33415,7 +34809,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최대생명력 6 ~ 12 증가",
         "option_name": "최대생명력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 6,
+        "max": 12
       },
       {
         "enchant_effect_id": 3727,
@@ -33633,7 +35029,9 @@ window.ENCHANTS_CONFIG = [
         "text": "레벨이 20 이상일때 최대마나 6 ~ 12 증가",
         "option_name": "최대마나",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 6,
+        "max": 12
       },
       {
         "enchant_effect_id": 3750,
@@ -33647,7 +35045,9 @@ window.ENCHANTS_CONFIG = [
         "text": "파이어볼 랭크 8 이상일 때 마나 소비 감소 1 ~ 3 증가",
         "option_name": "마나 소비 감소",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 3
       }
     ]
   },
@@ -34123,7 +35523,9 @@ window.ENCHANTS_CONFIG = [
         "text": "컴뱃 마스터리 랭크 9 이상일 때 최대대미지 15 ~ 26 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 15,
+        "max": 26
       },
       {
         "enchant_effect_id": 3803,
@@ -34168,7 +35570,9 @@ window.ENCHANTS_CONFIG = [
         "text": "컴뱃 마스터리 랭크 9 이상일 때 최대대미지 15 ~ 26 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 15,
+        "max": 26
       },
       {
         "enchant_effect_id": 3808,
@@ -34356,14 +35760,18 @@ window.ENCHANTS_CONFIG = [
         "text": "라이트닝볼트 랭크 3 이상일 때 마나 소비 감소 1 ~ 2 증가",
         "option_name": "마나 소비 감소",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 2
       },
       {
         "enchant_effect_id": 3827,
         "text": "라이트닝볼트 랭크 7 이상일 때 마나 소비 감소 1 ~ 2 증가",
         "option_name": "마나 소비 감소",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 2
       },
       {
         "enchant_effect_id": 3828,
@@ -34714,14 +36122,18 @@ window.ENCHANTS_CONFIG = [
         "text": "내츄럴 매직 실드 랭크 C 이상일 때 최대마나 8 ~ 12 증가",
         "option_name": "최대마나",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 8,
+        "max": 12
       },
       {
         "enchant_effect_id": 3865,
         "text": "지력 6 ~ 8 증가",
         "option_name": "지력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 6,
+        "max": 8
       },
       {
         "enchant_effect_id": 3866,
@@ -34766,14 +36178,18 @@ window.ENCHANTS_CONFIG = [
         "text": "내츄럴 매직 실드 랭크 C 이상일 때 최대마나 8 ~ 12 증가",
         "option_name": "최대마나",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 8,
+        "max": 12
       },
       {
         "enchant_effect_id": 3871,
         "text": "지력 6 ~ 8 증가",
         "option_name": "지력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 6,
+        "max": 8
       },
       {
         "enchant_effect_id": 3872,
@@ -34892,7 +36308,9 @@ window.ENCHANTS_CONFIG = [
         "text": "레벨이 12 이상일때 최대스태미나 5 ~ 10 증가",
         "option_name": "최대스태미나",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 10
       },
       {
         "enchant_effect_id": 3885,
@@ -34906,7 +36324,9 @@ window.ENCHANTS_CONFIG = [
         "text": "카운터 어택 랭크 8 이상일 때 폭발 저항 1 ~ 3 증가",
         "option_name": "폭발 저항",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 3
       }
     ]
   },
@@ -35181,7 +36601,9 @@ window.ENCHANTS_CONFIG = [
         "text": "레벨이 35 이상일때 체력 5 ~ 10 증가",
         "option_name": "체력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 10
       }
     ]
   },
@@ -35443,7 +36865,9 @@ window.ENCHANTS_CONFIG = [
         "text": "휴식 랭크 7 이상일 때 최대대미지 6 ~ 12 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 6,
+        "max": 12
       }
     ],
     "synonym": "에인션트"
@@ -35474,7 +36898,9 @@ window.ENCHANTS_CONFIG = [
         "text": "휴식 랭크 7 이상일 때 최대대미지 6 ~ 12 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 6,
+        "max": 12
       }
     ],
     "synonym": "고대의"
@@ -35542,14 +36968,18 @@ window.ENCHANTS_CONFIG = [
         "text": "의지 4 ~ 6 증가",
         "option_name": "의지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 4,
+        "max": 6
       },
       {
         "enchant_effect_id": 3955,
         "text": "최대생명력 6 ~ 10 증가",
         "option_name": "최대생명력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 6,
+        "max": 10
       },
       {
         "enchant_effect_id": 3956,
@@ -35594,14 +37024,18 @@ window.ENCHANTS_CONFIG = [
         "text": "의지 4 ~ 6 증가",
         "option_name": "의지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 4,
+        "max": 6
       },
       {
         "enchant_effect_id": 3961,
         "text": "최대생명력 6 ~ 10 증가",
         "option_name": "최대생명력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 6,
+        "max": 10
       },
       {
         "enchant_effect_id": 3962,
@@ -35861,7 +37295,9 @@ window.ENCHANTS_CONFIG = [
         "text": "드래곤의기사 타이틀을 달고 있을때 최대대미지 12 ~ 20 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 12,
+        "max": 20
       },
       {
         "enchant_effect_id": 3991,
@@ -35956,7 +37392,9 @@ window.ENCHANTS_CONFIG = [
         "text": "매그넘 샷 랭크 A 이상일 때 최소대미지 2 ~ 5 증가",
         "option_name": "최소대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 5
       }
     ],
     "synonym": "아처"
@@ -35994,7 +37432,9 @@ window.ENCHANTS_CONFIG = [
         "text": "매그넘 샷 랭크 A 이상일 때 최소대미지 2 ~ 5 증가",
         "option_name": "최소대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 5
       }
     ],
     "synonym": "궁수"
@@ -36108,7 +37548,9 @@ window.ENCHANTS_CONFIG = [
         "text": "연금술 마스터리 랭크 C 이상일 때 최대대미지 1 ~ 3 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 3
       }
     ]
   },
@@ -36168,7 +37610,9 @@ window.ENCHANTS_CONFIG = [
         "text": "체력 1 ~ 10 증가",
         "option_name": "체력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 10
       },
       {
         "enchant_effect_id": 4023,
@@ -36182,7 +37626,9 @@ window.ENCHANTS_CONFIG = [
         "text": "디펜스 랭크 9 이상일 때 폭발 저항 1 ~ 4 증가",
         "option_name": "폭발 저항",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 4
       }
     ]
   },
@@ -36205,7 +37651,9 @@ window.ENCHANTS_CONFIG = [
         "text": "레벨이 40 이상일때 최대대미지 8 ~ 10 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 8,
+        "max": 10
       }
     ]
   },
@@ -36251,7 +37699,9 @@ window.ENCHANTS_CONFIG = [
         "text": "연금술 마스터리 랭크 B 이상일 때 최대대미지 2 ~ 4 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 4
       }
     ]
   },
@@ -36521,7 +37971,9 @@ window.ENCHANTS_CONFIG = [
         "text": "크리티컬 히트 랭크 C 이상일 때 최소대미지 5 ~ 8 감소",
         "option_name": "최소대미지",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 8
       }
     ]
   },
@@ -36581,7 +38033,9 @@ window.ENCHANTS_CONFIG = [
         "text": "레벨이 14 이상일때 솜씨 3 ~ 5 증가",
         "option_name": "솜씨",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 3,
+        "max": 5
       }
     ]
   },
@@ -37066,14 +38520,18 @@ window.ENCHANTS_CONFIG = [
         "text": "스매시 랭크 9 이상일 때 최대대미지 5 ~ 8 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 8
       },
       {
         "enchant_effect_id": 4118,
         "text": "스매시 랭크 9 이상일 때 최소대미지 2 ~ 4 증가",
         "option_name": "최소대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 4
       }
     ]
   },
@@ -37588,7 +39046,9 @@ window.ENCHANTS_CONFIG = [
         "text": "레벨이 7 이상일때 솜씨 2 ~ 3 증가",
         "option_name": "솜씨",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 3
       }
     ],
     "synonym": "윈드"
@@ -37612,7 +39072,9 @@ window.ENCHANTS_CONFIG = [
         "text": "레벨이 7 이상일때 솜씨 2 ~ 3 증가",
         "option_name": "솜씨",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 3
       }
     ],
     "synonym": "바람의"
@@ -37636,7 +39098,9 @@ window.ENCHANTS_CONFIG = [
         "text": "레벨이 7 이상일때 최대생명력 4 ~ 7 증가",
         "option_name": "최대생명력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 4,
+        "max": 7
       }
     ]
   },
@@ -37860,7 +39324,9 @@ window.ENCHANTS_CONFIG = [
         "text": "레벨이 8 이상일때 체력 2 ~ 3 증가",
         "option_name": "체력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 3
       }
     ]
   },
@@ -37913,7 +39379,9 @@ window.ENCHANTS_CONFIG = [
         "text": "레벨이 8 이하일때 최대대미지 3 ~ 5 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 3,
+        "max": 5
       },
       {
         "enchant_effect_id": 4204,
@@ -38107,7 +39575,9 @@ window.ENCHANTS_CONFIG = [
         "text": "레벨이 16 이상일때 최대스태미나 5 ~ 8 증가",
         "option_name": "최대스태미나",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 8
       }
     ]
   },
@@ -38213,7 +39683,9 @@ window.ENCHANTS_CONFIG = [
         "text": "레벨이 7 이상일때 지력 2 ~ 3 증가",
         "option_name": "지력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 3
       }
     ]
   },
@@ -38229,7 +39701,9 @@ window.ENCHANTS_CONFIG = [
         "text": "레벨이 8 이상일때 최대마나 4 ~ 7 증가",
         "option_name": "최대마나",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 4,
+        "max": 7
       }
     ]
   },
@@ -38245,7 +39719,9 @@ window.ENCHANTS_CONFIG = [
         "text": "행운 1 ~ 2 증가",
         "option_name": "행운",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 2
       }
     ]
   },
@@ -38388,7 +39864,9 @@ window.ENCHANTS_CONFIG = [
         "text": "방직 랭크 E 이상일 때 최대대미지 3 ~ 8 감소",
         "option_name": "최대대미지",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 3,
+        "max": 8
       }
     ]
   },
@@ -38411,7 +39889,9 @@ window.ENCHANTS_CONFIG = [
         "text": "레벨이 2 이상일때 솜씨 1 ~ 2 증가",
         "option_name": "솜씨",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 2
       }
     ],
     "synonym": "클라우드"
@@ -38435,7 +39915,9 @@ window.ENCHANTS_CONFIG = [
         "text": "레벨이 2 이상일때 솜씨 1 ~ 2 증가",
         "option_name": "솜씨",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 2
       }
     ],
     "synonym": "구름의"
@@ -38489,7 +39971,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최대생명력 16 ~ 20 감소",
         "option_name": "최대생명력",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 16,
+        "max": 20
       }
     ]
   },
@@ -38581,7 +40065,9 @@ window.ENCHANTS_CONFIG = [
         "text": "레벨이 2 이상일때 체력 1 ~ 2 증가",
         "option_name": "체력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 2
       }
     ]
   },
@@ -38701,7 +40187,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최대스태미나 10 ~ 15 감소",
         "option_name": "최대스태미나",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 15
       }
     ],
     "synonym": "타이어드 맨"
@@ -38718,7 +40206,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최대스태미나 10 ~ 15 감소",
         "option_name": "최대스태미나",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 15
       }
     ],
     "synonym": "피로한 자의"
@@ -38735,7 +40225,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최대생명력 2 ~ 3 증가",
         "option_name": "최대생명력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 3
       }
     ]
   },
@@ -38751,7 +40243,9 @@ window.ENCHANTS_CONFIG = [
         "text": "체력 6 ~ 9 감소",
         "option_name": "체력",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 6,
+        "max": 9
       }
     ],
     "synonym": "카우어드"
@@ -38768,7 +40262,9 @@ window.ENCHANTS_CONFIG = [
         "text": "체력 6 ~ 9 감소",
         "option_name": "체력",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 6,
+        "max": 9
       }
     ],
     "synonym": "겁쟁이의"
@@ -38861,7 +40357,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최대생명력 10 ~ 15 감소",
         "option_name": "최대생명력",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 15
       }
     ],
     "synonym": "페이션트"
@@ -38878,7 +40376,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최대생명력 10 ~ 15 감소",
         "option_name": "최대생명력",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 15
       }
     ],
     "synonym": "병든자의"
@@ -38955,7 +40455,9 @@ window.ENCHANTS_CONFIG = [
         "text": "레벨이 2 이상일때 지력 1 ~ 2 증가",
         "option_name": "지력",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 2
       }
     ]
   },
@@ -39001,7 +40503,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최대마나 2 ~ 3 증가",
         "option_name": "최대마나",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 3
       }
     ]
   },
@@ -39017,7 +40521,9 @@ window.ENCHANTS_CONFIG = [
         "text": "의지 6 ~ 9 감소",
         "option_name": "의지",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 6,
+        "max": 9
       }
     ],
     "synonym": "글룸"
@@ -39034,7 +40540,9 @@ window.ENCHANTS_CONFIG = [
         "text": "의지 6 ~ 9 감소",
         "option_name": "의지",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 6,
+        "max": 9
       }
     ],
     "synonym": "음침함의"
@@ -39051,7 +40559,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최대스태미나 3 ~ 4 증가",
         "option_name": "최대스태미나",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 3,
+        "max": 4
       }
     ],
     "synonym": "페이션스"
@@ -39068,7 +40578,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최대스태미나 3 ~ 4 증가",
         "option_name": "최대스태미나",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 3,
+        "max": 4
       }
     ],
     "synonym": "인내의"
@@ -39115,7 +40627,9 @@ window.ENCHANTS_CONFIG = [
         "text": "방어 6 ~ 8 감소",
         "option_name": "방어",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 6,
+        "max": 8
       }
     ]
   },
@@ -39131,7 +40645,9 @@ window.ENCHANTS_CONFIG = [
         "text": "솜씨 6 ~ 9 감소",
         "option_name": "솜씨",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 6,
+        "max": 9
       }
     ],
     "synonym": "스캐어크로우"
@@ -39148,7 +40664,9 @@ window.ENCHANTS_CONFIG = [
         "text": "솜씨 6 ~ 9 감소",
         "option_name": "솜씨",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 6,
+        "max": 9
       }
     ],
     "synonym": "허수아비의"
@@ -39255,7 +40773,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최대스태미나 3 ~ 4 감소",
         "option_name": "최대스태미나",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 3,
+        "max": 4
       }
     ],
     "synonym": "스웜프"
@@ -39272,7 +40792,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최대스태미나 3 ~ 4 감소",
         "option_name": "최대스태미나",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 3,
+        "max": 4
       }
     ],
     "synonym": "늪의"
@@ -39289,7 +40811,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최대마나 5 ~ 9 감소",
         "option_name": "최대마나",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 9
       }
     ]
   },
@@ -39312,7 +40836,9 @@ window.ENCHANTS_CONFIG = [
         "text": "레벨이 5 이상일때 행운 2 ~ 3 증가",
         "option_name": "행운",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 3
       }
     ],
     "synonym": "리치"
@@ -39336,7 +40862,9 @@ window.ENCHANTS_CONFIG = [
         "text": "레벨이 5 이상일때 행운 2 ~ 3 증가",
         "option_name": "행운",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 3
       }
     ],
     "synonym": "부자의"
@@ -39450,7 +40978,9 @@ window.ENCHANTS_CONFIG = [
         "text": "보호 2 ~ 4 감소",
         "option_name": "보호",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 4
       }
     ]
   },
@@ -39466,7 +40996,9 @@ window.ENCHANTS_CONFIG = [
         "text": "방어 4 ~ 6 감소",
         "option_name": "방어",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 4,
+        "max": 6
       }
     ]
   },
@@ -39528,7 +41060,9 @@ window.ENCHANTS_CONFIG = [
         "text": "솜씨 1 ~ 3 감소",
         "option_name": "솜씨",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 3
       }
     ],
     "synonym": "슬러그"
@@ -39545,7 +41079,9 @@ window.ENCHANTS_CONFIG = [
         "text": "솜씨 1 ~ 3 감소",
         "option_name": "솜씨",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 3
       }
     ],
     "synonym": "느림보의"
@@ -39562,7 +41098,9 @@ window.ENCHANTS_CONFIG = [
         "text": "방어 2 ~ 4 감소",
         "option_name": "방어",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 4
       }
     ]
   },
@@ -39608,7 +41146,9 @@ window.ENCHANTS_CONFIG = [
         "text": "보호 1 ~ 2 감소",
         "option_name": "보호",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 2
       }
     ]
   },
@@ -40995,7 +42535,9 @@ window.ENCHANTS_CONFIG = [
         "text": "레벨이 15 이상일때 밸런스 3 ~ 5 증가",
         "option_name": "밸런스",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 3,
+        "max": 5
       }
     ],
     "synonym": "스터디"
@@ -41019,7 +42561,9 @@ window.ENCHANTS_CONFIG = [
         "text": "레벨이 15 이상일때 밸런스 3 ~ 5 증가",
         "option_name": "밸런스",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 3,
+        "max": 5
       }
     ],
     "synonym": "튼튼한"
@@ -41036,14 +42580,18 @@ window.ENCHANTS_CONFIG = [
         "text": "최대대미지 1 ~ 10 감소",
         "option_name": "최대대미지",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 10
       },
       {
         "enchant_effect_id": 4506,
         "text": "최소대미지 1 ~ 6 감소",
         "option_name": "최소대미지",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 6
       }
     ]
   },
@@ -41343,14 +42891,18 @@ window.ENCHANTS_CONFIG = [
         "text": "최소 부상률 1 ~ 6 감소",
         "option_name": "최소 부상률",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 6
       },
       {
         "enchant_effect_id": 4537,
         "text": "최대 부상률 1 ~ 20 감소",
         "option_name": "최대 부상률",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 20
       }
     ]
   },
@@ -41366,7 +42918,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최소 부상률 5 ~ 6 감소",
         "option_name": "최소 부상률",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 6
       }
     ]
   },
@@ -41382,7 +42936,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최대 부상률 14 ~ 18 감소",
         "option_name": "최대 부상률",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 14,
+        "max": 18
       }
     ]
   },
@@ -41414,7 +42970,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최소대미지 5 ~ 6 감소",
         "option_name": "최소대미지",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 6
       }
     ]
   },
@@ -41430,7 +42988,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최대대미지 10 ~ 12 감소",
         "option_name": "최대대미지",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 10,
+        "max": 12
       }
     ]
   },
@@ -41709,7 +43269,9 @@ window.ENCHANTS_CONFIG = [
         "text": "레벨이 10 이상일때 최대대미지 4 ~ 6 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 4,
+        "max": 6
       }
     ]
   },
@@ -41755,7 +43317,9 @@ window.ENCHANTS_CONFIG = [
         "text": "대미지밸런스 19 ~ 24 감소",
         "option_name": "대미지밸런스",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 19,
+        "max": 24
       }
     ],
     "synonym": "토이"
@@ -41772,7 +43336,9 @@ window.ENCHANTS_CONFIG = [
         "text": "대미지밸런스 19 ~ 24 감소",
         "option_name": "대미지밸런스",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 19,
+        "max": 24
       }
     ],
     "synonym": "장난감"
@@ -41789,14 +43355,18 @@ window.ENCHANTS_CONFIG = [
         "text": "최대 부상률 1 ~ 15 감소",
         "option_name": "최대 부상률",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 15
       },
       {
         "enchant_effect_id": 4578,
         "text": "최소 부상률 1 ~ 4 감소",
         "option_name": "최소 부상률",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 4
       }
     ]
   },
@@ -41812,7 +43382,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최소 부상률 4 ~ 5 감소",
         "option_name": "최소 부상률",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 4,
+        "max": 5
       }
     ]
   },
@@ -41828,7 +43400,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최대 부상률 9 ~ 14 감소",
         "option_name": "최대 부상률",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 9,
+        "max": 14
       }
     ]
   },
@@ -41994,7 +43568,9 @@ window.ENCHANTS_CONFIG = [
         "text": "대미지밸런스 8 ~ 13 감소",
         "option_name": "대미지밸런스",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 8,
+        "max": 13
       }
     ],
     "synonym": "이미테이션"
@@ -42011,7 +43587,9 @@ window.ENCHANTS_CONFIG = [
         "text": "대미지밸런스 8 ~ 13 감소",
         "option_name": "대미지밸런스",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 8,
+        "max": 13
       }
     ],
     "synonym": "가짜"
@@ -42129,7 +43707,9 @@ window.ENCHANTS_CONFIG = [
         "text": "레벨이 4 이상일때 최대대미지 1 ~ 2 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 2
       }
     ]
   },
@@ -42302,14 +43882,18 @@ window.ENCHANTS_CONFIG = [
         "text": "최대대미지 1 ~ 6 감소",
         "option_name": "최대대미지",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 6
       },
       {
         "enchant_effect_id": 4626,
         "text": "최소대미지 1 ~ 3 감소",
         "option_name": "최소대미지",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 3
       }
     ]
   },
@@ -42325,7 +43909,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최소대미지 3 ~ 4 감소",
         "option_name": "최소대미지",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 3,
+        "max": 4
       }
     ]
   },
@@ -42341,7 +43927,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최대대미지 6 ~ 8 감소",
         "option_name": "최대대미지",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 6,
+        "max": 8
       }
     ]
   },
@@ -42431,7 +44019,9 @@ window.ENCHANTS_CONFIG = [
         "text": "대미지밸런스 2 ~ 8 감소",
         "option_name": "대미지밸런스",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 8
       }
     ],
     "synonym": "칩"
@@ -42448,7 +44038,9 @@ window.ENCHANTS_CONFIG = [
         "text": "대미지밸런스 2 ~ 8 감소",
         "option_name": "대미지밸런스",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 8
       }
     ],
     "synonym": "값싼"
@@ -42639,14 +44231,18 @@ window.ENCHANTS_CONFIG = [
         "text": "최대대미지 1 ~ 4 감소",
         "option_name": "최대대미지",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 4
       },
       {
         "enchant_effect_id": 4655,
         "text": "최소대미지 1 ~ 2 감소",
         "option_name": "최소대미지",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 2
       }
     ]
   },
@@ -42662,7 +44258,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최대대미지 4 ~ 6 감소",
         "option_name": "최대대미지",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 4,
+        "max": 6
       }
     ]
   },
@@ -42879,7 +44477,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최소 부상률 2 ~ 3 감소",
         "option_name": "최소 부상률",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 3
       }
     ]
   },
@@ -42895,7 +44495,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최대 부상률 4 ~ 6 감소",
         "option_name": "최대 부상률",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 4,
+        "max": 6
       }
     ]
   },
@@ -42948,7 +44550,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최대 부상률 1 ~ 2 감소",
         "option_name": "최대 부상률",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 2
       },
       {
         "enchant_effect_id": 4685,
@@ -43058,7 +44662,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최소대미지 2 ~ 3 감소",
         "option_name": "최소대미지",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 3
       }
     ]
   },
@@ -43182,7 +44788,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최대대미지 1 ~ 2 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 2
       }
     ]
   },
@@ -43205,7 +44813,9 @@ window.ENCHANTS_CONFIG = [
         "text": "레벨이 5 이상일때 최대 부상률 1 ~ 2 증가",
         "option_name": "최대 부상률",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 2
       }
     ]
   },
@@ -43221,7 +44831,9 @@ window.ENCHANTS_CONFIG = [
         "text": "레벨이 6 이상일때 최대 부상률 2 ~ 4 증가",
         "option_name": "최대 부상률",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 4
       }
     ]
   },
@@ -43439,7 +45051,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최소 부상률 2 ~ 4 감소",
         "option_name": "최소 부상률",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 4
       }
     ]
   },
@@ -43455,7 +45069,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최소 부상률 1 ~ 2 감소",
         "option_name": "최소 부상률",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 2
       }
     ]
   },
@@ -43471,7 +45087,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최소대미지 1 ~ 2 감소",
         "option_name": "최소대미지",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 2
       }
     ]
   },
@@ -43487,7 +45105,9 @@ window.ENCHANTS_CONFIG = [
         "text": "최대대미지 2 ~ 4 감소",
         "option_name": "최대대미지",
         "suffix": " 감소",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 4
       }
     ]
   },
@@ -44023,14 +45643,18 @@ window.ENCHANTS_CONFIG = [
         "text": "방직 랭크 B 이상일 때 솜씨 2 ~ 4 증가",
         "option_name": "솜씨",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 4
       },
       {
         "enchant_effect_id": 4788,
         "text": "블랙스미스 랭크 B 이상일 때 최대스태미나 2 ~ 4 증가",
         "option_name": "최대스태미나",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 4
       },
       {
         "enchant_effect_id": 4789,
@@ -44054,14 +45678,18 @@ window.ENCHANTS_CONFIG = [
         "text": "방직 랭크 B 이상일 때 솜씨 2 ~ 4 증가",
         "option_name": "솜씨",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 4
       },
       {
         "enchant_effect_id": 4791,
         "text": "블랙스미스 랭크 B 이상일 때 최대스태미나 2 ~ 4 증가",
         "option_name": "최대스태미나",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 4
       },
       {
         "enchant_effect_id": 4792,
@@ -45148,7 +46776,9 @@ window.ENCHANTS_CONFIG = [
         "text": "레벨이 70 이상일때 밸런스 7 ~ 9 증가",
         "option_name": "밸런스",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 7,
+        "max": 9
       }
     ],
     "synonym": "그레이트"
@@ -45172,7 +46802,9 @@ window.ENCHANTS_CONFIG = [
         "text": "레벨이 70 이상일때 밸런스 7 ~ 9 증가",
         "option_name": "밸런스",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 7,
+        "max": 9
       }
     ],
     "synonym": "위대한"
@@ -45295,7 +46927,9 @@ window.ENCHANTS_CONFIG = [
         "text": "레벨이 101 이상일때 밸런스 9 ~ 11 증가",
         "option_name": "밸런스",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 9,
+        "max": 11
       }
     ],
     "synonym": "퍼펙트"
@@ -45319,7 +46953,9 @@ window.ENCHANTS_CONFIG = [
         "text": "레벨이 101 이상일때 밸런스 9 ~ 11 증가",
         "option_name": "밸런스",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 9,
+        "max": 11
       }
     ],
     "synonym": "완벽한"
@@ -45421,14 +47057,18 @@ window.ENCHANTS_CONFIG = [
         "text": "레벨이 14 이상일때 최대대미지 1 ~ 4 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 4
       },
       {
         "enchant_effect_id": 4935,
         "text": "레벨이 14 이상일때 최소대미지 1 ~ 2 증가",
         "option_name": "최소대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 1,
+        "max": 2
       }
     ]
   },
@@ -45465,7 +47105,9 @@ window.ENCHANTS_CONFIG = [
         "text": "레벨이 30 이상일때 최대대미지 5 ~ 15 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 15
       }
     ],
     "synonym": "다크니스"
@@ -45503,7 +47145,9 @@ window.ENCHANTS_CONFIG = [
         "text": "레벨이 30 이상일때 최대대미지 5 ~ 15 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 5,
+        "max": 15
       }
     ],
     "synonym": "암흑"
@@ -45520,7 +47164,9 @@ window.ENCHANTS_CONFIG = [
         "text": "레벨이 3 이상일때 최대대미지 2 ~ 4 증가",
         "option_name": "최대대미지",
         "suffix": " 증가",
-        "ranged": true
+        "ranged": true,
+        "min": 2,
+        "max": 4
       }
     ]
   }

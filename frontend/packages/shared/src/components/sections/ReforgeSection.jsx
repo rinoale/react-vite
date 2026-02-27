@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Pencil } from 'lucide-react';
+import { Pencil, Plus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import ConfigSearchInput from '../ConfigSearchInput';
 import { LINE_BULLET } from '../../lib/constants';
@@ -94,6 +94,54 @@ const ReforgeOption = ({ opt, optIdx, lineIdx, onLineChange }) => {
   );
 };
 
+const AddReforgeOption = ({ onLineChange, existingCount }) => {
+  const { t } = useTranslation();
+  const [searching, setSearching] = useState(false);
+  const reforgeItems = useMemo(() => window.REFORGES_CONFIG || [], []);
+
+  if (searching) {
+    return (
+      <div className="p-3">
+        <ConfigSearchInput
+          items={reforgeItems}
+          getLabel={(item) => typeof item === 'string' ? item : item.option_name}
+          onSelect={(item) => {
+            const name = typeof item === 'string' ? item : item.option_name;
+            const reforgeOptionId = typeof item === 'string' ? null : item.id;
+            const maxLevel = typeof item === 'string' ? null : (item.max_level || 20);
+            const newOpt = {
+              name,
+              option_name: name,
+              reforge_option_id: reforgeOptionId,
+              level: null,
+              max_level: maxLevel,
+              effect: null,
+              global_index: null,
+            };
+            onLineChange(-1, '', (sec) => {
+              sec.options = [...(sec.options || []), newOpt];
+            });
+            setSearching(false);
+          }}
+          onCancel={() => setSearching(false)}
+          placeholder={t('sections.reforge.searchReforgeOption')}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => setSearching(true)}
+      className="w-full border-2 border-dashed border-gray-700 hover:border-cyan-500 rounded-lg p-3 text-sm text-gray-500 hover:text-cyan-300 transition-colors flex items-center justify-center gap-2"
+    >
+      <Plus className="w-4 h-4" />
+      {t('sections.reforge.addOption')}
+    </button>
+  );
+};
+
 const ReforgeSection = ({ options, lines, onLineChange }) => {
   if (options?.length > 0) {
     return (
@@ -113,23 +161,28 @@ const ReforgeSection = ({ options, lines, onLineChange }) => {
             />
           );
         })}
+        <AddReforgeOption onLineChange={onLineChange} existingCount={options.length} />
       </div>
     );
   }
 
-  return (
-    <div className="space-y-1">
-      {lines?.map((line, idx) => (
-        <input
-          key={idx}
-          type="text"
-          value={line.text}
-          onChange={(e) => onLineChange(idx, e.target.value)}
-          className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-sm text-gray-300 focus:ring-1 focus:ring-orange-500 outline-none"
-        />
-      ))}
-    </div>
-  );
+  if (lines?.length > 0) {
+    return (
+      <div className="space-y-1">
+        {lines.map((line, idx) => (
+          <input
+            key={idx}
+            type="text"
+            value={line.text}
+            onChange={(e) => onLineChange(idx, e.target.value)}
+            className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-sm text-gray-300 focus:ring-1 focus:ring-orange-500 outline-none"
+          />
+        ))}
+      </div>
+    );
+  }
+
+  return <AddReforgeOption onLineChange={onLineChange} existingCount={0} />;
 };
 
 export default ReforgeSection;

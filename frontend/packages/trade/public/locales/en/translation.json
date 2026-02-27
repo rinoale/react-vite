@@ -28,6 +28,10 @@
     "itemNamePlaceholder": "e.g. My Dragon Blade +5",
     "detectedCategories": "Detected Categories",
     "itemClassification": "Item Classification",
+    "addSection": "Add Section",
+    "addSectionPlaceholder": "Select a section to add...",
+    "removeSection": "Remove section",
+    "noSectionsYet": "No sections yet. Upload a tooltip or add sections manually.",
     "emptyTitle": "Upload and scan an item tooltip to populate details",
     "emptySubtitle": "Structured parsing will automatically organize the data.",
     "registerItem": "Register Item",
@@ -78,15 +82,19 @@
       "correctEffect": "Correct effect",
       "searchEffect": "Search effect...",
       "searchEnchant": "Search enchant...",
+      "addPrefix": "Add Prefix Enchant",
+      "addSuffix": "Add Suffix Enchant",
       "clickToEditValue": "Click to edit value",
       "rolledValue": "Rolled: {{value}}",
       "valueRange": "Range: {{min}} ~ {{max}}",
       "dbEffect": "DB: {{effect}}",
-      "source": "Source: {{source}}"
+      "source": "Source: {{source}}",
+      "outOfRange": "Out of range ({{min}}~{{max}})"
     },
     "reforge": {
       "correct": "Correct",
       "clickToEditLevel": "Click to edit level",
+      "addOption": "Add Reforge Option",
       "searchReforgeOption": "Search reforge option...",
       "levelDisplay": "Lv. {{level}} / {{maxLevel}}"
     },

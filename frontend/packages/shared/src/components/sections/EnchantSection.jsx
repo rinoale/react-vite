@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Pencil } from 'lucide-react';
+import { Pencil, Plus, AlertTriangle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import ConfigSearchInput from '../ConfigSearchInput';
 import { LINE_BULLET } from '../../lib/constants';
@@ -65,6 +65,15 @@ const EffectRow = ({ eff, lineIdx, onLineChange, configEffects }) => {
       .sort((a, b) => b.option_name.length - a.option_name.length)[0] || null;
   })();
   const isRanged = matchingConfig?.ranged ?? false;
+  const rangeMin = matchingConfig?.min ?? null;
+  const rangeMax = matchingConfig?.max ?? null;
+  const hasRange = rangeMin != null && rangeMax != null;
+
+  const isOutOfRange = hasRange && eff.option_level != null &&
+    (eff.option_level < rangeMin || eff.option_level > rangeMax);
+
+  const draftNum = levelDraft !== '' ? (levelDraft.includes('.') ? parseFloat(levelDraft) : parseInt(levelDraft, 10)) : NaN;
+  const isDraftOutOfRange = hasRange && !isNaN(draftNum) && (draftNum < rangeMin || draftNum > rangeMax);
 
   const commitLevel = (value) => {
     setEditingLevel(false);
@@ -111,25 +120,33 @@ const EffectRow = ({ eff, lineIdx, onLineChange, configEffects }) => {
         <>
           <span>{eff.option_name} </span>
           {isRanged && editingLevel ? (
-            <input
-              type="text"
-              autoFocus
-              value={levelDraft}
-              onChange={(e) => setLevelDraft(e.target.value)}
-              onBlur={() => commitLevel(levelDraft)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') commitLevel(levelDraft);
-                if (e.key === 'Escape') setEditingLevel(false);
-              }}
-              className="w-12 text-orange-400 font-bold bg-gray-900 border border-orange-500 rounded px-1 text-xs text-center outline-none"
-            />
+            <span className="inline-flex items-center gap-1">
+              <input
+                type="text"
+                autoFocus
+                value={levelDraft}
+                onChange={(e) => setLevelDraft(e.target.value)}
+                onBlur={() => commitLevel(levelDraft)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') commitLevel(levelDraft);
+                  if (e.key === 'Escape') setEditingLevel(false);
+                }}
+                className={`w-12 text-orange-400 font-bold bg-gray-900 border rounded px-1 text-xs text-center outline-none ${isDraftOutOfRange ? 'border-red-500' : 'border-orange-500'}`}
+              />
+              {hasRange && <span className="text-[10px] text-gray-600">{rangeMin}~{rangeMax}</span>}
+              {isDraftOutOfRange && <AlertTriangle className="w-3 h-3 text-red-500" />}
+            </span>
           ) : (
-            <span
-              className={'text-orange-400 font-bold' + (isRanged ? ' cursor-pointer hover:underline' : '')}
-              onClick={isRanged ? () => { setLevelDraft(eff.option_level != null ? String(eff.option_level) : ''); setEditingLevel(true); } : undefined}
-              title={isRanged ? t('sections.enchant.clickToEditValue') : undefined}
-            >
-              {eff.option_level != null ? eff.option_level : (isRanged ? '?' : '')}
+            <span className="inline-flex items-center gap-1">
+              <span
+                className={'text-orange-400 font-bold' + (isRanged ? ' cursor-pointer hover:underline' : '')}
+                onClick={isRanged ? () => { setLevelDraft(eff.option_level != null ? String(eff.option_level) : ''); setEditingLevel(true); } : undefined}
+                title={isRanged ? t('sections.enchant.clickToEditValue') : undefined}
+              >
+                {eff.option_level != null ? eff.option_level : (isRanged ? '?' : '')}
+              </span>
+              {isRanged && hasRange && <span className="text-[10px] text-gray-600">{rangeMin}~{rangeMax}</span>}
+              {isOutOfRange && <AlertTriangle className="w-3 h-3 text-red-500" title={t('sections.enchant.outOfRange', { min: rangeMin, max: rangeMax })} />}
             </span>
           )}
           {suffixText && <span> {suffixText}</span>}
@@ -253,6 +270,56 @@ const FallbackLines = ({ slotLines, onLineChange }) => (
   </div>
 );
 
+const AddEnchantSlot = ({ slotLabel, onLineChange }) => {
+  const { t } = useTranslation();
+  const [searching, setSearching] = useState(false);
+  const slotInt = slotLabel === 'Prefix' ? 0 : 1;
+  const enchantItems = useMemo(
+    () => (window.ENCHANTS_CONFIG || []).filter(e => e.slot === slotInt),
+    [slotInt]
+  );
+  const i18nKey = slotLabel === 'Prefix' ? 'sections.enchant.addPrefix' : 'sections.enchant.addSuffix';
+  const slotKey = slotLabel === 'Prefix' ? 'prefix' : 'suffix';
+
+  if (searching) {
+    return (
+      <div className="p-3">
+        <ConfigSearchInput
+          items={enchantItems}
+          getLabel={(item) => `${item.name} (랭크 ${item.rank_label})`}
+          onSelect={(item) => {
+            const slotKor = item.slot === 0 ? '접두' : '접미';
+            const headerText = `[${slotKor}] ${item.name} (랭크 ${item.rank_label})`;
+            const effects = (item.effects || []).map(e => ({
+              text: e.text,
+              option_name: e.option_name || null,
+              option_level: null,
+              global_index: null,
+            }));
+            onLineChange(-1, '', (sec) => {
+              sec[slotKey] = { name: item.name, rank: item.rank_label, text: headerText, effects };
+            });
+            setSearching(false);
+          }}
+          onCancel={() => setSearching(false)}
+          placeholder={t('sections.enchant.searchEnchant')}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => setSearching(true)}
+      className="w-full border-2 border-dashed border-gray-700 hover:border-purple-500 rounded-lg p-3 text-sm text-gray-500 hover:text-purple-300 transition-colors flex items-center justify-center gap-2"
+    >
+      <Plus className="w-4 h-4" />
+      {t(i18nKey)}
+    </button>
+  );
+};
+
 const EnchantSection = ({ prefix, suffix, lines, onLineChange }) => {
   const { groups, headerIndices } = useMemo(() => {
     if (!lines) return {
@@ -292,7 +359,9 @@ const EnchantSection = ({ prefix, suffix, lines, onLineChange }) => {
         />
       ) : groups.prefix.length > 0 ? (
         <FallbackLines slotLines={groups.prefix} onLineChange={onLineChange} />
-      ) : null}
+      ) : (
+        <AddEnchantSlot slotLabel="Prefix" onLineChange={onLineChange} />
+      )}
       {suffix ? (
         <EnchantSlot
           slot={suffix}
@@ -303,7 +372,9 @@ const EnchantSection = ({ prefix, suffix, lines, onLineChange }) => {
         />
       ) : groups.suffix.length > 0 ? (
         <FallbackLines slotLines={groups.suffix} onLineChange={onLineChange} />
-      ) : null}
+      ) : (
+        <AddEnchantSlot slotLabel="Suffix" onLineChange={onLineChange} />
+      )}
       {groups.unassigned.length > 0 && (
         <FallbackLines slotLines={groups.unassigned} onLineChange={onLineChange} />
       )}
