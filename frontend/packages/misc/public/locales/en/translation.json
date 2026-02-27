@@ -256,6 +256,21 @@
         "title": "Line Crops",
         "description": "Individual line images from this segment.",
         "help": "The final output for this segment: individual line crop images extracted from the segment's binary image with proportional padding.\n\nThese crops are what get sent to the DualReader OCR model in the actual pipeline."
+      },
+      "enchantWhiteMask": {
+        "title": "Enchant White Mask",
+        "description": "White-balanced pixel mask for enchant slot header detection.",
+        "help": "Creates a mask of bright, color-balanced pixels to isolate enchant slot header text.\n\nFormula: max(R,G,B) > 150 AND max/min ratio < 1.4\n\nOnly applies to segments detected as enchant sections."
+      },
+      "enchantOreoFlip": {
+        "title": "Enchant Oreo Flip",
+        "description": "White mask inverted to black-on-white + slot header bands.",
+        "help": "The white mask is inverted to produce black text on white background for OCR.\n\nSlot header bands (cyan) mark enchant prefix/suffix headers."
+      },
+      "enchantClassification": {
+        "title": "Enchant Classification",
+        "description": "Each line classified as header, effect, or grey by color saturation.",
+        "help": "Lines are classified based on slot header overlap and text pixel saturation:\n- Header (cyan): overlaps slot header band\n- Effect (pink): saturation > 0.15 (colored text)\n- Grey: saturation < 0.15 (description text)"
       }
     },
     "segmentStepTitle": "Segment {{index}} ({{label}}) — {{step}}",
