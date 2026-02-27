@@ -258,6 +258,16 @@
         "help": "The final output for this segment: individual line crop images extracted from the segment's binary image with proportional padding.\n\nThese crops are what get sent to the DualReader OCR model in the actual pipeline."
       }
     },
-    "segmentStepTitle": "Segment {{index}} ({{label}}) — {{step}}"
+    "segmentStepTitle": "Segment {{index}} ({{label}}) — {{step}}",
+    "server": {
+      "title": "Server OCR Results",
+      "run": "Run Server OCR",
+      "processing": "Processing...",
+      "parsedItemName": "Parsed Item Name",
+      "enchantResolution": "Enchant Resolution (P1/P2/P3)",
+      "enchantDetails": "Enchant Slot Details",
+      "ocrLines": "OCR Lines ({{count}})",
+      "sections": "Sections ({{count}})"
+    }
   }
 }

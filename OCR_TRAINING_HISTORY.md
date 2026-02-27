@@ -25,8 +25,9 @@ Each attempt has identified and fixed a specific bottleneck, steadily raising re
 | 18 | — | **86.7%** | 0.57 | **Double-dip resize fix** — EasyOCR inference was resizing images twice (cv2.LANCZOS then PIL.BICUBIC), training only once (PIL.BICUBIC). Fixed in ocr_utils.py. +37 exact matches, no retraining. Also: font-specific dual model split (a19), oreo_flip border strip, render pipeline tuning (font 11-13, threshold 110-140). |
 | Enchant Hdr v2 | 98.1% | **86.9%** | — | Enchant header retrain: 3→10 variations, font [10-12] (was 11 only), imgW 256, 11.6k images. Flat result (103/203 vs 104/203). Header model was not the bottleneck. |
 | 19 | 100% (enchant hdr) | **88.5%** | 0.63 | Enchant header v3 (real sample mixed training), Dullahan FM, reforge sub-lines, GT fix. **Proved real sample mixing works** — 55 real crops at ~10% ratio took enchant header accuracy from 46.3% → 100%. 123/202 exact (60.9%), enchant 38/47 (80.9%). |
+| 20 | — | **88.5%** | 0.63 | No retraining — three-strategy enchant resolution (P1/P2/P3). Item name parsing (P1) prioritized over header OCR (P2) and Dullahan (P3). DB effects as templates + OCR numbers as rolled values. Enchant accuracy now depends on name identification, not effect-line OCR. |
 
-Real-world char accuracy: **0% → 19.5% → 35.8% → 27.0% (regression) → 36.2% → 38.1% → 52.4% → 75.5% → 77.0% → 87.5% → 88.6% → 86.7% → 86.9% → 88.5%**. Note: Attempt 18 shows lower char_acc than 17b (86.7% vs 88.6%) because the test set expanded from 5→8 images (3 new images without GT reduce the measured total). On the same 5 GT images, exact matches jumped 67→104. Attempts 1-15 improved the OCR model. Attempt 16 regressed (charset expansion). Attempts 17/17b redesigned the pipeline without retraining. Attempt 18 fixed a fundamental EasyOCR inference bug ("double-dip resize") that affected all models since the beginning. Enchant Header v2 retrained with more variation but was essentially flat — header model was not the bottleneck. Attempt 19 proved that mixing real user crops into training data dramatically improves accuracy — validating the user correction feedback pipeline as a strategy.
+Real-world char accuracy: **0% → 19.5% → 35.8% → 27.0% (regression) → 36.2% → 38.1% → 52.4% → 75.5% → 77.0% → 87.5% → 88.6% → 86.7% → 86.9% → 88.5%**. Note: Attempt 18 shows lower char_acc than 17b (86.7% vs 88.6%) because the test set expanded from 5→8 images (3 new images without GT reduce the measured total). On the same 5 GT images, exact matches jumped 67→104. Attempts 1-15 improved the OCR model. Attempt 16 regressed (charset expansion). Attempts 17/17b redesigned the pipeline without retraining. Attempt 18 fixed a fundamental EasyOCR inference bug ("double-dip resize") that affected all models since the beginning. Enchant Header v2 retrained with more variation but was essentially flat — header model was not the bottleneck. Attempt 19 proved that mixing real user crops into training data dramatically improves accuracy — validating the user correction feedback pipeline as a strategy. Attempt 20 added three-strategy enchant resolution — no retraining, pipeline-only improvement that uses DB effects as templates with OCR rolled values.
 
 ---
 
@@ -1460,3 +1461,99 @@ The Dullahan FM, reforge sub-line detection, and version-specific checkpoints ar
 **Real sample mixing works.** The v3 enchant header model (55 real crops mixed at ~10%) achieved 100% on real samples where v2 (pure synthetic) hit only 46.3%. This proves that a user correction feedback pipeline — where each corrected header becomes a new real training sample — will reliably improve OCR models over time. Track 2 (Enchant Header OCR + User Correction) in `backend/TASKS.md` is validated as a viable strategy.
 
 **Deployed:** enchant_header v3 active. v2 remains for rollback.
+
+## Attempt 20: Three-Strategy Enchant Resolution (P1/P2/P3)
+
+**Date:** 2026-02-27
+**Baseline:** Attempt 19 — 123/202 exact, 88.5% char acc (Dullahan FM, enchant header v3)
+
+### Changes
+
+#### 1. Three-Strategy Enchant Resolution (`_step_resolve_enchant`)
+
+Three independent strategies now compete to identify enchant prefix/suffix slots:
+
+| Priority | Strategy | Source | Method |
+|---|---|---|---|
+| P1 | Item name parsing | Pre_header OCR (96.9%) + FM against enchant dicts | Highest reliability — item names are large, well-OCR'd text |
+| P2 | Raw enchant header OCR | Snapshot of header text before Dullahan | Baseline — small crops, lower accuracy |
+| P3 | Dullahan | Effect lines identify/correct the header | Effect-body matching augments header OCR |
+
+P1 is prioritized when found in the enchant DB. P3 (existing Dullahan result) is the fallback. P2 is preserved for diagnostics.
+
+**New pipeline step:** `_step_resolve_enchant()` in `v3_pipeline.py`, runs as step 6 after `_step_parse_item_name` (step 5) and `_step_rebuild_structured` (step 4).
+
+#### 2. P2 Snapshot Before Dullahan (`text_corrector.py`)
+
+In `apply_fm()`, the raw enchant header OCR text is now saved as `_raw_enchant_header` on each header line before Dullahan runs. The Dullahan match score is stored as `_dullahan_score`. This preserves the pre-correction state for P2 comparison.
+
+#### 3. DB Lookup by Name (`lookup_enchant_by_name`)
+
+New method in `TextCorrector`: looks up a full enchant DB entry by name and optional slot type. Exact match first, fuzzy fallback (score >= 85). Used by P1 resolution to go from item name parser output to a full DB entry.
+
+#### 4. Templated Effects (`build_templated_effects`)
+
+When P1 wins, the winning enchant's DB effects serve as templates with OCR numbers injected as rolled values:
+
+- **DB effect** provides the text template (ground truth, no OCR errors)
+- **OCR numbers** provide the rolled values (actual stats on the tooltip)
+- Each effect enriched with: `text`, `db_effect`, `option_name`, `option_level`, `rolled_value`, `min_value`, `max_value`
+
+This eliminates OCR errors in effect TEXT (DB is ground truth) while preserving rolled VALUES from OCR (actual numbers on tooltip). Also fixes the condition mismatch problem — DB effects are already condition-stripped.
+
+#### 5. Resolution Data Structure
+
+`sections['enchant']['resolution']` stores all three candidates per slot with scores:
+
+```python
+{
+    'prefix': {
+        'winner': 'P1_item_name',
+        'p1': {'name': '창백한', 'score': 100},
+        'p2': {'name': '청백한', 'raw_text': '[접두] 청백한'},
+        'p3': {'name': '창백한', 'score': 350},
+    },
+    'suffix': { ... },
+}
+```
+
+When P1 wins, `sections['enchant']['prefix']` is enriched with `source: 'P1_item_name'` and templated effects.
+
+#### 6. Test Script Display
+
+`test_v3_pipeline.py` now prints enchant resolution comparison per image:
+```
+  Enchant Resolution:
+    PREFIX:  P1=창백한(100)  P2=청백한  P3=창백한(350)  -> P1_item_name -> 창백한 (랭크 A)
+    SUFFIX:  P1=명사수(100)  P2=명사수  P3=명사수(180)  -> P1_item_name -> 명사수 (랭크 9)
+```
+
+### Files Modified
+
+| File | Changes |
+|---|---|
+| `backend/lib/text_corrector.py` | P2 snapshot (`_raw_enchant_header`), P3 score (`_dullahan_score`), `lookup_enchant_by_name()`, `build_templated_effects()` |
+| `backend/lib/v3_pipeline.py` | `_step_resolve_enchant()` as step 6, wired into `run_v3_pipeline()` |
+| `scripts/v3/test_v3_pipeline.py` | Enchant resolution display per image |
+
+### Results
+
+No retraining — this is a pipeline improvement. Same models as Attempt 19.
+
+Test scores unchanged (same OCR accuracy), but enchant section output is now enriched:
+- Items with enchants: P1 resolution provides DB-backed effect templates
+- Eliminates OCR errors in effect text when P1 matches
+- Preserves actual rolled values from OCR
+- Resolution diagnostics show which strategy won and why
+
+### Key Insight
+
+**DB effects as templates + OCR numbers as rolled values** is the key design. The DB provides ground-truth effect text (no OCR errors possible), while OCR provides the actual rolled values the user cares about. This decoupling means enchant accuracy depends only on identifying the correct enchant NAME — not on perfect OCR of every effect line.
+
+### Architecture Note
+
+Pipeline order is now:
+```
+1. segment → 2a. pre_header → 2b. content_ocr → 3. fm (Dullahan runs, snapshots P2)
+→ 4. rebuild_structured → 5. parse_item_name → 6. resolve_enchant (NEW)
+```

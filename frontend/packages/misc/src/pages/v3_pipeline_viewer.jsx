@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Upload, Play, Pause, SkipBack, SkipForward, ChevronLeft, ChevronRight, HelpCircle, Grid2X2 } from 'lucide-react'
+import { Upload, Play, Pause, SkipBack, SkipForward, ChevronLeft, ChevronRight, HelpCircle, Grid2X2, Send, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+
+const API_BASE = import.meta.env.MABINOGI_TRADE_API_URL || 'http://localhost:8000'
 
 // ─── Image processing helpers (mirror the Python V3 pipeline) ───
 
@@ -688,14 +690,19 @@ const V3PipelineViewer = () => {
   const [interval, setInterval_] = useState(2000)
   const [showHelp, setShowHelp] = useState(false)
   const [pixelated, setPixelated] = useState(false)
+  const [serverResult, setServerResult] = useState(null)
+  const [serverLoading, setServerLoading] = useState(false)
+  const [serverError, setServerError] = useState(null)
 
   const canvasRef = useRef(null)
   const fileInputRef = useRef(null)
   const timerRef = useRef(null)
+  const uploadedFileRef = useRef(null)
 
   const handleUpload = (e) => {
     const file = e.target.files[0]
     if (!file) return
+    uploadedFileRef.current = file
     const reader = new FileReader()
     reader.onload = (ev) => {
       const img = new Image()
@@ -704,11 +711,35 @@ const V3PipelineViewer = () => {
         setSteps(null)
         setCurrentStep(0)
         setPlaying(false)
+        setServerResult(null)
+        setServerError(null)
       }
       img.src = ev.target.result
     }
     reader.readAsDataURL(file)
   }
+
+  const handleServerOcr = useCallback(async () => {
+    if (!uploadedFileRef.current) return
+    setServerLoading(true)
+    setServerError(null)
+    setServerResult(null)
+    try {
+      const formData = new FormData()
+      formData.append('file', uploadedFileRef.current)
+      const resp = await fetch(`${API_BASE}/examine-item`, {
+        method: 'POST',
+        body: formData,
+      })
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${resp.statusText}`)
+      const data = await resp.json()
+      setServerResult(data)
+    } catch (err) {
+      setServerError(err.message)
+    } finally {
+      setServerLoading(false)
+    }
+  }, [])
 
   const handleRun = useCallback(() => {
     if (!image || !canvasRef.current) return
@@ -949,10 +980,228 @@ const V3PipelineViewer = () => {
           </div>
         )}
 
+        {/* Server OCR panel */}
+        {image && (
+          <div className="bg-gray-800 rounded-lg p-6 mb-6">
+            <div className="flex items-center gap-4 mb-4">
+              <h2 className="text-xl font-semibold text-cyan-400">{t('v3Pipeline.server.title')}</h2>
+              <button
+                onClick={handleServerOcr}
+                disabled={serverLoading}
+                className="bg-cyan-600 hover:bg-cyan-700 disabled:bg-gray-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-medium"
+              >
+                {serverLoading
+                  ? <><Loader2 className="w-4 h-4 animate-spin" />{t('v3Pipeline.server.processing')}</>
+                  : <><Send className="w-4 h-4" />{t('v3Pipeline.server.run')}</>
+                }
+              </button>
+            </div>
+
+            {serverError && (
+              <div className="p-3 bg-red-900/30 border border-red-700 rounded-lg text-red-300 text-sm mb-4">
+                {serverError}
+              </div>
+            )}
+
+            {serverResult && (
+              <div className="space-y-4">
+                {/* Parsed Item Name */}
+                {serverResult.sections?.pre_header?.parsed_item_name && (
+                  <div className="p-3 bg-gray-900 rounded-lg border border-gray-700">
+                    <h3 className="text-sm font-medium text-yellow-400 mb-2">{t('v3Pipeline.server.parsedItemName')}</h3>
+                    <ParsedItemName parsed={serverResult.sections.pre_header.parsed_item_name} />
+                  </div>
+                )}
+
+                {/* Enchant Resolution */}
+                {serverResult.sections?.enchant?.resolution && (
+                  <div className="p-3 bg-gray-900 rounded-lg border border-gray-700">
+                    <h3 className="text-sm font-medium text-purple-400 mb-2">{t('v3Pipeline.server.enchantResolution')}</h3>
+                    <EnchantResolution resolution={serverResult.sections.enchant.resolution} enchant={serverResult.sections.enchant} />
+                  </div>
+                )}
+
+                {/* OCR Lines */}
+                <div className="p-3 bg-gray-900 rounded-lg border border-gray-700">
+                  <h3 className="text-sm font-medium text-cyan-400 mb-2">
+                    {t('v3Pipeline.server.ocrLines', { count: serverResult.all_lines?.length || 0 })}
+                  </h3>
+                  <div className="space-y-1 max-h-[400px] overflow-y-auto">
+                    {(serverResult.all_lines || []).map((line, i) => (
+                      <div key={i} className="flex items-start gap-2 text-sm font-mono">
+                        <span className="text-gray-600 w-6 text-right shrink-0">{i + 1}</span>
+                        <span className="text-gray-300">{line.text || '\u00a0'}</span>
+                        <span className="text-gray-600 text-xs ml-auto shrink-0">{(line.confidence * 100).toFixed(1)}%</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Sections summary */}
+                <div className="p-3 bg-gray-900 rounded-lg border border-gray-700">
+                  <h3 className="text-sm font-medium text-green-400 mb-2">
+                    {t('v3Pipeline.server.sections', { count: Object.keys(serverResult.sections || {}).length })}
+                  </h3>
+                  <div className="flex flex-wrap gap-2">
+                    {Object.keys(serverResult.sections || {}).map(key => (
+                      <span key={key} className="px-2 py-0.5 bg-gray-700 rounded text-xs text-gray-300">
+                        {key}
+                        <span className="text-gray-500 ml-1">
+                          ({serverResult.sections[key].lines?.length || 0})
+                        </span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Enchant slot details (when P1 wins with templated effects) */}
+                {serverResult.sections?.enchant && (
+                  <EnchantSlotDetails enchant={serverResult.sections.enchant} t={t} />
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         <canvas ref={canvasRef} className="hidden" />
       </div>
     </div>
   )
 }
+
+
+// ─── Sub-components for server OCR results ───
+
+function ParsedItemName({ parsed }) {
+  if (!parsed) return null
+  const parts = []
+  if (parsed.enchant_prefix) parts.push({ label: 'prefix', value: parsed.enchant_prefix, color: 'text-orange-400' })
+  if (parsed.enchant_suffix) parts.push({ label: 'suffix', value: parsed.enchant_suffix, color: 'text-blue-400' })
+  if (parsed.item_name) parts.push({ label: 'item', value: parsed.item_name, color: 'text-yellow-300' })
+
+  return (
+    <div className="flex flex-wrap items-center gap-3 text-sm">
+      {parts.map(({ label, value, color }) => (
+        <span key={label} className="flex items-center gap-1">
+          <span className="text-gray-500 text-xs">{label}:</span>
+          <span className={color}>{value}</span>
+        </span>
+      ))}
+      {parsed.raw_text && (
+        <span className="text-gray-600 text-xs ml-2">raw: {parsed.raw_text}</span>
+      )}
+    </div>
+  )
+}
+
+
+function EnchantResolution({ resolution, enchant }) {
+  if (!resolution) return null
+
+  const slots = ['prefix', 'suffix']
+  const slotLabels = { prefix: '[prefix]', suffix: '[suffix]' }
+  const sourceColors = {
+    P1_item_name: 'text-green-400',
+    P2_header_ocr: 'text-yellow-400',
+    P3_dullahan: 'text-blue-400',
+  }
+  const sourceLabels = {
+    P1_item_name: 'P1',
+    P2_header_ocr: 'P2',
+    P3_dullahan: 'P3',
+  }
+
+  return (
+    <div className="space-y-2">
+      {slots.map(slot => {
+        const r = resolution[slot]
+        if (!r) return null
+
+        const slotData = enchant?.[slot]
+        const winnerLabel = sourceLabels[r.winner] || '-'
+        const winnerColor = sourceColors[r.winner] || 'text-gray-400'
+
+        return (
+          <div key={slot} className="flex flex-wrap items-center gap-3 text-sm">
+            <span className="text-gray-400 font-medium w-16">{slotLabels[slot]}</span>
+            <CandidateBadge label="P1" data={r.p1} color="text-green-400" />
+            <CandidateBadge label="P2" data={r.p2} color="text-yellow-400" />
+            <CandidateBadge label="P3" data={r.p3} color="text-blue-400" />
+            <span className="text-gray-500">-&gt;</span>
+            <span className={`font-medium ${winnerColor}`}>{winnerLabel}</span>
+            {slotData && typeof slotData === 'object' && slotData.name && (
+              <span className="text-gray-300">
+                {slotData.name} <span className="text-gray-500">(R{slotData.rank})</span>
+                {slotData.source && (
+                  <span className={`text-xs ml-1 ${sourceColors[slotData.source] || 'text-gray-500'}`}>
+                    [{sourceLabels[slotData.source] || slotData.source}]
+                  </span>
+                )}
+              </span>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+
+function CandidateBadge({ label, data, color }) {
+  if (!data || !data.name) {
+    return <span className="text-gray-600 text-xs">{label}=-</span>
+  }
+  const score = data.score != null ? `(${data.score})` : ''
+  return (
+    <span className={`text-xs ${color}`}>
+      {label}={data.name}{score}
+    </span>
+  )
+}
+
+
+function EnchantSlotDetails({ enchant, t }) {
+  const slots = ['prefix', 'suffix']
+  const hasSlot = slots.some(s => enchant[s] && typeof enchant[s] === 'object' && enchant[s].effects)
+  if (!hasSlot) return null
+
+  return (
+    <div className="p-3 bg-gray-900 rounded-lg border border-gray-700">
+      <h3 className="text-sm font-medium text-purple-400 mb-2">{t('v3Pipeline.server.enchantDetails')}</h3>
+      <div className="space-y-3">
+        {slots.map(slot => {
+          const data = enchant[slot]
+          if (!data || typeof data !== 'object' || !data.effects) return null
+          return (
+            <div key={slot}>
+              <div className="text-sm font-medium text-gray-300 mb-1">
+                {data.text}
+                {data.source && (
+                  <span className="text-xs text-green-400 ml-2">[{data.source}]</span>
+                )}
+              </div>
+              <div className="space-y-0.5 ml-4">
+                {data.effects.map((eff, i) => (
+                  <div key={i} className="text-xs flex items-center gap-2">
+                    <span className="text-gray-300">{eff.text}</span>
+                    {eff.db_effect && eff.db_effect !== eff.text && (
+                      <span className="text-gray-600">db: {eff.db_effect}</span>
+                    )}
+                    {eff.rolled_value != null && eff.min_value != null && eff.max_value != null && (
+                      <span className="text-cyan-500">
+                        [{eff.rolled_value} / {eff.min_value}~{eff.max_value}]
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 
 export default V3PipelineViewer

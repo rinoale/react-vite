@@ -449,11 +449,12 @@ def _step_resolve_enchant(sections, corrector):
             winner_entry = p1_entry
             winner_source = 'P1_item_name'
         elif p3_name:
-            # P3 (Dullahan) already applied to sections['enchant'] via rebuild_structured
             winner = p3_name
+            winner_entry = corrector.lookup_enchant_by_name(p3_name, slot_type=slot_type)
             winner_source = 'P3_dullahan'
         elif p2_name:
             winner = p2_name
+            winner_entry = corrector.lookup_enchant_by_name(p2_name, slot_type=slot_type)
             winner_source = 'P2_header_ocr'
 
         slot_resolution = {
@@ -464,8 +465,8 @@ def _step_resolve_enchant(sections, corrector):
         }
         resolution[slot_key] = slot_resolution
 
-        # When P1 wins with a DB entry, enrich the enchant slot with templated effects
-        if winner_source == 'P1_item_name' and winner_entry:
+        # Enrich enchant slot with DB-templated effects for any winner with a DB entry
+        if winner_entry:
             # Collect OCR effect texts for this slot
             ocr_effect_texts = []
             in_slot = False
@@ -484,7 +485,7 @@ def _step_resolve_enchant(sections, corrector):
                 'name': winner_entry['name'],
                 'rank': winner_entry['rank'],
                 'effects': templated,
-                'source': 'P1_item_name',
+                'source': winner_source,
             }
 
     enchant['resolution'] = resolution

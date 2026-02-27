@@ -486,15 +486,16 @@ class TextCorrector:
     def build_templated_effects(self, entry, ocr_effect_texts):
         """Match OCR effect lines to DB effects, extract rolled values.
 
-        For each DB effect: normalize to N, find best-matching OCR line,
-        extract OCR number as rolled_value, parse DB range as min/max.
+        Iterates OCR lines in tooltip order (preserving visual ordering).
+        For each OCR line, finds the best-matching DB effect and uses it
+        as a template, injecting OCR numbers as rolled values.
 
         Args:
             entry: enchant DB entry dict (from _enchant_db)
-            ocr_effect_texts: list of OCR effect text strings
+            ocr_effect_texts: list of OCR effect text strings (tooltip order)
 
         Returns:
-            list of enriched effect dicts with keys:
+            list of enriched effect dicts in tooltip order with keys:
                 text, option_name, option_level, db_effect,
                 min_value, max_value, rolled_value
         """
@@ -516,31 +517,32 @@ class TextCorrector:
         ocr_norms = [_normalize_nums(c) for c in ocr_cores]
 
         result = []
-        used_ocr = set()
+        used_db = set()
 
-        for db_idx, (norm_db, raw_db) in enumerate(effects_norm):
-            # Find best-matching OCR line for this DB effect
-            best_score, best_ocr_idx = 0, -1
-            for ocr_idx, norm_ocr in enumerate(ocr_norms):
-                if ocr_idx in used_ocr:
+        # Iterate OCR lines in tooltip order — preserves visual ordering
+        for ocr_idx, (ocr_core, norm_ocr) in enumerate(zip(ocr_cores, ocr_norms)):
+            # Find best-matching DB effect for this OCR line
+            best_score, best_db_idx = 0, -1
+            for db_idx, (norm_db, raw_db) in enumerate(effects_norm):
+                if db_idx in used_db:
                     continue
                 score = fuzz.ratio(norm_ocr, norm_db)
                 if score > best_score:
                     best_score = score
-                    best_ocr_idx = ocr_idx
+                    best_db_idx = db_idx
 
-            if best_score < 50 or best_ocr_idx < 0:
-                # No OCR match — use DB effect as-is
-                eff = {'text': raw_db, 'db_effect': raw_db}
-                opt_name, opt_level = _parse_effect_number(raw_db)
+            if best_score < 50 or best_db_idx < 0:
+                # No DB match — keep OCR text as-is
+                eff = {'text': ocr_core}
+                opt_name, opt_level = _parse_effect_number(ocr_core)
                 if opt_name is not None:
                     eff['option_name'] = opt_name
                     eff['option_level'] = opt_level
                 result.append(eff)
                 continue
 
-            used_ocr.add(best_ocr_idx)
-            ocr_core = ocr_cores[best_ocr_idx]
+            used_db.add(best_db_idx)
+            norm_db, raw_db = effects_norm[best_db_idx]
 
             # Extract OCR numbers (rolled values) and DB numbers (range)
             ocr_numbers = _NUM_PAT.findall(ocr_core)

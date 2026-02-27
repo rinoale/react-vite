@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 from pydantic import BaseModel, field_validator
 
 
@@ -19,6 +19,10 @@ class EnchantEffectResponse(BaseModel):
     text: str
     option_name: Optional[str] = None
     option_level: Optional[Union[int, float]] = None
+    db_effect: Optional[str] = None
+    rolled_value: Optional[Union[int, float]] = None
+    min_value: Optional[Union[int, float]] = None
+    max_value: Optional[Union[int, float]] = None
 
 
 class EnchantSlotResponse(BaseModel):
@@ -26,6 +30,25 @@ class EnchantSlotResponse(BaseModel):
     name: str
     rank: str
     effects: List[EnchantEffectResponse]
+    source: Optional[str] = None
+
+
+class EnchantResolutionCandidateResponse(BaseModel):
+    name: Optional[str] = None
+    score: Optional[Union[int, float]] = None
+    raw_text: Optional[str] = None
+
+
+class EnchantResolutionSlotResponse(BaseModel):
+    winner: Optional[str] = None
+    p1: Optional[EnchantResolutionCandidateResponse] = None
+    p2: Optional[EnchantResolutionCandidateResponse] = None
+    p3: Optional[EnchantResolutionCandidateResponse] = None
+
+
+class EnchantResolutionResponse(BaseModel):
+    prefix: Optional[EnchantResolutionSlotResponse] = None
+    suffix: Optional[EnchantResolutionSlotResponse] = None
 
 
 class ReforgeOptionResponse(BaseModel):
@@ -42,6 +65,13 @@ class ColorPartResponse(BaseModel):
     b: Optional[int] = None
 
 
+class ParsedItemNameResponse(BaseModel):
+    item_name: Optional[str] = None
+    enchant_prefix: Optional[str] = None
+    enchant_suffix: Optional[str] = None
+    raw_text: Optional[str] = None
+
+
 class OcrSectionResponse(BaseModel):
     header_text: Optional[str] = None
     header_confidence: Optional[float] = None
@@ -52,10 +82,13 @@ class OcrSectionResponse(BaseModel):
     # enchant
     prefix: Optional[EnchantSlotResponse] = None
     suffix: Optional[EnchantSlotResponse] = None
+    resolution: Optional[EnchantResolutionResponse] = None
     # reforge
     options: Optional[List[ReforgeOptionResponse]] = None
     # item_color
     parts: Optional[List[ColorPartResponse]] = None
+    # pre_header
+    parsed_item_name: Optional[ParsedItemNameResponse] = None
 
 
 class ExamineItemResponse(BaseModel):

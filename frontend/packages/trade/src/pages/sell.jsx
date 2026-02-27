@@ -113,13 +113,14 @@ const Sell = () => {
       const newSections = data.sections || {};
 
       // Auto-populate some core fields
-      const itemName = newSections.item_name?.text || '';
+      const parsedName = newSections.pre_header?.parsed_item_name?.item_name || '';
+      const itemName = parsedName || newSections.item_name?.text || '';
       const allText = (data.all_lines || []).map(l => l.text).join('\n');
 
-      // Auto-resolve game item from OCR item name (local config lookup)
-      if (itemName) {
-        setGameItemQuery(itemName);
-        const exact = findGameItemByName(itemName);
+      // Auto-resolve game item from parsed item name (local config lookup)
+      if (parsedName) {
+        setGameItemQuery(parsedName);
+        const exact = findGameItemByName(parsedName);
         if (exact) {
           setSelectedGameItem(exact);
         } else {
@@ -479,7 +480,7 @@ const Sell = () => {
 
                         {/* Render known sections in a specific order if possible */}
                         {Object.keys(formData.sections).map((secKey) => {
-                            if (['item_name', 'item_type', 'flavor_text', 'shop_price'].includes(secKey)) return null;
+                            if (['item_name', 'item_type', 'flavor_text', 'shop_price', 'pre_header'].includes(secKey)) return null;
                             const sectionData = formData.sections[secKey];
                             return (
                                 <SectionCard

@@ -43,14 +43,14 @@
     "item_name": "Item Name",
     "item_type": "Item Type",
     "item_grade": "Grade",
-    "item_attrs": "Attributes (아이템 속성)",
-    "enchant": "Enchant (인챈트)",
-    "item_mod": "Upgrade (개조)",
-    "reforge": "Reforge (세공)",
-    "erg": "Erg (에르그)",
-    "set_item": "Set Item (세트아이템)",
-    "item_color": "Item Color (아이템 색상)",
-    "ego": "Spirit (정령)"
+    "item_attrs": "Attributes",
+    "enchant": "Enchant",
+    "item_mod": "Upgrade",
+    "reforge": "Reforge",
+    "erg": "Erg",
+    "set_item": "Set Item",
+    "item_color": "Item Color",
+    "ego": "Ego"
   },
   "marketplace": {
     "title": "Marketplace",
@@ -78,12 +78,17 @@
       "correctEffect": "Correct effect",
       "searchEffect": "Search effect...",
       "searchEnchant": "Search enchant...",
-      "clickToEditValue": "Click to edit value"
+      "clickToEditValue": "Click to edit value",
+      "rolledValue": "Rolled: {{value}}",
+      "valueRange": "Range: {{min}} ~ {{max}}",
+      "dbEffect": "DB: {{effect}}",
+      "source": "Source: {{source}}"
     },
     "reforge": {
       "correct": "Correct",
       "clickToEditLevel": "Click to edit level",
-      "searchReforgeOption": "Search reforge option..."
+      "searchReforgeOption": "Search reforge option...",
+      "levelDisplay": "Lv. {{level}} / {{maxLevel}}"
     },
     "cancel": "Cancel"
   }

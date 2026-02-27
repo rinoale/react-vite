@@ -78,12 +78,17 @@
       "correctEffect": "Correct effect",
       "searchEffect": "Search effect...",
       "searchEnchant": "Search enchant...",
-      "clickToEditValue": "Click to edit value"
+      "clickToEditValue": "Click to edit value",
+      "rolledValue": "실측: {{value}}",
+      "valueRange": "범위: {{min}} ~ {{max}}",
+      "dbEffect": "DB: {{effect}}",
+      "source": "출처: {{source}}"
     },
     "reforge": {
       "correct": "Correct",
       "clickToEditLevel": "Click to edit level",
-      "searchReforgeOption": "Search reforge option..."
+      "searchReforgeOption": "Search reforge option...",
+      "levelDisplay": "Lv. {{level}} / {{maxLevel}}"
     },
     "cancel": "Cancel"
   }

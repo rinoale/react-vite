@@ -258,6 +258,16 @@
         "help": "이 세그먼트의 최종 출력: 세그먼트의 이진 이미지에서 비례 패딩으로 추출된 개별 줄 크롭 이미지.\n\n실제 파이프라인에서 DualReader OCR 모델에 전달되는 크롭입니다."
       }
     },
-    "segmentStepTitle": "세그먼트 {{index}} ({{label}}) — {{step}}"
+    "segmentStepTitle": "세그먼트 {{index}} ({{label}}) — {{step}}",
+    "server": {
+      "title": "서버 OCR 결과",
+      "run": "서버 OCR 실행",
+      "processing": "처리 중...",
+      "parsedItemName": "아이템 이름 파싱",
+      "enchantResolution": "인챈트 판정 (P1/P2/P3)",
+      "enchantDetails": "인챈트 슬롯 상세",
+      "ocrLines": "OCR 줄 ({{count}}개)",
+      "sections": "섹션 ({{count}}개)"
+    }
   }
 }
