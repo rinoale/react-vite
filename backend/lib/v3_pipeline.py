@@ -439,19 +439,19 @@ def _step_resolve_enchant(sections, corrector):
                 p3_name = line['enchant_name']
                 p3_score = line.get('_dullahan_score', 0)
 
-        # Priority: P1 > P2+P3 (existing)
+        # Priority: P3 > P1 > P2 (TEMPORARY — for testing P3 edge cases)
         winner = None
         winner_entry = None
         winner_source = None
 
-        if p1_entry:
-            winner = p1_name
-            winner_entry = p1_entry
-            winner_source = 'P1_item_name'
-        elif p3_name:
+        if p3_name:
             winner = p3_name
             winner_entry = corrector.lookup_enchant_by_name(p3_name, slot_type=slot_type)
             winner_source = 'P3_dullahan'
+        elif p1_entry:
+            winner = p1_name
+            winner_entry = p1_entry
+            winner_source = 'P1_item_name'
         elif p2_name:
             winner = p2_name
             winner_entry = corrector.lookup_enchant_by_name(p2_name, slot_type=slot_type)
@@ -467,19 +467,18 @@ def _step_resolve_enchant(sections, corrector):
 
         # Enrich enchant slot with DB-templated effects for any winner with a DB entry
         if winner_entry:
-            # Collect OCR effect texts for this slot
-            ocr_effect_texts = []
+            # Collect OCR effect lines (dicts with text + global_index) for this slot
+            ocr_effect_lines = []
             in_slot = False
             for line in enchant_lines:
                 if line.get('is_enchant_hdr'):
                     in_slot = (line.get('enchant_slot', '') == slot_type)
                     continue
                 if in_slot and not line.get('is_grey'):
-                    text = line.get('text', '').strip()
-                    if text:
-                        ocr_effect_texts.append(text)
+                    if line.get('text', '').strip():
+                        ocr_effect_lines.append(line)
 
-            templated = corrector.build_templated_effects(winner_entry, ocr_effect_texts)
+            templated = corrector.build_templated_effects(winner_entry, ocr_effect_lines)
             enchant[slot_key] = {
                 'text': f"[{slot_type}] {winner_entry['name']} (랭크 {winner_entry['rank']})",
                 'name': winner_entry['name'],
@@ -502,6 +501,7 @@ def _save_crops(all_lines, crop_session_dir, session_id):
         originals.append({
             'global_index': line['global_index'],
             'text': line.get('text', ''),
+            'raw_text': line.get('raw_text', line.get('text', '')),
             'confidence': float(line.get('confidence', 0)),
             'section': line.get('section', ''),
             'ocr_model': line.get('ocr_model', ''),
@@ -521,7 +521,7 @@ def run_v3_pipeline(img_bgr, header_reader, section_patterns, config,
                     enchant_header_reader,
                     preheader_mc_reader, preheader_ng_reader,
                     parser, corrector,
-                    save_raw=False, save_crops=False):
+                    save_crops=False):
     """Run the full v3 pipeline on a color screenshot.
 
     Steps:
@@ -575,10 +575,9 @@ def run_v3_pipeline(img_bgr, header_reader, section_patterns, config,
                 fname = f"{line['global_index']:03d}.png"
                 cv2.imwrite(os.path.join(crop_session_dir, fname), crop)
 
-    # Snapshot raw OCR text before FM overwrites it (for test comparison)
-    if save_raw:
-        for line in all_lines:
-            line['raw_text'] = line.get('text', '')
+    # Snapshot raw OCR text before FM overwrites it
+    for line in all_lines:
+        line['raw_text'] = line.get('text', '')
 
     # Step 3: Fuzzy match OCR text against per-section dictionaries
     _step_fm(all_lines, sections, corrector)

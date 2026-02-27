@@ -488,7 +488,7 @@ class TextCorrector:
                 best_score, best_entry = score, entry
         return best_entry if best_score >= 85 else None
 
-    def build_templated_effects(self, entry, ocr_effect_texts):
+    def build_templated_effects(self, entry, ocr_effect_lines):
         """Match OCR effect lines to DB effects, extract rolled values.
 
         Iterates OCR lines in tooltip order (preserving visual ordering).
@@ -497,14 +497,15 @@ class TextCorrector:
 
         Args:
             entry: enchant DB entry dict (from _enchant_db)
-            ocr_effect_texts: list of OCR effect text strings (tooltip order)
+            ocr_effect_lines: list of line dicts with 'text' and
+                'global_index' keys (tooltip order)
 
         Returns:
             list of enriched effect dicts in tooltip order with keys:
-                text, option_name, option_level, db_effect,
+                text, option_name, option_level, global_index, db_effect,
                 min_value, max_value, rolled_value
         """
-        if not entry or not ocr_effect_texts:
+        if not entry or not ocr_effect_lines:
             return []
 
         effects = entry.get('effects', [])
@@ -514,7 +515,8 @@ class TextCorrector:
 
         # Pre-normalize OCR texts (strip bullet prefixes + tooltip range display)
         ocr_cores = []
-        for text in ocr_effect_texts:
+        for line in ocr_effect_lines:
+            text = line.get('text', '') if isinstance(line, dict) else line
             m = _PREFIX_PAT.match(text)
             core = text[m.end():] if m else text
             # Strip tooltip range display "(50~55)" so only rolled value remains
@@ -528,6 +530,9 @@ class TextCorrector:
 
         # Iterate OCR lines in tooltip order — preserves visual ordering
         for ocr_idx, (ocr_core, norm_ocr) in enumerate(zip(ocr_cores, ocr_norms)):
+            ocr_line = ocr_effect_lines[ocr_idx]
+            gi = ocr_line.get('global_index') if isinstance(ocr_line, dict) else None
+
             # Find best-matching DB effect for this OCR line
             best_score, best_db_idx = 0, -1
             for db_idx, (norm_db, raw_db) in enumerate(effects_norm):
@@ -540,7 +545,7 @@ class TextCorrector:
 
             if best_score < 50 or best_db_idx < 0:
                 # No DB match — keep OCR text as-is
-                eff = {'text': ocr_core}
+                eff = {'text': ocr_core, 'global_index': gi}
                 opt_name, opt_level = _parse_effect_number(ocr_core)
                 if opt_name is not None:
                     eff['option_name'] = opt_name
@@ -568,6 +573,7 @@ class TextCorrector:
             eff = {
                 'text': corrected,
                 'db_effect': raw_db,
+                'global_index': gi,
             }
 
             # Parse rolled value from OCR numbers

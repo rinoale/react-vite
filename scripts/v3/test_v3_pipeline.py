@@ -62,7 +62,7 @@ def test_image(pipeline, image_path, gt_path=None, verbose=True):
         print(f"  ERROR: cannot read {image_path}")
         return None
 
-    result = run_v3_pipeline(img_bgr, **pipeline, save_raw=True)
+    result = run_v3_pipeline(img_bgr, **pipeline)
     ocr_lines = result['all_lines']
     sections  = result['sections']
     tagged    = result['tagged_segments']

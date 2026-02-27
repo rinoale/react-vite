@@ -29,7 +29,9 @@
     "noCorrections": "No {{status}} corrections found.",
     "save": "Save",
     "approve": "Approve",
-    "refresh": "Refresh"
+    "refresh": "Refresh",
+    "truncate": "모든 교정 삭제",
+    "truncateConfirm": "모든 교정(대기 + 승인)을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다."
   },
   "listings": {
     "title": "REGISTERED LISTINGS",

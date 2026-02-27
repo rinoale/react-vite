@@ -50,6 +50,17 @@ If I want just a result without understanding, All I need to do is just insert c
 Which would lead me tons of wasted tokens, time and hurting eyeballs.
 I's been required to understand what AI's been doing. AI also get lost and I need to guide.
 
+### Don't be afraid even if you don't unserstand what AI is doing at all
+Recognizing problems is good. Asking AI to solve the problem is better. Requesting AI to fix the problems with suggestion is the best.
+But even when you're lost and don't understand contexts at all, don't be afraid.
+- Start conversation with recognizing problems
+- Try to understand the smallest part of what AI changes
+- Then suggest after you understand the contexts
+
+Keep asking explanation. ELI5 really helps for the complexed logics.
+
+The dialogs with AI really helps me. It makes me feel that it is not just AI who is learning.(10^-10 slower though)
+
 ## Commands
 
 ### generate segmentation

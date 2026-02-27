@@ -29,7 +29,9 @@
     "noCorrections": "No {{status}} corrections found.",
     "save": "Save",
     "approve": "Approve",
-    "refresh": "Refresh"
+    "refresh": "Refresh",
+    "truncate": "Delete all corrections",
+    "truncateConfirm": "Delete ALL corrections (pending + approved)? This cannot be undone."
   },
   "listings": {
     "title": "REGISTERED LISTINGS",

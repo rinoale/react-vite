@@ -23,6 +23,7 @@ class EnchantEffectResponse(BaseModel):
     rolled_value: Optional[Union[int, float]] = None
     min_value: Optional[Union[int, float]] = None
     max_value: Optional[Union[int, float]] = None
+    global_index: Optional[int] = None
 
 
 class EnchantSlotResponse(BaseModel):

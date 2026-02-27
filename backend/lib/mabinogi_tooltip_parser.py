@@ -1136,7 +1136,7 @@ class MabinogiTooltipParser(TooltipLineSplitter):
             elif current is not None:
                 eff_text = line['text'].strip().lstrip('-').strip()
                 if eff_text:
-                    entry = {'text': eff_text}
+                    entry = {'text': eff_text, 'global_index': line.get('global_index')}
                     opt_name, opt_level = _parse_effect_number(eff_text)
                     if opt_name is not None:
                         entry['option_name']  = opt_name

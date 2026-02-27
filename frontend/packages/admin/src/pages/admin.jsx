@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import { Loader2, ChevronDown, ChevronRight, Info, List, RefreshCw, Check, Image, Pencil, X, Save, Package } from 'lucide-react';
+import { Loader2, ChevronDown, ChevronRight, Info, List, RefreshCw, Check, Image, Pencil, X, Save, Package, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { getSummary, getEnchantEntries, getEnchantEffects, getLinks, getCorrections, approveCorrection, editCorrection, getListings, getListingDetail } from '@mabi/shared/api/admin';
+import { getSummary, getEnchantEntries, getEnchantEffects, getLinks, getCorrections, approveCorrection, editCorrection, truncateCorrections, getListings, getListingDetail } from '@mabi/shared/api/admin';
 
 const toRankLabel = (rank) => {
   const n = Number(rank);
@@ -68,6 +68,7 @@ const CorrectionsPanel = () => {
   const [editingId, setEditingId] = useState(null);
   const [editText, setEditText] = useState('');
   const [savingEdit, setSavingEdit] = useState(false);
+  const [truncating, setTruncating] = useState(false);
 
   const fetchCorrections = useCallback(async () => {
     setIsLoading(true);
@@ -123,6 +124,20 @@ const CorrectionsPanel = () => {
     }
   };
 
+  const handleTruncate = async () => {
+    if (!window.confirm(t('corrections.truncateConfirm'))) return;
+    setTruncating(true);
+    try {
+      await truncateCorrections();
+      setCorrections([]);
+      setPagination((p) => ({ ...p, offset: 0 }));
+    } catch (error) {
+      console.error('Error truncating corrections:', error);
+    } finally {
+      setTruncating(false);
+    }
+  };
+
   const cropUrl = (c) => `${API_BASE}/admin/corrections/crop/${c.session_id}/${c.image_filename}`;
 
   return (
@@ -165,6 +180,14 @@ const CorrectionsPanel = () => {
           </button>
           <button onClick={fetchCorrections} className="p-1 hover:text-cyan-400" title={t('corrections.refresh')}>
             <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+          </button>
+          <button
+            onClick={handleTruncate}
+            disabled={truncating}
+            className="p-1 hover:text-red-400 text-gray-500 disabled:opacity-50"
+            title={t('corrections.truncate')}
+          >
+            <Trash2 className={`w-4 h-4 ${truncating ? 'animate-pulse' : ''}`} />
           </button>
         </div>
       </div>

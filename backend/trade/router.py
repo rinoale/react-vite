@@ -242,7 +242,7 @@ def register_listing(payload: RegisterListingRequest, db: Session = Depends(get_
                 db.add(OcrCorrection(
                     session_id=payload.session_id,
                     line_index=line.global_index,
-                    original_text=orig['text'],
+                    original_text=orig.get('raw_text', orig['text']),
                     corrected_text=line.text,
                     confidence=orig.get('confidence'),
                     section=orig.get('section', ''),

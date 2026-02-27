@@ -65,6 +65,15 @@ def edit_correction(correction_id: int, body: CorrectionEdit, db: Session = Depe
     return {"id": row.id, "corrected_text": row.corrected_text}
 
 
+@router.delete("/truncate")
+def truncate_corrections(db: Session = Depends(get_db)):
+    """Delete all corrections (both pending and approved)."""
+    count = db.query(OcrCorrection).count()
+    db.query(OcrCorrection).delete()
+    db.commit()
+    return {"deleted": count}
+
+
 @router.get("/crop/{session_id}/{filename}")
 def get_correction_crop(session_id: str, filename: str):
     """Serve a crop image for correction review."""

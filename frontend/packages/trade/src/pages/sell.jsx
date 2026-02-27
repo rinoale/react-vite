@@ -4,13 +4,9 @@ import { useTranslation } from 'react-i18next';
 import SectionCard from '@mabi/shared/components/SectionCard';
 import { ColorPartsSection, EnchantSection, ReforgeSection, DefaultSection } from '@mabi/shared/components/sections';
 import { examineItem, registerListing } from '@mabi/shared/api/items';
-
-const getGameItemsConfig = () => window.GAME_ITEMS_CONFIG || [];
-const findGameItemByName = (name) => getGameItemsConfig().find(gi => gi.name === name);
-const searchGameItemsLocal = (q, limit = 20) => {
-  const lower = q.toLowerCase();
-  return getGameItemsConfig().filter(gi => gi.name.toLowerCase().includes(lower)).slice(0, limit);
-};
+import { searchGameItemsLocal } from '@mabi/shared/lib/gameItems';
+import { parseExamineResult } from '@mabi/shared/lib/examineResult';
+import { buildRegistrationPayload } from '@mabi/shared/lib/registrationPayload';
 
 const Sell = () => {
   const { t } = useTranslation();
@@ -102,27 +98,19 @@ const Sell = () => {
     setLoadingStep('SEGMENTING');
 
     try {
-      // Step 1: Segmentation and Initial OCR
       setLoadingStep('RECOGNIZING');
       const { data } = await examineItem(file);
       setOcrResult(data);
-      setDetectedLines(data.all_lines || []);
-      setSessionId(data.session_id || null);
 
-      // Map sections to form data
-      const newSections = data.sections || {};
+      const result = parseExamineResult(data);
+      setDetectedLines(result.allLines);
+      setSessionId(result.sessionId);
 
-      // Auto-populate some core fields
-      const parsedName = newSections.pre_header?.parsed_item_name?.item_name || '';
-      const itemName = parsedName || newSections.item_name?.text || '';
-      const allText = (data.all_lines || []).map(l => l.text).join('\n');
-
-      // Auto-resolve game item from parsed item name (local config lookup)
-      if (parsedName) {
-        setGameItemQuery(parsedName);
-        const exact = findGameItemByName(parsedName);
-        if (exact) {
-          setSelectedGameItem(exact);
+      // Auto-resolve game item
+      if (result.parsedItemName) {
+        setGameItemQuery(result.parsedItemName);
+        if (result.gameItemMatch) {
+          setSelectedGameItem(result.gameItemMatch);
         } else {
           setShowGameItemSuggestions(true);
         }
@@ -130,9 +118,9 @@ const Sell = () => {
 
       setFormData(prev => ({
         ...prev,
-        name: itemName,
-        description: allText,
-        sections: newSections
+        name: result.itemName,
+        description: result.description,
+        sections: result.sections
       }));
 
       setLoadingStep('COMPLETE');
@@ -167,6 +155,43 @@ const Sell = () => {
     });
   };
 
+  const handleRegister = async () => {
+    // Validate required fields
+    const missing = [];
+    if (!selectedGameItem) missing.push(t('sell.gameItem'));
+    if (!formData.name.trim()) missing.push(t('sell.itemName'));
+    if (!formData.price) missing.push(t('sell.price'));
+    if (missing.length) {
+      alert(t('sell.requiredFields', { fields: missing.join(', ') }));
+      return;
+    }
+
+    const payload = buildRegistrationPayload({
+      sessionId,
+      name: formData.name,
+      price: formData.price,
+      category: formData.category,
+      gameItem: selectedGameItem,
+      sections: formData.sections,
+    });
+
+    try {
+      const { data: result } = await registerListing(payload);
+      const corrMsg = result.corrections_saved
+        ? t('sell.correctionsCapture', { count: result.corrections_saved })
+        : '';
+      alert(`${t('sell.itemRegistered')}${corrMsg}`);
+      setFile(null);
+      setPreviewUrl(null);
+      setOcrResult(null);
+      setDetectedLines([]);
+      setFormData({ name: '', price: '', category: 'weapon', description: '', sections: {} });
+      clearGameItem();
+    } catch (err) {
+      console.error('Register item error:', err);
+      alert(t('sell.registerFailed'));
+    }
+  };
 
   const renderSectionContent = (key, sectionData) => {
     if (sectionData.skipped) return <p className="text-xs text-gray-500 italic">{t('sell.sectionSkipped')}</p>;
@@ -291,118 +316,7 @@ const Sell = () => {
                 <div className="text-xs text-gray-500 font-bold">{t('sell.appVersion')}</div>
               </div>
 
-              <form className="space-y-6" onSubmit={async (e) => {
-                e.preventDefault();
-
-                // Validate required fields
-                const missing = [];
-                if (!selectedGameItem) missing.push(t('sell.gameItem'));
-                if (!formData.name.trim()) missing.push(t('sell.itemName'));
-                if (!formData.price) missing.push(t('sell.price'));
-                if (missing.length) {
-                  alert(t('sell.requiredFields', { fields: missing.join(', ') }));
-                  return;
-                }
-
-                // Collect all lines with global_index + current text
-                const lines = [];
-                for (const secData of Object.values(formData.sections)) {
-                  if (!secData.lines) continue;
-                  for (const line of secData.lines) {
-                    if (line.global_index != null) {
-                      lines.push({ global_index: line.global_index, text: line.text });
-                    }
-                  }
-                }
-
-                // Extract structured enchant data, resolving enchant_effect_id from config
-                const enchants = [];
-                const enchantSec = formData.sections?.enchant;
-                const resolveEffects = (slotData, slotInt) => {
-                  const config = (window.ENCHANTS_CONFIG || []).find(
-                    e => e.name === slotData.name && e.slot === slotInt
-                  );
-                  const usedIdx = new Set();
-                  const findConfigEff = (ocrName) => {
-                    if (!config?.effects || !ocrName) return null;
-                    // Exact match first, then fuzzy (includes + longest match)
-                    let idx = config.effects.findIndex(
-                      (ce, i) => !usedIdx.has(i) && ce.option_name === ocrName
-                    );
-                    if (idx < 0) {
-                      const candidates = config.effects
-                        .map((ce, i) => ({ ce, i }))
-                        .filter(({ ce, i }) => !usedIdx.has(i) && ce.option_name && ocrName.includes(ce.option_name))
-                        .sort((a, b) => b.ce.option_name.length - a.ce.option_name.length);
-                      if (candidates.length) idx = candidates[0].i;
-                    }
-                    if (idx >= 0) { usedIdx.add(idx); return config.effects[idx]; }
-                    return null;
-                  };
-                  return (slotData.effects || []).map(eff => {
-                    if (eff.enchant_effect_id) return eff;
-                    const configEff = findConfigEff(eff.option_name);
-                    return {
-                      text: eff.text,
-                      option_name: configEff?.option_name ?? eff.option_name ?? null,
-                      option_level: eff.option_level ?? null,
-                      enchant_effect_id: configEff?.enchant_effect_id ?? null,
-                    };
-                  });
-                };
-                if (enchantSec?.prefix?.name) {
-                  enchants.push({ slot: 0, name: enchantSec.prefix.name, rank: enchantSec.prefix.rank || '', effects: resolveEffects(enchantSec.prefix, 0) });
-                }
-                if (enchantSec?.suffix?.name) {
-                  enchants.push({ slot: 1, name: enchantSec.suffix.name, rank: enchantSec.suffix.rank || '', effects: resolveEffects(enchantSec.suffix, 1) });
-                }
-
-                // Extract structured reforge data
-                const reforge_options = (formData.sections?.reforge?.options || []).map(opt => ({
-                  name: opt.option_name || opt.name || '',
-                  reforge_option_id: opt.reforge_option_id ?? null,
-                  level: opt.option_level ?? opt.level ?? null,
-                  max_level: opt.max_level ?? null,
-                }));
-
-                // Extract value-determining attributes from sections
-                const itemType = formData.sections?.item_type?.text || null;
-                const itemGrade = formData.sections?.item_grade?.text || null;
-                const ergSection = formData.sections?.erg;
-                let ergGrade = null;
-                let ergLevel = null;
-                if (ergSection?.lines?.length) {
-                  const ergText = ergSection.lines.map(l => l.text).join(' ');
-                  const gradeMatch = ergText.match(/\b([SABCDEF])\b/);
-                  if (gradeMatch) ergGrade = gradeMatch[1];
-                  const levelMatch = ergText.match(/(\d+)/);
-                  if (levelMatch) ergLevel = parseInt(levelMatch[1], 10);
-                }
-
-                try {
-                  const { data: result } = await registerListing({
-                    session_id: sessionId,
-                    name: formData.name,
-                    price: formData.price,
-                    category: formData.category,
-                    game_item_id: selectedGameItem?.id || null,
-                    item_type: itemType,
-                    item_grade: itemGrade,
-                    erg_grade: ergGrade,
-                    erg_level: ergLevel,
-                    lines,
-                    enchants,
-                    reforge_options,
-                  });
-                  const corrMsg = result.corrections_saved
-                    ? t('sell.correctionsCapture', { count: result.corrections_saved })
-                    : '';
-                  alert(`${t('sell.itemRegistered')}${corrMsg}`);
-                } catch (err) {
-                  console.error('Register item error:', err);
-                  alert(t('sell.registerFailed'));
-                }
-              }}>
+              <form className="space-y-6" onSubmit={(e) => { e.preventDefault(); handleRegister(); }}>
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
                     {/* Game item selector */}
                     <div className="md:col-span-5">

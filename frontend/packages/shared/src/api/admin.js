@@ -20,6 +20,9 @@ export const approveCorrection = (correctionId) =>
 export const editCorrection = (correctionId, correctedText) =>
   client.patch(`/admin/corrections/${correctionId}`, { corrected_text: correctedText });
 
+export const truncateCorrections = () =>
+  client.delete('/admin/corrections/truncate');
+
 export const getListings = ({ limit, offset }) =>
   client.get('/admin/listings', { params: { limit, offset } });
 

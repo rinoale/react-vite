@@ -10,7 +10,44 @@ function findEnchantConfig(name, slotInt) {
   );
 }
 
-const EffectRow = ({ eff, lineIdx, lineText, onLineChange, configEffects }) => {
+/** Extract first number from text */
+function extractNumber(text) {
+  const m = text && text.match(/(\d+(?:\.\d+)?)/);
+  return m ? (m[1].includes('.') ? parseFloat(m[1]) : parseInt(m[1], 10)) : null;
+}
+
+/** Rebuild effects from new config, pulling rolled values from OCR lines.
+ *  Each effect owns its line reference via global_index. */
+function rebuildEffects(newConfig, sectionLines) {
+  if (!newConfig?.effects) return [];
+  // Collect non-header OCR lines
+  const ocrLines = (sectionLines || []).filter(l =>
+    l.text && !l.text.startsWith('[접두]') && !l.text.startsWith('[접미]')
+  );
+  const usedOcr = new Set();
+  return newConfig.effects.map(ce => {
+    const eff = { text: ce.text, option_name: ce.option_name || null, option_level: null, global_index: null };
+    if (!ce.option_name) return eff;
+    // Find OCR line containing this option_name to extract rolled value
+    const ocrIdx = ocrLines.findIndex(
+      (l, i) => !usedOcr.has(i) && l.text.includes(ce.option_name)
+    );
+    if (ocrIdx >= 0) {
+      usedOcr.add(ocrIdx);
+      const line = ocrLines[ocrIdx];
+      eff.global_index = line.global_index;
+      const after = line.text.slice(line.text.indexOf(ce.option_name) + ce.option_name.length);
+      const rolled = extractNumber(after);
+      if (rolled != null) {
+        eff.option_level = rolled;
+        eff.text = ce.option_name + ' ' + rolled + (ce.suffix || '');
+      }
+    }
+    return eff;
+  });
+}
+
+const EffectRow = ({ eff, lineIdx, onLineChange, configEffects }) => {
   const { t } = useTranslation();
   const [editingName, setEditingName] = useState(false);
   const [editingLevel, setEditingLevel] = useState(false);
@@ -57,6 +94,15 @@ const EffectRow = ({ eff, lineIdx, lineText, onLineChange, configEffects }) => {
     );
   }
 
+  // Safely extract suffix text after option_level
+  const levelStr = eff.option_level != null ? String(eff.option_level) : null;
+  const suffixText = (() => {
+    if (levelStr == null) return '';
+    const idx = eff.text.indexOf(levelStr);
+    if (idx < 0) return '';
+    return eff.text.slice(idx + levelStr.length).trim();
+  })();
+
   return (
     <div className="group flex items-center gap-1 text-xs text-gray-400">
       <span className="text-gray-600 mr-1">-</span>
@@ -79,15 +125,13 @@ const EffectRow = ({ eff, lineIdx, lineText, onLineChange, configEffects }) => {
           ) : (
             <span
               className={'text-orange-400 font-bold' + (isRanged ? ' cursor-pointer hover:underline' : '')}
-              onClick={isRanged ? () => { setLevelDraft(String(eff.option_level)); setEditingLevel(true); } : undefined}
+              onClick={isRanged ? () => { setLevelDraft(eff.option_level != null ? String(eff.option_level) : ''); setEditingLevel(true); } : undefined}
               title={isRanged ? t('sections.enchant.clickToEditValue') : undefined}
             >
-              {eff.option_level}
+              {eff.option_level != null ? eff.option_level : (isRanged ? '?' : '')}
             </span>
           )}
-          {eff.text.slice(eff.text.indexOf(String(eff.option_level)) + String(eff.option_level).length).trim() && (
-            <span> {eff.text.slice(eff.text.indexOf(String(eff.option_level)) + String(eff.option_level).length).trim()}</span>
-          )}
+          {suffixText && <span> {suffixText}</span>}
         </>
       ) : (
         <span>{eff.text}</span>
@@ -105,7 +149,7 @@ const EffectRow = ({ eff, lineIdx, lineText, onLineChange, configEffects }) => {
   );
 };
 
-const EnchantSlot = ({ slot, slotLabel, headerLineIdx, effectLineIndices, lines, onLineChange }) => {
+const EnchantSlot = ({ slot, slotLabel, headerLineIdx, lines, onLineChange }) => {
   const { t } = useTranslation();
   const [editingHeader, setEditingHeader] = useState(false);
 
@@ -137,7 +181,8 @@ const EnchantSlot = ({ slot, slotLabel, headerLineIdx, effectLineIndices, lines,
               const slotKey = slotLabel === 'Prefix' ? 'prefix' : 'suffix';
               const newText = `[${slotKor}] ${item.name} (랭크 ${item.rank_label})`;
               onLineChange(headerLineIdx, newText, (sec) => {
-                sec[slotKey] = { ...sec[slotKey], name: item.name, rank: item.rank_label, text: newText };
+                const newEffects = rebuildEffects(item, sec.lines);
+                sec[slotKey] = { ...sec[slotKey], name: item.name, rank: item.rank_label, text: newText, effects: newEffects };
               });
               setEditingHeader(false);
             }}
@@ -162,8 +207,10 @@ const EnchantSlot = ({ slot, slotLabel, headerLineIdx, effectLineIndices, lines,
       </div>
       <div className="space-y-1.5 pl-3 border-l border-purple-900/30">
         {slot.effects.map((eff, i) => {
-          const lineIdx = effectLineIndices[i];
-          const lineText = lines?.[lineIdx]?.text || '';
+          // Resolve section-local line index from effect's global_index
+          const lineIdx = eff.global_index != null
+            ? lines?.findIndex(l => l.global_index === eff.global_index) ?? -1
+            : -1;
           const handleEffectChange = (li, newText, extraUpdate, effectMeta) => {
             const sk = slotLabel === 'Prefix' ? 'prefix' : 'suffix';
             const effText = newText.startsWith('- ') ? newText.slice(2) : newText;
@@ -181,7 +228,6 @@ const EnchantSlot = ({ slot, slotLabel, headerLineIdx, effectLineIndices, lines,
               key={i}
               eff={eff}
               lineIdx={lineIdx}
-              lineText={lineText}
               onLineChange={handleEffectChange}
               configEffects={configEffects}
             />
@@ -207,16 +253,14 @@ const FallbackLines = ({ slotLines, onLineChange }) => (
 );
 
 const EnchantSection = ({ prefix, suffix, lines, onLineChange }) => {
-  const { groups, effectIndices, headerIndices } = useMemo(() => {
+  const { groups, headerIndices } = useMemo(() => {
     if (!lines) return {
       groups: { prefix: [], suffix: [], unassigned: [] },
-      effectIndices: { prefix: [], suffix: [] },
       headerIndices: { prefix: null, suffix: null }
     };
 
     let currentSlot = null;
     const grp = { prefix: [], suffix: [], unassigned: [] };
-    const effIdx = { prefix: [], suffix: [] };
     const hdrIdx = { prefix: null, suffix: null };
 
     for (let i = 0; i < lines.length; i++) {
@@ -230,13 +274,9 @@ const EnchantSection = ({ prefix, suffix, lines, onLineChange }) => {
         hdrIdx.suffix = i;
       }
       grp[currentSlot || 'unassigned'].push({ ...line, lineIdx: i });
-
-      if (currentSlot && !text.startsWith('[접두]') && !text.startsWith('[접미]')) {
-        effIdx[currentSlot].push(i);
-      }
     }
 
-    return { groups: grp, effectIndices: effIdx, headerIndices: hdrIdx };
+    return { groups: grp, headerIndices: hdrIdx };
   }, [lines]);
 
   return (
@@ -246,7 +286,6 @@ const EnchantSection = ({ prefix, suffix, lines, onLineChange }) => {
           slot={prefix}
           slotLabel="Prefix"
           headerLineIdx={headerIndices.prefix}
-          effectLineIndices={effectIndices.prefix}
           lines={lines}
           onLineChange={onLineChange}
         />
@@ -258,7 +297,6 @@ const EnchantSection = ({ prefix, suffix, lines, onLineChange }) => {
           slot={suffix}
           slotLabel="Suffix"
           headerLineIdx={headerIndices.suffix}
-          effectLineIndices={effectIndices.suffix}
           lines={lines}
           onLineChange={onLineChange}
         />
