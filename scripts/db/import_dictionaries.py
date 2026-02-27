@@ -57,13 +57,19 @@ def parse_enchant(path: Path) -> list[dict]:
         slot = 0 if slot_kr == "접두" else 1
         rank_str = str(item["rank"])
         header_text = f"[{slot_kr}] {item['name']} (랭크 {rank_str})"
-        entries.append({
+        entry = {
             "slot": slot,
             "name": item["name"],
             "rank": _rank_to_int(rank_str),
             "header_text": header_text,
             "effects": item.get("effects", []),
-        })
+            "restriction": item.get("restriction"),
+            "binding": item.get("binding", False),
+            "guaranteed_success": item.get("guaranteed_success", False),
+            "activation": item.get("activation"),
+            "credit": item.get("credit"),
+        }
+        entries.append(entry)
 
     return entries
 
@@ -203,13 +209,22 @@ def import_enchant(
         row = conn.execute(
             text(
                 """
-                INSERT INTO enchants (slot, name, rank, header_text)
-                VALUES (:slot, :name, :rank, :header_text)
+                INSERT INTO enchants (slot, name, rank, header_text,
+                                      restriction, binding, guaranteed_success,
+                                      activation, credit)
+                VALUES (:slot, :name, :rank, :header_text,
+                        :restriction, :binding, :guaranteed_success,
+                        :activation, :credit)
                 ON CONFLICT (header_text)
                 DO UPDATE SET
                     slot = EXCLUDED.slot,
                     name = EXCLUDED.name,
-                    rank = EXCLUDED.rank
+                    rank = EXCLUDED.rank,
+                    restriction = EXCLUDED.restriction,
+                    binding = EXCLUDED.binding,
+                    guaranteed_success = EXCLUDED.guaranteed_success,
+                    activation = EXCLUDED.activation,
+                    credit = EXCLUDED.credit
                 RETURNING id
                 """
             ),
@@ -218,6 +233,11 @@ def import_enchant(
                 "name": entry["name"],
                 "rank": entry["rank"],
                 "header_text": entry["header_text"],
+                "restriction": entry.get("restriction"),
+                "binding": entry.get("binding", False),
+                "guaranteed_success": entry.get("guaranteed_success", False),
+                "activation": entry.get("activation"),
+                "credit": entry.get("credit"),
             },
         ).fetchone()
 

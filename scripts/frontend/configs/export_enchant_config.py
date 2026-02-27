@@ -144,6 +144,17 @@ def export_config():
                 'rank_label': str(rank_str).upper(),
                 'effects': effects_list,
             }
+            # Pass through metadata fields
+            if 'restriction' in item:
+                entry['restriction'] = item['restriction']
+            if item.get('binding'):
+                entry['binding'] = True
+            if item.get('guaranteed_success'):
+                entry['guaranteed_success'] = True
+            if 'activation' in item:
+                entry['activation'] = item['activation']
+            if 'credit' in item:
+                entry['credit'] = item['credit']
             # Optional: add synonym for searchability if present
             if 'synonym' in item:
                 entry['synonym'] = item['synonym']
