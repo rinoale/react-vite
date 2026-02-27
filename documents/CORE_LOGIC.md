@@ -607,3 +607,157 @@ Holywater and ego detection use `fuzz.ratio ≥ 70` on individual words.
 2. **New enchant prefixes/suffixes added** with names similar to holywater (especially 3-char names similar to `신성한`) → re-verify the margin is still ≥ 3.
 3. **`item_name.txt` regenerated** → no algorithm changes needed, FM handles dynamically.
 4. **Threshold values (70 for holywater/ego, 60 for item_name/prefix/suffix) must not be changed** without re-running the full safety analysis across all dictionaries.
+
+---
+
+## 11. Distanced Line Finder — Gap-Based Outlier Detection
+
+**File:** `backend/lib/line_merge.py`
+**Function:** `detect_gap_outlier()`
+
+### Problem
+
+The tooltip segmenter assigns content regions to sections by header boundaries, but the boundaries aren't pixel-perfect. Non-enchant content (e.g., `불 속성` elemental damage text) can leak into the bottom of an enchant segment. These leaked lines are spatially distant from the real enchant effects — there's a visible gap in the tooltip where a different section begins.
+
+### Key Insight
+
+Within a single section, consecutive lines have consistent vertical spacing (typically 3-5px gaps between line bounding boxes). A leaked line from another section breaks this rhythm with a much larger gap. The algorithm doesn't need to know *what* the leaked content is — it only needs to detect the spatial discontinuity.
+
+### Algorithm
+
+```
+Input: active_items = [(orig_index, bounds_dict), ...]
+       Each bounds_dict has 'y' (top) and 'height'
+
+Step 1: Compute inter-line vertical gaps for consecutive pairs
+        gap[k] = item[k].y - (item[k-1].y + item[k-1].height)
+
+        Example gaps for dropbell enchant segment:
+        [3, 4, 3, 4, 3, 4, 3, 11]
+                                 ↑ leaked 불 속성
+
+Step 2: Median gap
+        sorted = [3, 3, 3, 3, 4, 4, 4, 11]
+        median = 3  (middle value)
+
+Step 3: Outlier threshold = max(median * 2, median + 4)
+        = max(6, 7) = 7
+
+        Why this formula:
+        - median * 2: scales with line spacing (tolerates denser/sparser layouts)
+        - median + 4: absolute floor (prevents false positives when median=0 or 1
+          due to tightly packed lines where 2× would trigger on normal variation)
+        - max(): whichever is more conservative wins
+
+Step 4: Scan from bottom — first gap ≥ threshold is the boundary
+        gap=11 ≥ 7 → outlier found at position k
+
+Output: k (position in active_items where outlier starts), or None
+```
+
+### Why Bottom-Up Scan
+
+Leaked content always comes from *below* (the segmenter's lower boundary overshoots into the next section). Scanning from bottom finds the outermost boundary first. If multiple gaps exceed the threshold, the bottom-most one is the correct cut point — everything below it is non-enchant.
+
+### Threshold Robustness
+
+| Scenario | Median | Threshold | Typical outlier | Margin |
+|----------|--------|-----------|----------------|--------|
+| Standard tooltip (1080p) | 3-4 | 7-8 | 10-15 | 3-7px |
+| Compact tooltip (768p) | 1-2 | 4-5 | 6-10 | 2-5px |
+| Sparse tooltip (1440p) | 5-6 | 10-12 | 15-20 | 5-8px |
+
+The `max(2×, +4)` formula adapts to different resolutions without resolution-specific parameters.
+
+---
+
+## 12. Excess Effect Line Merging
+
+**File:** `backend/lib/line_merge.py`
+**Orchestrator:** `merge_excess_lines()`
+**Called from:** `text_corrector.py` → `apply_fm()` → after Dullahan header match, before effect FM
+
+### Problem
+
+The line splitter produces one OCR crop per visual text line. Long enchant effects wrap in the tooltip, creating more OCR lines than real effects. Additionally, non-enchant content can leak into the segment from below (addressed by Section 11).
+
+### Prerequisite
+
+The `enchant.yaml` migration gives the exact expected effect count per enchant entry. With both the OCR line count and the DB expected count, the algorithm knows exactly how many excess lines to eliminate.
+
+### Two-Pass Algorithm
+
+**Pass 1 — Gap-Based Trim** (Section 11): `detect_gap_outlier` → `mark_trimmed`. Eliminates leaked non-enchant lines at the segment boundary.
+
+**Pass 2 — Tail-Window Merge:** Absorbs wrapped line fragments into their parent effect lines.
+
+```
+Input: remaining active lines after Pass 1
+
+Step 1: excess = len(active) - expected_count
+        If excess ≤ 0: done
+
+Step 2: Search window = last (excess * 2) active lines
+        Fragments cluster at the bottom because long effects are sorted last
+        and are the ones that wrap
+
+Step 3: Rank lines in window by width (ascending)
+        Narrowest = most likely fragment
+
+Step 4: Pick narrowest `excess` lines as fragments
+
+Step 5: For each fragment (sorted by index):
+        Find nearest preceding active neighbor → append text
+        If no preceding neighbor → merge forward into next active line
+        Clear fragment (text='', _merged=True)
+```
+
+Example: `wingshoes` tooltip — a long enchant effect wraps into a narrow continuation line (~30px wide vs ~150px for full lines). The width ranking correctly identifies it as a fragment.
+
+### Decision Flow
+
+```
+Build active list (filter grey/empty)
+     │
+     ├── len(active) ≤ expected_count?
+     │    YES → return (nothing to merge)
+     │
+     ├── Pass 1: detect_gap_outlier(active)  [Section 11]
+     │    │
+     │    ├── Outlier found?
+     │    │    YES → mark_trimmed() from outlier position onward
+     │    │         Rebuild active list
+     │    │
+     │    └── No outlier → skip
+     │
+     ├── Recompute excess after trim
+     │    excess ≤ 0? → return
+     │
+     └── Pass 2: find_fragment_indices(active, excess)
+          │
+          └── merge_fragments() into neighbors
+               Clear absorbed fragments (_merged=True)
+```
+
+### Function Decomposition
+
+| Function | Type | Input | Output |
+|----------|------|-------|--------|
+| `detect_gap_outlier(active_items)` | pure | `[(index, bounds), ...]` | trim position or None |
+| `find_fragment_indices(active_items, excess)` | pure | active items + count | set of indices |
+| `mark_trimmed(lines, active_items, pos)` | mutation | line dicts + position | mutates in-place |
+| `merge_fragments(lines, fragment_indices)` | mutation | line dicts + index set | mutates in-place |
+| `merge_excess_lines(lines, expected_count)` | orchestrator | line dicts + count | mutates in-place |
+
+Detection functions return positions/indices only — no side effects. Mutation is explicit and separate. Each algorithm is independently testable.
+
+### Post-Merge Filtering
+
+After `merge_excess_lines` runs, absorbed lines have `_merged=True`. The pipeline (`v3_pipeline.py`) removes these from both section data and `all_lines`:
+
+```python
+sections['enchant']['lines'] = [l for l in ... if not l.get('_merged')]
+all_lines = [l for l in all_lines if not l.get('_merged')]
+```
+
+This filtering is a pipeline-level concern, not part of the merge algorithm itself.

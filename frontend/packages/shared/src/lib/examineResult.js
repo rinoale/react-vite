@@ -1,6 +1,22 @@
 import { findGameItemByName } from './gameItems';
 
 /**
+ * Collect all line texts from sections in order.
+ */
+function collectLinesFromSections(sections) {
+  const lines = [];
+  for (const sec of Object.values(sections)) {
+    if (sec.header_text) lines.push(sec.header_text);
+    if (sec.lines) {
+      for (const l of sec.lines) {
+        if (l.text) lines.push(l.text);
+      }
+    }
+  }
+  return lines;
+}
+
+/**
  * Parse the examine-item API response into form-ready data.
  *
  * Pure function — no React state, no side effects.
@@ -8,16 +24,15 @@ import { findGameItemByName } from './gameItems';
  * @param {Object} data - Response from POST /examine-item
  * @returns {{ itemName: string, description: string, sections: Object,
  *             sessionId: string|null, parsedItemName: string,
- *             gameItemMatch: Object|null, allLines: Array }}
+ *             gameItemMatch: Object|null }}
  */
 export function parseExamineResult(data) {
   const sections = data.sections || {};
-  const allLines = data.all_lines || [];
   const sessionId = data.session_id || null;
 
   const parsedItemName = sections.pre_header?.parsed_item_name?.item_name || '';
   const itemName = parsedItemName || sections.item_name?.text || '';
-  const description = allLines.map(l => l.text).join('\n');
+  const description = collectLinesFromSections(sections).join('\n');
 
   // Resolve game item from parsed name (local config lookup)
   const gameItemMatch = parsedItemName ? findGameItemByName(parsedItemName) : null;
@@ -29,6 +44,5 @@ export function parseExamineResult(data) {
     sessionId,
     parsedItemName,
     gameItemMatch,
-    allLines,
   };
 }

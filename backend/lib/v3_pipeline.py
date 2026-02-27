@@ -439,16 +439,12 @@ def _step_resolve_enchant(sections, corrector):
                 p3_name = line['enchant_name']
                 p3_score = line.get('_dullahan_score', 0)
 
-        # Priority: P3 > P1 > P2 (TEMPORARY — for testing P3 edge cases)
+        # Priority: P1 > P2 > P3
         winner = None
         winner_entry = None
         winner_source = None
 
-        if p3_name:
-            winner = p3_name
-            winner_entry = corrector.lookup_enchant_by_name(p3_name, slot_type=slot_type)
-            winner_source = 'P3_dullahan'
-        elif p1_entry:
+        if p1_entry:
             winner = p1_name
             winner_entry = p1_entry
             winner_source = 'P1_item_name'
@@ -456,6 +452,10 @@ def _step_resolve_enchant(sections, corrector):
             winner = p2_name
             winner_entry = corrector.lookup_enchant_by_name(p2_name, slot_type=slot_type)
             winner_source = 'P2_header_ocr'
+        elif p3_name:
+            winner = p3_name
+            winner_entry = corrector.lookup_enchant_by_name(p3_name, slot_type=slot_type)
+            winner_source = 'P3_dullahan'
 
         slot_resolution = {
             'winner': winner_source,
@@ -581,6 +581,15 @@ def run_v3_pipeline(img_bgr, header_reader, section_patterns, config,
 
     # Step 3: Fuzzy match OCR text against per-section dictionaries
     _step_fm(all_lines, sections, corrector)
+
+    # Remove merged fragment lines so line counts match expected effects
+    if 'enchant' in sections and sections['enchant'].get('lines'):
+        sections['enchant']['lines'] = [
+            l for l in sections['enchant']['lines'] if not l.get('_merged')]
+    all_lines = [l for l in all_lines if not l.get('_merged')]
+    # Re-index after filtering so frontend gets consecutive indices
+    for idx, line in enumerate(all_lines):
+        line['global_index'] = idx
 
     # Step 4: Rebuild enchant prefix/suffix slots and reforge options from corrected text
     _step_rebuild_structured(sections, parser)

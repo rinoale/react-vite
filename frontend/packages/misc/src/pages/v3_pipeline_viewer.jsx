@@ -1024,10 +1024,10 @@ const V3PipelineViewer = () => {
                 {/* OCR Lines */}
                 <div className="p-3 bg-gray-900 rounded-lg border border-gray-700">
                   <h3 className="text-sm font-medium text-cyan-400 mb-2">
-                    {t('v3Pipeline.server.ocrLines', { count: serverResult.all_lines?.length || 0 })}
+                    {t('v3Pipeline.server.ocrLines', { count: Object.values(serverResult.sections || {}).flatMap(s => s.lines || []).length })}
                   </h3>
                   <div className="space-y-1 max-h-[400px] overflow-y-auto">
-                    {(serverResult.all_lines || []).map((line, i) => (
+                    {Object.values(serverResult.sections || {}).flatMap(s => s.lines || []).map((line, i) => (
                       <div key={i} className="flex items-start gap-2 text-sm font-mono">
                         <span className="text-gray-600 w-6 text-right shrink-0">{i + 1}</span>
                         <span className="text-gray-300">{line.text || '\u00a0'}</span>

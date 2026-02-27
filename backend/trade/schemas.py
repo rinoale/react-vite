@@ -97,4 +97,3 @@ class ExamineItemResponse(BaseModel):
     filename: str
     session_id: Optional[str] = None
     sections: Dict[str, OcrSectionResponse]
-    all_lines: List[OcrLineResponse]

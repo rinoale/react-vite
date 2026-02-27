@@ -6,6 +6,7 @@ import re
 import yaml
 
 from lib.mabinogi_tooltip_parser import _parse_effect_number
+from lib.line_merge import merge_excess_lines
 
 # Load canonical prefix characters from tooltip config (game constants, not model-specific).
 _tooltip_cfg = yaml.safe_load((Path(__file__).parents[2] / 'configs' / 'mabinogi_tooltip.yaml').read_text())
@@ -975,6 +976,11 @@ class TextCorrector:
                             hdr_line['enchant_slot'] = entry['slot']
                             hdr_line['enchant_name'] = entry['name']
                             hdr_line['enchant_rank'] = entry['rank']
+
+                    # Merge excess split lines before effect FM
+                    if entry:
+                        merge_excess_lines(
+                            effect_lines, len(entry['effects']))
 
                     # FM effect lines against the matched entry's effects
                     if entry:

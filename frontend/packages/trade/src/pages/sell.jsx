@@ -115,7 +115,9 @@ const Sell = () => {
       setOcrResult(data);
 
       const result = parseExamineResult(data);
-      setDetectedLines(result.allLines);
+      setDetectedLines(
+        Object.values(result.sections).flatMap(s => s.lines || [])
+      );
       setSessionId(result.sessionId);
 
       // Auto-resolve game item

@@ -152,25 +152,22 @@ async def examine_item(file: UploadFile = File(...)):
 
         result = run_v3_pipeline(img_bgr, **_pipeline, save_crops=True)
 
-        all_lines = result.get('all_lines', [])
         sections = result.get('sections', {})
         session_id = result.get('session_id', '')
-        n_crops = sum(1 for l in all_lines if '_crop' not in l)  # crops already popped by pipeline
 
         logger.info(
-            "examine-item  session=%s  sections=%s  lines=%d  crops=%d",
+            "examine-item  session=%s  sections=%s",
             session_id,
             list(sections.keys()),
-            len(all_lines),
-            n_crops,
         )
 
-        result['sections'] = prepare_sections_for_response(sections)
-        # Strip is_header from all_lines (no longer in OcrLineResponse schema)
-        for line in all_lines:
-            line.pop('is_header', None)
-
-        return {"filename": file.filename, **result}
+        response = {
+            "filename": file.filename,
+            "sections": prepare_sections_for_response(sections),
+        }
+        if session_id:
+            response["session_id"] = session_id
+        return response
 
     except HTTPException:
         raise
