@@ -27,11 +27,17 @@ EFFECT_BLUE_RGB = (74, 149, 238)
 # Red effect text — negative enchant effects.
 EFFECT_RED_RGB = (255, 103, 103)
 
+# Grey effect text — disabled/conditional effects not meeting requirements.
+EFFECT_GREY_RGB = (128, 128, 128)
+
 # White text — subbullet ㄴ prefix in reforge sub-lines.
 WHITE_TEXT_RGB = (255, 255, 255)
 
-# All bullet colors — blue (positive effect) + red (negative effect).
-BULLET_COLORS = [EFFECT_BLUE_RGB, EFFECT_RED_RGB]
+# All bullet (·) colors — blue (positive) + red (negative) + grey (disabled).
+BULLET_COLORS = [EFFECT_BLUE_RGB, EFFECT_RED_RGB, EFFECT_GREY_RGB]
+
+# All subbullet (ㄴ) colors — white (reforge sub-lines) + red (negative effects).
+SUBBULLET_COLORS = [WHITE_TEXT_RGB, EFFECT_RED_RGB]
 
 
 def _color_mask(img_bgr, rgb, tolerance):
@@ -60,9 +66,13 @@ def red_text_mask(img_bgr, tolerance=15):
 
 
 def bullet_text_mask(img_bgr, tolerance=15):
-    """Binary mask matching all bullet colors (blue + red)."""
+    """Binary mask matching all prefix colors (bullet + subbullet).
+
+    Includes all colors that can carry · or ㄴ prefix marks.
+    detect_prefix() classifies by cluster width, not color.
+    """
     mask = np.zeros(img_bgr.shape[:2], dtype=np.uint8)
-    for rgb in BULLET_COLORS:
+    for rgb in set(BULLET_COLORS + SUBBULLET_COLORS):
         mask = np.maximum(mask, _color_mask(img_bgr, rgb, tolerance))
     return mask
 
@@ -135,9 +145,25 @@ def detect_prefix(mask_line):
     if first_w > max_prefix_w or gap_w < min_gap:
         return _no_prefix()
 
+    # Vertical ink extent of first cluster — reject full-height characters.
+    # Real · is a small dot (ink_rows/h ≈ 0.15-0.25).
+    # Real ㄴ is taller but still partial (ink_rows/h ≈ 0.35-0.55).
+    # Plain text characters span most of the line (ink_rows/h ≈ 0.7-1.0).
+    cluster_region = mask_line[:, first_start:first_end]
+    ink_rows = int(np.sum(np.any(cluster_region > 0, axis=1)))
+
     # Classify by width
     bullet_max_w = max(3, int(h * 0.25))
-    prefix_type = 'bullet' if first_w <= bullet_max_w else 'subbullet'
+    if first_w <= bullet_max_w:
+        # Bullet (·): must be vertically small
+        if ink_rows > max(4, int(h * 0.5)):
+            return _no_prefix()
+        prefix_type = 'bullet'
+    else:
+        # Subbullet (ㄴ): can be taller but not full-height
+        if ink_rows > max(8, int(h * 0.75)):
+            return _no_prefix()
+        prefix_type = 'subbullet'
 
     return {
         'type': prefix_type,

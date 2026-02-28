@@ -255,8 +255,10 @@ function applyEdge(imageData, width, height, type, direction) {
 
 const EFFECT_BLUE = { r: 74, g: 149, b: 238 }
 const EFFECT_RED = { r: 255, g: 103, b: 103 }
+const EFFECT_GREY = { r: 128, g: 128, b: 128 }
 const TEXT_WHITE = { r: 255, g: 255, b: 255 }
-const BULLET_COLORS = [EFFECT_BLUE, EFFECT_RED]
+const BULLET_COLORS = [EFFECT_BLUE, EFFECT_RED, EFFECT_GREY]
+const SUBBULLET_COLORS = [TEXT_WHITE, EFFECT_RED]
 
 function _buildColorMask(data, w, h, color, tolerance) {
   const mask = new Uint8Array(w * h)
@@ -273,8 +275,8 @@ function _buildColorMask(data, w, h, color, tolerance) {
   return mask
 }
 
-function _detectLinesAndPrefixes(mask, w, h, colorLabel) {
-  // Line detection via horizontal projection
+function _detectLines(mask, w, h) {
+  // Line detection via horizontal projection on color mask
   const rowProj = new Uint32Array(h)
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) rowProj[y] += mask[y * w + x]
@@ -282,6 +284,7 @@ function _detectLinesAndPrefixes(mask, w, h, colorLabel) {
   const threshold = Math.max(3, w * 0.01)
   const hasText = new Uint8Array(h)
   for (let y = 0; y < h; y++) hasText[y] = rowProj[y] > threshold ? 1 : 0
+  // Bridge gaps of ≤2 rows within a text line (thin stroke dips)
   for (let y = 1; y < h;) {
     if (!hasText[y] && hasText[y - 1]) {
       const gs = y
@@ -292,32 +295,60 @@ function _detectLinesAndPrefixes(mask, w, h, colorLabel) {
     } else { y++ }
   }
 
-  const lines = []
+  // Collect raw blocks (no height cap — split tall blocks below)
+  const blocks = []
   let inLine = false, lineStart = 0
   for (let y = 0; y <= h; y++) {
     const t = y < h && hasText[y]
     if (t && !inLine) { lineStart = y; inLine = true }
     else if (!t && inLine) {
       const lh = y - lineStart
-      if (lh >= 6 && lh <= 30) {
-        let xStart = -1, xEnd = -1
-        for (let ly = lineStart; ly < y; ly++) {
-          for (let x = 0; x < w; x++) {
-            if (mask[ly * w + x]) {
-              if (xStart < 0 || x < xStart) xStart = x
-              if (x + 1 > xEnd) xEnd = x + 1
-            }
-          }
-        }
-        if (xStart >= 0 && xEnd - xStart >= 6) {
-          lines.push({ x: xStart, y: lineStart, w: xEnd - xStart, h: lh })
-        }
-      }
+      if (lh >= 6) blocks.push({ y: lineStart, h: lh })
       inLine = false
     }
   }
 
-  // Per-line prefix detection via column projection
+  // Split tall blocks at internal zero-projection rows
+  const splitBlocks = []
+  for (const blk of blocks) {
+    if (blk.h <= 30) {
+      splitBlocks.push(blk)
+      continue
+    }
+    // Find split points: rows with zero projection within the block
+    let subStart = blk.y
+    for (let y = blk.y; y < blk.y + blk.h; y++) {
+      if (rowProj[y] <= threshold) {
+        const subH = y - subStart
+        if (subH >= 6) splitBlocks.push({ y: subStart, h: subH })
+        subStart = y + 1
+      }
+    }
+    const lastH = blk.y + blk.h - subStart
+    if (lastH >= 6) splitBlocks.push({ y: subStart, h: lastH })
+  }
+
+  // Compute x bounds for each line
+  const lines = []
+  for (const blk of splitBlocks) {
+    let xStart = -1, xEnd = -1
+    for (let ly = blk.y; ly < blk.y + blk.h; ly++) {
+      for (let x = 0; x < w; x++) {
+        if (mask[ly * w + x]) {
+          if (xStart < 0 || x < xStart) xStart = x
+          if (x + 1 > xEnd) xEnd = x + 1
+        }
+      }
+    }
+    if (xStart >= 0 && xEnd - xStart >= 6) {
+      lines.push({ x: xStart, y: blk.y, w: xEnd - xStart, h: blk.h })
+    }
+  }
+  return lines
+}
+
+function _detectPrefixes(lines, prefixMask, w, h, colorLabel) {
+  // Per-line prefix detection via column projection on prefix mask
   const results = []
   for (const line of lines) {
     const padX = Math.max(2, Math.floor(line.h / 3))
@@ -331,7 +362,7 @@ function _detectLinesAndPrefixes(mask, w, h, colorLabel) {
     const colProj = new Uint32Array(regionW)
     for (let ly = y0; ly < y1; ly++) {
       for (let lx = 0; lx < regionW; lx++) {
-        colProj[lx] += mask[ly * w + (x0 + lx)]
+        colProj[lx] += prefixMask[ly * w + (x0 + lx)]
       }
     }
 
@@ -351,18 +382,39 @@ function _detectLinesAndPrefixes(mask, w, h, colorLabel) {
       const minGap = Math.max(2, Math.floor(lineH * 0.2))
 
       if (firstW <= maxPrefixW && gapW >= minGap) {
+        // Vertical ink extent of first cluster — reject full-height characters
+        let inkRows = 0
+        for (let ly = y0; ly < y1; ly++) {
+          let rowHasInk = false
+          for (let lx = firstStart; lx < firstEnd; lx++) {
+            if (prefixMask[ly * w + (x0 + lx)]) { rowHasInk = true; break }
+          }
+          if (rowHasInk) inkRows++
+        }
+
         const bulletMaxW = Math.max(3, Math.floor(lineH * 0.25))
-        results.push({
-          color: colorLabel,
-          line: { x: x0, y: y0, w: regionW, h: lineH },
-          prefix: {
-            type: firstW <= bulletMaxW ? 'bullet' : 'subbullet',
-            x: x0 + firstStart, y: y0,
-            w: firstW, h: lineH,
-          },
-          mainX: x0 + mainStart,
-        })
-        continue
+        let prefixType = null
+        if (firstW <= bulletMaxW) {
+          // Bullet (·): must be vertically small
+          if (inkRows <= Math.max(4, Math.floor(lineH * 0.5))) prefixType = 'bullet'
+        } else {
+          // Subbullet (ㄴ): can be taller but not full-height
+          if (inkRows <= Math.max(8, Math.floor(lineH * 0.75))) prefixType = 'subbullet'
+        }
+
+        if (prefixType) {
+          results.push({
+            color: colorLabel,
+            line: { x: x0, y: y0, w: regionW, h: lineH },
+            prefix: {
+              type: prefixType,
+              x: x0 + firstStart, y: y0,
+              w: firstW, h: lineH,
+            },
+            mainX: x0 + mainStart,
+          })
+          continue
+        }
       }
     }
     results.push({
@@ -377,20 +429,41 @@ function _detectLinesAndPrefixes(mask, w, h, colorLabel) {
 
 function detectBullets(imageData, tolerance) {
   const { data, width: w, height: h } = imageData
-  // Combine blue + red into one bullet mask
-  const mask = new Uint8Array(w * h)
+  // Line detection: all bullet colors (blue + red + grey)
+  const LINE_COLORS = BULLET_COLORS
+  const lineMask = new Uint8Array(w * h)
+  for (const color of LINE_COLORS) {
+    const m = _buildColorMask(data, w, h, color, tolerance)
+    for (let i = 0; i < lineMask.length; i++) if (m[i]) lineMask[i] = 1
+  }
+  const lines = _detectLines(lineMask, w, h)
+  // Prefix detection: all bullet colors (including grey)
+  const prefixMask = new Uint8Array(w * h)
   for (const color of BULLET_COLORS) {
     const m = _buildColorMask(data, w, h, color, tolerance)
-    for (let i = 0; i < mask.length; i++) if (m[i]) mask[i] = 1
+    for (let i = 0; i < prefixMask.length; i++) if (m[i]) prefixMask[i] = 1
   }
-  return _detectLinesAndPrefixes(mask, w, h, 'bullet')
+  return _detectPrefixes(lines, prefixMask, w, h, 'bullet')
     .filter(r => r.prefix?.type === 'bullet')
 }
 
 function detectSubbullets(imageData, tolerance) {
   const { data, width: w, height: h } = imageData
-  const mask = _buildColorMask(data, w, h, TEXT_WHITE, tolerance)
-  return _detectLinesAndPrefixes(mask, w, h, 'subbullet')
+  // Line detection: white + red (no grey)
+  const LINE_COLORS = [TEXT_WHITE, EFFECT_RED]
+  const lineMask = new Uint8Array(w * h)
+  for (const color of LINE_COLORS) {
+    const m = _buildColorMask(data, w, h, color, tolerance)
+    for (let i = 0; i < lineMask.length; i++) if (m[i]) lineMask[i] = 1
+  }
+  const lines = _detectLines(lineMask, w, h)
+  // Prefix detection: all subbullet colors
+  const prefixMask = new Uint8Array(w * h)
+  for (const color of SUBBULLET_COLORS) {
+    const m = _buildColorMask(data, w, h, color, tolerance)
+    for (let i = 0; i < prefixMask.length; i++) if (m[i]) prefixMask[i] = 1
+  }
+  return _detectPrefixes(lines, prefixMask, w, h, 'subbullet')
     .filter(r => r.prefix?.type === 'subbullet')
 }
 

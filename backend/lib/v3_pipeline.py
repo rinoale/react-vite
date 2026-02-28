@@ -575,14 +575,16 @@ def run_v3_pipeline(img_bgr, header_reader, section_patterns, config,
         line['raw_text'] = line.get('text', '')
 
     # Step 3: Fuzzy match OCR text against per-section dictionaries
-    # (includes merge_fragments which stitches _crop arrays side by side)
+    # (includes merge_continuations which joins wrapped lines by prefix detection)
     _step_fm(all_lines, sections, corrector)
 
     # Remove merged fragment lines so line counts match expected effects
     if 'enchant' in sections and sections['enchant'].get('lines'):
         sections['enchant']['lines'] = [
-            l for l in sections['enchant']['lines'] if not l.get('_merged')]
-    all_lines = [l for l in all_lines if not l.get('_merged')]
+            l for l in sections['enchant']['lines']
+            if not l.get('_merged') and not l.get('_cont_merged')]
+    all_lines = [l for l in all_lines
+                 if not l.get('_merged') and not l.get('_cont_merged')]
     # Re-index after filtering so frontend gets consecutive indices
     for idx, line in enumerate(all_lines):
         line['global_index'] = idx

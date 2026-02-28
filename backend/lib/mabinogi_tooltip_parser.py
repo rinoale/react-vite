@@ -10,9 +10,12 @@ Produces structured item data from tooltip images by:
 6. Structurally parsing known patterns (e.g. color parts)
 """
 
+import logging
 import os
 from pathlib import Path
 import re
+
+logger = logging.getLogger(__name__)
 from collections import OrderedDict
 
 import cv2
@@ -21,6 +24,10 @@ import yaml
 
 from lib.tooltip_line_splitter import TooltipLineSplitter
 from lib.prefix_detector import detect_prefix, bullet_text_mask
+from lib.line_processing import (
+    merge_group_bounds, trim_outlier_tail, promote_grey_by_prefix,
+    determine_enchant_slots, merge_continuations, count_effects_per_header,
+)
 
 # Pixels to back off from color-mask main_x when slicing bullet prefixes.
 # Anti-aliased text edges pass brightness threshold but not color match,
@@ -551,15 +558,7 @@ class MabinogiTooltipParser(TooltipLineSplitter):
             merged_text = ' '.join(t.strip() for t in sub_texts if t.strip())
             avg_conf = sum(sub_confs) / len(sub_confs) if sub_confs else 0.0
 
-            # Use first sub-line's y/height, span full x range
-            first = group[0]
-            last = group[-1]
-            merged_bounds = {
-                'x': first['x'],
-                'y': first['y'],
-                'width': (last['x'] + last['width']) - first['x'],
-                'height': first['height'],
-            }
+            merged_bounds = merge_group_bounds(group)
 
             # Use the model from the first sub-line (or most common if multiple)
             ocr_model = sub_details[0].get('ocr_model', '') if sub_details else ''
@@ -576,6 +575,7 @@ class MabinogiTooltipParser(TooltipLineSplitter):
                 'sub_lines': sub_details,
                 'ocr_model': ocr_model,
                 '_has_bullet': has_bullet,
+                '_prefix_type': first_prefix,
             }
 
             # Attach full-width line crop for correction training
@@ -1007,20 +1007,19 @@ class MabinogiTooltipParser(TooltipLineSplitter):
         # 1. Classify each group
         classifications = []  # (group, merged_bounds, line_type)
         for group in grouped:
-            first = group[0]
-            last = group[-1]
-            merged_bounds = {
-                'x': first['x'],
-                'y': first['y'],
-                'width': (last['x'] + last['width']) - first['x'],
-                'height': first['height'],
-            }
-            line_type = classify_enchant_line(content_bgr, merged_bounds, bands)
-            classifications.append((group, merged_bounds, line_type))
+            bounds = merge_group_bounds(group)
+            line_type = classify_enchant_line(content_bgr, bounds, bands)
+            classifications.append((group, bounds, line_type))
 
-        # 2. Batch OCR: headers and effects separately (may use different readers)
-        #    Headers use white-mask band bounds for cropping (no border artifacts,
-        #    no pink rank text). Effects use line-splitter bounds from binary.
+        # 2. Trim leaked non-enchant lines at segment bottom (gap outlier)
+        classifications = trim_outlier_tail(
+            classifications, header_test=lambda lt: lt == 'header')
+
+        # 3. Promote grey lines with bullet prefix to effect
+        b_mask = bullet_text_mask(content_bgr)
+        promote_grey_by_prefix(classifications, b_mask)
+
+        # 4. Batch OCR: headers and effects separately
         header_classifications = [(g, b, lt) for g, b, lt in classifications if lt == 'header']
         effect_groups = [g for g, _, lt in classifications if lt == 'effect']
 
@@ -1031,7 +1030,6 @@ class MabinogiTooltipParser(TooltipLineSplitter):
                             hdr_reader, save_crops_dir=_save,
                             attach_crops=attach_crops)
                         if header_classifications else [])
-        b_mask = bullet_text_mask(content_bgr)
         effect_batch = (self._ocr_grouped_lines(binary, effect_groups, reader,
                                                 save_crops_dir=_save,
                                                 save_label='content_enchant',
@@ -1042,23 +1040,12 @@ class MabinogiTooltipParser(TooltipLineSplitter):
         header_iter = iter(header_batch)
         effect_iter = iter(effect_batch)
 
-        # 3. Assemble results — determine slot from position, not OCR text.
+        # 5. Assemble results — determine slot from position, not OCR text.
         #    Mabinogi tooltip: prefix always first, suffix second.
         #    Grey lines above first header → prefix slot is empty → header is suffix.
         hdr_model_name = ('enchant_header' if enchant_header_reader is not None
                           else 'general')
-        n_headers = sum(1 for _, _, lt in classifications if lt == 'header')
-        if n_headers == 2:
-            slot_queue = ['접두', '접미']
-        elif n_headers == 1:
-            # Check if grey lines appear before the first header
-            first_hdr_y = next(b['y'] for _, b, lt in classifications if lt == 'header')
-            grey_above = any(lt == 'grey' and b['y'] < first_hdr_y
-                             for _, b, lt in classifications)
-            slot_queue = ['접미'] if grey_above else ['접두']
-        else:
-            slot_queue = []
-
+        slot_queue = determine_enchant_slots(classifications)
         slot_iter = iter(slot_queue)
         ocr_results = []
         for group, bounds, line_type in classifications:
@@ -1090,8 +1077,12 @@ class MabinogiTooltipParser(TooltipLineSplitter):
                 line.setdefault('ocr_model', 'general')
                 ocr_results.append(line)
 
+        merge_continuations(ocr_results)
+        effect_counts = count_effects_per_header(ocr_results)
+
         result = self.build_enchant_structured(ocr_results)
         result['lines'] = ocr_results
+        result['effect_counts'] = effect_counts
         return result
 
     def _parse_enchant_section(self, lines):

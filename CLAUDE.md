@@ -124,6 +124,19 @@ Determines section labels BEFORE running content OCR, eliminating cascade sectio
 - Inference patch: `backend/lib/ocr_utils.py` — fixes EasyOCR's dynamic imgW to use yaml's fixed value
 - Training history and known issues: `OCR_TRAINING_HISTORY.md`
 
+### Line Processing (`backend/lib/line_processing.py`)
+Reusable line processing functions extracted from `_parse_enchant_with_bands`, composable across segment types:
+- `merge_group_bounds(group)`: Merge sub-line dicts into a single bounding box
+- `trim_outlier_tail(items, header_test)`: Remove spatially leaked lines at segment bottom via gap outlier detection
+- `promote_grey_by_prefix(classifications, prefix_mask)`: Reclassify grey lines with bullet prefix as 'effect'
+- `determine_enchant_slots(classifications)`: Derive slot queue ('접두'/'접미') from header count and grey positions
+- `merge_continuations(lines, header_field)`: Merge continuation lines (no prefix) into preceding bullet-prefixed anchors. Replaced the legacy count-based `merge_excess_lines` algorithm.
+- `count_effects_per_header(lines, header_field)`: Count effect lines per header for metadata
+
+### Excess Line Merging — Legacy (`backend/lib/line_merge.py`)
+- Previously contained count-based excess line merging (`merge_excess_lines`, `find_fragment_indices`, `mark_trimmed`, `merge_fragments`, `_stitch_crops`) — compared OCR line count against DB `expected_count` to detect and merge wrapped fragments. Replaced by prefix-based `merge_continuations()` in `line_processing.py`.
+- Now only contains `detect_gap_outlier()`, used by `trim_outlier_tail()`.
+
 ### Section-Aware Parser (`backend/lib/mabinogi_tooltip_parser.py`)
 - Extends `TooltipLineSplitter` with Mabinogi-specific section categorization
 - Config: `configs/mabinogi_tooltip.yaml` — defines sections (item_name, item_attrs, enchant, reforge, erg, set_item, item_color, etc.), header patterns, parse modes, skip flags
