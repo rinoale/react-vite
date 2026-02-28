@@ -504,6 +504,7 @@ class MabinogiTooltipParser(TooltipLineSplitter):
 
                 # Prefix detection: slice off bullet prefix before OCR
                 prefix_info = {'type': None}
+                prefix_abs_cut = None  # absolute x where prefix was trimmed
                 if prefix_mask is not None:
                     mask_crop = prefix_mask[y_pad:y_pad + h_pad, x_pad:x_pad + w_pad]
                     prefix_info = detect_prefix(mask_crop)
@@ -514,6 +515,7 @@ class MabinogiTooltipParser(TooltipLineSplitter):
                         # to bullet_end so we always remove the dot.
                         bullet_end = prefix_info['x'] + prefix_info['w']
                         cut_x = max(bullet_end, prefix_info['main_x'] - _PREFIX_ANTIALIAS_MARGIN)
+                        prefix_abs_cut = x_pad + cut_x
                         gray = gray[:, cut_x:]
                         cw = gray.shape[1]
 
@@ -552,6 +554,7 @@ class MabinogiTooltipParser(TooltipLineSplitter):
                     'bounds': line_info,
                     'ocr_model': model_name,
                     'prefix_type': prefix_info['type'],
+                    'prefix_abs_cut': prefix_abs_cut,
                 })
 
             # Merge sub-line results
@@ -578,7 +581,10 @@ class MabinogiTooltipParser(TooltipLineSplitter):
                 '_prefix_type': first_prefix,
             }
 
-            # Attach full-width line crop for correction training
+            # Attach line crop for correction training.
+            # If bullet prefix was detected, trim it from the crop so the
+            # image matches what the OCR model actually sees (prefix is
+            # re-attached as text, not part of the model's input).
             if attach_crops:
                 mb = merged_bounds
                 pad_y = max(1, mb['height'] // 5)
@@ -587,6 +593,11 @@ class MabinogiTooltipParser(TooltipLineSplitter):
                 y1 = min(img.shape[0], mb['y'] + mb['height'] + pad_y)
                 x0 = max(0, mb['x'] - pad_x)
                 x1 = min(img.shape[1], mb['x'] + mb['width'] + pad_x)
+                # Use bullet cut position from first sub-line to trim prefix
+                if has_bullet and sub_details:
+                    abs_cut = sub_details[0].get('prefix_abs_cut')
+                    if abs_cut is not None and abs_cut > x0:
+                        x0 = abs_cut
                 crop_region = img[y0:y1, x0:x1]
                 if len(crop_region.shape) == 3:
                     crop_region = cv2.cvtColor(crop_region, cv2.COLOR_BGR2GRAY)

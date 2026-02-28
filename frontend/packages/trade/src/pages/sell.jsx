@@ -134,7 +134,8 @@ const Sell = () => {
         ...prev,
         name: result.itemName,
         description: result.description,
-        sections: result.sections
+        sections: result.sections,
+        abbreviated: result.abbreviated,
       }));
 
       setLoadingStep('COMPLETE');
@@ -232,7 +233,7 @@ const Sell = () => {
     if (key === 'item_color' && sectionData.parts)
       return <ColorPartsSection parts={sectionData.parts} />;
     if (key === 'enchant')
-      return <EnchantSection prefix={sectionData.prefix} suffix={sectionData.suffix} lines={sectionData.lines} onLineChange={onLineChange} />;
+      return <EnchantSection prefix={sectionData.prefix} suffix={sectionData.suffix} lines={sectionData.lines} onLineChange={onLineChange} abbreviated={formData.abbreviated} />;
     if (key === 'reforge')
       return <ReforgeSection options={sectionData.options} lines={sectionData.lines} onLineChange={onLineChange} />;
     return <DefaultSection lines={sectionData.lines} onLineChange={onLineChange} />;

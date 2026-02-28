@@ -94,10 +94,14 @@ const ReforgeOption = ({ opt, optIdx, lineIdx, onLineChange }) => {
   );
 };
 
+const MAX_REFORGE_OPTIONS = 3;
+
 const AddReforgeOption = ({ onLineChange, existingCount }) => {
   const { t } = useTranslation();
   const [searching, setSearching] = useState(false);
   const reforgeItems = useMemo(() => window.REFORGES_CONFIG || [], []);
+
+  if (existingCount >= MAX_REFORGE_OPTIONS) return null;
 
   if (searching) {
     return (

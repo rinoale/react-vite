@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import shutil
 
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Query
@@ -164,6 +165,7 @@ async def examine_item(file: UploadFile = File(...)):
         response = {
             "filename": file.filename,
             "sections": prepare_sections_for_response(sections),
+            "abbreviated": result.get('abbreviated', True),
         }
         if session_id:
             response["session_id"] = session_id
@@ -209,7 +211,16 @@ def register_listing(payload: RegisterListingRequest, db: Session = Depends(get_
                 orig = orig_by_idx.get(line.global_index)
                 if orig is None:
                     continue
-                if line.text == orig['text']:
+
+                # Skip enchant headers — FM enriches them with rank info
+                # that isn't in the crop image, so they always diff.
+                if orig.get('ocr_model') == 'enchant_header':
+                    continue
+
+                # Normalize: strip bullet prefix that frontend may re-add
+                submitted = re.sub(r'^[.\-,·ㄴL]\s*', '', line.text).strip()
+                original = re.sub(r'^[.\-,·ㄴL]\s*', '', orig['text']).strip()
+                if submitted == original:
                     continue  # No change
 
                 # Check charset mismatch against the model that produced this line
@@ -240,7 +251,7 @@ def register_listing(payload: RegisterListingRequest, db: Session = Depends(get_
                     session_id=payload.session_id,
                     line_index=line.global_index,
                     original_text=orig.get('raw_text', orig['text']),
-                    corrected_text=line.text,
+                    corrected_text=submitted,
                     confidence=orig.get('confidence'),
                     section=orig.get('section', ''),
                     ocr_model=orig.get('ocr_model', ''),

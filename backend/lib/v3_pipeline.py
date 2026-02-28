@@ -613,10 +613,16 @@ def run_v3_pipeline(img_bgr, header_reader, section_patterns, config,
     if crop_session_dir:
         _save_crops(all_lines, crop_session_dir, session_id)
 
+    # Detect abbreviated vs detail tooltip mode from item_grade content lines
+    item_grade = sections.get('item_grade', {})
+    grade_lines = [l for l in (item_grade.get('lines') or []) if not l.get('is_header')]
+    abbreviated = len(grade_lines) <= 1
+
     result_dict = {
         'sections': sections,
         'all_lines': all_lines,
         'tagged_segments': tagged,
+        'abbreviated': abbreviated,
     }
     if session_id:
         result_dict['session_id'] = session_id

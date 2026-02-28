@@ -97,3 +97,4 @@ class ExamineItemResponse(BaseModel):
     filename: str
     session_id: Optional[str] = None
     sections: Dict[str, OcrSectionResponse]
+    abbreviated: bool = True

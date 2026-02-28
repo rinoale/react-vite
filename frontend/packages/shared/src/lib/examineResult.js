@@ -44,5 +44,6 @@ export function parseExamineResult(data) {
     sessionId,
     parsedItemName,
     gameItemMatch,
+    abbreviated: data.abbreviated ?? true,
   };
 }

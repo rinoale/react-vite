@@ -17,9 +17,25 @@ function extractNumber(text) {
   return m ? (m[1].includes('.') ? parseFloat(m[1]) : parseInt(m[1], 10)) : null;
 }
 
+/** Build effect display text from config entry and rolled value.
+ *  abbreviated=true  → "option_name level suffix"
+ *  abbreviated=false → full config text with number/range replaced by rolled value */
+function buildEffectText(ce, level, abbreviated) {
+  if (abbreviated || !ce.text || !ce.option_name) {
+    return ce.option_name + ' ' + level + (ce.suffix || '');
+  }
+  // Full form: find option_name in ce.text, replace the number after it
+  const nameIdx = ce.text.indexOf(ce.option_name);
+  if (nameIdx < 0) return ce.option_name + ' ' + level + (ce.suffix || '');
+  const prefix = ce.text.slice(0, nameIdx);
+  const afterName = ce.text.slice(nameIdx + ce.option_name.length);
+  const replaced = afterName.replace(/\s*\d+(?:\.\d+)?(?:\s*~\s*\d+(?:\.\d+)?)?/, ' ' + level);
+  return prefix + ce.option_name + replaced;
+}
+
 /** Rebuild effects from new config, pulling rolled values from OCR lines.
  *  Each effect owns its line reference via global_index. */
-function rebuildEffects(newConfig, sectionLines) {
+function rebuildEffects(newConfig, sectionLines, abbreviated) {
   if (!newConfig?.effects) return [];
   // Collect non-header OCR lines
   const ocrLines = (sectionLines || []).filter(l =>
@@ -41,14 +57,14 @@ function rebuildEffects(newConfig, sectionLines) {
       const rolled = extractNumber(after);
       if (rolled != null) {
         eff.option_level = rolled;
-        eff.text = ce.option_name + ' ' + rolled + (ce.suffix || '');
+        eff.text = buildEffectText(ce, rolled, abbreviated);
       }
     }
     return eff;
   });
 }
 
-const EffectRow = ({ eff, lineIdx, onLineChange, configEffects }) => {
+const EffectRow = ({ eff, lineIdx, onLineChange, configEffects, abbreviated }) => {
   const { t } = useTranslation();
   const [editingName, setEditingName] = useState(false);
   const [editingLevel, setEditingLevel] = useState(false);
@@ -80,9 +96,8 @@ const EffectRow = ({ eff, lineIdx, onLineChange, configEffects }) => {
     if (value === '' || value === String(eff.option_level)) return;
     const numLevel = value.includes('.') ? parseFloat(value) : parseInt(value, 10);
     if (isNaN(numLevel)) return;
-    const canonName = matchingConfig.option_name;
-    const newEffText = canonName + ' ' + numLevel + matchingConfig.suffix;
-    onLineChange(lineIdx, LINE_BULLET + newEffText, null, { option_name: canonName, option_level: numLevel });
+    const newEffText = buildEffectText(matchingConfig, numLevel, abbreviated);
+    onLineChange(lineIdx, LINE_BULLET + newEffText, null, { option_name: matchingConfig.option_name, option_level: numLevel });
   };
 
   if (editingName && configEffects && configEffects.length > 0) {
@@ -93,7 +108,7 @@ const EffectRow = ({ eff, lineIdx, onLineChange, configEffects }) => {
           items={configEffects}
           getLabel={(item) => item.text}
           onSelect={(selected) => {
-            const newEffText = selected.option_name + ' ' + eff.option_level + selected.suffix;
+            const newEffText = buildEffectText(selected, eff.option_level, abbreviated);
             onLineChange(lineIdx, LINE_BULLET + newEffText, null, { option_name: selected.option_name });
             setEditingName(false);
           }}
@@ -145,7 +160,6 @@ const EffectRow = ({ eff, lineIdx, onLineChange, configEffects }) => {
               >
                 {eff.option_level != null ? eff.option_level : (isRanged ? '?' : '')}
               </span>
-              {isRanged && hasRange && <span className="text-[10px] text-gray-600">{rangeMin}~{rangeMax}</span>}
               {isOutOfRange && <AlertTriangle className="w-3 h-3 text-red-500" title={t('sections.enchant.outOfRange', { min: rangeMin, max: rangeMax })} />}
             </span>
           )}
@@ -167,7 +181,7 @@ const EffectRow = ({ eff, lineIdx, onLineChange, configEffects }) => {
   );
 };
 
-const EnchantSlot = ({ slot, slotLabel, headerLineIdx, lines, onLineChange }) => {
+const EnchantSlot = ({ slot, slotLabel, headerLineIdx, lines, onLineChange, abbreviated }) => {
   const { t } = useTranslation();
   const [editingHeader, setEditingHeader] = useState(false);
 
@@ -199,7 +213,7 @@ const EnchantSlot = ({ slot, slotLabel, headerLineIdx, lines, onLineChange }) =>
               const slotKey = slotLabel === 'Prefix' ? 'prefix' : 'suffix';
               const newText = `[${slotKor}] ${item.name} (랭크 ${item.rank_label})`;
               onLineChange(headerLineIdx, newText, (sec) => {
-                const newEffects = rebuildEffects(item, sec.lines);
+                const newEffects = rebuildEffects(item, sec.lines, abbreviated);
                 sec[slotKey] = { ...sec[slotKey], name: item.name, rank: item.rank_label, text: newText, effects: newEffects };
               });
               setEditingHeader(false);
@@ -248,6 +262,7 @@ const EnchantSlot = ({ slot, slotLabel, headerLineIdx, lines, onLineChange }) =>
               lineIdx={lineIdx}
               onLineChange={handleEffectChange}
               configEffects={configEffects}
+              abbreviated={abbreviated}
             />
           );
         })}
@@ -320,7 +335,7 @@ const AddEnchantSlot = ({ slotLabel, onLineChange }) => {
   );
 };
 
-const EnchantSection = ({ prefix, suffix, lines, onLineChange }) => {
+const EnchantSection = ({ prefix, suffix, lines, onLineChange, abbreviated = true }) => {
   const { groups, headerIndices } = useMemo(() => {
     if (!lines) return {
       groups: { prefix: [], suffix: [], unassigned: [] },
@@ -356,6 +371,7 @@ const EnchantSection = ({ prefix, suffix, lines, onLineChange }) => {
           headerLineIdx={headerIndices.prefix}
           lines={lines}
           onLineChange={onLineChange}
+          abbreviated={abbreviated}
         />
       ) : groups.prefix.length > 0 ? (
         <FallbackLines slotLines={groups.prefix} onLineChange={onLineChange} />
@@ -369,6 +385,7 @@ const EnchantSection = ({ prefix, suffix, lines, onLineChange }) => {
           headerLineIdx={headerIndices.suffix}
           lines={lines}
           onLineChange={onLineChange}
+          abbreviated={abbreviated}
         />
       ) : groups.suffix.length > 0 ? (
         <FallbackLines slotLines={groups.suffix} onLineChange={onLineChange} />

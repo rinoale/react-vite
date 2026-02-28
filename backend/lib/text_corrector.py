@@ -226,8 +226,7 @@ class TextCorrector:
         norm_core = _normalize_nums(core)
 
         best_score = 0
-        best_norm = None
-        best_used_full = False
+        best_idx = -1
         for idx, (norm_entry, _) in enumerate(effects_norm):
             score = fuzz.ratio(norm_core, norm_entry)
             # Also try full condition+effect form
@@ -238,35 +237,94 @@ class TextCorrector:
             pick = max(score, score_full)
             if pick > best_score:
                 best_score = pick
-                best_norm = norm_full if score_full > score else norm_entry
-                best_used_full = score_full > score
+                best_idx = idx
 
-        # Condition text (e.g. "랭크 1 이상일 때") prepends extra numbers.
-        # Take only the last N numbers matching template placeholders.
-        n_placeholders = best_norm.count('N') if best_norm else 0
-        if n_placeholders > 0 and len(numbers) > n_placeholders:
-            numbers = numbers[-n_placeholders:]
+        if best_idx < 0:
+            return text, 0
 
-        if best_score >= cutoff_score and best_norm is not None:
-            result = best_norm
-            for num in numbers:
+        # Use the winning form's template for the correction row text.
+        # Full form preserves condition text for admin OCR correction review.
+        _, raw_effect = effects_norm[best_idx]
+        best_used_full = False
+        if effects_full_norm:
+            score_eff = fuzz.ratio(norm_core, effects_norm[best_idx][0])
+            score_full = fuzz.ratio(norm_core, effects_full_norm[best_idx][0])
+            best_used_full = score_full > score_eff
+        best_norm = (effects_full_norm[best_idx][0] if best_used_full and effects_full_norm
+                     else effects_norm[best_idx][0])
+
+        # Extract rolled value: first number after option_name in OCR.
+        # Avoids condition numbers and trailing noise from garbled range
+        # displays (e.g. "G:3~:1)" from OCR-garbled "(3~16)").
+        opt_name, _ = _parse_effect_number(raw_effect)
+        n_placeholders = best_norm.count('N')
+
+        # For ranged effects (DB template has "N ~ N"), only inject ONE
+        # rolled value — tooltip shows a single number, not the range.
+        # The leftover "~ N" is cleaned up by _inject().
+        norm_eff_only = effects_norm[best_idx][0]
+        is_ranged = bool(re.search(r'N\s*~\s*N', norm_eff_only))
+        n_eff_inject = 1 if is_ranged else norm_eff_only.count('N')
+
+        # Determine if the matched DB effect's condition contains a number.
+        # This tells us whether the first OCR number is a condition number
+        # (to skip) or the rolled effect value (to keep).
+        effects_full = entry.get('effects_full', [])
+        effects_plain = entry.get('effects', [])
+        cond_has_number = False
+        if best_idx < len(effects_full) and best_idx < len(effects_plain):
+            cond_part = effects_full[best_idx][:len(effects_full[best_idx]) - len(effects_plain[best_idx])]
+            cond_has_number = bool(_NUM_PAT.search(cond_part))
+
+        effect_numbers = []
+        if opt_name and n_placeholders > 0:
+            name_pos = core_for_nums.find(opt_name)
+            if name_pos >= 0:
+                after = core_for_nums[name_pos + len(opt_name):]
+                effect_numbers = _NUM_PAT.findall(after)
+        if not effect_numbers and numbers:
+            # Fallback: use DB condition info to pick the right number.
+            # If condition has a number, the first OCR number is condition →
+            # rolled value is the second.  Otherwise, rolled value is the first.
+            if cond_has_number and len(numbers) >= 2:
+                effect_numbers = [numbers[1]]
+            else:
+                effect_numbers = [numbers[0]]
+
+        # Inject numbers into template.  For full form templates, split
+        # injection: condition slots filled from remaining numbers,
+        # effect slots filled from the extracted effect_numbers.
+
+        if best_used_full and opt_name:
+            n_eff_template = norm_eff_only.count('N')
+            n_cond = n_placeholders - n_eff_template
+            # Condition numbers: from OCR text before option_name
+            cond_numbers = []
+            if n_cond > 0:
+                name_pos = core_for_nums.find(opt_name)
+                if name_pos >= 0:
+                    before = core_for_nums[:name_pos]
+                    cond_numbers = _NUM_PAT.findall(before)[-n_cond:]
+                if not cond_numbers and cond_has_number:
+                    cond_numbers = [numbers[0]]
+            inject_numbers = cond_numbers + effect_numbers[:n_eff_inject]
+        else:
+            inject_numbers = effect_numbers[:n_eff_inject]
+
+        def _inject(template, nums):
+            result = template
+            for num in nums:
                 result = result.replace('N', num, 1)
-            # Clean up leftover range placeholders when OCR has fewer numbers
-            # e.g. "피어싱 레벨 3 ~ N 증가" → "피어싱 레벨 3 증가"
+            # Clean up leftover range placeholders
             result = re.sub(r'\s*~\s*N', '', result)
             result = re.sub(r'N\s*~\s*', '', result)
-            return prefix + result, best_score
+            return result.replace('N', '').strip()
+
+        if best_score >= cutoff_score:
+            return prefix + _inject(best_norm, inject_numbers), best_score
 
         # Below cutoff — return candidate with negative score for diagnostics
-        if best_norm is not None:
-            candidate = best_norm
-            for num in numbers:
-                candidate = candidate.replace('N', num, 1)
-            candidate = re.sub(r'\s*~\s*N', '', candidate)
-            candidate = re.sub(r'N\s*~\s*', '', candidate)
-            return prefix + candidate, -best_score
-
-        return text, 0
+        return prefix + _inject(best_norm, inject_numbers), -best_score
 
     def _dullahan_score_body(self, norm_effects, entry):
         """Score OCR effect lines (the 'body') against one enchant entry's effects.
@@ -587,35 +645,41 @@ class TextCorrector:
 
             used_db.add(best_db_idx)
 
-            # Use winning form's template for re-injection
-            if best_used_full and effects_full_norm:
-                norm_db, raw_db = effects_full_norm[best_db_idx]
-            else:
-                norm_db, raw_db = effects_norm[best_db_idx]
-
-            # Always use effect-only raw for min/max extraction —
-            # condition numbers must not pollute range parsing.
+            # Always use effect-only template for number injection.
+            # Full form is only used for matching accuracy — its condition
+            # numbers (e.g. "랭크 1 이상일 때") cause misaligned injection
+            # when OCR garbles text and shifts number positions.
+            norm_db, raw_db = effects_norm[best_db_idx]
             raw_effect_only = effects[best_db_idx]
 
-            # Extract OCR numbers (rolled values) and DB numbers (range)
-            ocr_numbers = _NUM_PAT.findall(ocr_core)
+            # DB numbers (range) from effect-only text
             db_numbers = _NUM_PAT.findall(raw_effect_only)
 
-            # Condition text (e.g. "랭크 1 이상일 때") prepends extra numbers.
-            # DB template has only effect placeholders, so take the LAST N
-            # numbers from OCR to skip condition numbers.
-            n_placeholders = norm_db.count('N')
-            if n_placeholders > 0 and len(ocr_numbers) > n_placeholders:
-                ocr_numbers = ocr_numbers[-n_placeholders:]
+            # Collapse range "N ~ N" to single "N" for abbreviated text.
+            # Tooltip displays only the rolled value; range is stored
+            # separately in min_value/max_value.
+            norm_abbrev = re.sub(r'N\s*~\s*N', 'N', norm_db)
+            n_placeholders = norm_abbrev.count('N')
 
-            # Build corrected text: DB template with OCR numbers injected
-            corrected = norm_db
+            # Extract rolled value: first number after option_name in OCR.
+            # This avoids condition numbers and trailing noise from garbled
+            # range displays (e.g. "G:3~:1)" from OCR-garbled "(3~16)").
+            opt_name, _ = _parse_effect_number(raw_effect_only)
+            ocr_numbers = []
+            if opt_name and n_placeholders > 0:
+                name_pos = ocr_core.find(opt_name)
+                if name_pos >= 0:
+                    after = ocr_core[name_pos + len(opt_name):]
+                    ocr_numbers = _NUM_PAT.findall(after)[:n_placeholders]
+            if not ocr_numbers and n_placeholders > 0:
+                # Fallback: take last N numbers (condition numbers come first,
+                # effect values typically appear last in the OCR text)
+                ocr_numbers = _NUM_PAT.findall(ocr_core)[-n_placeholders:]
+
+            # Build abbreviated corrected text
+            corrected = norm_abbrev
             for num in ocr_numbers:
                 corrected = corrected.replace('N', num, 1)
-            # Clean up leftover range placeholders
-            corrected = re.sub(r'\s*~\s*N', '', corrected)
-            corrected = re.sub(r'N\s*~\s*', '', corrected)
-            # Replace any remaining N with empty (shouldn't happen normally)
             corrected = corrected.replace('N', '').strip()
 
             eff = {
@@ -624,30 +688,27 @@ class TextCorrector:
                 'global_index': gi,
             }
 
-            # Parse rolled value from OCR numbers
+            # Rolled value = first extracted OCR number (the effect value)
             if ocr_numbers:
                 num_str = ocr_numbers[0]
                 eff['rolled_value'] = float(num_str) if '.' in num_str else int(num_str)
 
-            # Parse DB range (min/max)
+            # DB range (min/max) from effect-only text
             if db_numbers:
                 if len(db_numbers) >= 2:
-                    # Range: "N ~ N" → min, max
                     n1, n2 = db_numbers[0], db_numbers[1]
                     eff['min_value'] = float(n1) if '.' in n1 else int(n1)
                     eff['max_value'] = float(n2) if '.' in n2 else int(n2)
                 else:
-                    # Single value
                     n1 = db_numbers[0]
                     val = float(n1) if '.' in n1 else int(n1)
                     eff['min_value'] = val
                     eff['max_value'] = val
 
-            # Extract option_name / option_level from corrected text
-            opt_name, opt_level = _parse_effect_number(corrected)
+            # option_name from DB effect-only text (matches frontend config)
             if opt_name is not None:
                 eff['option_name'] = opt_name
-                eff['option_level'] = opt_level
+                eff['option_level'] = eff.get('rolled_value')
 
             result.append(eff)
 
