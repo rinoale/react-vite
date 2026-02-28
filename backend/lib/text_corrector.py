@@ -16,7 +16,7 @@ _SUBBULLET = _tooltip_cfg['prefixes']['subbullet']
 # Number normalization patterns
 _NUM_PAT    = re.compile(r'\d+(?:\.\d+)?')   # digit sequences (incl. decimals)
 _TMPL_N     = re.compile(r'(?<!\w)n(?!\w)')  # standalone 'n' placeholder in dict entries
-_PREFIX_PAT = re.compile(rf'^[{re.escape(_BULLET)}\-,{re.escape(_SUBBULLET)}L]\s*')  # canonical prefixes from config + OCR misreadings (. → - or ,   ㄴ → L)
+_PREFIX_PAT = re.compile(rf'^[{re.escape(_BULLET)}\-,·{re.escape(_SUBBULLET)}L]\s*')  # canonical prefixes from config + OCR misreadings (. → - or ,   ㄴ → L) + detector-attached · (U+00B7)
 
 # Section-specific preprocessing patterns
 # reforge: strip '(15/20 레벨)' level suffix before FM matching

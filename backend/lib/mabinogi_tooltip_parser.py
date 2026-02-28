@@ -20,6 +20,12 @@ import numpy as np
 import yaml
 
 from lib.tooltip_line_splitter import TooltipLineSplitter
+from lib.prefix_detector import detect_prefix, bullet_text_mask
+
+# Pixels to back off from color-mask main_x when slicing bullet prefixes.
+# Anti-aliased text edges pass brightness threshold but not color match,
+# so main_x can overshoot actual text start by this many pixels.
+_PREFIX_ANTIALIAS_MARGIN = 2
 
 # Lines that appear above the item name in the pre-header block.
 # Extend this set if new top-level status lines are discovered.
@@ -443,7 +449,7 @@ class MabinogiTooltipParser(TooltipLineSplitter):
 
     def _ocr_grouped_lines(self, img, grouped_lines, reader,
                            save_crops_dir=None, save_label='content',
-                           attach_crops=False):
+                           attach_crops=False, prefix_mask=None):
         """Run OCR on each grouped line, merging sub-line results.
 
         Args:
@@ -489,6 +495,21 @@ class MabinogiTooltipParser(TooltipLineSplitter):
                     sub_details.append({'text': '', 'confidence': 0.0, 'bounds': line_info})
                     continue
 
+                # Prefix detection: slice off bullet prefix before OCR
+                prefix_info = {'type': None}
+                if prefix_mask is not None:
+                    mask_crop = prefix_mask[y_pad:y_pad + h_pad, x_pad:x_pad + w_pad]
+                    prefix_info = detect_prefix(mask_crop)
+                    if prefix_info['type'] == 'bullet' and prefix_info['main_x'] < cw:
+                        # main_x from color mask can be 1-2px beyond actual text
+                        # start on grayscale (anti-aliased edge pixels pass brightness
+                        # threshold but not color match). Back off by margin, clamped
+                        # to bullet_end so we always remove the dot.
+                        bullet_end = prefix_info['x'] + prefix_info['w']
+                        cut_x = max(bullet_end, prefix_info['main_x'] - _PREFIX_ANTIALIAS_MARGIN)
+                        gray = gray[:, cut_x:]
+                        cw = gray.shape[1]
+
                 if save_crops_dir:
                     os.makedirs(save_crops_dir, exist_ok=True)
                     _n = len([f for f in os.listdir(save_crops_dir) if f.endswith('.png')])
@@ -507,6 +528,10 @@ class MabinogiTooltipParser(TooltipLineSplitter):
                 else:
                     text, confidence = '', 0.0
 
+                # Re-attach correct prefix character
+                if prefix_info['type'] == 'bullet':
+                    text = '· ' + text
+
                 # Track which model won (DualReader sets last_model_names)
                 model_name = ''
                 if hasattr(reader, 'last_model_names') and reader.last_model_names:
@@ -519,6 +544,7 @@ class MabinogiTooltipParser(TooltipLineSplitter):
                     'confidence': float(confidence),
                     'bounds': line_info,
                     'ocr_model': model_name,
+                    'prefix_type': prefix_info['type'],
                 })
 
             # Merge sub-line results
@@ -538,6 +564,10 @@ class MabinogiTooltipParser(TooltipLineSplitter):
             # Use the model from the first sub-line (or most common if multiple)
             ocr_model = sub_details[0].get('ocr_model', '') if sub_details else ''
 
+            # Check if first sub-line had a bullet prefix
+            first_prefix = sub_details[0].get('prefix_type') if sub_details else None
+            has_bullet = first_prefix == 'bullet'
+
             entry = {
                 'text': merged_text,
                 'confidence': float(avg_conf),
@@ -545,6 +575,7 @@ class MabinogiTooltipParser(TooltipLineSplitter):
                 'bounds': merged_bounds,
                 'sub_lines': sub_details,
                 'ocr_model': ocr_model,
+                '_has_bullet': has_bullet,
             }
 
             # Attach full-width line crop for correction training
@@ -1000,10 +1031,12 @@ class MabinogiTooltipParser(TooltipLineSplitter):
                             hdr_reader, save_crops_dir=_save,
                             attach_crops=attach_crops)
                         if header_classifications else [])
+        b_mask = bullet_text_mask(content_bgr)
         effect_batch = (self._ocr_grouped_lines(binary, effect_groups, reader,
                                                 save_crops_dir=_save,
                                                 save_label='content_enchant',
-                                                attach_crops=attach_crops)
+                                                attach_crops=attach_crops,
+                                                prefix_mask=b_mask)
                         if effect_groups else [])
 
         header_iter = iter(header_batch)
