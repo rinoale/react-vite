@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { Upload, Play, Pause, SkipBack, SkipForward, ChevronLeft, ChevronRight, HelpCircle, Grid2X2, Send, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
@@ -417,17 +417,6 @@ function classifyEnchantLine(imageData, bounds, bands) {
 
 // ─── Pipeline runner ───
 
-const SEGMENT_STEP_ORDER = [
-  'contentCrop',
-  'segGrayscale',
-  'segBinarization',
-  'enchantWhiteMask',
-  'enchantOreoFlip',
-  'enchantClassification',
-  'segLineDetection',
-  'segLineCrops',
-]
-
 function runPipeline(ctx, originalImageData) {
   const globalSteps = []
   const w = originalImageData.width
@@ -548,7 +537,7 @@ function runPipeline(ctx, originalImageData) {
     headerCount: bands.length,
   })
 
-  // ─── Per-segment processing → parallel columns ───
+  // ─── Per-segment processing → variable-length step arrays ───
   let processableSegments = segments.filter(s => s.type !== 'header')
   if (processableSegments.length === 0) {
     processableSegments = [{ y: 0, h: cropH, type: 'pre_header' }]
@@ -558,7 +547,7 @@ function runPipeline(ctx, originalImageData) {
   let contentIdx = 0
 
   processableSegments.forEach((seg) => {
-    const colSteps = new Array(SEGMENT_STEP_ORDER.length).fill(null)
+    const steps = []
     let label
     if (seg.type === 'pre_header') {
       label = 'pre_header'
@@ -570,24 +559,24 @@ function runPipeline(ctx, originalImageData) {
     const segW = cropW
     const segH = seg.h
 
-    // contentCrop (index 0) — always present
+    // contentCrop — always present
     const contentCrop = cropImageData(ctx, cropped, 0, seg.y, segW, segH)
-    colSteps[0] = { id: 'contentCrop', dataURL: canvasToDataURL(contentCrop) }
+    steps.push({ id: 'contentCrop', dataURL: canvasToDataURL(contentCrop) })
 
     if (seg.type === 'pre_header') {
-      segmentColumns.push({ label, steps: colSteps })
+      segmentColumns.push({ label, steps })
       return
     }
 
-    // segGrayscale (index 1)
+    // segGrayscale
     const gray = cloneImageData(ctx, contentCrop)
     toGrayscale(gray)
-    colSteps[1] = { id: 'segGrayscale', dataURL: canvasToDataURL(gray) }
+    steps.push({ id: 'segGrayscale', dataURL: canvasToDataURL(gray) })
 
-    // segBinarization (index 2)
+    // segBinarization
     const binary = cloneImageData(ctx, gray)
     thresholdBinaryInv(binary, 80)
-    colSteps[2] = { id: 'segBinarization', dataURL: canvasToDataURL(binary) }
+    steps.push({ id: 'segBinarization', dataURL: canvasToDataURL(binary) })
 
     // Enchant detection
     const whiteMask = oreoFlip(contentCrop)
@@ -597,7 +586,7 @@ function runPipeline(ctx, originalImageData) {
     if (isEnchant) {
       label = 'enchant'
 
-      // enchantWhiteMask (index 3)
+      // enchantWhiteMask
       const whiteMaskVis = ctx.createImageData(segW, segH)
       for (let i = 0; i < segW * segH; i++) {
         const idx = i * 4
@@ -607,9 +596,9 @@ function runPipeline(ctx, originalImageData) {
         whiteMaskVis.data[idx+2] = v
         whiteMaskVis.data[idx+3] = 255
       }
-      colSteps[3] = { id: 'enchantWhiteMask', dataURL: canvasToDataURL(whiteMaskVis) }
+      steps.push({ id: 'enchantWhiteMask', dataURL: canvasToDataURL(whiteMaskVis) })
 
-      // enchantOreoFlip (index 4)
+      // enchantOreoFlip
       const oreoVis = ctx.createImageData(segW, segH)
       for (let i = 0; i < segW * segH; i++) {
         const idx = i * 4
@@ -623,9 +612,9 @@ function runPipeline(ctx, originalImageData) {
       segEnchantBands.forEach(band => {
         drawRect(oreoWithBands, 0, band.y, segW, band.h, 0, 180, 255, 2)
       })
-      colSteps[4] = { id: 'enchantOreoFlip', dataURL: canvasToDataURL(oreoWithBands), enchantBandCount: segEnchantBands.length }
+      steps.push({ id: 'enchantOreoFlip', dataURL: canvasToDataURL(oreoWithBands), enchantBandCount: segEnchantBands.length })
 
-      // enchantClassification (index 5)
+      // enchantClassification
       const enchantLines = detectLines(oreoVis)
       const classVis = cloneImageData(ctx, contentCrop)
       const classColors = {
@@ -650,10 +639,10 @@ function runPipeline(ctx, originalImageData) {
         const [br, bg, bb] = classColors[line.cls]
         drawRect(classVis, line.x, line.y, line.width, line.height, br, bg, bb, 1)
       })
-      colSteps[5] = { id: 'enchantClassification', dataURL: canvasToDataURL(classVis), classifiedLines }
+      steps.push({ id: 'enchantClassification', dataURL: canvasToDataURL(classVis), classifiedLines })
     }
 
-    // segLineDetection (index 6)
+    // segLineDetection
     const lines = detectLines(binary)
     const lineVis = cloneImageData(ctx, binary)
     const lineColors = [
@@ -669,9 +658,9 @@ function runPipeline(ctx, originalImageData) {
         line.width + padX * 2, line.height + padY * 2,
         cr, cg, cb, 2)
     })
-    colSteps[6] = { id: 'segLineDetection', dataURL: canvasToDataURL(lineVis), lineCount: lines.length }
+    steps.push({ id: 'segLineDetection', dataURL: canvasToDataURL(lineVis), lineCount: lines.length })
 
-    // segLineCrops (index 7)
+    // segLineCrops
     const lineCrops = lines.map(line => {
       const padX = Math.max(2, Math.floor(line.height / 3))
       const padY = Math.max(1, Math.floor(line.height / 5))
@@ -682,15 +671,17 @@ function runPipeline(ctx, originalImageData) {
       const crop = cropImageData(ctx, binary, cx, cy, cw, ch)
       return canvasToDataURL(crop)
     })
-    colSteps[7] = { id: 'segLineCrops', dataURL: lineCrops.length > 0 ? lineCrops[0] : null, lineCrops }
+    steps.push({ id: 'segLineCrops', dataURL: lineCrops.length > 0 ? lineCrops[0] : null, lineCrops })
 
-    segmentColumns.push({ label, steps: colSteps })
+    segmentColumns.push({ label, steps })
   })
 
-  return { globalSteps, segmentColumns, segmentStepLabels: SEGMENT_STEP_ORDER }
+  return { globalSteps, segmentColumns }
 }
 
 // ─── Component ───
+
+const ENCHANT_STEP_IDS = new Set(['enchantWhiteMask', 'enchantOreoFlip', 'enchantClassification'])
 
 const V3PipelineViewer = () => {
   const { t } = useTranslation()
@@ -704,20 +695,37 @@ const V3PipelineViewer = () => {
   const [serverResult, setServerResult] = useState(null)
   const [serverLoading, setServerLoading] = useState(false)
   const [serverError, setServerError] = useState(null)
+  const [selectedSegment, setSelectedSegment] = useState(0)
 
   const canvasRef = useRef(null)
   const fileInputRef = useRef(null)
   const timerRef = useRef(null)
   const uploadedFileRef = useRef(null)
 
+  // Derive effective columns: server section names + enchant step filtering
+  const effectiveColumns = useMemo(() => {
+    if (!pipelineData) return []
+    const serverKeys = serverResult?.sections ? Object.keys(serverResult.sections) : null
+    return pipelineData.segmentColumns.map((col, i) => {
+      const label = serverKeys?.[i] || col.label
+      const isEnchant = label === 'enchant'
+      // Filter enchant-specific steps for sections the server confirms are NOT enchant
+      const steps = (serverKeys && !isEnchant)
+        ? col.steps.filter(s => !ENCHANT_STEP_IDS.has(s.id))
+        : col.steps
+      return { label, steps }
+    })
+  }, [pipelineData, serverResult])
+
   // Derived values
+  const activeColumn = effectiveColumns[selectedSegment]
   const totalSteps = pipelineData
-    ? pipelineData.globalSteps.length + pipelineData.segmentStepLabels.length
+    ? pipelineData.globalSteps.length + (activeColumn?.steps.length ?? 0)
     : 0
   const isGlobalPhase = !pipelineData || currentStep < pipelineData.globalSteps.length
   const globalStep = isGlobalPhase ? pipelineData?.globalSteps[currentStep] : null
   const segIdx = !isGlobalPhase ? currentStep - pipelineData.globalSteps.length : -1
-  const segStepLabel = segIdx >= 0 ? pipelineData.segmentStepLabels[segIdx] : null
+  const segStep = segIdx >= 0 ? activeColumn?.steps[segIdx] : null
 
   const handleUpload = (e) => {
     const file = e.target.files[0]
@@ -731,6 +739,7 @@ const V3PipelineViewer = () => {
         setPipelineData(null)
         setCurrentStep(0)
         setPlaying(false)
+        setSelectedSegment(0)
         setServerResult(null)
         setServerError(null)
       }
@@ -772,8 +781,16 @@ const V3PipelineViewer = () => {
     const result = runPipeline(ctx, imageData)
     setPipelineData(result)
     setCurrentStep(0)
+    setSelectedSegment(0)
     setPlaying(true)
   }, [image])
+
+  // Clamp currentStep when totalSteps shrinks (e.g., server result filters enchant steps)
+  useEffect(() => {
+    if (totalSteps > 0 && currentStep >= totalSteps) {
+      setCurrentStep(totalSteps - 1)
+    }
+  }, [totalSteps, currentStep])
 
   // Slideshow timer
   useEffect(() => {
@@ -844,20 +861,20 @@ const V3PipelineViewer = () => {
                       {t(`v3Pipeline.steps.${globalStep.id}.description`)}
                     </p>
                   </>
-                ) : (
+                ) : segStep ? (
                   <>
                     <h2 className="text-xl font-semibold text-purple-400">
                       {t('v3Pipeline.step')} {currentStep + 1}/{totalSteps}:{' '}
-                      {t(`v3Pipeline.perSegSteps.${segStepLabel}.title`)}
+                      {t(`v3Pipeline.perSegSteps.${segStep.id}.title`)}
                       <span className="text-gray-500 text-base ml-2">
-                        ({pipelineData.segmentColumns.length} segments)
+                        [{activeColumn?.label}]
                       </span>
                     </h2>
                     <p className="text-gray-400 text-sm mt-1">
-                      {t(`v3Pipeline.perSegSteps.${segStepLabel}.description`)}
+                      {t(`v3Pipeline.perSegSteps.${segStep.id}.description`)}
                     </p>
                   </>
-                )}
+                ) : null}
               </div>
               <button
                 onClick={() => setShowHelp(!showHelp)}
@@ -874,7 +891,7 @@ const V3PipelineViewer = () => {
               <div className="mb-4 p-3 bg-gray-900 border border-gray-600 rounded-lg text-sm text-gray-300 whitespace-pre-line">
                 {isGlobalPhase
                   ? t(`v3Pipeline.steps.${globalStep.id}.help`)
-                  : t(`v3Pipeline.perSegSteps.${segStepLabel}.help`)}
+                  : segStep ? t(`v3Pipeline.perSegSteps.${segStep.id}.help`) : ''}
               </div>
             )}
 
@@ -913,91 +930,83 @@ const V3PipelineViewer = () => {
               </>
             )}
 
-            {/* ─── Segment phase: parallel column grid ─── */}
-            {!isGlobalPhase && segIdx >= 0 && (
+            {/* ─── Segment phase: tabbed single-segment view ─── */}
+            {!isGlobalPhase && segStep && (
               <div className="border border-gray-700 rounded-lg p-3 bg-gray-950 mb-4">
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: `repeat(${pipelineData.segmentColumns.length}, 1fr)`,
-                    gap: '12px',
-                  }}
-                >
-                  {pipelineData.segmentColumns.map((col, colIdx) => {
-                    const colStep = col.steps[segIdx]
-                    return (
-                      <div key={colIdx} className="flex flex-col min-w-0">
-                        {/* Column header */}
-                        <div className="text-xs text-gray-400 text-center mb-2 font-medium truncate px-1"
-                          title={col.label}
-                        >
-                          {col.label}
-                        </div>
-
-                        {/* Step content */}
-                        {colStep ? (
-                          colStep.id === 'segLineCrops' ? (
-                            /* Line crops: stacked list */
-                            <div className="w-full max-h-[400px] overflow-y-auto space-y-1 bg-gray-900 rounded p-1.5">
-                              {colStep.lineCrops && colStep.lineCrops.length > 0 ? (
-                                colStep.lineCrops.map((crop, i) => (
-                                  <div key={i} className="flex items-center gap-1">
-                                    <span className="text-xs text-gray-600 w-4 text-right shrink-0">{i + 1}</span>
-                                    <img src={crop} alt={`Line ${i + 1}`} className="border border-gray-700 rounded max-h-8 max-w-full" style={{ imageRendering: pixelated ? 'pixelated' : 'auto' }} />
-                                  </div>
-                                ))
-                              ) : (
-                                <p className="text-gray-600 text-xs text-center py-4">{t('v3Pipeline.noLines')}</p>
-                              )}
-                            </div>
-                          ) : (
-                            /* Standard image step */
-                            <div className="w-full">
-                              <img
-                                src={colStep.dataURL}
-                                alt={colStep.id}
-                                className="max-w-full object-contain mx-auto rounded"
-                                style={{ imageRendering: pixelated ? 'pixelated' : 'auto' }}
-                              />
-                              {/* Per-column extra info */}
-                              {colStep.lineCount !== undefined && (
-                                <p className="text-xs text-gray-500 mt-1 text-center">
-                                  {t('v3Pipeline.linesDetected', { count: colStep.lineCount })}
-                                </p>
-                              )}
-                              {colStep.enchantBandCount !== undefined && (
-                                <p className="text-xs text-gray-500 mt-1 text-center">
-                                  {t('v3Pipeline.enchantBandsDetected', { count: colStep.enchantBandCount })}
-                                </p>
-                              )}
-                              {colStep.classifiedLines && (
-                                <div className="flex flex-wrap gap-2 text-xs mt-1 justify-center">
-                                  <span className="flex items-center gap-1">
-                                    <span className="w-2 h-2 rounded-sm" style={{ backgroundColor: 'rgb(0,180,255)' }} />
-                                    <span className="text-gray-500">{t('v3Pipeline.enchantHeader')} ({colStep.classifiedLines.filter(l => l.cls === 'header').length})</span>
-                                  </span>
-                                  <span className="flex items-center gap-1">
-                                    <span className="w-2 h-2 rounded-sm" style={{ backgroundColor: 'rgb(255,100,200)' }} />
-                                    <span className="text-gray-500">{t('v3Pipeline.enchantEffect')} ({colStep.classifiedLines.filter(l => l.cls === 'effect').length})</span>
-                                  </span>
-                                  <span className="flex items-center gap-1">
-                                    <span className="w-2 h-2 rounded-sm" style={{ backgroundColor: 'rgb(160,160,160)' }} />
-                                    <span className="text-gray-500">{t('v3Pipeline.enchantGrey')} ({colStep.classifiedLines.filter(l => l.cls === 'grey').length})</span>
-                                  </span>
-                                </div>
-                              )}
-                            </div>
-                          )
-                        ) : (
-                          /* Null placeholder for non-applicable steps */
-                          <div className="flex items-center justify-center py-8 text-gray-700 text-lg bg-gray-900/50 rounded">
-                            —
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })}
+                {/* Segment tabs */}
+                <div className="flex gap-1 mb-3">
+                  {effectiveColumns.map((col, colIdx) => (
+                    <button
+                      key={colIdx}
+                      onClick={() => {
+                        setSelectedSegment(colIdx)
+                        setCurrentStep(pipelineData.globalSteps.length)
+                        setPlaying(false)
+                      }}
+                      className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                        colIdx === selectedSegment
+                          ? 'bg-purple-600/30 text-purple-300 border border-purple-500/50'
+                          : 'text-gray-400 hover:text-gray-200 border border-gray-700 hover:border-gray-500'
+                      }`}
+                    >
+                      {col.label}
+                      <span className="text-gray-500 ml-1">({col.steps.length})</span>
+                    </button>
+                  ))}
                 </div>
+
+                {/* Single segment step display */}
+                {segStep.id === 'segLineCrops' ? (
+                  <div className="w-full max-h-[500px] overflow-y-auto space-y-1 bg-gray-900 rounded p-2">
+                    {segStep.lineCrops && segStep.lineCrops.length > 0 ? (
+                      segStep.lineCrops.map((crop, i) => (
+                        <div key={i} className="flex items-center gap-2">
+                          <span className="text-xs text-gray-600 w-6 text-right shrink-0">{i + 1}</span>
+                          <img src={crop} alt={`Line ${i + 1}`} className="border border-gray-700 rounded max-h-10" style={{ imageRendering: pixelated ? 'pixelated' : 'auto' }} />
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-gray-600 text-xs text-center py-4">{t('v3Pipeline.noLines')}</p>
+                    )}
+                  </div>
+                ) : segStep.dataURL ? (
+                  <div className="flex justify-center">
+                    <img
+                      src={segStep.dataURL}
+                      alt={segStep.id}
+                      className="max-w-full max-h-[500px] object-contain rounded"
+                      style={{ imageRendering: pixelated ? 'pixelated' : 'auto' }}
+                    />
+                  </div>
+                ) : null}
+
+                {/* Extra info */}
+                {segStep.lineCount !== undefined && (
+                  <p className="text-sm text-gray-400 mt-2">
+                    {t('v3Pipeline.linesDetected', { count: segStep.lineCount })}
+                  </p>
+                )}
+                {segStep.enchantBandCount !== undefined && (
+                  <p className="text-sm text-gray-400 mt-2">
+                    {t('v3Pipeline.enchantBandsDetected', { count: segStep.enchantBandCount })}
+                  </p>
+                )}
+                {segStep.classifiedLines && (
+                  <div className="flex flex-wrap gap-3 text-xs mt-2">
+                    <span className="flex items-center gap-1">
+                      <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: 'rgb(0,180,255)' }} />
+                      <span className="text-gray-400">{t('v3Pipeline.enchantHeader')} ({segStep.classifiedLines.filter(l => l.cls === 'header').length})</span>
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: 'rgb(255,100,200)' }} />
+                      <span className="text-gray-400">{t('v3Pipeline.enchantEffect')} ({segStep.classifiedLines.filter(l => l.cls === 'effect').length})</span>
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: 'rgb(160,160,160)' }} />
+                      <span className="text-gray-400">{t('v3Pipeline.enchantGrey')} ({segStep.classifiedLines.filter(l => l.cls === 'grey').length})</span>
+                    </span>
+                  </div>
+                )}
               </div>
             )}
 
@@ -1065,11 +1074,11 @@ const V3PipelineViewer = () => {
                   />
                 ))}
                 {/* Phase divider */}
-                {pipelineData.segmentColumns.length > 0 && (
+                {activeColumn && activeColumn.steps.length > 0 && (
                   <div className="w-px h-3.5 bg-gray-600 mx-1" />
                 )}
-                {/* Segment step dots */}
-                {pipelineData.segmentStepLabels.map((label, i) => {
+                {/* Segment step dots (from active column) */}
+                {activeColumn?.steps.map((step, i) => {
                   const absIdx = pipelineData.globalSteps.length + i
                   return (
                     <button
@@ -1078,7 +1087,7 @@ const V3PipelineViewer = () => {
                       className={`w-2.5 h-2.5 rounded-full transition-colors ${
                         absIdx === currentStep ? 'bg-purple-400' : absIdx < currentStep ? 'bg-gray-500' : 'bg-gray-700'
                       }`}
-                      title={t(`v3Pipeline.perSegSteps.${label}.title`)}
+                      title={t(`v3Pipeline.perSegSteps.${step.id}.title`)}
                     />
                   )
                 })}
