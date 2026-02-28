@@ -254,7 +254,9 @@ function applyEdge(imageData, width, height, type, direction) {
 // --- Prefix detection (Mabinogi-specific) ---
 
 const EFFECT_BLUE = { r: 74, g: 149, b: 238 }
+const EFFECT_RED = { r: 255, g: 103, b: 103 }
 const TEXT_WHITE = { r: 255, g: 255, b: 255 }
+const BULLET_COLORS = [EFFECT_BLUE, EFFECT_RED]
 
 function _buildColorMask(data, w, h, color, tolerance) {
   const mask = new Uint8Array(w * h)
@@ -373,21 +375,23 @@ function _detectLinesAndPrefixes(mask, w, h, colorLabel) {
   return results
 }
 
-function detectPrefixes(imageData, tolerance) {
+function detectBullets(imageData, tolerance) {
   const { data, width: w, height: h } = imageData
-  const blueMask = _buildColorMask(data, w, h, EFFECT_BLUE, tolerance)
-  const whiteMask = _buildColorMask(data, w, h, TEXT_WHITE, tolerance)
+  // Combine blue + red into one bullet mask
+  const mask = new Uint8Array(w * h)
+  for (const color of BULLET_COLORS) {
+    const m = _buildColorMask(data, w, h, color, tolerance)
+    for (let i = 0; i < mask.length; i++) if (m[i]) mask[i] = 1
+  }
+  return _detectLinesAndPrefixes(mask, w, h, 'bullet')
+    .filter(r => r.prefix?.type === 'bullet')
+}
 
-  const blueResults = _detectLinesAndPrefixes(blueMask, w, h, 'blue')
-  const whiteResults = _detectLinesAndPrefixes(whiteMask, w, h, 'white')
-
-  // Filter: blue → bullets only, white → subbullets only
-  const filtered = [
-    ...blueResults.filter(r => r.prefix?.type === 'bullet'),
-    ...whiteResults.filter(r => r.prefix?.type === 'subbullet'),
-  ]
-  filtered.sort((a, b) => a.line.y - b.line.y)
-  return filtered
+function detectSubbullets(imageData, tolerance) {
+  const { data, width: w, height: h } = imageData
+  const mask = _buildColorMask(data, w, h, TEXT_WHITE, tolerance)
+  return _detectLinesAndPrefixes(mask, w, h, 'subbullet')
+    .filter(r => r.prefix?.type === 'subbullet')
 }
 
 function drawPrefixVisualization(imageData, detections) {
@@ -475,9 +479,11 @@ const ImageProcessLab = () => {
   const [hueMode, setHueMode] = useState('reject')
   const [hueSatMin, setHueSatMin] = useState(10)
 
-  // Blue prefix detection
-  const [blueTolerance, setBlueTolerance] = useState(15)
-  const [prefixResults, setPrefixResults] = useState(null)
+  // Prefix detection
+  const [bulletTol, setBulletTol] = useState(15)
+  const [subbulletTol, setSubbulletTol] = useState(10)
+  const [bulletResults, setBulletResults] = useState(null)
+  const [subbulletResults, setSubbulletResults] = useState(null)
 
   const canvasRef = useRef(null)
   const fileInputRef = useRef(null)
@@ -546,15 +552,25 @@ const ImageProcessLab = () => {
     commitImageData(data)
   }
 
-  const handleReset = () => { setProcessedDataURL(null); setPrefixResults(null) }
+  const handleReset = () => { setProcessedDataURL(null); setBulletResults(null); setSubbulletResults(null) }
 
-  const handleDetectPrefix = async () => {
+  const handleDetectBullet = async () => {
     const data = await getProcessedImageData()
     if (!data) return
-    const detections = detectPrefixes(data, blueTolerance)
-    setPrefixResults(detections)
+    const results = detectBullets(data, bulletTol)
+    setBulletResults(results)
     const vizData = await getProcessedImageData()
-    drawPrefixVisualization(vizData, detections)
+    drawPrefixVisualization(vizData, results)
+    commitImageData(vizData)
+  }
+
+  const handleDetectSubbullet = async () => {
+    const data = await getProcessedImageData()
+    if (!data) return
+    const results = detectSubbullets(data, subbulletTol)
+    setSubbulletResults(results)
+    const vizData = await getProcessedImageData()
+    drawPrefixVisualization(vizData, results)
     commitImageData(vizData)
   }
 
@@ -581,35 +597,55 @@ const ImageProcessLab = () => {
             <div className="sticky top-6 bg-gray-800/60 rounded-lg p-4 border border-indigo-900/40 space-y-4">
               <h3 className="text-sm font-semibold text-indigo-300">Mabinogi Tools</h3>
 
-              {/* Prefix Detector */}
+              {/* Bullet (·) Detector */}
               <div className="space-y-2">
                 <button
-                  onClick={handleDetectPrefix}
+                  onClick={handleDetectBullet}
                   disabled={!image}
                   className="w-full px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-medium flex items-center gap-2 transition-colors"
                 >
                   <Search className="w-3.5 h-3.5" />
-                  Detect Prefix
+                  Detect Bullet ·
                 </button>
                 <div className="space-y-1">
-                  <label className="text-xs text-gray-400">Tolerance: {blueTolerance}</label>
+                  <label className="text-xs text-gray-400">Tol: {bulletTol}</label>
                   <input
                     type="range" min="5" max="40" step="1"
-                    value={blueTolerance}
-                    onChange={e => setBlueTolerance(parseInt(e.target.value))}
+                    value={bulletTol}
+                    onChange={e => setBulletTol(parseInt(e.target.value))}
                     className="w-full"
                   />
+                  <div className="text-xs text-gray-500">blue + red</div>
                 </div>
-                {prefixResults && (
-                  <div className="text-xs space-y-0.5">
-                    <div className="text-gray-400">{prefixResults.length} prefixes:</div>
-                    <div className="text-red-400">
-                      {prefixResults.filter(r => r.color === 'blue').length} blue bullet
-                    </div>
-                    <div className="text-orange-400">
-                      {prefixResults.filter(r => r.color === 'white').length} white subbullet
-                    </div>
-                  </div>
+                {bulletResults && (
+                  <div className="text-xs text-blue-400">{bulletResults.length} found</div>
+                )}
+              </div>
+
+              <div className="border-t border-indigo-900/40" />
+
+              {/* Subbullet (ㄴ) Detector */}
+              <div className="space-y-2">
+                <button
+                  onClick={handleDetectSubbullet}
+                  disabled={!image}
+                  className="w-full px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-medium flex items-center gap-2 transition-colors"
+                >
+                  <Search className="w-3.5 h-3.5" />
+                  Detect Subbullet ㄴ
+                </button>
+                <div className="space-y-1">
+                  <label className="text-xs text-gray-400">Tol: {subbulletTol}</label>
+                  <input
+                    type="range" min="3" max="30" step="1"
+                    value={subbulletTol}
+                    onChange={e => setSubbulletTol(parseInt(e.target.value))}
+                    className="w-full"
+                  />
+                  <div className="text-xs text-gray-500">white</div>
+                </div>
+                {subbulletResults && (
+                  <div className="text-xs text-orange-400">{subbulletResults.length} found</div>
                 )}
               </div>
             </div>

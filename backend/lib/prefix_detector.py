@@ -24,8 +24,14 @@ import numpy as np
 # Marks enchant effects, reforge options, set bonuses, stat modifiers.
 EFFECT_BLUE_RGB = (74, 149, 238)
 
+# Red effect text — negative enchant effects.
+EFFECT_RED_RGB = (255, 103, 103)
+
 # White text — subbullet ㄴ prefix in reforge sub-lines.
 WHITE_TEXT_RGB = (255, 255, 255)
+
+# All bullet colors — blue (positive effect) + red (negative effect).
+BULLET_COLORS = [EFFECT_BLUE_RGB, EFFECT_RED_RGB]
 
 
 def _color_mask(img_bgr, rgb, tolerance):
@@ -46,6 +52,19 @@ def blue_text_mask(img_bgr, tolerance=15):
         uint8 array, 255 = match, 0 = no match.
     """
     return _color_mask(img_bgr, EFFECT_BLUE_RGB, tolerance)
+
+
+def red_text_mask(img_bgr, tolerance=15):
+    """Binary mask matching red negative effect text color."""
+    return _color_mask(img_bgr, EFFECT_RED_RGB, tolerance)
+
+
+def bullet_text_mask(img_bgr, tolerance=15):
+    """Binary mask matching all bullet colors (blue + red)."""
+    mask = np.zeros(img_bgr.shape[:2], dtype=np.uint8)
+    for rgb in BULLET_COLORS:
+        mask = np.maximum(mask, _color_mask(img_bgr, rgb, tolerance))
+    return mask
 
 
 def white_text_mask(img_bgr, tolerance=15):

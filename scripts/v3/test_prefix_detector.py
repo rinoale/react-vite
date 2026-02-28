@@ -5,8 +5,8 @@ Usage:
     python3 scripts/v3/test_prefix_detector.py <image> [<image> ...]
 
 Detects:
-  - Blue bullet (·) prefixes — RGB(74, 149, 238)
-  - White subbullet (ㄴ) prefixes — RGB(255, 255, 255)
+  - Bullet (·) prefixes — blue RGB(74, 149, 238) + red RGB(255, 103, 103)
+  - Subbullet (ㄴ) prefixes — white RGB(255, 255, 255)
 
 Accepts either:
   - Pre-masked images (colored text on black bg)
@@ -17,7 +17,7 @@ import numpy as np
 import cv2
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
-from backend.lib.prefix_detector import blue_text_mask, white_text_mask, detect_prefix
+from backend.lib.prefix_detector import bullet_text_mask, white_text_mask, detect_prefix
 from backend.lib.tooltip_line_splitter import TooltipLineSplitter
 
 
@@ -65,30 +65,31 @@ def run_on_image(path):
 
     splitter = TooltipLineSplitter(output_dir='/tmp/prefix_test')
 
-    # Blue mask — bullet (·) detection
-    b_mask = blue_text_mask(img)
-    blue_results, blue_ink = _detect_on_mask(b_mask, h, w, 'blue', splitter)
+    # Bullet (·) mask — blue + red combined
+    b_mask = bullet_text_mask(img)
+    bullet_results, bullet_ink = _detect_on_mask(b_mask, h, w, 'bullet', splitter)
 
-    # White mask — subbullet (ㄴ) detection
+    # Subbullet (ㄴ) mask — white
     w_mask = white_text_mask(img)
-    white_results, white_ink = _detect_on_mask(w_mask, h, w, 'white', splitter)
+    sub_results, white_ink = _detect_on_mask(w_mask, h, w, 'subbullet', splitter)
 
-    print(f"  blue ink: {blue_ink:.1f}%  white ink: {white_ink:.1f}%")
+    print(f"  bullet ink (blue+red): {bullet_ink:.1f}%  white ink: {white_ink:.1f}%")
 
-    # Merge and sort by y position
-    all_results = sorted(blue_results + white_results, key=lambda r: r['y'])
-
-    # Filter: blue → only bullets, white → only subbullets
+    # Filter: bullet mask → only bullets, white mask → only subbullets
     filtered = []
-    for r in all_results:
-        if r['color'] == 'blue' and r['type'] == 'bullet':
+    for r in bullet_results:
+        if r['type'] == 'bullet':
             filtered.append(r)
-        elif r['color'] == 'white' and r['type'] == 'subbullet':
+    for r in sub_results:
+        if r['type'] == 'subbullet':
             filtered.append(r)
 
+    all_results = bullet_results + sub_results
     if not filtered:
         print(f"  lines scanned: {len(all_results)}  (no prefixes found)")
         return
+
+    filtered.sort(key=lambda r: r['y'])
 
     bullet_count = sum(1 for r in filtered if r['type'] == 'bullet')
     sub_count = sum(1 for r in filtered if r['type'] == 'subbullet')
@@ -97,11 +98,10 @@ def run_on_image(path):
     print()
 
     for i, r in enumerate(filtered):
-        tag = f"{r['color']}_{r['type']}"
         detail = f"  w={r['w']}  gap={r['gap']}  main_x={r['main_x']}"
-        print(f"  [{i+1:2d}] y={r['y']:4d}  {tag:18s}  h={r['h']:2d}  crop={r['crop_w']:3d}x{r['crop_h']:2d}{detail}")
+        print(f"  [{i+1:2d}] y={r['y']:4d}  {r['type']:10s}  h={r['h']:2d}  crop={r['crop_w']:3d}x{r['crop_h']:2d}{detail}")
 
-    print(f"\n  Summary: {bullet_count} blue_bullet, {sub_count} white_subbullet")
+    print(f"\n  Summary: {bullet_count} bullet, {sub_count} subbullet")
 
 
 def main():
