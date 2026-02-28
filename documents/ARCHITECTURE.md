@@ -42,15 +42,21 @@ Original color screenshot (BGR, any resolution)
     │     └── All other sections:
     │           └── BT.601 + threshold=80 → DualReader
     │
-    ├── Stage 6: Fuzzy Matching (FM) — section-aware text correction
+    ├── Stage 6a: Item Name Parsing — parse pre_header into enchant prefix/suffix names
+    │     → P1 enchant entries available for effect dictionary selection
+    │
+    ├── Stage 6b: Fuzzy Matching (FM) — section-aware text correction
     │     │
     │     ├── Enchant headers: Dullahan algorithm (effect-guided header correction)
-    │     ├── Enchant effects: match_enchant_effect (partial_ratio against entry's effects)
+    │     ├── Enchant effects: P1 entry prioritized for dictionary, Dullahan fallback
     │     ├── Reforge: correct_normalized (number-normalized, level suffix stripped)
     │     └── Other sections: correct_normalized (section dictionary or combined)
     │
-    └── Stage 7: Structured Rebuild — build_enchant_structured / build_reforge_structured
-          → JSON response with prefix/suffix slots, reforge options, color parts
+    ├── Stage 7: Structured Rebuild — build_enchant_structured / build_reforge_structured
+    │     → JSON response with prefix/suffix slots, reforge options, color parts
+    │
+    └── Stage 8: Final Enchant Header Competition — P1/P2/P3 resolution
+          → P1 (item name), P2 (raw header OCR), P3 (Dullahan) → winner + templated effects
 ```
 
 ---
@@ -299,16 +305,40 @@ Standard OCR, then:
 
 ---
 
-## Stage 6: Fuzzy Matching (FM)
+## Stage 6a: Item Name Parsing
+
+**File:** `backend/lib/text_corrector.py`
+**Method:** `parse_item_name()`
+
+**Input:** First pre_header line (OCR text, before FM).
+
+**Algorithm:**
+
+```
+Right-to-left item_name anchor:
+  1. Strip holywater from start (fuzzy match, score >= 70)
+  2. Strip 정령 keyword
+  3. Anchor item_name from right — progressively longer suffixes against item_name.txt
+  4. Remaining left part → match against enchant prefix/suffix dicts
+  → {item_name, enchant_prefix, enchant_suffix, _holywater, _ego}
+```
+
+**Why before FM:** The parsed enchant names (P1 candidates) are used as the prioritized effect dictionary source in Stage 6b. When P1 resolves an enchant name to a DB entry, that entry's effects are used for enchant effect FM — more accurate than the Dullahan-matched (P3) entry when header OCR is garbled.
+
+**Output:** `sections['pre_header']['parsed_item_name']` dict with enchant_prefix, enchant_suffix, item_name.
+
+---
+
+## Stage 6b: Fuzzy Matching (FM)
 
 **File:** `backend/lib/text_corrector.py`
 **Method:** `apply_fm()`
 
-**Input:** `all_lines` (flat list) + `sections` dict from Stage 5.
+**Input:** `all_lines` (flat list) + `sections` dict (with parsed item name from Stage 6a).
 
 **Preprocessing:** Strip structural prefixes (`-`, `ㄴ`, `,`, `L`) from content lines before matching. Dictionary entries don't have these prefixes.
 
-### 6a. Non-enchant sections
+### Non-enchant sections
 
 For each line with a known section:
 
@@ -326,9 +356,14 @@ correct_normalized(text, section=section):
 
 Reforge sub-lines (`is_reforge_sub=True`) skip FM entirely (score=-3).
 
-### 6b. Enchant section — has_slot_hdrs=True (white-mask detected)
+### Enchant section — has_slot_hdrs=True (white-mask detected)
 
 ```
+Resolve P1 entries from parsed item name (Stage 6a):
+  For each slot type (접두/접미):
+    If parsed_item_name has enchant_prefix/suffix → lookup_enchant_by_name()
+    → p1_entries = {slot_type: entry}
+
 Group lines by slot header:
   Each slot = (header_line, [effect_lines])
 
@@ -339,16 +374,19 @@ For each slot:
     → Returns (corrected_header, score, entry)
     → Sets enchant_slot, enchant_name, enchant_rank from matched entry
 
-  Effect FM: match_enchant_effect(text, entry) for each effect line
-    → Uses fuzz.partial_ratio (not ratio) to handle abbreviated tooltips
-    → Searches only the matched entry's effects (4-8 lines, not full dict)
+  Effect dictionary selection:
+    → P1 entry prioritized; Dullahan entry as fallback
+    → effect_entry = p1_entries.get(slot_type, dullahan_entry)
+
+  Effect FM: match_enchant_effect(text, effect_entry) for each effect line
+    → Searches only the resolved entry's effects (4-8 lines, not full dict)
     → Number normalization + re-injection
     → Cutoff: 75
 ```
 
-**Why partial_ratio for effects:** The simple/abbreviated tooltip (ALT key) shows only effect text without conditions. `enchant.yaml` stores full condition+effect sentences. `fuzz.ratio` penalizes the length difference; `fuzz.partial_ratio` finds the best matching substring.
+**Why P1 priority for effects:** When header OCR is garbled (e.g. "스크니 사수" → Dullahan picks 스파이크), the effect dictionary is wrong. P1 from item name parsing ("레지스탕스") is more reliable because the item name line has higher OCR confidence and is matched against a clean dictionary.
 
-### 6c. Enchant section — has_slot_hdrs=False (linear fallback)
+### Enchant section — has_slot_hdrs=False (linear fallback)
 
 ```
 Linear scan of enchant lines:
@@ -391,6 +429,37 @@ For each main line (is_reforge_sub=False, has reforge_name):
 
 Output: {options: [{name, level, max_level, option_name, option_level, effect}]}
 ```
+
+---
+
+## Stage 8: Final Enchant Header Competition
+
+**File:** `backend/lib/v3_pipeline.py`
+**Function:** `_step_resolve_enchant()`
+
+**Input:** `sections` dict after FM and structured rebuild.
+
+Three candidates per slot (접두/접미):
+
+```
+P1: Item name parsing (Stage 6a) — enchant_prefix/suffix from pre_header OCR
+    → lookup_enchant_by_name() → exact or fuzzy (≥85) match
+    → Score: 100 (exact name match)
+
+P2: Raw header OCR — snapshot of enchant header text before Dullahan
+    → Extract name via regex from '[접두] name (랭크 X)'
+
+P3: Dullahan result — header + effect body matching from Stage 6b
+    → enchant_name and _dullahan_score from matched entry
+
+Priority: P1 > P2 > P3
+Winner with DB entry → build_templated_effects():
+  Match OCR effect lines to DB effects by dual-form matching
+  Extract rolled values (numbers) from OCR, inject into DB templates
+  → final enchant slot: {text, name, rank, effects[], source}
+```
+
+**Output:** `sections['enchant']['resolution']` with per-slot winner info, `sections['enchant']['prefix'|'suffix']` updated with winning entry's templated effects.
 
 ---
 

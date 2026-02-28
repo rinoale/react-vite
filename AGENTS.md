@@ -13,7 +13,9 @@ Build a specialized marketplace for trading in-game items where the core data en
 3. **Segmentation** — Image split into labeled regions (pre-header content + per-section header+content pairs) using `scripts/v3/segmentation/test_segmentation.py` logic.
 4. **Header OCR** — Each header crop is OCR'd independently (short text, ~10 possible labels: 세공, 에르그, 인챈트, 개조, etc.) to assign the canonical section name.
 5. **Content OCR per segment** — `TooltipLineSplitter` + EasyOCR `recognize()` on each content region. Section label is already known from step 4 — FM uses the correct dictionary immediately, no post-hoc section detection.
-6. **Fuzzy matching** — `TextCorrector` with section-specific dictionaries. Two-phase enchant matching preserved.
+6. **Item name parsing** — Pre-header first line parsed into enchant prefix/suffix names. Runs BEFORE FM so P1 enchant entries are available for effect dictionary selection.
+7. **Fuzzy matching** — `TextCorrector` with section-specific dictionaries. Enchant effect FM prioritizes P1 entry (from item name) over Dullahan (P3) for dictionary selection.
+8. **Final enchant header competition** — P1 (item name) / P2 (raw header OCR) / P3 (Dullahan) compared; winner determines final enchant identity and templated effects.
 
 **Old pipeline (still in production at `backend/main.py`):**
 - Frontend preprocesses image: BT.601 grayscale → threshold(>80 → black) → binary PNG

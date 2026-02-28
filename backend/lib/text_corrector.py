@@ -977,6 +977,19 @@ class TextCorrector:
                              if not l.get('is_header')]
             has_slot_hdrs = any(l.get('is_enchant_hdr') for l in enchant_lines)
 
+            # P1 entries from item name (parsed before FM).
+            # P1 is prioritized for effect dictionary selection;
+            # final enchant header winner is resolved separately in _step_resolve_enchant.
+            parsed = sections.get('pre_header', {}).get('parsed_item_name')
+            p1_entries = {}
+            if parsed:
+                for slot_type, field in [('접두', 'enchant_prefix'), ('접미', 'enchant_suffix')]:
+                    name = parsed.get(field)
+                    if name:
+                        p1_entry = self.lookup_enchant_by_name(name, slot_type=slot_type)
+                        if p1_entry:
+                            p1_entries[slot_type] = p1_entry
+
             if has_slot_hdrs:
                 # Group lines by slot header (white-mask detected)
                 slots = []
@@ -1012,14 +1025,17 @@ class TextCorrector:
                             hdr_line['enchant_name'] = entry['name']
                             hdr_line['enchant_rank'] = entry['rank']
 
-                    # FM effect lines against the matched entry's effects
-                    if entry:
+                    # P1 prioritized for effect dictionary; Dullahan fallback
+                    effect_entry = p1_entries.get(slot_type, entry)
+
+                    # FM effect lines against the resolved entry's effects
+                    if effect_entry:
                         for eff_line in effect_lines:
                             eff_text = eff_line.get('text', '')
                             if not eff_text.strip() or eff_line.get('is_grey'):
                                 continue
                             fm_eff, eff_score = self.match_enchant_effect(
-                                eff_text, entry)
+                                eff_text, effect_entry)
                             if eff_score > 0:
                                 eff_line['text'] = fm_eff
                                 eff_line['fm_applied'] = True

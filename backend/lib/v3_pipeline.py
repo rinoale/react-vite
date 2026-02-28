@@ -574,8 +574,12 @@ def run_v3_pipeline(img_bgr, header_reader, section_patterns, config,
     for line in all_lines:
         line['raw_text'] = line.get('text', '')
 
-    # Step 3: Fuzzy match OCR text against per-section dictionaries
-    # (includes merge_continuations which joins wrapped lines by prefix detection)
+    # Step 3a: Parse item name BEFORE FM — P1 enchant names are prioritized
+    # for effect dictionary selection in enchant FM
+    _step_parse_item_name(sections, corrector)
+
+    # Step 3b: Fuzzy match OCR text against per-section dictionaries
+    # Enchant effect FM uses P1 entry when available, Dullahan (P3) as fallback
     _step_fm(all_lines, sections, corrector)
 
     # Remove merged fragment lines so line counts match expected effects
@@ -602,10 +606,7 @@ def run_v3_pipeline(img_bgr, header_reader, section_patterns, config,
     # Step 4: Rebuild enchant prefix/suffix slots and reforge options from corrected text
     _step_rebuild_structured(sections, parser)
 
-    # Step 5: Parse item name from pre_header first line
-    _step_parse_item_name(sections, corrector)
-
-    # Step 6: Three-strategy enchant resolution (P1/P2/P3)
+    # Step 5: Final enchant header competition (P1/P2/P3)
     _step_resolve_enchant(sections, corrector)
 
     # Persist OCR results JSON for correction training

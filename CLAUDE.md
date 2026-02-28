@@ -93,8 +93,10 @@ Determines section labels BEFORE running content OCR, eliminating cascade sectio
 3. **Segmentation**: Pre-header region + N header+content pairs. Each content region has a positional section slot.
 4. **Header OCR**: Each header crop OCR'd independently (short text, ~10 fixed labels: 세공, 에르그, 인챈트, ...). Assigns canonical section name.
 5. **Content OCR per segment**: `TooltipLineSplitter` + EasyOCR `recognize()` per line. FM uses pre-determined section dictionary — no post-hoc header pattern matching in the content stream.
-6. **FM decision**: Server picks best text per line — if FM matches (`fm_score > 0`), `text` is replaced with FM result and `fm_applied=true`. No separate `corrected_text` field.
-7. **Structured rebuild**: After FM, `build_enchant_structured()` and `build_reforge_structured()` rebuild section data from corrected lines.
+6. **Item name parsing**: Pre-header first line parsed into structured components (holywater, enchant_prefix, enchant_suffix, item_name). Runs BEFORE FM so P1 enchant entries are available for effect dictionary selection.
+7. **FM decision**: Server picks best text per line — if FM matches (`fm_score > 0`), `text` is replaced with FM result and `fm_applied=true`. Enchant effect FM prioritizes P1 entry (from item name) over Dullahan (P3) for dictionary selection. No separate `corrected_text` field.
+8. **Structured rebuild**: After FM, `build_enchant_structured()` and `build_reforge_structured()` rebuild section data from corrected lines.
+9. **Final enchant header competition**: P1 (item name) / P2 (raw header OCR) / P3 (Dullahan) candidates compared; winner determines final enchant identity and templated effects.
 
 **Current production pipeline (old — still in `backend/main.py`):**
 1. **Frontend** (`src/pages/sell.jsx`): Browser preprocesses uploaded image (BT.601 grayscale → threshold=80) → binary PNG (black text on white)
