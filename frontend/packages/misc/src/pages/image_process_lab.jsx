@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from 'react'
-import { Upload, Download, RotateCcw, FlipHorizontal, SlidersHorizontal, Droplets, Grid3X3, Scan, Pipette, HelpCircle, Grid2X2, Palette } from 'lucide-react'
+import { Upload, Download, RotateCcw, FlipHorizontal, SlidersHorizontal, Droplets, Grid3X3, Scan, Pipette, HelpCircle, Grid2X2, Palette, Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 // --- Image processing kernels (pure functions on ImageData) ---
@@ -251,6 +251,187 @@ function applyEdge(imageData, width, height, type, direction) {
   return imageData
 }
 
+// --- Prefix detection (Mabinogi-specific) ---
+
+const EFFECT_BLUE = { r: 74, g: 149, b: 238 }
+const TEXT_WHITE = { r: 255, g: 255, b: 255 }
+
+function _buildColorMask(data, w, h, color, tolerance) {
+  const mask = new Uint8Array(w * h)
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4
+      if (Math.abs(data[i] - color.r) <= tolerance &&
+          Math.abs(data[i+1] - color.g) <= tolerance &&
+          Math.abs(data[i+2] - color.b) <= tolerance) {
+        mask[y * w + x] = 1
+      }
+    }
+  }
+  return mask
+}
+
+function _detectLinesAndPrefixes(mask, w, h, colorLabel) {
+  // Line detection via horizontal projection
+  const rowProj = new Uint32Array(h)
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) rowProj[y] += mask[y * w + x]
+  }
+  const threshold = Math.max(3, w * 0.01)
+  const hasText = new Uint8Array(h)
+  for (let y = 0; y < h; y++) hasText[y] = rowProj[y] > threshold ? 1 : 0
+  for (let y = 1; y < h;) {
+    if (!hasText[y] && hasText[y - 1]) {
+      const gs = y
+      while (y < h && !hasText[y]) y++
+      if (y - gs <= 2 && y < h && hasText[y]) {
+        for (let g = gs; g < y; g++) hasText[g] = 1
+      }
+    } else { y++ }
+  }
+
+  const lines = []
+  let inLine = false, lineStart = 0
+  for (let y = 0; y <= h; y++) {
+    const t = y < h && hasText[y]
+    if (t && !inLine) { lineStart = y; inLine = true }
+    else if (!t && inLine) {
+      const lh = y - lineStart
+      if (lh >= 6 && lh <= 30) {
+        let xStart = -1, xEnd = -1
+        for (let ly = lineStart; ly < y; ly++) {
+          for (let x = 0; x < w; x++) {
+            if (mask[ly * w + x]) {
+              if (xStart < 0 || x < xStart) xStart = x
+              if (x + 1 > xEnd) xEnd = x + 1
+            }
+          }
+        }
+        if (xStart >= 0 && xEnd - xStart >= 6) {
+          lines.push({ x: xStart, y: lineStart, w: xEnd - xStart, h: lh })
+        }
+      }
+      inLine = false
+    }
+  }
+
+  // Per-line prefix detection via column projection
+  const results = []
+  for (const line of lines) {
+    const padX = Math.max(2, Math.floor(line.h / 3))
+    const padY = Math.max(1, Math.floor(line.h / 5))
+    const y0 = Math.max(0, line.y - padY)
+    const y1 = Math.min(h, line.y + line.h + padY)
+    const x0 = Math.max(0, line.x - padX)
+    const x1 = Math.min(w, line.x + line.w + padX)
+
+    const regionW = x1 - x0
+    const colProj = new Uint32Array(regionW)
+    for (let ly = y0; ly < y1; ly++) {
+      for (let lx = 0; lx < regionW; lx++) {
+        colProj[lx] += mask[ly * w + (x0 + lx)]
+      }
+    }
+
+    let firstStart = -1, firstEnd = -1, mainStart = -1
+    for (let x = 0; x < regionW; x++) {
+      const hasInk = colProj[x] > 0
+      if (firstStart < 0) { if (hasInk) firstStart = x }
+      else if (firstEnd < 0) { if (!hasInk) firstEnd = x }
+      else if (mainStart < 0) { if (hasInk) { mainStart = x; break } }
+    }
+
+    const lineH = y1 - y0
+    if (firstStart >= 0 && firstEnd >= 0 && mainStart >= 0) {
+      const firstW = firstEnd - firstStart
+      const gapW = mainStart - firstEnd
+      const maxPrefixW = Math.max(8, Math.floor(lineH * 0.7))
+      const minGap = Math.max(2, Math.floor(lineH * 0.2))
+
+      if (firstW <= maxPrefixW && gapW >= minGap) {
+        const bulletMaxW = Math.max(3, Math.floor(lineH * 0.25))
+        results.push({
+          color: colorLabel,
+          line: { x: x0, y: y0, w: regionW, h: lineH },
+          prefix: {
+            type: firstW <= bulletMaxW ? 'bullet' : 'subbullet',
+            x: x0 + firstStart, y: y0,
+            w: firstW, h: lineH,
+          },
+          mainX: x0 + mainStart,
+        })
+        continue
+      }
+    }
+    results.push({
+      color: colorLabel,
+      line: { x: x0, y: y0, w: regionW, h: lineH },
+      prefix: null,
+      mainX: x0,
+    })
+  }
+  return results
+}
+
+function detectPrefixes(imageData, tolerance) {
+  const { data, width: w, height: h } = imageData
+  const blueMask = _buildColorMask(data, w, h, EFFECT_BLUE, tolerance)
+  const whiteMask = _buildColorMask(data, w, h, TEXT_WHITE, tolerance)
+
+  const blueResults = _detectLinesAndPrefixes(blueMask, w, h, 'blue')
+  const whiteResults = _detectLinesAndPrefixes(whiteMask, w, h, 'white')
+
+  // Filter: blue → bullets only, white → subbullets only
+  const filtered = [
+    ...blueResults.filter(r => r.prefix?.type === 'bullet'),
+    ...whiteResults.filter(r => r.prefix?.type === 'subbullet'),
+  ]
+  filtered.sort((a, b) => a.line.y - b.line.y)
+  return filtered
+}
+
+function drawPrefixVisualization(imageData, detections) {
+  const { data, width: w } = imageData
+
+  const drawBox = (bx, by, bw, bh, r, g, b) => {
+    for (let t = 0; t < 1; t++) {
+      for (let px = bx; px < bx + bw && px < w; px++) {
+        for (const py of [by + t, by + bh - 1 - t]) {
+          if (py >= 0 && py < imageData.height && px >= 0) {
+            const i = (py * w + px) * 4
+            data[i] = r; data[i+1] = g; data[i+2] = b; data[i+3] = 255
+          }
+        }
+      }
+      for (let py = by; py < by + bh && py < imageData.height; py++) {
+        for (const px of [bx + t, bx + bw - 1 - t]) {
+          if (px >= 0 && px < w && py >= 0) {
+            const i = (py * w + px) * 4
+            data[i] = r; data[i+1] = g; data[i+2] = b; data[i+3] = 255
+          }
+        }
+      }
+    }
+  }
+
+  for (const det of detections) {
+    if (det.prefix) {
+      // Prefix box: red for bullet, orange for subbullet
+      const isSubbullet = det.prefix.type === 'subbullet'
+      drawBox(det.prefix.x, det.prefix.y, det.prefix.w, det.prefix.h,
+        isSubbullet ? 255 : 255, isSubbullet ? 160 : 60, 60)
+      // Main text box: cyan for blue lines, green for white lines
+      const mainW = det.line.x + det.line.w - det.mainX
+      const isWhite = det.color === 'white'
+      drawBox(det.mainX, det.line.y, mainW, det.line.h,
+        isWhite ? 60 : 60, isWhite ? 200 : 200, isWhite ? 200 : 60)
+    } else {
+      drawBox(det.line.x, det.line.y, det.line.w, det.line.h, 200, 200, 60)
+    }
+  }
+  return imageData
+}
+
 // --- Tabs ---
 const TABS = [
   { id: 'grayscale',  icon: SlidersHorizontal },
@@ -293,6 +474,10 @@ const ImageProcessLab = () => {
   const [hueMax, setHueMax] = useState(330)
   const [hueMode, setHueMode] = useState('reject')
   const [hueSatMin, setHueSatMin] = useState(10)
+
+  // Blue prefix detection
+  const [blueTolerance, setBlueTolerance] = useState(15)
+  const [prefixResults, setPrefixResults] = useState(null)
 
   const canvasRef = useRef(null)
   const fileInputRef = useRef(null)
@@ -361,7 +546,17 @@ const ImageProcessLab = () => {
     commitImageData(data)
   }
 
-  const handleReset = () => setProcessedDataURL(null)
+  const handleReset = () => { setProcessedDataURL(null); setPrefixResults(null) }
+
+  const handleDetectPrefix = async () => {
+    const data = await getProcessedImageData()
+    if (!data) return
+    const detections = detectPrefixes(data, blueTolerance)
+    setPrefixResults(detections)
+    const vizData = await getProcessedImageData()
+    drawPrefixVisualization(vizData, detections)
+    commitImageData(vizData)
+  }
 
   const handleDownload = () => {
     const src = processedDataURL || image?.src
@@ -376,29 +571,71 @@ const ImageProcessLab = () => {
 
   return (
     <div className="min-h-screen bg-gray-900 text-gray-100 p-6">
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-[1600px] mx-auto">
         <h1 className="text-3xl font-bold mb-2 text-cyan-400">{t('imageProcessLab.title')}</h1>
         <p className="text-gray-400 mb-6">{t('imageProcessLab.subtitle')}</p>
 
-        {/* Rendering toggle */}
-        {image && (
-          <div className="flex items-center gap-3 mb-4">
-            <button
-              onClick={() => setPixelated(p => !p)}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                pixelated
-                  ? 'bg-cyan-600/20 text-cyan-400 border border-cyan-600/40'
-                  : 'bg-gray-800 text-gray-400 border border-gray-700 hover:text-gray-200'
-              }`}
-            >
-              <Grid2X2 className="w-4 h-4" />
-              {t('imageProcessLab.pixelated')}
-            </button>
-          </div>
-        )}
+        <div className="flex gap-6">
+          {/* Left sidebar — Mabinogi Tools (always visible) */}
+          <div className="w-56 shrink-0">
+            <div className="sticky top-6 bg-gray-800/60 rounded-lg p-4 border border-indigo-900/40 space-y-4">
+              <h3 className="text-sm font-semibold text-indigo-300">Mabinogi Tools</h3>
 
-        {/* Image panels */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+              {/* Prefix Detector */}
+              <div className="space-y-2">
+                <button
+                  onClick={handleDetectPrefix}
+                  disabled={!image}
+                  className="w-full px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-medium flex items-center gap-2 transition-colors"
+                >
+                  <Search className="w-3.5 h-3.5" />
+                  Detect Prefix
+                </button>
+                <div className="space-y-1">
+                  <label className="text-xs text-gray-400">Tolerance: {blueTolerance}</label>
+                  <input
+                    type="range" min="5" max="40" step="1"
+                    value={blueTolerance}
+                    onChange={e => setBlueTolerance(parseInt(e.target.value))}
+                    className="w-full"
+                  />
+                </div>
+                {prefixResults && (
+                  <div className="text-xs space-y-0.5">
+                    <div className="text-gray-400">{prefixResults.length} prefixes:</div>
+                    <div className="text-red-400">
+                      {prefixResults.filter(r => r.color === 'blue').length} blue bullet
+                    </div>
+                    <div className="text-orange-400">
+                      {prefixResults.filter(r => r.color === 'white').length} white subbullet
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Main content */}
+          <div className="flex-1 min-w-0">
+            {/* Rendering toggle */}
+            {image && (
+              <div className="flex items-center gap-3 mb-4">
+                <button
+                  onClick={() => setPixelated(p => !p)}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                    pixelated
+                      ? 'bg-cyan-600/20 text-cyan-400 border border-cyan-600/40'
+                      : 'bg-gray-800 text-gray-400 border border-gray-700 hover:text-gray-200'
+                  }`}
+                >
+                  <Grid2X2 className="w-4 h-4" />
+                  {t('imageProcessLab.pixelated')}
+                </button>
+              </div>
+            )}
+
+            {/* Image panels */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
           {/* Original */}
           <div className="bg-gray-800 rounded-lg p-6">
             <h2 className="text-xl font-semibold mb-4">{t('imageProcessLab.originalImage')}</h2>
@@ -462,7 +699,7 @@ const ImageProcessLab = () => {
           </div>
         </div>
 
-        {/* Operation tabs — sticky so controls are always visible */}
+            {/* Operation tabs — sticky so controls are always visible */}
         <div className="bg-gray-800 rounded-lg p-6 sticky bottom-0 z-10 shadow-[0_-4px_20px_rgba(0,0,0,0.5)] border-t border-gray-700">
           <div className="flex flex-wrap gap-2 mb-6">
             {TABS.map(tab => {
@@ -851,14 +1088,16 @@ const ImageProcessLab = () => {
             )}
           </div>
 
-          <button
-            onClick={handleApply}
-            disabled={!image}
-            className="bg-cyan-600 hover:bg-cyan-700 disabled:opacity-40 disabled:cursor-not-allowed text-white px-6 py-2 rounded-lg font-medium"
-          >
-            {t('imageProcessLab.apply')}
-          </button>
-        </div>
+            <button
+              onClick={handleApply}
+              disabled={!image}
+              className="bg-cyan-600 hover:bg-cyan-700 disabled:opacity-40 disabled:cursor-not-allowed text-white px-6 py-2 rounded-lg font-medium"
+            >
+              {t('imageProcessLab.apply')}
+            </button>
+          </div>
+          </div>{/* /main content */}
+        </div>{/* /flex */}
 
         {/* Hidden work canvas */}
         <canvas ref={canvasRef} className="hidden" />

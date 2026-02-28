@@ -140,3 +140,44 @@ EasyOCR computes a per-image dynamic imgW during inference, which produces value
 The patch is in `backend/lib/ocr_utils.py` and must be applied after `easyocr.Reader()` is initialized.
 
 **Porting guide:** Always verify that inference imgW matches training imgW before evaluating accuracy. This mismatch is silent — the model produces output but it will be garbage. Check `ocr_utils.py` is applied in any new inference script.
+
+---
+
+### D11 — Prefix detection bypasses OCR via color + shape
+
+**Decision:** Detect bullet (`·`) and subbullet (`ㄴ`) prefix characters visually using the known blue effect text color, instead of relying on OCR output.
+
+**Why:**
+These prefix characters are tiny (2–7px wide) and OCR consistently misreads them:
+- `·` (bullet) → `.`, `-`, `,`, or dropped entirely
+- `ㄴ` (subbullet) → `L` or dropped entirely
+
+The PIL rendering gap makes it worse — the game renders `·` as 2px but PIL renders it as 3–5px, so the model never sees the real shape during training.
+
+However, all blue effect text (enchant effects, reforge options, set bonuses, stat modifiers) uses a fixed color **RGB(74, 149, 238)** — a game engine constant across all 26 themes. This makes color-based detection trivially reliable.
+
+**Algorithm (3-step pipeline):**
+
+1. **Blue mask** — test each pixel against the target color with per-channel tolerance (default 15). Produces a binary mask of blue ink pixels.
+
+2. **Line detection** — horizontal projection on the mask. Count ink pixels per row; consecutive rows above threshold form text lines. Gap tolerance of 2 rows handles thin stroke dips.
+
+3. **Prefix detection** — column projection per line, left-to-right state machine:
+   ```
+   [small ink cluster] → [clear gap] → [main text starts]
+   ```
+   Classify by cluster width relative to line height:
+   - bullet: width ≤ `max(3, h × 0.25)` px
+   - subbullet: width ≤ `max(8, h × 0.7)` px
+   - Gap must be ≥ `max(2, h × 0.2)` px
+
+**Results:** 100% detection on both fonts (mabinogi_classic: 15/15, NanumGothicBold: 24/24). All bullets: w=2, gap=4, main_x=9.
+
+**Files:**
+- `backend/lib/prefix_detector.py` — Python detection module (`blue_text_mask()`, `detect_prefix()`)
+- `scripts/v3/test_prefix_detector.py` — CLI test on masked or color images
+- `frontend/packages/misc/src/pages/image_process_lab.jsx` — JS port with visualization (Mabinogi Tools sidebar)
+
+**Tradeoff:** Only works on blue effect text. Prefixes in other colors (orange headers, white text) would need separate color targets or a different approach. The tolerance parameter (default 15) may need adjustment for heavily compressed JPEG screenshots where color accuracy degrades.
+
+**Porting guide:** Identify fixed UI colors in the target game. Any text element with a guaranteed color can use this approach. The column-projection state machine is generic — only the color target and classification thresholds are game-specific.
