@@ -145,7 +145,7 @@ The patch is in `backend/lib/ocr_utils.py` and must be applied after `easyocr.Re
 
 ### D11 — Prefix detection bypasses OCR via color + shape
 
-**Decision:** Detect bullet (`·`) and subbullet (`ㄴ`) prefix characters visually using the known blue effect text color, instead of relying on OCR output.
+**Decision:** Detect bullet (`·`) and subbullet (`ㄴ`) prefix characters visually using known text colors, instead of relying on OCR output.
 
 **Why:**
 These prefix characters are tiny (2–7px wide) and OCR consistently misreads them:
@@ -154,11 +154,17 @@ These prefix characters are tiny (2–7px wide) and OCR consistently misreads th
 
 The PIL rendering gap makes it worse — the game renders `·` as 2px but PIL renders it as 3–5px, so the model never sees the real shape during training.
 
-However, all blue effect text (enchant effects, reforge options, set bonuses, stat modifiers) uses a fixed color **RGB(74, 149, 238)** — a game engine constant across all 26 themes. This makes color-based detection trivially reliable.
+However, these prefixes use fixed colors — game engine constants across all 26 themes:
+
+| Prefix | Color | RGB | Usage |
+|--------|-------|-----|-------|
+| bullet `·` | blue | (74, 149, 238) | positive enchant effects, reforge options, set bonuses, stat modifiers |
+| bullet `·` | red | (255, 103, 103) | negative enchant effects |
+| subbullet `ㄴ` | white | (255, 255, 255) | reforge sub-lines (effect at current level) |
 
 **Algorithm (3-step pipeline):**
 
-1. **Blue mask** — test each pixel against the target color with per-channel tolerance (default 15). Produces a binary mask of blue ink pixels.
+1. **Color mask** — test each pixel against target color(s) with per-channel tolerance. Bullet detection combines blue + red into one mask (same `·` shape, different color). Subbullet detection uses white mask separately.
 
 2. **Line detection** — horizontal projection on the mask. Count ink pixels per row; consecutive rows above threshold form text lines. Gap tolerance of 2 rows handles thin stroke dips.
 
@@ -171,13 +177,19 @@ However, all blue effect text (enchant effects, reforge options, set bonuses, st
    - subbullet: width ≤ `max(8, h × 0.7)` px
    - Gap must be ≥ `max(2, h × 0.2)` px
 
-**Results:** 100% detection on both fonts (mabinogi_classic: 15/15, NanumGothicBold: 24/24). All bullets: w=2, gap=4, main_x=9.
+**Results:** Validated across 26 theme images + 18 sample images. All bullets: w=2, gap=4, main_x=9. Subbullets: w=4-9, gap=2-7. Zero false positives on theme images.
 
 **Files:**
-- `backend/lib/prefix_detector.py` — Python detection module (`blue_text_mask()`, `detect_prefix()`)
+- `backend/lib/prefix_detector.py` — Python detection module (`bullet_text_mask()`, `white_text_mask()`, `detect_prefix()`)
 - `scripts/v3/test_prefix_detector.py` — CLI test on masked or color images
-- `frontend/packages/misc/src/pages/image_process_lab.jsx` — JS port with visualization (Mabinogi Tools sidebar)
+- `frontend/packages/misc/src/pages/image_process_lab.jsx` — JS port with visualization (Mabinogi Tools sidebar, separate Detect Bullet / Detect Subbullet buttons with independent tolerances)
 
-**Tradeoff:** Only works on blue effect text. Prefixes in other colors (orange headers, white text) would need separate color targets or a different approach. The tolerance parameter (default 15) may need adjustment for heavily compressed JPEG screenshots where color accuracy degrades.
+**Planned pipeline integration:**
 
-**Porting guide:** Identify fixed UI colors in the target game. Any text element with a guaranteed color can use this approach. The column-projection state machine is generic — only the color target and classification thresholds are game-specific.
+1. **Prefix stripping before OCR** — The `·` and `ㄴ` prefixes are graphical, not text. They occupy 2–7px at the left edge of every line crop and the OCR model consistently misreads them, decreasing accuracy. By slicing each line crop at `main_x` before passing to OCR, the model receives a clean text-only image. After OCR, the correct prefix character is re-attached from the detector result — no guessing, no hallucination.
+
+2. **Effect counting and continuation merge** — Each detected bullet marks the start of a new effect. Lines without a bullet are continuations of the previous effect (wrapped text that exceeded one line). This replaces the current `merge_fragments` / continuation line logic which tries to infer effect boundaries from OCR text patterns — fragile when OCR garbles the prefix. With bullet positions, merge becomes a simple group-by: scan lines top-to-bottom, start a new group at each bullet, append non-bullet lines to the current group. This also resolves the deferred `_has_bullet` tagging task in `TASKS.md` which was blocked by unreliable OCR-based bullet detection.
+
+**Tradeoff:** Tolerances differ by color target. Blue/red bullet default tolerance=15 works reliably. White subbullet uses tighter tolerance=10 because white `(255,255,255)` at tolerance=15 accepts `(240,240,240)` which can include anti-aliased edges of non-subbullet white text. The tolerance parameter may need further adjustment for heavily compressed JPEG screenshots where color accuracy degrades.
+
+**Porting guide:** Identify fixed UI colors in the target game. Any text element with a guaranteed color can use this approach. The column-projection state machine is generic — only the color targets and classification thresholds are game-specific.
