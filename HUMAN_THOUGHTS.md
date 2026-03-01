@@ -28,6 +28,10 @@ For measuring required variable factors, we need not just script but service ini
 ### After attempt12, telling claude that the training data are consisted of almost faint image and contains unnecessary horizontally blank. ask to find the way how to match real world image
 
 
+## TODO
+- fix tooltip_general
+
+
 ## Notes
 During the early attempts, I asked only to implement OCR with game images. After few attempts, I realized that I could improve how they approach to solve the problem by explaining the solution in very human way.
 (Also, theey are capable of implementing what humans are thinking)

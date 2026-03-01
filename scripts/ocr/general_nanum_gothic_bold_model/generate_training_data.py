@@ -38,9 +38,6 @@ _VERSION = resolve_version(MODEL_TYPE, _args.version)
 _config = load_training_config(MODEL_TYPE, _VERSION)
 print(f"Version: {_VERSION}")
 
-BULLET = _config['prefixes']['bullet']
-SUBBULLET = _config['prefixes']['subbullet']
-
 FONT_PATH = _config['font']['path']
 OUTPUT_DIR = f"backend/ocr/general_nanum_gothic_bold_model/{_VERSION}/train_data"
 IMAGES_DIR = os.path.join(OUTPUT_DIR, "images")
@@ -56,7 +53,7 @@ def generate_data():
     os.makedirs(LABELS_DIR, exist_ok=True)
 
     # 1. Template-generated lines
-    template_lines = generate_template_lines(bullet=BULLET, subbullet=SUBBULLET)
+    template_lines = generate_template_lines()
     print(f"Template lines: {len(template_lines)}")
 
     # 2. Dictionary entries
