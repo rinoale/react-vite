@@ -26,7 +26,10 @@ from lib.prefix_detector import (
 )
 from lib.shape_walker import classify_cluster, SHAPE_NIEUN, SHAPE_DOT
 from lib.tooltip_line_splitter import TooltipLineSplitter
-from lib.tooltip_segmenter import detect_headers, load_config
+from lib.tooltip_segmenter import (
+    detect_headers, load_config,
+    detect_bottom_border, detect_vertical_borders,
+)
 
 # ---------------------------------------------------------------------------
 # Paths
@@ -89,13 +92,31 @@ IMAGE_NAMES = _all_image_names()
 # Helpers
 # ---------------------------------------------------------------------------
 
+def _crop_tooltip_border(img):
+    """Crop to tooltip boundary (same as V3 pipeline Stage 1)."""
+    bottom_y = detect_bottom_border(img)
+    left_x, right_x = detect_vertical_borders(img)
+    y1 = (bottom_y + 1) if bottom_y is not None else img.shape[0]
+    x0 = (left_x + 1) if left_x is not None else 0
+    x1 = right_x if right_x is not None else img.shape[1]
+    return img[0:y1, x0:x1]
+
+
 def _load_image(name):
-    """Load image and return (img_bgr, config)."""
+    """Load image cropped to tooltip boundary, return (img_bgr, config)."""
     path = _skip_missing(name)
     img = cv2.imread(path)
     assert img is not None, f'Failed to read {path}'
+    img = _crop_tooltip_border(img)
     config = load_config(_CONFIG_PATH)
     return img, config
+
+
+def _combined_mask(img):
+    """Build combined mask (all prefix colors) matching visualization script."""
+    b_mask = BULLET_DETECTOR.build_mask(img)
+    s_mask = SUBBULLET_DETECTOR.build_mask(img)
+    return np.maximum(b_mask, s_mask)
 
 
 def _count_prefixes(mask, img_h, img_w, target_type):
@@ -164,8 +185,8 @@ class TestPrefixDetection:
         meta = _load_meta(name)
         img, _ = _load_image(name)
         h, w = img.shape[:2]
-        b_mask = bullet_text_mask(img)
-        bullets = _count_prefixes(b_mask, h, w, 'bullet')
+        mask = _combined_mask(img)
+        bullets = _count_prefixes(mask, h, w, 'bullet')
         assert bullets == meta['prefix']['bullets']
 
     @pytest.mark.parametrize('name', IMAGE_NAMES)
@@ -173,8 +194,8 @@ class TestPrefixDetection:
         meta = _load_meta(name)
         img, _ = _load_image(name)
         h, w = img.shape[:2]
-        w_mask = white_text_mask(img)
-        subs = _count_prefixes(w_mask, h, w, 'subbullet')
+        mask = _combined_mask(img)
+        subs = _count_prefixes(mask, h, w, 'subbullet')
         assert subs == meta['prefix']['subbullets']
 
 
@@ -194,9 +215,9 @@ class TestShapeWalkerConsistency:
         result as detect_prefix."""
         img, _ = _load_image(name)
         h, w = img.shape[:2]
-        b_mask = bullet_text_mask(img)
+        mask = _combined_mask(img)
         splitter = TooltipLineSplitter()
-        lines = splitter.detect_text_lines(b_mask)
+        lines = splitter.detect_text_lines(mask)
 
         for line in lines:
             x, y, lw, lh = line['x'], line['y'], line['width'], line['height']
@@ -206,7 +227,7 @@ class TestShapeWalkerConsistency:
             y1 = min(h, y + lh + pad_y)
             x0 = max(0, x - pad_x)
             x1 = min(w, x + lw + pad_x)
-            line_mask = b_mask[y0:y1, x0:x1]
+            line_mask = mask[y0:y1, x0:x1]
 
             info = detect_prefix(line_mask)
             if info['type'] is None:
@@ -263,8 +284,8 @@ class TestConfigBasedDetection:
         meta = _load_meta(name)
         img, _ = _load_image(name)
         h, w = img.shape[:2]
-        b_mask = bullet_text_mask(img)
-        bullets = _count_prefixes_with_config(b_mask, h, w, BULLET_DETECTOR)
+        mask = _combined_mask(img)
+        bullets = _count_prefixes_with_config(mask, h, w, BULLET_DETECTOR)
         assert bullets == meta['prefix']['bullets']
 
     @pytest.mark.parametrize('name', IMAGE_NAMES)
@@ -272,6 +293,6 @@ class TestConfigBasedDetection:
         meta = _load_meta(name)
         img, _ = _load_image(name)
         h, w = img.shape[:2]
-        w_mask = white_text_mask(img)
-        subs = _count_prefixes_with_config(w_mask, h, w, SUBBULLET_DETECTOR)
+        mask = _combined_mask(img)
+        subs = _count_prefixes_with_config(mask, h, w, SUBBULLET_DETECTOR)
         assert subs == meta['prefix']['subbullets']
