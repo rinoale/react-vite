@@ -66,7 +66,7 @@ def _render_and_threshold(text, font_path, font_size, threshold_noise=True):
 
     # Step 3: Threshold to binary
     if threshold_noise:
-        thresh = FRONTEND_THRESHOLD + random.randint(-10, 20)
+        thresh = FRONTEND_THRESHOLD + random.randint(-3, 5)
     else:
         thresh = FRONTEND_THRESHOLD
     _, binary = cv2.threshold(gray, thresh, 255, cv2.THRESH_BINARY)
