@@ -162,6 +162,14 @@ However, these prefixes use fixed colors — game engine constants across all 26
 | bullet `·` | red | (255, 103, 103) | negative enchant effects |
 | subbullet `ㄴ` | white | (255, 255, 255) | reforge sub-lines (effect at current level) |
 
+**ELI5 — How it works in plain language:**
+
+Imagine putting on magic sunglasses that only let you see **blue things**. Every pixel that isn't blue turns invisible (black). Now you have a nearly empty image with just tiny blue dots where the bullets are. Same idea for white subbullets — different sunglasses, only see white things.
+
+Next, count how many visible pixels are in each horizontal row, top to bottom — like scanning a page line by line. Rows with pixels = a line where a bullet lives. Rows with nothing = gaps between lines.
+
+Finally, for each detected line, scan columns left to right looking for: a tiny ink cluster (2-3px) → a gap with nothing (4px) → main text starts. If the cluster is very small (2-3px), it's a bullet `·`. If it's a bit wider (4-9px), it's a subbullet `ㄴ`. This works perfectly because the game always draws bullets in the exact same colors — no exceptions across all 26 themes.
+
 **Algorithm (3-step pipeline):**
 
 1. **Color mask** — test each pixel against target color(s) with per-channel tolerance. Bullet detection combines blue + red into one mask (same `·` shape, different color). Subbullet detection uses white mask separately.
