@@ -747,10 +747,14 @@ class TextCorrector:
         from the OCR text into the matched template. Leading structural prefixes
         (ㄴ or -) are stripped before matching and re-attached to the result.
 
-        Returns: (corrected_text, score)
+        Parenthesized display ranges like '(3~6)' are stripped before matching
+        and returned as the third element so callers can attach as metadata.
+
+        Returns: (corrected_text, score, paren_range)
           score > 0  : matched entry from dictionary
           score == 0 : no match above cutoff
           score == -2: section known but no dictionary prepared — skipped
+          paren_range: stripped parenthesized text e.g. '(3~6)', or None
         """
         # Choose cache: section-specific if available;
         # skip entirely if section is known but has no dictionary;
@@ -758,16 +762,16 @@ class TextCorrector:
         if section and section in self._section_norm_cache:
             norm_cache = self._section_norm_cache[section]
         elif section:
-            return text, -2   # known section, no dictionary prepared
+            return text, -2, None   # known section, no dictionary prepared
         else:
             norm_cache = self._norm_cache
 
         if not text or not norm_cache:
-            return text, 0
+            return text, 0, None
 
         # --- Section-specific early exit ---
         if section == 'reforge' and _REFORGE_SUB_RE.match(text):
-            return text, -3   # ㄴ sub-bullet: effect description, never in reforge dictionary
+            return text, -3, None   # ㄴ sub-bullet: effect description, never in reforge dictionary
 
         # Separate leading structural prefix from content
         prefix_m = _PREFIX_PAT.match(text)
@@ -775,7 +779,7 @@ class TextCorrector:
         core = text[len(prefix):]
 
         if not core:
-            return text, 0
+            return text, 0, None
 
         # --- Section-specific core transformation ---
         reforge_level_suffix = ''   # level suffix to re-attach after matching
@@ -793,6 +797,16 @@ class TextCorrector:
             if m:
                 core   = m.group(2).strip()
                 prefix = ''   # re-attach nothing — the result is the raw name
+
+        if not core:
+            return text, 0
+
+        # Strip parenthesized display ranges — '(3~6)', '(9.0%~11.2%)' etc.
+        # These are tooltip-only annotations not present in the dictionary.
+        # Preserve stripped range so callers can attach as metadata.
+        paren_match = _PAREN_PAT.search(core)
+        paren_range = paren_match.group(0).strip() if paren_match else None
+        core = _PAREN_PAT.sub('', core).strip()
 
         if not core:
             return text, 0
@@ -816,7 +830,7 @@ class TextCorrector:
             for num in numbers:
                 result = result.replace('N', num, 1)
             # Re-attach reforge level suffix that was stripped before matching
-            return prefix + result + reforge_level_suffix, best_score
+            return prefix + result + reforge_level_suffix, best_score, paren_range
 
         # Below cutoff — return candidate with negative score for diagnostics
         # Negative score signals rejection; |score| is the actual match quality
@@ -824,9 +838,9 @@ class TextCorrector:
             candidate = best_norm
             for num in numbers:
                 candidate = candidate.replace('N', num, 1)
-            return prefix + candidate + reforge_level_suffix, -best_score
+            return prefix + candidate + reforge_level_suffix, -best_score, paren_range
 
-        return text, 0
+        return text, 0, paren_range
 
     # ------------------------------------------------------------------
     # Item-name parsing: extract holywater, prefix, suffix, ego, item_name
@@ -1017,13 +1031,15 @@ class TextCorrector:
             if section in fm_sections:
                 # Reforge is a closed set — always accept the best match
                 cutoff = 0 if section == 'reforge' else 80
-                fm_text, fm_score = self.correct_normalized(raw_text, section=section, cutoff_score=cutoff)
+                fm_text, fm_score, paren_range = self.correct_normalized(raw_text, section=section, cutoff_score=cutoff)
             else:
-                fm_text, fm_score = raw_text, 0
+                fm_text, fm_score, paren_range = raw_text, 0, None
 
             if fm_score > 0:
                 line['text'] = fm_text
                 line['fm_applied'] = True
+                if paren_range:
+                    line['detail_range'] = paren_range
             elif fm_score < 0 and fm_score not in (-2, -3):
                 # Rejected candidate — store for diagnostics
                 line['fm_applied'] = False

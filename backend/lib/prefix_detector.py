@@ -18,7 +18,11 @@ Usage:
         # info['type'] == 'bullet' | 'subbullet' | None
 """
 
+from dataclasses import dataclass
+
 import numpy as np
+
+from lib.shape_walker import classify_cluster, SHAPE_NIEUN, SHAPE_DOT
 
 # Blue effect text — game engine constant across all 26 themes.
 # Marks enchant effects, reforge options, set bonuses, stat modifiers.
@@ -38,6 +42,38 @@ BULLET_COLORS = [EFFECT_BLUE_RGB, EFFECT_RED_RGB, EFFECT_GREY_RGB]
 
 # All subbullet (ㄴ) colors — white (reforge sub-lines) + red (negative effects).
 SUBBULLET_COLORS = [WHITE_TEXT_RGB, EFFECT_RED_RGB]
+
+
+@dataclass(frozen=True)
+class PrefixDetectorConfig:
+    """Declarative (colors, shapes, name) binding for prefix detection.
+
+    Each config specifies which colors to mask and which shapes to look for,
+    making prefix detection a swappable, testable unit.
+    """
+    name: str              # 'bullet' or 'subbullet'
+    colors: tuple          # RGB tuples for mask building
+    shapes: tuple          # ShapeDef instances to try
+
+    def build_mask(self, img_bgr, tolerance=15):
+        """Combined binary mask for all configured colors."""
+        mask = np.zeros(img_bgr.shape[:2], dtype=np.uint8)
+        for rgb in self.colors:
+            mask = np.maximum(mask, _color_mask(img_bgr, rgb, tolerance))
+        return mask
+
+
+BULLET_DETECTOR = PrefixDetectorConfig(
+    name='bullet',
+    colors=(EFFECT_BLUE_RGB, EFFECT_RED_RGB, EFFECT_GREY_RGB),
+    shapes=(SHAPE_DOT,),
+)
+
+SUBBULLET_DETECTOR = PrefixDetectorConfig(
+    name='subbullet',
+    colors=(WHITE_TEXT_RGB, EFFECT_RED_RGB),
+    shapes=(SHAPE_NIEUN,),
+)
 
 
 def _color_mask(img_bgr, rgb, tolerance):
@@ -90,18 +126,58 @@ def white_text_mask(img_bgr, tolerance=15):
     return _color_mask(img_bgr, WHITE_TEXT_RGB, tolerance)
 
 
-def detect_prefix(mask_line):
+def _classify_ink(cluster_region, h, first_w, config):
+    """Classify prefix by cluster width + vertical ink extent.
+
+    bullet  (·) : width ≤ max(3, h*0.25), ink rows ≤ max(4, h*0.5)
+    subbullet (ㄴ) : wider, ink rows ≤ max(8, h*0.75)
+
+    Returns prefix type string or None.
+    """
+    ink_rows = int(np.sum(np.any(cluster_region > 0, axis=1)))
+    bullet_max_w = max(3, int(h * 0.25))
+
+    if first_w <= bullet_max_w:
+        if ink_rows > max(4, int(h * 0.5)):
+            return None
+        prefix_type = 'bullet'
+    else:
+        if ink_rows > max(8, int(h * 0.75)):
+            return None
+        prefix_type = 'subbullet'
+
+    if config is not None and prefix_type != config.name:
+        return None
+    return prefix_type
+
+
+def _classify_shape_walker(cluster_region, config):
+    """Classify prefix by shape walker (directional ink tracing).
+
+    Uses config.shapes when given, otherwise tries both SHAPE_NIEUN and SHAPE_DOT.
+
+    Returns prefix type string or None.
+    """
+    if config is not None:
+        match = classify_cluster(cluster_region, list(config.shapes))
+        return config.name if match is not None else None
+    else:
+        match = classify_cluster(cluster_region, [SHAPE_NIEUN, SHAPE_DOT])
+        if match is None:
+            return None
+        return 'subbullet' if match.shape.name == 'ㄴ' else 'bullet'
+
+
+def detect_prefix(mask_line, config=None):
     """Detect a prefix mark at the left edge of a single line mask.
 
     Scans columns left→right for the pattern:
         [small ink cluster] → [clear gap] → [main text]
 
-    Classifies by cluster width:
-        bullet  (·) : ≤ max(3, h*0.25) px
-        subbullet (ㄴ) : wider, up to max(8, h*0.7) px
-
     Args:
         mask_line: 2-D uint8 array of one line region (255 = ink).
+        config:    optional PrefixDetectorConfig. When given, only accepts
+                   prefixes matching config.name; rejects the other type.
 
     Returns:
         dict  type  : 'bullet' | 'subbullet' | None
@@ -145,25 +221,13 @@ def detect_prefix(mask_line):
     if first_w > max_prefix_w or gap_w < min_gap:
         return _no_prefix()
 
-    # Vertical ink extent of first cluster — reject full-height characters.
-    # Real · is a small dot (ink_rows/h ≈ 0.15-0.25).
-    # Real ㄴ is taller but still partial (ink_rows/h ≈ 0.35-0.55).
-    # Plain text characters span most of the line (ink_rows/h ≈ 0.7-1.0).
     cluster_region = mask_line[:, first_start:first_end]
-    ink_rows = int(np.sum(np.any(cluster_region > 0, axis=1)))
 
-    # Classify by width
-    bullet_max_w = max(3, int(h * 0.25))
-    if first_w <= bullet_max_w:
-        # Bullet (·): must be vertically small
-        if ink_rows > max(4, int(h * 0.5)):
-            return _no_prefix()
-        prefix_type = 'bullet'
-    else:
-        # Subbullet (ㄴ): can be taller but not full-height
-        if ink_rows > max(8, int(h * 0.75)):
-            return _no_prefix()
-        prefix_type = 'subbullet'
+    # --- Switch classifier here ---
+    prefix_type = _classify_ink(cluster_region, h, first_w, config)
+
+    if prefix_type is None:
+        return _no_prefix()
 
     return {
         'type': prefix_type,

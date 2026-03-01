@@ -788,3 +788,206 @@ all_lines = [l for l in all_lines if not l.get('_merged')]
 ```
 
 This filtering is a pipeline-level concern, not part of the merge algorithm itself.
+
+---
+
+## 13. Prefix Detection — Column Projection + Width Classification (Detect Bullet)
+
+**File:** `frontend/packages/misc/src/pages/image_process_lab.jsx`
+**Functions:** `detectBullets()`, `detectSubbullets()`, `_detectPrefixes()`
+
+### Problem
+
+Mabinogi tooltip lines use small prefix marks to indicate structure:
+- `·` (bullet) — enchant effects, reforge options, stat lines (blue/red/grey)
+- `ㄴ` (subbullet) — reforge sub-effects at current level (white)
+
+These 2-7px marks are frequently misread by OCR (`·` → `.`, `-`, `,` or dropped; `ㄴ` → `L` or dropped). Visual detection bypasses OCR entirely.
+
+### Algorithm
+
+Two stages: **isolation** via column projection, then **classification** by width and vertical ink extent.
+
+#### Stage 1: Column Projection — Isolate the Prefix Cluster
+
+Operates on a single-line color mask (e.g., blue+red for bullets, white for subbullets).
+
+```
+Input: line mask (1 = ink, 0 = background)
+
+Column projection — sum ink pixels per column:
+
+  col:  0 1 2 3 4 5 6 7 8 9 10 11 12 13 ...
+  proj: 0 0 3 3 0 0 0 0 0 5  8  7  6  9 ...
+            ^^^             ^^^^^^^^^^^^^^^^
+          prefix    gap         main text
+
+State machine (left → right):
+  1. first_start: first column with ink
+  2. first_end:   first column without ink after first_start
+  3. main_start:  first column with ink after first_end
+
+Reject if:
+  - first_w (= first_end - first_start) > max(8, h * 0.7)  — too wide for a prefix
+  - gap_w (= main_start - first_end) < max(2, h * 0.2)     — no clear separation
+```
+
+#### Stage 2: Width + Vertical Ink Classification
+
+After isolating the first cluster, classify by its dimensions:
+
+```
+Count inkRows: number of rows in the cluster region that contain any ink pixel.
+
+  If first_w ≤ max(3, h * 0.25):
+      → Bullet candidate (narrow dot)
+      → Confirm: inkRows ≤ max(4, h * 0.5)  — must be vertically small
+      → Type: 'bullet'
+
+  Else if first_w ≤ max(8, h * 0.7):
+      → Subbullet candidate (wider ㄴ shape)
+      → Confirm: inkRows ≤ max(8, h * 0.75)  — can be taller but not full-height
+      → Type: 'subbullet'
+
+  Else:
+      → Too wide, not a prefix
+```
+
+This is a **size heuristic** — it does not examine the actual shape of the ink pixels. A narrow cluster is assumed to be `·`, a wider one is assumed to be `ㄴ`.
+
+### Color Masks
+
+Each detection runs on a specific color mask:
+- **Bullet detection:** blue RGB(74,149,238) + red RGB(255,103,103) + grey RGB(128,128,128)
+- **Subbullet detection:** white RGB(255,255,255) + red RGB(255,103,103)
+
+### Current Performance
+
+- Bullet (·) detection: **working** — blue/red mask isolates dots cleanly, width heuristic is reliable for dots
+- Subbullet (ㄴ) detection: **not working** — white mask includes main text (same color), so the column projection sees one giant cluster with no gap, preventing isolation
+
+---
+
+## 14. Shape Walker — Directional Shape Classification
+
+**Files:** `backend/lib/shape_walker.py`, `backend/lib/prefix_detector.py`
+**Frontend port:** `image_process_lab.jsx` → `detectPrefixesShapeWalker()`, `_detectPrefixesShapeWalker()`
+
+### Problem
+
+The width-based classification (Section 13) cannot distinguish shapes — it only measures cluster dimensions. A noise cluster of the right width gets misclassified. The shape walker replaces the width heuristic with actual shape tracing.
+
+### Relationship to Detect Bullet
+
+Both approaches share the same Stage 1 (column projection to isolate the prefix cluster). They differ only in Stage 2:
+
+| | Detect Bullet (Section 13) | Shape Walker (Section 14) |
+|---|---|---|
+| **Stage 1** | Column projection | Column projection (identical) |
+| **Stage 2** | Width + ink height heuristic | Directional walk + flood fill |
+| **Color masks** | Separate per type (blue+red for ·, white for ㄴ) | All colors combined |
+| **Classification** | Narrow → bullet, wider → subbullet | Walk DOWN→RIGHT → ㄴ, flood fill ≤4px → · |
+
+### Shape Definitions
+
+```python
+SHAPE_NIEUN = ShapeDef('ㄴ', segments=[
+    Segment(DOWN,  min_px=3),    # vertical stroke ≥ 3px
+    Segment(RIGHT, min_px=3),    # horizontal stroke ≥ 3px
+])
+
+SHAPE_DOT = ShapeDef('·', segments=[
+    Segment(DOT, min_px=1, max_px=4),   # blob with extent 1-4px
+])
+```
+
+### Algorithm: ㄴ Detection — Directional Walk
+
+```
+Cluster mask (7×5 example):
+
+  col: 0 1 2 3 4
+       . . . . .    row 0
+       . x . . .    row 1  ← seed (topmost ink in leftmost ink column)
+       . x . . .    row 2  ↓ walk DOWN
+       . x . . .    row 3  ↓ walk DOWN (length=3, meets min_px=3)
+       . x x x .    row 4  → walk RIGHT from corner (length=3, meets min_px=3)
+       . . . . .    row 5
+       . . . . .    row 6
+
+Step 1: find_seeds() — scan leftmost column with ink (col 1),
+        return topmost pixel of each vertical run → seed = (1, 1)
+
+Step 2: _walk_segment(DOWN, min_px=3)
+        From seed (1,1), step down one row at a time.
+        At each step, check a perpendicular band (horizontal, stroke-width thick).
+        Continue while any pixel in the band is ink.
+        → walks rows 2, 3, 4 → length=3 ≥ 3 ✓
+        → end position = (4, 1)
+
+Step 3: Corner transition
+        From end (4,1), look one step RIGHT at (4,2).
+        Search within ±(stroke_width // 2) perpendicular tolerance for ink.
+        → found ink at (4, 2)
+
+Step 4: _walk_segment(RIGHT, min_px=3)
+        From (4,2), step right one column at a time.
+        Check perpendicular band (vertical) for ink.
+        → walks cols 3, 4 → length=3 ≥ 3 ✓
+
+All segments satisfied → match: ㄴ
+```
+
+### Algorithm: · Detection — Flood Fill
+
+```
+Cluster mask (3×3 example):
+
+  col: 0 1 2
+       . . .    row 0
+       . x .    row 1  ← seed
+       . . .    row 2
+
+Step 1: find_seeds() → seed = (1, 1)
+
+Step 2: _check_dot(min_px=1, max_px=4)
+        4-connected flood fill from seed.
+        Measure bounding box of all connected ink pixels.
+        extent = max(height, width) of bounding box.
+        → extent = 1 (single pixel), 1 ≤ 1 ≤ 4 ✓
+
+Match: ·
+```
+
+### Thick Stroke Handling
+
+Real tooltip prefixes are 2-3px wide strokes, not single-pixel lines. The walker handles this with `_measure_stroke_width()` — at the seed, it measures the perpendicular extent of ink. During walking, it checks a band of that width, not just a single pixel. This allows the walker to follow strokes of any width without hardcoded size assumptions.
+
+### Why Subbullet (ㄴ) Detection Fails
+
+This is a shared problem between both approaches — it's a Stage 1 (isolation) failure, not a Stage 2 (classification) failure.
+
+The column projection assumes the prefix is the **first** ink cluster from the left. On the white text mask, the ㄴ prefix AND all the white main text appear as ink. The state machine sees one giant continuous cluster with no gap — the ㄴ is never isolated. Neither the width heuristic nor the shape walker ever gets to run.
+
+The bullet mask (blue+red) doesn't have this problem because `·` bullets use a different color than the main text, so the mask naturally contains only the prefix mark and bullet-colored text, with a clear gap between them.
+
+### Current Performance
+
+- Bullet (·): **working** — both approaches detect correctly; shape walker has fewer false positives due to shape verification
+- Subbullet (ㄴ): **not working in either approach** — Stage 1 isolation fails on white mask
+
+### Backend Integration
+
+The backend `detect_prefix()` (`prefix_detector.py`) already uses the shape walker for classification (calls `classify_cluster()` from `shape_walker.py`). The width-based classification only exists in the frontend.
+
+### Visualization
+
+```bash
+python3 scripts/v3/test_prefix_detector.py data/sample_images/dropbell_original.png
+# Output: /tmp/prefix_viz/<stem>_{bullet,subbullet,shapewalk}.png
+```
+
+Three images per input compare the approaches:
+1. `_bullet.png` — detect bullet (blue+red mask, width classification)
+2. `_subbullet.png` — detect subbullet (white mask, width classification)
+3. `_shapewalk.png` — shape walker (all colors combined, directional walk classification)

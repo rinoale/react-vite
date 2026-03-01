@@ -9,7 +9,7 @@ Each function has a single responsibility and can be imported independently.
 import numpy as np
 
 from lib.line_merge import detect_gap_outlier
-from lib.prefix_detector import detect_prefix
+from lib.prefix_detector import detect_prefix, BULLET_DETECTOR
 
 # Vertical pixel offset applied to the right (continuation) crop when stitching.
 # Compensates for sub-pixel baseline misalignment between split line crops.
@@ -82,7 +82,7 @@ def promote_grey_by_prefix(classifications, prefix_mask):
         y1 = min(prefix_mask.shape[0], bounds['y'] + bounds['height'] + pad_y)
         x0 = max(0, bounds['x'] - pad_x)
         x1 = min(prefix_mask.shape[1], bounds['x'] + bounds['width'] + pad_x)
-        if detect_prefix(prefix_mask[y0:y1, x0:x1])['type'] == 'bullet':
+        if detect_prefix(prefix_mask[y0:y1, x0:x1], config=BULLET_DETECTOR)['type'] == 'bullet':
             classifications[i] = (group, bounds, 'effect')
     return classifications
 
