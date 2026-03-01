@@ -19,12 +19,15 @@ npm run dev          # Dev server at http://localhost:5173
 npm run build        # Production build to dist/
 npm run lint         # ESLint (flat config, React hooks + refresh plugins)
 npm run preview      # Preview production build
+cd frontend && npm test        # Run vitest (29 tests)
+cd frontend && npm run test:watch  # Watch mode
 ```
 
 ### Backend (Python FastAPI)
 ```bash
 pip install -r backend/requirements.txt
 cd backend && uvicorn main:app --reload --port 8000   # API at http://localhost:8000
+python -m pytest tests/ -v     # Run pytest (58 tests, from project root)
 ```
 
 ### Database (PostgreSQL via Docker)
@@ -229,6 +232,17 @@ Synthetic training images must match real line crops from the splitter:
 
 ## Testing
 
+### Unit Tests
+```bash
+python -m pytest tests/ -v                # Backend (58 tests) — from project root
+cd frontend && npm test                   # Frontend (29 tests) — vitest
+```
+
+**Backend (pytest):** Config in `pyproject.toml`, fixtures in `tests/conftest.py`. Tests cover `line_processing`, `line_merge`, `prefix_detector`, `line_splitter`, `text_corrector`, `mabinogi_tooltip_parser`. No GPU/DB/images needed — pure functions + synthetic numpy arrays.
+
+**Frontend (vitest):** Config in `frontend/vitest.config.js`, setup in `frontend/test-setup.js` (mocks i18n + window globals). Tests cover `gameItems`, `examineResult`, `SectionCard`, `ConfigSearchInput`, `EnchantSection`, `ReforgeSection`.
+
+### Pipeline Eval (end-to-end, requires GPU + sample images)
 - `scripts/v3/test_v3_pipeline.py` -- V3 pipeline test on original color screenshots. **Primary eval.**
 - `scripts/v2/test_v2_pipeline.py` -- Legacy v2 test. **Always run with `--normalize --gt-suffix _expected.txt`** -- without these flags scores are artificially low.
 - `scripts/v2/line_split/test_line_splitter.py <image> <output_dir>` -- Visual line detection verification

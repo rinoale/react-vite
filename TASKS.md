@@ -182,17 +182,30 @@ Both font-specific models (mabinogi_classic, nanum_gothic_bold) training with ne
 
 ### Write Tests for Backend
 
+**Infrastructure: pytest (done)**
+- [x] `pyproject.toml` with `pythonpath = ["backend"]` — run via `python -m pytest tests/ -v`
+- [x] `tests/conftest.py` — shared fixtures: `make_line_dict`, `make_bounds`, `make_classification`, `mini_text_corrector`
+
+**Unit tests (done — 58 tests passing):**
+- [x] `tests/test_line_processing.py` — `merge_group_bounds`, `trim_outlier_tail`, `determine_enchant_slots`, `merge_continuations`, `count_effects_per_header` (13 tests)
+- [x] `tests/test_line_merge.py` — `detect_gap_outlier` (5 tests)
+- [x] `tests/test_parse_effect_number.py` — `_parse_effect_number` (6 tests)
+- [x] `tests/test_text_corrector.py` — `correct_normalized`, `parse_item_name`, `match_enchant_effect` (11 tests)
+- [x] `tests/test_tooltip_parser.py` — `build_enchant_structured`, `build_reforge_structured` (7 tests)
+- [x] `tests/test_prefix_detector.py` — `detect_prefix` with synthetic numpy arrays (6 tests)
+- [x] `tests/test_line_splitter.py` — `detect_text_lines` with synthetic binary images (4 tests)
+- [x] Bullet prefix detection and trimming
+- [x] Effect number extraction (`_parse_effect_number`)
+- [x] FM matching for enchant effects (condition-aware number selection)
+- [x] Enchant structured rebuild (`build_enchant_structured`)
+
+**Remaining (not yet implemented):**
 - [ ] Write a test verifying the entire v3 pipeline with one or more `data/sample_images/*_original.png`, comparing against expected results
 - [ ] Write tests verifying category header functionalities (detection, OCR, classification), comparing against expected results
-- [ ] Write tests verifying enchant segment functionalities comparing expected results — especially on every stage we do parsing, regexing, or decorating strings:
-  - Enchant header detection (white-mask band detection)
-  - Enchant line classification (header/effect/grey)
-  - Bullet prefix detection and trimming
-  - Effect number extraction (`_parse_effect_number`)
-  - FM matching for enchant effects (condition-aware number selection)
-  - Enchant structured rebuild (`build_enchant_structured`)
-  - Enchant resolution (P1/P2/P3 competition)
-  - Templated effect text generation
+- [ ] Enchant header detection (white-mask band detection)
+- [ ] Enchant line classification (header/effect/grey)
+- [ ] Enchant resolution (P1/P2/P3 competition)
+- [ ] Templated effect text generation
 
 ---
 
@@ -228,7 +241,21 @@ Both font-specific models (mabinogi_classic, nanum_gothic_bold) training with ne
 
 ### Write Tests for Frontend
 
-- [ ] Write a test comparing expected HTML rendering with a sample API result (ExamineItemResponse)
+**Infrastructure: vitest (done)**
+- [x] `frontend/vitest.config.js` — jsdom environment, react plugin
+- [x] `frontend/test-setup.js` — i18n mock, window globals (`GAME_ITEMS_CONFIG`, `ENCHANTS_CONFIG`, `REFORGES_CONFIG`)
+- [x] `frontend/test-utils.js` — re-export `@testing-library/react`
+- [x] `npm test` / `npm run test:watch` scripts in `frontend/package.json`
+
+**Unit tests (done — 29 tests passing):**
+- [x] `packages/shared/src/lib/__tests__/gameItems.test.js` — `getGameItemsConfig`, `findGameItemByName`, `searchGameItemsLocal` (8 tests)
+- [x] `packages/shared/src/lib/__tests__/examineResult.test.js` — `parseExamineResult` (5 tests)
+- [x] `packages/shared/src/components/__tests__/SectionCard.test.jsx` — rendering, toggle, remove (5 tests)
+- [x] `packages/shared/src/components/__tests__/ConfigSearchInput.test.jsx` — rendering, filtering, selection, escape (4 tests)
+- [x] `packages/shared/src/components/sections/__tests__/EnchantSection.test.jsx` — prefix/suffix slots, empty data, rank/effects (3 tests)
+- [x] `packages/shared/src/components/sections/__tests__/ReforgeSection.test.jsx` — option list, level display, fallback inputs, add button (4 tests)
+
+**Remaining (not yet implemented):**
 - [ ] Write a test comparing expected form submit payload for given HTML form data (RegisterListingRequest)
 - [ ] Write tests for expected behavior on HTML events:
   - Enchant name selection (editingName flow)
@@ -236,20 +263,10 @@ Both font-specific models (mabinogi_classic, nanum_gothic_bold) training with ne
   - Reforge option editing
   - `abbreviated` flag toggle behavior on effect text rebuilding
 
-#### Suggested Test Libraries
+#### Installed Test Libraries
 
-**Backend (Python/FastAPI):**
-- `pytest` — standard test runner with fixtures, parametrize, and assertion introspection
-- `pytest-asyncio` — for async endpoint testing
-- `httpx` + `TestClient` (from FastAPI/Starlette) — for API integration tests without starting a server
-- `unittest.mock` / `pytest-mock` — for isolating units (e.g., mock OCR reader, DB session)
-
-**Frontend (React/Vite):**
-- `vitest` — Vite-native test runner, fast, compatible with Jest API
-- `@testing-library/react` — component rendering and DOM assertion
-- `@testing-library/user-event` — simulating user interactions (clicks, typing)
-- `jsdom` — DOM environment for vitest (configured via `environment: 'jsdom'`)
-- `msw` (Mock Service Worker) — mock API responses for integration tests
+**Backend:** `pytest`
+**Frontend:** `vitest`, `@testing-library/react`, `@testing-library/jest-dom`, `jsdom`
 
 ---
 
