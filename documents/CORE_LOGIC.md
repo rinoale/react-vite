@@ -791,10 +791,11 @@ This filtering is a pipeline-level concern, not part of the merge algorithm itse
 
 ---
 
-## 13. Prefix Detection — Column Projection + Width Classification (Detect Bullet)
+## 13. Prefix Detection — Combined Classifier
 
-**File:** `frontend/packages/misc/src/pages/image_process_lab.jsx`
-**Functions:** `detectBullets()`, `detectSubbullets()`, `_detectPrefixes()`
+**Files:** `backend/lib/prefix_detector.py`, `backend/lib/shape_walker.py`
+**Tests:** `tests/test_shape_walker_images.py`, `tests/test_prefix_detector.py`
+**Ground truth:** `tests/sample_images/*_original.meta.json`
 
 ### Problem
 
@@ -804,16 +805,41 @@ Mabinogi tooltip lines use small prefix marks to indicate structure:
 
 These 2-7px marks are frequently misread by OCR (`·` → `.`, `-`, `,` or dropped; `ㄴ` → `L` or dropped). Visual detection bypasses OCR entirely.
 
-### Algorithm
+### Architecture Overview
 
-Two stages: **isolation** via column projection, then **classification** by width and vertical ink extent.
-
-#### Stage 1: Column Projection — Isolate the Prefix Cluster
-
-Operates on a single-line color mask (e.g., blue+red for bullets, white for subbullets).
+Detection runs in three stages, each solving a specific class of false positives discovered during iterative debugging:
 
 ```
-Input: line mask (1 = ink, 0 = background)
+Stage 1: Column Projection — isolate [prefix cluster] [gap] [main text]
+Stage 2: Shape Walker     — confirm shape (flood fill for ·, directional walk for ㄴ)
+Stage 3: Size + Isolation  — reject character fragments by size and vertical padding
+```
+
+### Config-Driven Detection
+
+Each prefix type is a declarative config binding color masks to shape definitions:
+
+```python
+BULLET_DETECTOR = PrefixDetectorConfig(
+    name='bullet',
+    colors=(EFFECT_BLUE_RGB, EFFECT_RED_RGB, EFFECT_GREY_RGB),
+    shapes=(SHAPE_DOT,),
+)
+SUBBULLET_DETECTOR = PrefixDetectorConfig(
+    name='subbullet',
+    colors=(WHITE_TEXT_RGB, EFFECT_RED_RGB),
+    shapes=(SHAPE_NIEUN,),
+)
+```
+
+`config.build_mask(img_bgr)` builds the combined color mask. `detect_prefix(mask, config)` restricts classification to only the config's shapes. Adding a new prefix type = adding a new config with colors and shapes.
+
+### Stage 1: Column Projection — Isolate the Prefix Cluster
+
+Operates on a single-line binary mask. Sums ink pixels per column, then scans left to right for the pattern `[small ink cluster] → [clear gap] → [main text]`.
+
+```
+Input: line mask (255 = ink, 0 = background)
 
 Column projection — sum ink pixels per column:
 
@@ -832,63 +858,221 @@ Reject if:
   - gap_w (= main_start - first_end) < max(2, h * 0.2)     — no clear separation
 ```
 
-#### Stage 2: Width + Vertical Ink Classification
+### Stage 2: Shape Walker — Confirm Shape
 
-After isolating the first cluster, classify by its dimensions:
+After isolating the cluster region, the shape walker verifies it matches a known prefix shape.
+
+#### · Detection — 8-Connected Flood Fill
 
 ```
-Count inkRows: number of rows in the cluster region that contain any ink pixel.
+Cluster mask (3×3 example):
 
-  If first_w ≤ max(3, h * 0.25):
-      → Bullet candidate (narrow dot)
-      → Confirm: inkRows ≤ max(4, h * 0.5)  — must be vertically small
-      → Type: 'bullet'
+  . . .    row 0
+  . x .    row 1  ← seed (topmost ink in leftmost ink column)
+  . . .    row 2
 
-  Else if first_w ≤ max(8, h * 0.7):
-      → Subbullet candidate (wider ㄴ shape)
-      → Confirm: inkRows ≤ max(8, h * 0.75)  — can be taller but not full-height
-      → Type: 'subbullet'
-
-  Else:
-      → Too wide, not a prefix
+_check_dot(min_px=1, max_px=4):
+  8-connected flood fill from seed.
+  Measure bounding box extent = max(height, width).
+  → extent=1, within [1, 4] ✓ → match: ·
 ```
 
-This is a **size heuristic** — it does not examine the actual shape of the ink pixels. A narrow cluster is assumed to be `·`, a wider one is assumed to be `ㄴ`.
+#### ㄴ Detection — Directional Walk
+
+```
+Cluster mask (7×5 example):
+
+  . . . . .    row 0
+  . x . . .    row 1  ← seed
+  . x . . .    row 2  ↓ walk DOWN
+  . x . . .    row 3  ↓ (length=3 ≥ min_px=3 ✓)
+  . x x x .    row 4  → walk RIGHT (length=3 ≥ min_px=3 ✓)
+  . . . . .    row 5
+
+  _walk_segment(DOWN) from seed → end at corner
+  _walk_segment(RIGHT) from corner → all segments satisfied → match: ㄴ
+```
+
+### Stage 3: Size Constraints + Vertical Isolation
+
+Shape walker alone can't distinguish a real dot from a character fragment that happens to be ≤4px. Two additional checks filter these false positives:
+
+#### Ink Size Constraints (from width-based classification)
+
+```
+bullet:    first_w ≤ max(3, h * 0.25) AND ink_rows ≤ max(4, h * 0.5)
+subbullet: ink_rows ≤ max(8, h * 0.75)
+```
+
+#### Vertical Isolation Check (`_is_dot_isolated`)
+
+A real `·` sits alone with empty space all around it. Character fragments (bracket corners, anti-aliased edges) have nearby ink above or below.
+
+```
+Bracket '[' on mask — TWO corner pixels in same column:
+
+  row  2: #     ← top corner of '['
+  row  3: .
+  ...
+  row 12: #     ← bottom corner of '['
+
+  ink_span = 12 - 2 + 1 = 11  →  exceeds max(4, h * 0.4)  → REJECTED
+
+Real dot '·':
+
+  row  5: .
+  row  6: #     ← dot pixel
+  row  7: #     ← dot pixel
+  row  8: .
+
+  ink_span = 2, padding zone above (rows 4-5) and below (rows 8-9) are empty → PASS
+```
+
+The check verifies:
+1. **Span**: ink rows must be compact (not scattered across the line)
+2. **Padding**: no ink in the vertical padding zone above/below the cluster
+
+### Evolution: How the Combined Classifier Was Developed
+
+The current three-stage classifier was built through iterative debugging, where each new false positive class revealed a limitation in the previous approach.
+
+#### Attempt 1: Width-Based Classification Only
+
+The initial approach used only column projection + cluster width to classify prefixes. Narrow clusters → bullet, wider → subbullet. This worked for obvious cases but had no shape verification.
+
+**Failure:** Any noise cluster of the right width was classified as a prefix.
+
+#### Insight: Column Projection Loses Row Position
+
+Debugging revealed that column projection sums pixels vertically, discarding row positions:
+
+```
+Scattered pixels:         Real dot:
+  . g . .                   . . . .
+  . . . .                   . g . .
+  . . . .                   . g . .
+  . . g .                   . . . .
+  -----                     -----
+  0 1 1 0                   0 2 0 0   ← different projections
+```
+
+But within a single column, two pixels at rows 0 and 10 produce the same count as two pixels at rows 5 and 6. The 1D projection can't tell scattered character fragments from a compact dot. This motivated adding shape walker as Stage 2.
+
+#### Attempt 2: Shape Walker Only
+
+Replacing width classification with shape walker (flood fill for dots, directional walk for ㄴ) improved precision by verifying actual shape. But new false positives appeared:
+
+**FP class — Anti-aliased character edges:** Grey pixels at the edges of white characters formed small (≤4px) disconnected blobs on the grey mask that passed the 4-connected flood fill.
+
+```
+Character with anti-aliased grey edge:
+
+  . . . . . . .
+  . . g g g . .      ← grey pixels at character boundary
+  . g w w w g .
+  . w w w w w .      On grey-only mask, the 'g' pixels form
+  . . w w w . .      small isolated blobs that look like dots
+  . . . g g . .
+```
+
+**Fix — 8-connected flood fill:** Changing `_check_dot` from 4-connected (up/down/left/right) to 8-connected (+ diagonals) made anti-aliased pixels link together into larger blobs that exceed `max_px=4`. The "giant footstep" connects diagonal neighbors, so scattered edge pixels merge into a single large component and get rejected.
+
+#### Insight: Mixed-Color False Positives
+
+A critical realization: **there are no multi-colored prefixes.** A real `·` is always a single color (blue, red, or grey). But the combined mask (blue+red+grey) could merge fragments of different colors into a single cluster:
+
+```
+On individual masks:        On combined mask:
+  blue:  . b . .              . x . .
+  red:   . . r .      →      . x x .  ← looks like a prefix cluster
+  grey:  . . . .
+```
+
+**Fix — Per-color detection** (`detect_prefix_per_color`): Test each color independently. A prefix must be detectable on a single-color mask. This prevents cross-color fragment merging.
+
+#### Insight: Character Fragment ※ Problem
+
+Even with shape walker, single-pixel character fragments could pass as SHAPE_DOT. Consider the `[` bracket character on a white mask — its top-left and bottom-left corner pixels land in the same column, separated by empty rows:
+
+```
+Full bracket:                First column on mask:
+  [ 장 미 ]                   row  2: #  ← bracket corner
+                               row  3: .
+  Column projection:           ...         (10 empty rows)
+  cluster=[1px] gap=3 text     row 12: #  ← bracket corner
+```
+
+The column projection sees `[1px cluster] [3px gap] [text]` — looks like a prefix. Shape walker's flood fill finds each corner pixel individually as a 1px dot (extent=1, passes `max_px=4`).
+
+**Key insight from ※ analysis:** A real dot must be **isolated** — empty space all around it, not just a gap to the right. The bracket corner at row 2 has another bracket corner 10 rows below. A real `·` has no nearby ink above or below.
+
+**Fix — Vertical isolation check** (`_is_dot_isolated`): After shape walker confirms the shape, verify the cluster's ink pixels are:
+1. Vertically compact (span ≤ `max(4, h * 0.4)`) — rejects scattered pixels like bracket corners
+2. Vertically isolated — no ink in the padding zone above and below the cluster
+
+#### Result
+
+Each fix targeted a specific false positive class:
+
+| FP Class | Example | Fix | Stage |
+|---|---|---|---|
+| Noise clusters of right width | Random ink | Shape walker verification | 2 |
+| Anti-aliased character edges | Grey pixels around headers | 8-connected flood fill | 2 |
+| Mixed-color fragments | Blue + red pixels merging | Per-color detection | Pre-1 |
+| Character fragments (brackets, ※) | `[` corner pixels | Vertical isolation check | 3 |
+| Oversized character fragments | Wide anti-aliased blobs | Ink size constraints | 3 |
+
+### Per-Color Detection
+
+`detect_prefix_per_color(img_bgr_line, config)` iterates over each color in the config independently. Used in the production pipeline (`mabinogi_tooltip_parser.py`, `line_processing.py`) where BGR images are available.
+
+`detect_prefix(mask_line, config)` operates on a pre-built binary mask. Used in tests and the visualization script where masks are already constructed.
 
 ### Color Masks
 
-Each detection runs on a specific color mask:
-- **Bullet detection:** blue RGB(74,149,238) + red RGB(255,103,103) + grey RGB(128,128,128)
-- **Subbullet detection:** white RGB(255,255,255) + red RGB(255,103,103)
+- **Bullet:** blue RGB(74,149,238) + red RGB(255,103,103) + grey RGB(128,128,128)
+- **Subbullet:** white RGB(255,255,255) + red RGB(255,103,103)
 
-### Current Performance
+### Why Subbullet (ㄴ) Detection Fails on White Mask
 
-- Bullet (·) detection: **working** — blue/red mask isolates dots cleanly, width heuristic is reliable for dots
-- Subbullet (ㄴ) detection: **not working** — white mask includes main text (same color), so the column projection sees one giant cluster with no gap, preventing isolation
+This is a Stage 1 (isolation) failure, not a classification failure. The column projection assumes the prefix is the **first** ink cluster from the left. On the white text mask, the ㄴ prefix AND all the white main text appear as ink — one giant continuous cluster with no gap. The ㄴ is never isolated, so Stage 2 never runs.
 
----
+Bullet detection doesn't have this problem because `·` bullets use different colors (blue/red/grey) than main text, so the mask naturally separates prefix from text.
 
-## 14. Shape Walker — Directional Shape Classification
+### Ground Truth and Testing
 
-**Files:** `backend/lib/shape_walker.py`, `backend/lib/prefix_detector.py`
-**Frontend port:** `image_process_lab.jsx` → `detectPrefixesShapeWalker()`, `_detectPrefixesShapeWalker()`
+Expected counts are stored in `tests/sample_images/*_original.meta.json`:
 
-### Problem
+```json
+{
+  "prefix": {"bullets": 11, "subbullets": 0},
+  "lines": {"headers": 4, "bullet_lines": 26, "white_lines": 13}
+}
+```
 
-The width-based classification (Section 13) cannot distinguish shapes — it only measures cluster dimensions. A noise cluster of the right width gets misclassified. The shape walker replaces the width heuristic with actual shape tracing.
+Tests auto-discover images by scanning for `.meta.json` files — adding a new test image requires only dropping the `.png` and `.meta.json` into the directory.
 
-### Relationship to Detect Bullet
+### Visualization
 
-Both approaches share the same Stage 1 (column projection to isolate the prefix cluster). They differ only in Stage 2:
+```bash
+python3 scripts/ocr/prefix/test_prefix_detector.py tests/sample_images/*_original.png
+# Output: tmp/prefix_viz/<stem>_{bullet,subbullet,shapewalk}.png
+```
 
-| | Detect Bullet (Section 13) | Shape Walker (Section 14) |
-|---|---|---|
-| **Stage 1** | Column projection | Column projection (identical) |
-| **Stage 2** | Width + ink height heuristic | Directional walk + flood fill |
-| **Color masks** | Separate per type (blue+red for ·, white for ㄴ) | All colors combined |
-| **Classification** | Narrow → bullet, wider → subbullet | Walk DOWN→RIGHT → ㄴ, flood fill ≤4px → · |
+Three images per input:
+1. `_bullet.png` — per-color bullet detection (BULLET_DETECTOR config)
+2. `_subbullet.png` — per-color subbullet detection (SUBBULLET_DETECTOR config)
+3. `_shapewalk.png` — combined mask, both shapes, no config restriction
+
+## 14. Shape Walker — General-Purpose Shape Detection
+
+**File:** `backend/lib/shape_walker.py`
+
+The shape walker is a general-purpose shape detection library used by prefix detection (Section 13) but designed for reuse across other detection tasks.
 
 ### Shape Definitions
+
+Shapes are defined declaratively as sequences of directional segments:
 
 ```python
 SHAPE_NIEUN = ShapeDef('ㄴ', segments=[
@@ -901,93 +1085,30 @@ SHAPE_DOT = ShapeDef('·', segments=[
 ])
 ```
 
-### Algorithm: ㄴ Detection — Directional Walk
-
-```
-Cluster mask (7×5 example):
-
-  col: 0 1 2 3 4
-       . . . . .    row 0
-       . x . . .    row 1  ← seed (topmost ink in leftmost ink column)
-       . x . . .    row 2  ↓ walk DOWN
-       . x . . .    row 3  ↓ walk DOWN (length=3, meets min_px=3)
-       . x x x .    row 4  → walk RIGHT from corner (length=3, meets min_px=3)
-       . . . . .    row 5
-       . . . . .    row 6
-
-Step 1: find_seeds() — scan leftmost column with ink (col 1),
-        return topmost pixel of each vertical run → seed = (1, 1)
-
-Step 2: _walk_segment(DOWN, min_px=3)
-        From seed (1,1), step down one row at a time.
-        At each step, check a perpendicular band (horizontal, stroke-width thick).
-        Continue while any pixel in the band is ink.
-        → walks rows 2, 3, 4 → length=3 ≥ 3 ✓
-        → end position = (4, 1)
-
-Step 3: Corner transition
-        From end (4,1), look one step RIGHT at (4,2).
-        Search within ±(stroke_width // 2) perpendicular tolerance for ink.
-        → found ink at (4, 2)
-
-Step 4: _walk_segment(RIGHT, min_px=3)
-        From (4,2), step right one column at a time.
-        Check perpendicular band (vertical) for ink.
-        → walks cols 3, 4 → length=3 ≥ 3 ✓
-
-All segments satisfied → match: ㄴ
-```
-
-### Algorithm: · Detection — Flood Fill
-
-```
-Cluster mask (3×3 example):
-
-  col: 0 1 2
-       . . .    row 0
-       . x .    row 1  ← seed
-       . . .    row 2
-
-Step 1: find_seeds() → seed = (1, 1)
-
-Step 2: _check_dot(min_px=1, max_px=4)
-        4-connected flood fill from seed.
-        Measure bounding box of all connected ink pixels.
-        extent = max(height, width) of bounding box.
-        → extent = 1 (single pixel), 1 ≤ 1 ≤ 4 ✓
-
-Match: ·
-```
+New shapes can be added by defining new `ShapeDef` constants — no code changes needed in the walker itself.
 
 ### Thick Stroke Handling
 
 Real tooltip prefixes are 2-3px wide strokes, not single-pixel lines. The walker handles this with `_measure_stroke_width()` — at the seed, it measures the perpendicular extent of ink. During walking, it checks a band of that width, not just a single pixel. This allows the walker to follow strokes of any width without hardcoded size assumptions.
 
-### Why Subbullet (ㄴ) Detection Fails
+### 8-Connected Flood Fill
 
-This is a shared problem between both approaches — it's a Stage 1 (isolation) failure, not a Stage 2 (classification) failure.
+`_check_dot` uses 8-connected flood fill (including diagonal neighbors). This was changed from 4-connected to handle anti-aliased character edges — grey pixels at character boundaries form small blobs that are 4-disconnected but 8-connected. The wider connectivity merges them into larger components that exceed `max_px=4` and get rejected.
 
-The column projection assumes the prefix is the **first** ink cluster from the left. On the white text mask, the ㄴ prefix AND all the white main text appear as ink. The state machine sees one giant continuous cluster with no gap — the ㄴ is never isolated. Neither the width heuristic nor the shape walker ever gets to run.
+### API
 
-The bullet mask (blue+red) doesn't have this problem because `·` bullets use a different color than the main text, so the mask naturally contains only the prefix mark and bullet-colored text, with a clear gap between them.
+```python
+from lib.shape_walker import classify_cluster, SHAPE_NIEUN, SHAPE_DOT
 
-### Current Performance
-
-- Bullet (·): **working** — both approaches detect correctly; shape walker has fewer false positives due to shape verification
-- Subbullet (ㄴ): **not working in either approach** — Stage 1 isolation fails on white mask
-
-### Backend Integration
-
-The backend `detect_prefix()` (`prefix_detector.py`) already uses the shape walker for classification (calls `classify_cluster()` from `shape_walker.py`). The width-based classification only exists in the frontend.
-
-### Visualization
-
-```bash
-python3 scripts/v3/test_prefix_detector.py data/sample_images/dropbell_original.png
-# Output: /tmp/prefix_viz/<stem>_{bullet,subbullet,shapewalk}.png
+match = classify_cluster(cluster_mask, [SHAPE_NIEUN, SHAPE_DOT])
+if match:
+    print(match.shape.name)   # 'ㄴ' or '·'
+    print(match.extent)       # (min_row, min_col, max_row, max_col)
+    print(match.seg_lengths)  # length per segment
 ```
 
-Three images per input compare the approaches:
-1. `_bullet.png` — detect bullet (blue+red mask, width classification)
-2. `_subbullet.png` — detect subbullet (white mask, width classification)
-3. `_shapewalk.png` — shape walker (all colors combined, directional walk classification)
+### Note on Column Projection and Positional Encoding
+
+Column projection (`col_proj[x] = sum of ink pixels in column x`) is a lossy 1D reduction — it discards row positions. Two pixels at rows 2 and 12 in the same column produce the same count (2) as two adjacent pixels at rows 5 and 6. This is why shape walker (2D) is necessary for shape verification.
+
+A bitmask encoding (`col_proj[x] = sum of 2^y for each ink pixel at row y`) would preserve exact row positions in a single integer. For example, ink at rows 1,2,3 → `2+4+8 = 14 = 0b1110` (contiguous bits), while ink at rows 2,12 → `4+4096 = 4100 = 0b1000000000100` (gap in bits, clearly scattered). Contiguity can be checked with bit operations. This approach could replace shape walker for dot detection but would be more complex for multi-segment shapes like ㄴ.

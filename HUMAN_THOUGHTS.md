@@ -65,6 +65,12 @@ Keep asking explanation. ELI5 really helps for the complexed logics.
 
 The dialogs with AI really helps me. It makes me feel that it is not just AI who is learning.(10^-10 slower though)
 
+### Shape to pixels. world of mathematics
+column projection does not handle the dimensional issue.
+- what if we add 2^y value when column projecting? wouldn't be containing the y position?
+flood fill does not handle anti aliased pixels
+- what if we search broadly across all directions? Not to detect ※ as a dot
+
 ## Commands
 
 ### generate segmentation

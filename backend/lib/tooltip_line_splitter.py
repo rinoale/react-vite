@@ -178,7 +178,7 @@ class TooltipLineSplitter:
         return lines
 
     def _has_internal_gap(self, projection, y_start, y_end):
-        """Check if a block has a clear internal gap (2+ consecutive zero rows).
+        """Check if a block has a clear internal gap (1+ consecutive zero rows).
 
         Indicates two lines merged into one block by gap_tolerance.
         """
@@ -186,7 +186,7 @@ class TooltipLineSplitter:
         for y in range(y_start, y_end):
             if projection[y] == 0:
                 consecutive_zeros += 1
-                if consecutive_zeros >= 2:
+                if consecutive_zeros >= 1:
                     return True
             else:
                 consecutive_zeros = 0

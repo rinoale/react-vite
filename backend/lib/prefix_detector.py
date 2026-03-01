@@ -34,11 +34,14 @@ EFFECT_RED_RGB = (255, 103, 103)
 # Grey effect text — disabled/conditional effects not meeting requirements.
 EFFECT_GREY_RGB = (128, 128, 128)
 
+# Light grey effect text — partially disabled/conditional effects (brighter shade).
+EFFECT_LIGHT_GREY_RGB = (167, 167, 167)
+
 # White text — subbullet ㄴ prefix in reforge sub-lines.
 WHITE_TEXT_RGB = (255, 255, 255)
 
-# All bullet (·) colors — blue (positive) + red (negative) + grey (disabled).
-BULLET_COLORS = [EFFECT_BLUE_RGB, EFFECT_RED_RGB, EFFECT_GREY_RGB]
+# All bullet (·) colors — blue (positive) + red (negative) + grey (disabled) + light grey.
+BULLET_COLORS = [EFFECT_BLUE_RGB, EFFECT_RED_RGB, EFFECT_GREY_RGB, EFFECT_LIGHT_GREY_RGB]
 
 # All subbullet (ㄴ) colors — white (reforge sub-lines) + red (negative effects).
 SUBBULLET_COLORS = [WHITE_TEXT_RGB, EFFECT_RED_RGB]
@@ -65,7 +68,7 @@ class PrefixDetectorConfig:
 
 BULLET_DETECTOR = PrefixDetectorConfig(
     name='bullet',
-    colors=(EFFECT_BLUE_RGB, EFFECT_RED_RGB, EFFECT_GREY_RGB),
+    colors=(EFFECT_BLUE_RGB, EFFECT_RED_RGB, EFFECT_GREY_RGB, EFFECT_LIGHT_GREY_RGB),
     shapes=(SHAPE_DOT,),
 )
 
@@ -175,14 +178,65 @@ def _classify_shape_walker(cluster_region, config):
         return 'subbullet' if match.shape.name == 'ㄴ' else 'bullet'
 
 
-def _classify_combined(cluster_region, h, first_w, config, col_proj_slice=None):
-    """Classify prefix by shape walker + ink size constraints.
+def _is_dot_isolated(mask_line, first_start, first_end):
+    """Check that dot cluster ink is vertically isolated from other ink.
+
+    A real dot (·) sits alone with empty space above and below.
+    Character fragments (e.g. bracket corners, ※ arms) have nearby
+    ink pixels in the vertical direction within the cluster columns.
+
+    Finds the tight bounding box of ink rows in the cluster columns,
+    then checks padding zones above and below for stray ink.
+    """
+    cluster_cols = mask_line[:, first_start:first_end]
+    ink_mask = np.any(cluster_cols > 0, axis=1)
+    ink_indices = np.where(ink_mask)[0]
+    if len(ink_indices) == 0:
+        return False
+
+    ink_top = int(ink_indices[0])
+    ink_bot = int(ink_indices[-1])
+    ink_span = ink_bot - ink_top + 1
+    h = mask_line.shape[0]
+
+    # Span check: ink rows should be compact, not scattered across the line
+    # A real dot spans at most ~4 rows; bracket corners span 10+
+    if ink_span > max(4, int(h * 0.4)):
+        return False
+
+    # Vertical padding check: look for ink above and below the cluster
+    pad = max(2, ink_span)
+    above_start = max(0, ink_top - pad)
+    below_end = min(h, ink_bot + pad + 1)
+
+    # Check above: any ink in padding zone?
+    if ink_top > 0:
+        above = cluster_cols[above_start:ink_top]
+        if np.any(above > 0):
+            return False
+
+    # Check below: any ink in padding zone?
+    if ink_bot < h - 1:
+        below = cluster_cols[ink_bot + 1:below_end]
+        if np.any(below > 0):
+            return False
+
+    return True
+
+
+def _classify_combined(cluster_region, h, first_w, config,
+                       col_proj_slice=None, mask_line=None,
+                       first_start=0, first_end=0):
+    """Classify prefix by shape walker + ink size constraints + isolation.
 
     Shape walker confirms the shape (dot or ㄴ), then ink classification's
     size constraints filter out character fragments that happen to pass
     the shape check (e.g. anti-aliased pixels around header characters).
+    For bullets, an isolation check rejects clusters whose ink pixels have
+    nearby ink above/below (e.g. bracket corners, ※ cardinal dots).
 
-    bullet  : shape=DOT,  width ≤ max(3, h*0.25), ink rows ≤ max(4, h*0.5)
+    bullet  : shape=DOT,  width ≤ max(3, h*0.25), ink rows ≤ max(4, h*0.5),
+              vertically isolated
     subbullet: shape=NIEUN, ink rows ≤ max(8, h*0.75)
 
     Returns prefix type string or None.
@@ -202,6 +256,9 @@ def _classify_combined(cluster_region, h, first_w, config, col_proj_slice=None):
         if col_proj_slice is not None and len(col_proj_slice) > 1:
             mn, mx = int(col_proj_slice.min()), int(col_proj_slice.max())
             if mn > 0 and mx > mn * 2:
+                return None
+        if mask_line is not None:
+            if not _is_dot_isolated(mask_line, first_start, first_end):
                 return None
     elif prefix_type == 'subbullet':
         if ink_rows > max(8, int(h * 0.75)):
@@ -295,7 +352,10 @@ def _detect_prefix_on_mask(mask_line, config):
     col_proj_slice = col_proj[first_start:first_end]
 
     # --- Switch classifier here ---
-    prefix_type = _classify_combined(cluster_region, h, first_w, config, col_proj_slice)
+    prefix_type = _classify_combined(
+        cluster_region, h, first_w, config, col_proj_slice,
+        mask_line=mask_line, first_start=first_start, first_end=first_end,
+    )
 
     if prefix_type is None:
         return _no_prefix()

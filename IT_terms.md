@@ -91,6 +91,7 @@
 - singleton: design pattern ensuring single instance exists
 - extensibility: ease of adding new features without major rewrites
 - interoperability: ability of systems to work together
+- orthogonal: property of a system where components or features can vary independently without affecting each other. Example: "The database schema is **orthogonal** to the UI design, allowing us to change the layout without modifying the table structure."
 
 ### Backend and Distributed Systems
 - stateful: system that keeps session/state between requests

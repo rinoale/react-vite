@@ -4,12 +4,11 @@
 Usage:
     python3 scripts/ocr/prefix/test_prefix_detector.py <image> [<image> ...]
 
-Generates three visualization images per input:
-  1. *_bullet.png     — bullet (·) via blue+red mask
-  2. *_subbullet.png  — subbullet (ㄴ) via white mask
-  3. *_shapewalk.png  — shape walker on all colors combined
+Generates two visualization images per input:
+  1. *_subbullet.png  — subbullet (ㄴ) via per-color detection
+  2. *_shapewalk.png  — shape walker on all colors combined (bullets + subbullets)
 
-Output saved to /tmp/prefix_viz/
+Output saved to tmp/prefix_viz/
 """
 import sys, os, glob
 import numpy as np
@@ -18,7 +17,7 @@ import cv2
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'backend'))
 from backend.lib.prefix_detector import (
-    bullet_text_mask, white_text_mask, detect_prefix, detect_prefix_per_color,
+    detect_prefix, detect_prefix_per_color,
     BULLET_DETECTOR, SUBBULLET_DETECTOR,
 )
 from backend.lib.tooltip_line_splitter import TooltipLineSplitter
@@ -154,53 +153,41 @@ def run_on_image(path, out_dir):
     splitter = TooltipLineSplitter(output_dir=os.path.join(_project_root, 'tmp', 'prefix_test'))
     os.makedirs(out_dir, exist_ok=True)
 
-    # --- 1. Bullet: per-color detection ---
-    b_mask = BULLET_DETECTOR.build_mask(img)
-    bullet_all, bullet_ink = _detect_on_mask(b_mask, h, w, 'bullet', splitter,
-                                             config=BULLET_DETECTOR, img_bgr=img)
-    bullet_found = [r for r in bullet_all if r['type'] == 'bullet']
-    bullet_found.sort(key=lambda r: r['y'])
-
-    out1 = os.path.join(out_dir, f"{stem}_bullet.png")
-    _draw_results(img, bullet_found, out1,
-                  title=f"Bullet (per-color): {len(bullet_found)} found")
-    print(f"  [1] Bullet    : {_summary_str(bullet_all):30s}  -> {out1}")
-
-    # --- 2. Subbullet: per-color detection ---
+    # --- 1. Subbullet: per-color detection ---
     s_mask = SUBBULLET_DETECTOR.build_mask(img)
     sub_all, white_ink = _detect_on_mask(s_mask, h, w, 'subbullet', splitter,
                                          config=SUBBULLET_DETECTOR, img_bgr=img)
     sub_found = [r for r in sub_all if r['type'] == 'subbullet']
     sub_found.sort(key=lambda r: r['y'])
 
-    out2 = os.path.join(out_dir, f"{stem}_subbullet.png")
-    _draw_results(img, sub_found, out2,
+    out1 = os.path.join(out_dir, f"{stem}_subbullet.png")
+    _draw_results(img, sub_found, out1,
                   title=f"Subbullet (per-color): {len(sub_found)} found")
-    print(f"  [2] Subbullet : {_summary_str(sub_all):30s}  -> {out2}")
+    print(f"  [1] Subbullet : {_summary_str(sub_all):30s}  -> {out1}")
 
-    # --- 3. Shape Walker: all colors combined, classify both types ---
-    combined = np.zeros((h, w), dtype=np.uint8)
-    for mask in [b_mask, s_mask]:
-        combined = np.maximum(combined, mask)
+    # --- 2. Shape Walker: all colors combined, classify both types ---
+    b_mask = BULLET_DETECTOR.build_mask(img)
+    combined = np.maximum(b_mask, s_mask)
     sw_all, _ = _detect_on_mask(combined, h, w, 'combined', splitter)
     sw_found = [r for r in sw_all if r['type'] is not None]
     sw_found.sort(key=lambda r: r['y'])
 
-    out3 = os.path.join(out_dir, f"{stem}_shapewalk.png")
-    _draw_results(img, sw_found, out3,
+    out2 = os.path.join(out_dir, f"{stem}_shapewalk.png")
+    _draw_results(img, sw_found, out2,
                   title=f"Shape Walker (all colors): {len(sw_found)} found")
-    print(f"  [3] ShapeWalk : {_summary_str(sw_all):30s}  -> {out3}")
+    print(f"  [2] ShapeWalk : {_summary_str(sw_all):30s}  -> {out2}")
 
-    # --- Comparison ---
+    # --- Summary ---
     print()
+    bullet_ink = 100.0 * np.sum(b_mask > 0) / b_mask.size
     print(f"  Bullet ink: {bullet_ink:.1f}%  White ink: {white_ink:.1f}%")
-    print(f"  Lines scanned: bullet={len(bullet_all)}, white={len(sub_all)}, combined={len(sw_all)}")
+    print(f"  Lines scanned: subbullet={len(sub_all)}, combined={len(sw_all)}")
 
 
 def main():
     if len(sys.argv) < 2:
         print("Usage: python3 scripts/ocr/prefix/test_prefix_detector.py <image> [<image> ...]")
-        print("  Output: tmp/prefix_viz/<stem>_{bullet,subbullet,shapewalk}.png")
+        print("  Output: tmp/prefix_viz/<stem>_{subbullet,shapewalk}.png")
         sys.exit(1)
 
     paths = []
