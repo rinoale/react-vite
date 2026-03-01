@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Upload, Loader2, Save, X, Settings, RotateCw, AlertTriangle, CheckCircle2, Search, Plus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { useToast } from '@mabi/shared/components/useToast';
+import InlineBanner from '@mabi/shared/components/InlineBanner';
 import SectionCard from '@mabi/shared/components/SectionCard';
 import { ColorPartsSection, EnchantSection, ReforgeSection, DefaultSection } from '@mabi/shared/components/sections';
 import { examineItem, registerListing } from '@mabi/shared/api/items';
@@ -22,6 +24,8 @@ function createEmptySection(secKey) {
 
 const Sell = () => {
   const { t } = useTranslation();
+  const { showToast } = useToast();
+  const [errorBanner, setErrorBanner] = useState(null);
   const [file, setFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -106,6 +110,7 @@ const Sell = () => {
   const handleScan = async () => {
     if (!file) return;
 
+    setErrorBanner(null);
     setIsLoading(true);
     setLoadingStep('SEGMENTING');
 
@@ -143,7 +148,7 @@ const Sell = () => {
 
     } catch (error) {
       console.error("Error processing image:", error);
-      alert(t('sell.errorScanning'));
+      setErrorBanner(t('sell.errorScanning'));
       setLoadingStep('ERROR');
     } finally {
       setIsLoading(false);
@@ -194,10 +199,11 @@ const Sell = () => {
     if (!formData.name.trim()) missing.push(t('sell.itemName'));
     if (!formData.price) missing.push(t('sell.price'));
     if (missing.length) {
-      alert(t('sell.requiredFields', { fields: missing.join(', ') }));
+      showToast({ type: 'warning', message: t('sell.requiredFields', { fields: missing.join(', ') }) });
       return;
     }
 
+    setErrorBanner(null);
     const payload = buildRegistrationPayload({
       sessionId,
       name: formData.name,
@@ -212,7 +218,7 @@ const Sell = () => {
       const corrMsg = result.corrections_saved
         ? t('sell.correctionsCapture', { count: result.corrections_saved })
         : '';
-      alert(`${t('sell.itemRegistered')}${corrMsg}`);
+      showToast({ type: 'success', message: `${t('sell.itemRegistered')}${corrMsg}` });
       setFile(null);
       setPreviewUrl(null);
       setOcrResult(null);
@@ -221,7 +227,7 @@ const Sell = () => {
       clearGameItem();
     } catch (err) {
       console.error('Register item error:', err);
-      alert(t('sell.registerFailed'));
+      setErrorBanner(t('sell.registerFailed'));
     }
   };
 
@@ -242,6 +248,7 @@ const Sell = () => {
   return (
     <div className="min-h-screen bg-gray-900 text-gray-100 p-6 font-sans">
       <div className="max-w-7xl mx-auto">
+        {errorBanner && <InlineBanner type="error" message={errorBanner} onDismiss={() => setErrorBanner(null)} />}
         <header className="flex justify-between items-center mb-8 border-b border-gray-800 pb-4">
           <div>
             <h1 className="text-4xl font-black text-white tracking-tight">{t('sell.title')} <span className="text-orange-500">{t('sell.titleHighlight')}</span></h1>

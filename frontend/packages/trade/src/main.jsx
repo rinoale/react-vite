@@ -2,6 +2,7 @@ import { StrictMode, Suspense } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import { initI18n } from '@mabi/shared/i18n'
+import { ToastProvider } from '@mabi/shared/components/ToastProvider'
 import './index.css'
 import App from './App.jsx'
 
@@ -11,7 +12,9 @@ createRoot(document.getElementById('root')).render(
   <StrictMode>
     <Suspense fallback="">
       <BrowserRouter>
-        <App />
+        <ToastProvider>
+          <App />
+        </ToastProvider>
       </BrowserRouter>
     </Suspense>
   </StrictMode>,
