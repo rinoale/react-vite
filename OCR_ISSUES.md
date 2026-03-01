@@ -1,5 +1,7 @@
 # OCR Pipeline Issues
 
+For training attempt results, see [OCR_TRAINING_HISTORY.md](OCR_TRAINING_HISTORY.md).
+
 ## Resolved
 
 - **Incomplete Character Set (v1)** — Expanded from 342 to 442 characters. Added missing digits, punctuation, and 79 Korean characters.
@@ -71,42 +73,6 @@ Proportional canvas width caused 57% of training at wrong squash factors. Fixed 
 
 ---
 
-## v2 Pipeline Results
-
-| Attempt | Exact (of 235) | Char Acc | Confidence | Key Change |
-|---------|----------------|----------|------------|------------|
-| Baseline (Att 6) | 0 (0%) | 19.5% | 0.039 | Dictionary-only, 32px fixed, 442 chars |
-| Attempt 7 | 1 (0.4%) | 35.8% | 0.097 | +67 chars, templates, natural height |
-| Attempt 8 (5k) | 0 (0%) | 28.3% | 0.004 | +font size 8, proportional canvas (underfit) |
-| Attempt 8b (15k) | 0 (0%) | 27.0% | 0.014 | Continue from checkpoint — domain gap confirmed |
-| Attempt 9 | 0 (0%) | 36.2% | 0.044 | Reverted canvas to ~260px, bimodal font sizes 6-7/10-11 |
-| Attempt 12 | 0 (0%) | 38.1% | 0.120 | Inference imgW patch, squash factors now match |
-| Attempt 13 | 14 (6.0%) | 52.4% | 0.247 | Tight-crop, font 10-11, splitter border filter |
-| Attempt 14 | 45 (19.6%) | 75.5% | 0.327 | Training data cleanup, GT source switch, splitter left-edge fix |
-| **Attempt 15** | **64 (27.8%)** | **77.0%** | **~0.352** | **% spacing, 내구력 6×, 개조 3×, headers 4×, grade colon** |
-| Attempt 16 | 28 (12.2%) | 71.3% | TBD | Charset 509→1201 — regression |
-| Attempt 17 | REVERTED | — | — | Game-like rendering reverted; new pipeline adopted |
-
-**Current best (v2):** Attempt 15 — 77.0% char acc, 64/230 exact. lightarmor (80.1%) and titan_blade (80.0%) crossed the 80% gate.
-
-**V3 pipeline (segment-first) is now active.** Content model remains a15 (509 chars). V3 validated on titan_blade_original: 10/80 exact, 75.7% char acc. See V3 section below.
-
-### Resolved in Attempt 15
-
-2. ~~**`아이템 속성` → `아이템 색성`** (`속`↔`색` confusion)~~ — Fixed: 10→40 reps for both headers.
-
-3. ~~**`내구력 N/N` always fails**~~ — Fixed: 50→300 reps. Now mostly correct.
-
-4. ~~**개조 variants garbled**~~ — Fixed: 20-30→60-100 reps for all `일반/특별 개조` patterns.
-
-5. ~~**`% / 초` spacing**~~ — Fixed: removed `' %'`; fixed `대미지 배율` and `쿨타임 감소` patterns.
-
-6. ~~**Grade line missing colon**~~ — Fixed: added `마스터 (장비 레벨: N)` with colon.
-
-### Attempt 16 Regression
-
-Attempt 16 regressed to 28/230 exact (71.3% char acc) despite correct preprocessing fixes. Post-mortem identified that the charset expansion (509→1201) alone is insufficient — the rendering domain gap is the deeper bottleneck (see below).
-
 ---
 
 ## Identified: Rendering Domain Gap (future training target)
@@ -115,29 +81,33 @@ Ink ratio gap: real padded crops 0.201 vs synthetic 0.144 (strokes ~1.4× thicke
 
 ---
 
-## V3 Pipeline — Current Issues
+## V3 Pipeline — Current Status
 
-### Blocking issues
+**Latest v3 result:** 179/309 exact, 86.7% char acc, FM=60 (18 images, 7 with GT)
 
-1. **Header `등급` → `개조` misclassification** — Header model reads the `등급` bar as `개조` (100% confidence). Causes `item_grade` → `item_mod` mislabeling. Needs header model retraining.
+### Resolved (V3)
 
-2. **Only 1 original color GT image** — v3 needs original color screenshots. Only `titan_blade_original.png` exists. Other 4 GT images have only `*_processed.png`.
+1. ~~**Header `등급` → `개조` misclassification**~~ — Fixed by orange-anchored header detection (26/26 themes, 0 false positives) and dedicated category header OCR model.
 
-3. **Enchant charset gap (a15)** — `enchant.txt` has 273 chars not in the a15 charset (509). Model can't output these. Acceptable for pipeline structure validation; OCR accuracy on enchant will be limited.
+2. ~~**Only 1 original color GT image**~~ — Now 7 images with GT, 18 total test images.
 
-### Content OCR issues (carry forward from v2)
+3. ~~**Enchant charset gap**~~ — v1 training in progress with 748-char charset from `enchant.yaml` source of truth. Covers all enchant effects and conditions.
 
-4. **Leading `-` misread as `소` / `#`** — Game dash is 2px wide; PIL renders 3-5px. Unresolved at splitter/training level.
+4. ~~**Enchant sub-headers garbled**~~ — V3 uses dedicated `enchant_header_reader` with oreo_flip preprocessing. Enchant section: 92.8% char acc.
 
-5. **Enchant sub-headers garbled** — `[접두]`/`[접미]` at 42% char acc. V3 helps structurally (enchant section pre-labeled), but raw OCR quality still limits two-phase FM matching.
+5. ~~**Ink ratio domain gap**~~ — Resolved by game-like rendering pipeline (dark bg + bright text → BT.601 → threshold → downscale). Ink ratio now matches real crops.
 
-6. **Ink ratio domain gap** — Synthetic 0.144 vs real 0.201. Future training target (game-like rendering).
+6. ~~**Bullet prefix in correction crops**~~ — Crop images for correction training now trimmed via `prefix_abs_cut` to exclude bullet prefix area. Correction text also stripped of bullets in `router.py`.
 
-### Validation plan
+7. ~~**FM number extraction bug**~~ — OCR got correct number "10" but FM replaced with "1". Fixed with Strategy 2: DB condition-informed number selection (check matched effect's condition for digits to decide which OCR number is the rolled value).
 
-Validate v3 pipeline with a15 content model (509 chars) on **enchant** and **reforge** segments:
-- **reforge**: 0 missing chars → full charset coverage. Clean validation target.
-- **enchant**: 273 missing chars → pipeline structure validation only (correct segmentation, header label, FM routing).
+8. ~~**`4대 속성` in source of truth**~~ — Replaced with `모든 속성` across all 7 source files (42 occurrences).
+
+9. ~~**Leading `-` misread as `소` / `#`**~~ — No longer relevant. Prefix area is trimmed from crops via `prefix_abs_cut` before OCR, and training data contains no prefixes.
+
+### Open issues
+
+10. **v1 content model training pending** — Both font-specific models (mabinogi_classic, nanum_gothic_bold) training with new data: 748-char charset, enchant.yaml-sourced effects, no bullet prefixes, reduced threshold noise. Deploy and evaluate after training completes.
 
 ---
 

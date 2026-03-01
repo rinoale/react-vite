@@ -1458,7 +1458,7 @@ The Dullahan FM, reforge sub-line detection, and version-specific checkpoints ar
 
 ### Key Takeaway
 
-**Real sample mixing works.** The v3 enchant header model (55 real crops mixed at ~10%) achieved 100% on real samples where v2 (pure synthetic) hit only 46.3%. This proves that a user correction feedback pipeline — where each corrected header becomes a new real training sample — will reliably improve OCR models over time. Track 2 (Enchant Header OCR + User Correction) in `backend/TASKS.md` is validated as a viable strategy.
+**Real sample mixing works.** The v3 enchant header model (55 real crops mixed at ~10%) achieved 100% on real samples where v2 (pure synthetic) hit only 46.3%. This proves that a user correction feedback pipeline — where each corrected header becomes a new real training sample — will reliably improve OCR models over time. Track 2 (Enchant Header OCR + User Correction) in `TASKS.md` is validated as a viable strategy.
 
 **Deployed:** enchant_header v3 active. v2 remains for rollback.
 

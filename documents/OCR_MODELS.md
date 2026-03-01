@@ -194,31 +194,4 @@ Switch active version: `bash scripts/ocr/switch_model.sh <type> <version>`
 
 ## Training Pipeline
 
-All scripts run from **project root**. Each model type has its own script folder under `scripts/ocr/`.
-
-```bash
-MODEL=general_mabinogi_classic_model  # or any model type
-VER=a19
-
-# 1. Generate synthetic training data
-python3 scripts/ocr/${MODEL}/generate_training_data.py --version $VER
-
-# 2. Generate model config (yaml)
-python3 scripts/ocr/${MODEL}/create_model_config.py --version $VER
-
-# 3. Create LMDB dataset
-python3 skills/ocr-trainer/scripts/create_lmdb_dataset.py \
-  --input backend/ocr/${MODEL}/$VER/train_data \
-  --output backend/ocr/${MODEL}/$VER/train_data_lmdb
-
-# 4. Train (use nohup — avoid OOM kills)
-nohup python3 -u scripts/ocr/${MODEL}/train.py --version $VER > logs/training.log 2>&1 &
-
-# 5. Deploy (copy model + update symlinks)
-bash scripts/ocr/${MODEL}/deploy.sh $VER
-
-# 6. Validate
-python3 scripts/v3/test_v3_pipeline.py 'data/sample_images/*_original.png'
-```
-
-**Critical rule:** When changing `imgH`, `imgW`, or any `model:` param in `training_config.yaml`, you **must** re-run `create_model_config.py` to regenerate the training yaml. Deploy separately updates the production yaml.
+See [README.md § Training](../README.md#training-custom-ocr-model) for the full training pipeline commands and scripts reference.

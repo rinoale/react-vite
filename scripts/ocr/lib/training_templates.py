@@ -541,6 +541,122 @@ def generate_template_lines():
     return lines
 
 
+def collect_all_chars():
+    """Deterministically collect every character that can appear in training labels.
+
+    Scans all source files and hardcoded template strings — no randomness.
+    Use this to generate unique_chars.txt instead of scanning random output.
+    """
+    chars = set()
+
+    # --- Format characters (digits, punctuation, symbols) ---
+    chars.update('0123456789')
+    chars.update(' #%()+,-./:[]~')
+
+    # --- Latin letters from templates ---
+    chars.update('ABCDEFGLNRS')     # color parts (A-F), ranks (A-F, S), ergo grades, etc.
+    chars.update('abcdehilmnov')    # from inference config keys that leak? keep for safety
+    chars.update('cm')              # 스플래시 반경 Ncm
+
+    def _add_text(text):
+        chars.update(text)
+
+    def _add_file(path):
+        if not os.path.exists(path):
+            return
+        with open(path, 'r', encoding='utf-8') as f:
+            for line in f:
+                chars.update(line.strip())
+
+    # --- Source of truth: enchant.yaml (all effects, conditions, names) ---
+    if os.path.exists(ENCHANT_YAML_PATH):
+        with open(ENCHANT_YAML_PATH, 'r', encoding='utf-8') as f:
+            data = yaml.safe_load(f)
+        for entry in data:
+            _add_text(entry.get('name', ''))
+            _add_text(entry.get('slot', ''))
+            _add_text(entry.get('rank', ''))
+            for eff in entry.get('effects', []):
+                if isinstance(eff, dict):
+                    _add_text(eff.get('condition', ''))
+                    _add_text(eff.get('effect', ''))
+                else:
+                    _add_text(str(eff))
+
+    # --- Dictionary files (content OCR only — no item_name.txt) ---
+    for path in DICT_PATHS:
+        _add_file(path)
+    _add_file("data/dictionary/item_type_armor.txt")
+    _add_file("data/dictionary/item_type_weapon.txt")
+
+    # --- All hardcoded Korean strings from templates ---
+    _hardcoded = [
+        # Stat lines
+        '방어력', '보호', '마법 방어력', '마법 보호', '최대대미지', '최소대미지',
+        '공격', '부상률', '크리티컬', '밸런스', '탄환', '내구력', '숙련',
+        # Color parts
+        '파트', 'R', 'G', 'B',
+        # Sub-bullet effects
+        '보호', '방어력', '최대 내구도', '최대 공격력', '크리티컬',
+        '피어싱 레벨', '대미지 배율', '대미지', '쿨타임 감소',
+        '돌진 대미지', '돌진 사정 거리', '스매시 대미지',
+        '윈드밀 대미지', '파이널 히트 최종 대미지',
+        '파이널 스트라이크 분노 획득량', '윈드밀 최종 대미지',
+        '최소부상률', '지속대미지',
+        '대미지 배율', '증가', '감소', '쿨타임 감소', '초',
+        # Item mods
+        '일반 개조', '보석 강화', '특별 개조', '단계',
+        '표면 강화', '경량화', '담금질', '보석 개조',
+        '크리티컬 대미지',
+        # Reforge
+        '레벨',
+        # Set items
+        '강화', '발동 조건', '강화 수치', '달성',
+        # Piercing
+        '피어싱 레벨', '방어', '보호', '차감', '마법 방어', '마법 보호',
+        '피어싱이 부여된 장비를 양 쪽에 착용 시 높은 쪽 적용',
+        # Hashtags
+        '#남성 전용', '#여성 전용', '#인간 자이언트 전용', '#대장장이 수리',
+        '#의류점 수리', '#플레타 수리', '#반호르 주점 수리',
+        '#인챈트 실패 시 아이템 보호', '#수리 실패시 아이템 보호',
+        '#거래 불가', '#은행 불가', '#펫 보관 불가', '#염색 불가',
+        '#소유권 보존', '#파트너 선물 및 착용 불가', '#계승 불가',
+        # Price
+        '골드', '만', '판매불가', '상점판매가',
+        # Grades
+        '마스터', '에픽', '엘리트', '레어', '일반', '장비 레벨',
+        '최대 생명력', '보너스 대미지', '최대 마나', '등급 보너스 대미지',
+        # Ergo
+        '등급', '에르그 이전 불가',
+        '무기 공격력', '무기 마법 공격력', '모든 속성 연금술 대미지',
+        '마리오네트', '스플래시 반경',
+        # Artisan
+        '최대스태미나', '최대생명력', '솜씨', '체력',
+        # Holywater
+        '성수 효과', '거래 불가', '최대마나',
+        # Special effects
+        '근접공격 자동방어 확률', '원거리공격 자동방어 확률',
+        '마법공격 자동방어 확률', '대미지 감소율',
+        # Ownership
+        '전용 아이템', '전용 일시 해제', '남은 전용 해제 가능 횟수',
+        # Equipment type prefixes
+        '매우느린속도', '느린속도', '보통속도', '빠른속도', '매우빠른속도',
+        '타',
+        # Section headers
+        '세공', '에르그', '인챈트', '아이템 속성', '아이템 색상', '개조',
+        # Enchant slot headers
+        '접두', '접미', '랭크', '이상일 때',
+    ]
+    for text in _hardcoded:
+        _add_text(text)
+
+    # --- Header boosts ---
+    for header, _ in HEADER_BOOSTS:
+        _add_text(header)
+
+    return ''.join(sorted(chars))
+
+
 def load_dictionaries(dict_paths=None):
     """Load dictionary entries.
 

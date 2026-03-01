@@ -501,3 +501,31 @@ All readers have `patch_reader_imgw()` applied after creation. This replaces Eas
 V3 response: `{sections: {section_name: OcrSectionResponse}, all_lines: [OcrLineResponse], session_id?}`
 
 See `documents/API_SPEC.md` for full response schema.
+
+---
+
+## EasyOCR Internals
+
+Key details about EasyOCR's recognition path, relevant for understanding inference behavior:
+
+- `readtext()` = CRAFT detection + recognition (not used in v2/v3 — we bypass CRAFT)
+- `recognize(img_grey, horizontal_list=[[0, w, 0, h]], free_list=[], reformat=False)` = recognition only on pre-cropped images
+- `recognition.py` lines 199, 213: `keep_ratio_with_pad=True` is hardcoded — the `PAD` field in yaml is ignored during inference
+- When both `horizontal_list` and `free_list` are None, it uses the entire image as one bbox
+- Must pass `free_list=[]` (not None) when `horizontal_list` is set, otherwise TypeError
+- **Dynamic imgW pitfall:** `recognize()` passes `int(max_width)` to `get_text()` where `max_width = ceil(w/h) * 32` — varies per image. Fixed by `ocr_utils.py` patch.
+
+---
+
+## Real Line Crop Statistics
+
+From 235 lines across 5 GT images (after splitter improvements):
+- Text height: min=6, max=14, **median=10px** (two clusters: 7px and 10px)
+- Padded width: min=22, max=269, **median=261px** (most lines span full tooltip width)
+- Tooltip width: consistently 262-271px across all images
+- All images are strictly binary (0, 255) after frontend thresholding at 80
+
+Ground truth file types in `data/sample_images/`:
+- `*_processed.txt` / `*_original.txt` — Full ground truth (all text in image)
+- `*_expected.txt` — Expected OCR output (may skip flavor text, bottom area)
+- `*_gt_candidate.txt` — Pipeline-generated candidates for manual review (created by `scripts/v2/ocr/regenerate_gt.py`)

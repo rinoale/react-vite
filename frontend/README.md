@@ -78,6 +78,8 @@ docker compose logs -f frontend         # Watch logs
 - The Dockerfile CMD runs `npm install` (to create workspace symlinks from the volume mount), then backgrounds all three `npm run dev:*` commands.
 - `--host` is baked into each package's `dev` script so Vite binds to `0.0.0.0` inside the container. Do **not** pass `-- --host 0.0.0.0` from compose — npm intercepts the flag and Vite receives `0.0.0.0` as a positional root-dir argument, causing 404s.
 
+For backend/training commands and full project documentation, see the [root README](../README.md).
+
 ## Static Configs (Prerequisites)
 
 The trade app depends on three static JS config files generated from the database. These must be exported before running the dev server for the first time, and re-exported whenever the database or source data changes.

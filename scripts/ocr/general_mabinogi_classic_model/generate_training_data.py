@@ -21,7 +21,7 @@ from PIL import Image
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 from scripts.ocr.lib.model_version import resolve_version, load_training_config
 from scripts.ocr.lib.training_templates import (
-    generate_template_lines, load_dictionaries, HEADER_BOOSTS,
+    generate_template_lines, load_dictionaries, collect_all_chars, HEADER_BOOSTS,
 )
 from scripts.ocr.lib.render_utils import (
     render_line_gamelike, split_all_labels,
@@ -107,6 +107,13 @@ def generate_data():
 
     print(f"\nDone! Generated {count} images ({skipped} skipped)")
     print(f"Output: {OUTPUT_DIR}")
+
+    # Generate unique_chars.txt from all source data (deterministic)
+    charset = collect_all_chars()
+    chars_path = os.path.join(os.path.dirname(OUTPUT_DIR), 'unique_chars.txt')
+    with open(chars_path, 'w', encoding='utf-8') as f:
+        f.write(charset)
+    print(f"\nCharset: {len(charset)} chars → {chars_path}")
 
     # Full verification
     print("\nVerifying ALL images...")

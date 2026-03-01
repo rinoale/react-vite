@@ -139,6 +139,20 @@ Legacy v2 (`/upload-item-v2`) remains available but is not the primary pipeline.
 
 See `documents/ARCHITECTURE.md` for full internals and `documents/STRATEGY_MABINOGI.md` for design decisions.
 
+### Model Inventory
+
+| Model | Version | Chars | imgW | Font | Purpose |
+|-------|---------|-------|------|------|---------|
+| Content (mabinogi_classic) | a19 | 554 | 200 | mabinogi_classic.ttf | Font-specific content OCR |
+| Content (NanumGothicBold) | a19 | 554 | 200 | NanumGothicBold.ttf | Font-specific content OCR |
+| Category Header | v1 | 21 | 128 | (real crops) | 9-label section recognition |
+| Enchant Header | v3 | 626 | 256 | synthetic + real | Slot header + rank OCR |
+| Preheader (mabinogi_classic) | v1 | 1,181 | 200 | mabinogi_classic.ttf | Item name region OCR |
+| Preheader (NanumGothicBold) | v1 | 1,181 | 200 | NanumGothicBold.ttf | Item name region OCR |
+| Legacy Content (rollback) | a18 | 554 | 200 | both fonts mixed | Combined content OCR |
+
+All models: TPS-ResNet-BiLSTM-CTC, imgH=32. See [documents/OCR_MODELS.md](documents/OCR_MODELS.md) for full details, symlink layout, and DualReader architecture.
+
 ---
 
 ## Training Custom OCR Model
@@ -234,7 +248,13 @@ All scripts run from the **project root**. OCR scripts are organized under `scri
 | Document | Contents |
 |---|---|
 | `documents/ARCHITECTURE.md` | OCR pipeline internals: how each stage works |
+| `documents/OCR_MODELS.md` | Model inventory, symlink layout, DualReader, inference patch |
+| `documents/CORE_LOGIC.md` | Algorithm details for correction strategies |
 | `documents/STRATEGY_MABINOGI.md` | Design decisions D1–D10 with porting guides |
+| `documents/API_SPEC.md` | API contract and response schema |
+| `documents/IMAGE_PROCESS.md` | Image processing technique catalog |
 | `OCR_TRAINING_HISTORY.md` | Per-attempt accuracy results and analysis |
 | `OCR_ISSUES.md` | Resolved issues and current blockers |
+| `TASKS.md` | Consolidated task tracker (backend + frontend) |
 | `CLAUDE.md` | AI agent instructions and project conventions |
+| `infra/database/SCHEMA.md` | Database schema design |
