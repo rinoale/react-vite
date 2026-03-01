@@ -538,9 +538,7 @@ class MabinogiTooltipParser(TooltipLineSplitter):
                 else:
                     text, confidence = '', 0.0
 
-                # Re-attach correct prefix character
-                if prefix_info['type'] == 'bullet':
-                    text = '· ' + text
+                # Prefix was sliced off before OCR — no re-attach needed.
 
                 # Track which model won (DualReader sets last_model_names)
                 model_name = ''

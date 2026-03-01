@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Mabinogi (MMORPG) item trading marketplace with OCR-powered item registration. Users upload a screenshot of an in-game item tooltip, and the system automatically extracts item details using a custom-trained EasyOCR model.
 
-**Current performance:** 128/303 exact, 70.2% char accuracy, FM=56 (18 images, 7 with GT).
+**Current performance:** 151/309 exact, 84.7% char accuracy, FM=60 (19 images, 7 with GT).
 
 **Eval command:** `python3 scripts/v3/test_v3_pipeline.py -q 'data/sample_images/*_original.png'`
 
@@ -150,7 +150,7 @@ All models: `TPS-ResNet-BiLSTM-CTC`, `imgH=32`, `hidden_size=256`.
 
 **Model versioning**: `backend/ocr/{model_type}/{version}/` -- self-contained with `.pth`, `.py`, `.yaml`, `training_config.yaml`, charset, training data. Symlinks at `backend/ocr/models/` point to active versions.
 
-**Active versions**: general=a18 (legacy), general_mabinogi_classic=a19, general_nanum_gothic_bold=a19, category_header=v1, enchant_header=v3, preheader_mabinogi_classic=v1, preheader_nanum_gothic=v1.
+**Active versions**: general=a18 (legacy), general_mabinogi_classic=v1, general_nanum_gothic_bold=a19, category_header=v1, enchant_header=v3, preheader_mabinogi_classic=v1, preheader_nanum_gothic=v1.
 
 **Switch**: `bash scripts/ocr/switch_model.sh <type> <version>`
 **Deploy**: `bash scripts/ocr/<model_type>/deploy.sh <version>`
