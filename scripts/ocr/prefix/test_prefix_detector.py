@@ -2,7 +2,7 @@
 """Test prefix detector on tooltip images.
 
 Usage:
-    python3 scripts/v3/test_prefix_detector.py <image> [<image> ...]
+    python3 scripts/ocr/prefix/test_prefix_detector.py <image> [<image> ...]
 
 Generates three visualization images per input:
   1. *_bullet.png     — bullet (·) via blue+red mask
@@ -15,10 +15,10 @@ import sys, os, glob
 import numpy as np
 import cv2
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'backend'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'backend'))
 from backend.lib.prefix_detector import (
-    bullet_text_mask, white_text_mask, detect_prefix,
+    bullet_text_mask, white_text_mask, detect_prefix, detect_prefix_per_color,
     BULLET_DETECTOR, SUBBULLET_DETECTOR,
 )
 from backend.lib.tooltip_line_splitter import TooltipLineSplitter
@@ -27,8 +27,13 @@ from backend.lib.tooltip_segmenter import detect_bottom_border, detect_vertical_
 
 # --- Detection ---
 
-def _detect_on_mask(mask, img_h, img_w, label, splitter, config=None):
-    """Run line detection + prefix detection on a single color mask."""
+def _detect_on_mask(mask, img_h, img_w, label, splitter, config=None,
+                    img_bgr=None):
+    """Run line detection + prefix detection on a single color mask.
+
+    When img_bgr is provided with a config, uses per-color detection
+    (each color tested independently) to prevent mixed-color FPs.
+    """
     ink_pct = 100.0 * np.sum(mask > 0) / mask.size
     lines = splitter.detect_text_lines(mask)
 
@@ -45,8 +50,12 @@ def _detect_on_mask(mask, img_h, img_w, label, splitter, config=None):
         x0 = max(0, x - pad_x)
         x1 = min(img_w, x + lw + pad_x)
 
-        line_mask = mask[y0:y1, x0:x1]
-        info = detect_prefix(line_mask, config=config)
+        if img_bgr is not None and config is not None:
+            bgr_crop = img_bgr[y0:y1, x0:x1]
+            info = detect_prefix_per_color(bgr_crop, config=config)
+        else:
+            line_mask = mask[y0:y1, x0:x1]
+            info = detect_prefix(line_mask, config=config)
         results.append({
             'color': label,
             'y': y, 'h': lh,
@@ -141,36 +150,37 @@ def run_on_image(path, out_dir):
     print(f"  {name}  ({orig_w}x{orig_h} -> {w}x{h} cropped)")
     print(f"{'='*60}")
 
-    splitter = TooltipLineSplitter(output_dir='/tmp/prefix_test')
+    _project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+    splitter = TooltipLineSplitter(output_dir=os.path.join(_project_root, 'tmp', 'prefix_test'))
     os.makedirs(out_dir, exist_ok=True)
 
-    # --- 1. Bullet: config-driven mask + shape ---
+    # --- 1. Bullet: per-color detection ---
     b_mask = BULLET_DETECTOR.build_mask(img)
     bullet_all, bullet_ink = _detect_on_mask(b_mask, h, w, 'bullet', splitter,
-                                             config=BULLET_DETECTOR)
+                                             config=BULLET_DETECTOR, img_bgr=img)
     bullet_found = [r for r in bullet_all if r['type'] == 'bullet']
     bullet_found.sort(key=lambda r: r['y'])
 
     out1 = os.path.join(out_dir, f"{stem}_bullet.png")
     _draw_results(img, bullet_found, out1,
-                  title=f"Bullet (config): {len(bullet_found)} found")
+                  title=f"Bullet (per-color): {len(bullet_found)} found")
     print(f"  [1] Bullet    : {_summary_str(bullet_all):30s}  -> {out1}")
 
-    # --- 2. Subbullet: config-driven mask + shape ---
+    # --- 2. Subbullet: per-color detection ---
     s_mask = SUBBULLET_DETECTOR.build_mask(img)
     sub_all, white_ink = _detect_on_mask(s_mask, h, w, 'subbullet', splitter,
-                                         config=SUBBULLET_DETECTOR)
+                                         config=SUBBULLET_DETECTOR, img_bgr=img)
     sub_found = [r for r in sub_all if r['type'] == 'subbullet']
     sub_found.sort(key=lambda r: r['y'])
 
     out2 = os.path.join(out_dir, f"{stem}_subbullet.png")
     _draw_results(img, sub_found, out2,
-                  title=f"Subbullet (config): {len(sub_found)} found")
+                  title=f"Subbullet (per-color): {len(sub_found)} found")
     print(f"  [2] Subbullet : {_summary_str(sub_all):30s}  -> {out2}")
 
     # --- 3. Shape Walker: all colors combined, classify both types ---
     combined = np.zeros((h, w), dtype=np.uint8)
-    for mask in [b_mask, w_mask]:
+    for mask in [b_mask, s_mask]:
         combined = np.maximum(combined, mask)
     sw_all, _ = _detect_on_mask(combined, h, w, 'combined', splitter)
     sw_found = [r for r in sw_all if r['type'] is not None]
@@ -189,8 +199,8 @@ def run_on_image(path, out_dir):
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python3 scripts/v3/test_prefix_detector.py <image> [<image> ...]")
-        print("  Output: /tmp/prefix_viz/<stem>_{bullet,subbullet,shapewalk}.png")
+        print("Usage: python3 scripts/ocr/prefix/test_prefix_detector.py <image> [<image> ...]")
+        print("  Output: tmp/prefix_viz/<stem>_{bullet,subbullet,shapewalk}.png")
         sys.exit(1)
 
     paths = []
@@ -201,7 +211,8 @@ def main():
         print(f"No files matched: {sys.argv[1:]}")
         sys.exit(1)
 
-    out_dir = '/tmp/prefix_viz'
+    _project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+    out_dir = os.path.join(_project_root, 'tmp', 'prefix_viz')
     for path in sorted(paths):
         run_on_image(path, out_dir)
 

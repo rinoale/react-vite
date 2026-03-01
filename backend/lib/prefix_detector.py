@@ -126,10 +126,11 @@ def white_text_mask(img_bgr, tolerance=15):
     return _color_mask(img_bgr, WHITE_TEXT_RGB, tolerance)
 
 
-def _classify_ink(cluster_region, h, first_w, config):
+def _classify_ink(cluster_region, h, first_w, config, col_proj_slice=None):
     """Classify prefix by cluster width + vertical ink extent.
 
-    bullet  (·) : width ≤ max(3, h*0.25), ink rows ≤ max(4, h*0.5)
+    bullet  (-) : width ≤ max(3, h*0.25), ink rows ≤ max(4, h*0.5),
+                  uniform column projection (rejects bracket '[' FPs)
     subbullet (ㄴ) : wider, ink rows ≤ max(8, h*0.75)
 
     Returns prefix type string or None.
@@ -140,6 +141,12 @@ def _classify_ink(cluster_region, h, first_w, config):
     if first_w <= bullet_max_w:
         if ink_rows > max(4, int(h * 0.5)):
             return None
+        # Uniform column check: real '-' has similar ink count per column.
+        # '[' has e.g. [4, 2] — vertical bar vs horizontal tip.
+        if col_proj_slice is not None and len(col_proj_slice) > 1:
+            mn, mx = int(col_proj_slice.min()), int(col_proj_slice.max())
+            if mn > 0 and mx > mn * 2:
+                return None
         prefix_type = 'bullet'
     else:
         if ink_rows > max(8, int(h * 0.75)):
@@ -168,6 +175,41 @@ def _classify_shape_walker(cluster_region, config):
         return 'subbullet' if match.shape.name == 'ㄴ' else 'bullet'
 
 
+def _classify_combined(cluster_region, h, first_w, config, col_proj_slice=None):
+    """Classify prefix by shape walker + ink size constraints.
+
+    Shape walker confirms the shape (dot or ㄴ), then ink classification's
+    size constraints filter out character fragments that happen to pass
+    the shape check (e.g. anti-aliased pixels around header characters).
+
+    bullet  : shape=DOT,  width ≤ max(3, h*0.25), ink rows ≤ max(4, h*0.5)
+    subbullet: shape=NIEUN, ink rows ≤ max(8, h*0.75)
+
+    Returns prefix type string or None.
+    """
+    prefix_type = _classify_shape_walker(cluster_region, config)
+    if prefix_type is None:
+        return None
+
+    ink_rows = int(np.sum(np.any(cluster_region > 0, axis=1)))
+
+    if prefix_type == 'bullet':
+        bullet_max_w = max(3, int(h * 0.25))
+        if first_w > bullet_max_w:
+            return None
+        if ink_rows > max(4, int(h * 0.5)):
+            return None
+        if col_proj_slice is not None and len(col_proj_slice) > 1:
+            mn, mx = int(col_proj_slice.min()), int(col_proj_slice.max())
+            if mn > 0 and mx > mn * 2:
+                return None
+    elif prefix_type == 'subbullet':
+        if ink_rows > max(8, int(h * 0.75)):
+            return None
+
+    return prefix_type
+
+
 def detect_prefix(mask_line, config=None):
     """Detect a prefix mark at the left edge of a single line mask.
 
@@ -186,6 +228,34 @@ def detect_prefix(mask_line, config=None):
               gap   : gap columns to main text     (-1 if None)
               main_x: column where main text starts(-1 if None)
     """
+    return _detect_prefix_on_mask(mask_line, config)
+
+
+def detect_prefix_per_color(img_bgr_line, config, tolerance=15):
+    """Detect a prefix by testing each color in config independently.
+
+    A real prefix is always a single color. Running detection on each
+    single-color mask prevents mixed-color fragments from forming
+    false prefix clusters.
+
+    Args:
+        img_bgr_line: BGR color image region of one line.
+        config:       PrefixDetectorConfig with colors to test.
+        tolerance:    per-channel color distance.
+
+    Returns:
+        Same dict as detect_prefix.
+    """
+    for rgb in config.colors:
+        mask = _color_mask(img_bgr_line, rgb, tolerance)
+        result = _detect_prefix_on_mask(mask, config)
+        if result['type'] is not None:
+            return result
+    return _no_prefix()
+
+
+def _detect_prefix_on_mask(mask_line, config):
+    """Core prefix detection on a single binary mask."""
     h, w = mask_line.shape[:2]
     if w < 10 or h < 3:
         return _no_prefix()
@@ -222,9 +292,10 @@ def detect_prefix(mask_line, config=None):
         return _no_prefix()
 
     cluster_region = mask_line[:, first_start:first_end]
+    col_proj_slice = col_proj[first_start:first_end]
 
     # --- Switch classifier here ---
-    prefix_type = _classify_ink(cluster_region, h, first_w, config)
+    prefix_type = _classify_combined(cluster_region, h, first_w, config, col_proj_slice)
 
     if prefix_type is None:
         return _no_prefix()

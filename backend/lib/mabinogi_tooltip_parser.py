@@ -23,7 +23,7 @@ import numpy as np
 import yaml
 
 from lib.tooltip_line_splitter import TooltipLineSplitter
-from lib.prefix_detector import detect_prefix, BULLET_DETECTOR
+from lib.prefix_detector import detect_prefix_per_color, BULLET_DETECTOR
 from lib.line_processing import (
     merge_group_bounds, trim_outlier_tail, promote_grey_by_prefix,
     determine_enchant_slots, merge_continuations, count_effects_per_header,
@@ -456,7 +456,7 @@ class MabinogiTooltipParser(TooltipLineSplitter):
 
     def _ocr_grouped_lines(self, img, grouped_lines, reader,
                            save_crops_dir=None, save_label='content',
-                           attach_crops=False, prefix_mask=None,
+                           attach_crops=False, prefix_bgr=None,
                            prefix_config=None):
         """Run OCR on each grouped line, merging sub-line results.
 
@@ -506,9 +506,9 @@ class MabinogiTooltipParser(TooltipLineSplitter):
                 # Prefix detection: slice off bullet prefix before OCR
                 prefix_info = {'type': None}
                 prefix_abs_cut = None  # absolute x where prefix was trimmed
-                if prefix_mask is not None:
-                    mask_crop = prefix_mask[y_pad:y_pad + h_pad, x_pad:x_pad + w_pad]
-                    prefix_info = detect_prefix(mask_crop, config=prefix_config)
+                if prefix_bgr is not None and prefix_config is not None:
+                    bgr_crop = prefix_bgr[y_pad:y_pad + h_pad, x_pad:x_pad + w_pad]
+                    prefix_info = detect_prefix_per_color(bgr_crop, config=prefix_config)
                     if prefix_info['type'] == 'bullet' and prefix_info['main_x'] < cw:
                         # main_x from color mask can be 1-2px beyond actual text
                         # start on grayscale (anti-aliased edge pixels pass brightness
@@ -1026,8 +1026,7 @@ class MabinogiTooltipParser(TooltipLineSplitter):
             classifications, header_test=lambda lt: lt == 'header')
 
         # 3. Promote grey lines with bullet prefix to effect
-        b_mask = BULLET_DETECTOR.build_mask(content_bgr)
-        promote_grey_by_prefix(classifications, b_mask)
+        promote_grey_by_prefix(classifications, content_bgr)
 
         # 4. Batch OCR: headers and effects separately
         header_classifications = [(g, b, lt) for g, b, lt in classifications if lt == 'header']
@@ -1044,7 +1043,7 @@ class MabinogiTooltipParser(TooltipLineSplitter):
                                                 save_crops_dir=_save,
                                                 save_label='content_enchant',
                                                 attach_crops=attach_crops,
-                                                prefix_mask=b_mask,
+                                                prefix_bgr=content_bgr,
                                                 prefix_config=BULLET_DETECTOR)
                         if effect_groups else [])
 

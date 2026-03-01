@@ -215,7 +215,8 @@ def _check_dot(mask, row, col, min_px, max_px):
         max_r = max(max_r, r)
         max_c = max(max_c, c)
 
-        for dr, dc in ((0, 1), (0, -1), (1, 0), (-1, 0)):
+        for dr, dc in ((0, 1), (0, -1), (1, 0), (-1, 0),
+                       (1, 1), (1, -1), (-1, 1), (-1, -1)):
             nr, nc = r + dr, c + dc
             if 0 <= nr < h and 0 <= nc < w and (nr, nc) not in visited and mask[nr, nc] > 0:
                 visited.add((nr, nc))

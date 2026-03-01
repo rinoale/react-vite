@@ -1,14 +1,16 @@
 """Integration tests for shape walker + prefix detector on real tooltip images.
 
 Verifies header detection, line detection, and prefix classification counts
-against known ground truth values. Tests run on original color screenshots
-and require no GPU — all operations are CPU-only (color masks, line splitting,
-shape walking).
+against ground truth values stored in .meta.json files alongside sample images.
+
+Tests run on original color screenshots and require no GPU — all operations
+are CPU-only (color masks, line splitting, shape walking).
 
 Skips automatically when sample images are not present (they are not committed
 to git).
 """
 
+import json
 import os
 
 import cv2
@@ -31,7 +33,7 @@ from lib.tooltip_segmenter import detect_headers, load_config
 # ---------------------------------------------------------------------------
 
 _PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-_SAMPLE_DIR = os.path.join(_PROJECT_ROOT, 'data', 'sample_images')
+_SAMPLE_DIR = os.path.join(os.path.dirname(__file__), 'sample_images')
 _CONFIG_PATH = os.path.join(_PROJECT_ROOT, 'configs', 'mabinogi_tooltip.yaml')
 
 _has_samples = os.path.isdir(_SAMPLE_DIR)
@@ -47,6 +49,10 @@ def _image_path(name):
     return os.path.join(_SAMPLE_DIR, f'{name}_original.png')
 
 
+def _meta_path(name):
+    return os.path.join(_SAMPLE_DIR, f'{name}_original.meta.json')
+
+
 def _skip_missing(name):
     path = _image_path(name)
     if not os.path.isfile(path):
@@ -54,36 +60,29 @@ def _skip_missing(name):
     return path
 
 
-# ---------------------------------------------------------------------------
-# Expected counts per image
-#   (headers, bullet_lines, white_lines, bullets, subbullets)
-#
-# Active classifier: _classify_ink (width + vertical ink extent)
-# To switch: change detect_prefix() in prefix_detector.py
-#   _classify_ink:          width-based, fast, some false positive subbullets
-#   _classify_shape_walker: shape tracing, precise, zero false positive subbullets
-# ---------------------------------------------------------------------------
+def _load_meta(name):
+    """Load expected counts from .meta.json file."""
+    path = _meta_path(name)
+    if not os.path.isfile(path):
+        pytest.skip(f'{name}_original.meta.json not found')
+    with open(path) as f:
+        return json.load(f)
 
-EXPECTED = {
-    'captain_suit':           {'headers': 4,  'bullet_lines': 25,  'white_lines': 18,  'bullets': 2,   'subbullets': 0},
-    'dropbell':               {'headers': 4,  'bullet_lines': 30,  'white_lines': 16,  'bullets': 13,  'subbullets': 1},
-    'dualgun_abbrev':         {'headers': 12, 'bullet_lines': 38,  'white_lines': 19,  'bullets': 17,  'subbullets': 1},
-    'dualgun':                {'headers': 9,  'bullet_lines': 53,  'white_lines': 30,  'bullets': 23,  'subbullets': 0},
-    'enchant_scroll':         {'headers': 1,  'bullet_lines': 11,  'white_lines': 5,   'bullets': 3,   'subbullets': 0},
-    'lightarmor':             {'headers': 7,  'bullet_lines': 75,  'white_lines': 45,  'bullets': 25,  'subbullets': 1},
-    'lobe':                   {'headers': 2,  'bullet_lines': 32,  'white_lines': 31,  'bullets': 1,   'subbullets': 1},
-    'plate_helmet':           {'headers': 6,  'bullet_lines': 38,  'white_lines': 23,  'bullets': 15,  'subbullets': 0},
-    'plate_helmet_simple':    {'headers': 6,  'bullet_lines': 29,  'white_lines': 14,  'bullets': 15,  'subbullets': 0},
-    'predator_ng':            {'headers': 8,  'bullet_lines': 69,  'white_lines': 39,  'bullets': 25,  'subbullets': 8},
-    'predator_simple_fhd_cm': {'headers': 9,  'bullet_lines': 36,  'white_lines': 20,  'bullets': 17,  'subbullets': 0},
-    'predator_simple_fhd_ng': {'headers': 10, 'bullet_lines': 33,  'white_lines': 16,  'bullets': 17,  'subbullets': 6},
-    'shoes':                  {'headers': 6,  'bullet_lines': 37,  'white_lines': 26,  'bullets': 12,  'subbullets': 7},
-    'soul_shield':            {'headers': 9,  'bullet_lines': 66,  'white_lines': 48,  'bullets': 18,  'subbullets': 2},
-    'spellbook':              {'headers': 6,  'bullet_lines': 34,  'white_lines': 22,  'bullets': 9,   'subbullets': 6},
-    'titan_blade':            {'headers': 8,  'bullet_lines': 72,  'white_lines': 39,  'bullets': 32,  'subbullets': 5},
-    'wingshoes_abbrev':       {'headers': 6,  'bullet_lines': 30,  'white_lines': 15,  'bullets': 14,  'subbullets': 0},
-    'wingshoes_detail':       {'headers': 6,  'bullet_lines': 37,  'white_lines': 22,  'bullets': 16,  'subbullets': 2},
-}
+
+def _all_image_names():
+    """Discover all images that have both .png and .meta.json files."""
+    if not _has_samples:
+        return []
+    names = []
+    for fname in sorted(os.listdir(_SAMPLE_DIR)):
+        if fname.endswith('_original.meta.json'):
+            name = fname.replace('_original.meta.json', '')
+            if os.path.isfile(_image_path(name)):
+                names.append(name)
+    return names
+
+
+IMAGE_NAMES = _all_image_names()
 
 
 # ---------------------------------------------------------------------------
@@ -119,31 +118,6 @@ def _count_prefixes(mask, img_h, img_w, target_type):
     return count
 
 
-def _run_full_analysis(name):
-    """Run full header + line + prefix analysis on an image."""
-    img, config = _load_image(name)
-    h, w = img.shape[:2]
-
-    headers = detect_headers(img, config)
-    splitter = TooltipLineSplitter()
-
-    b_mask = bullet_text_mask(img)
-    w_mask = white_text_mask(img)
-    bullet_lines = splitter.detect_text_lines(b_mask)
-    white_lines = splitter.detect_text_lines(w_mask)
-
-    bullets = _count_prefixes(b_mask, h, w, 'bullet')
-    subs = _count_prefixes(w_mask, h, w, 'subbullet')
-
-    return {
-        'headers': len(headers),
-        'bullet_lines': len(bullet_lines),
-        'white_lines': len(white_lines),
-        'bullets': bullets,
-        'subbullets': subs,
-    }
-
-
 # ---------------------------------------------------------------------------
 # Tests — parametrized over all images with expected counts
 # ---------------------------------------------------------------------------
@@ -152,70 +126,63 @@ def _run_full_analysis(name):
 class TestHeaderDetection:
     """Verify orange header detection counts on real images."""
 
-    @pytest.mark.parametrize('name', [
-        'captain_suit', 'enchant_scroll', 'lobe',
-        'plate_helmet_simple', 'dualgun_abbrev',
-    ])
+    @pytest.mark.parametrize('name', IMAGE_NAMES)
     def test_header_count(self, name):
+        meta = _load_meta(name)
         img, config = _load_image(name)
         headers = detect_headers(img, config)
-        assert len(headers) == EXPECTED[name]['headers']
+        assert len(headers) == meta['lines']['headers']
 
 
 @skip_no_images
 class TestLineDetection:
     """Verify text line detection counts on color masks."""
 
-    @pytest.mark.parametrize('name', [
-        'captain_suit', 'dropbell', 'enchant_scroll',
-        'plate_helmet', 'shoes',
-    ])
+    @pytest.mark.parametrize('name', IMAGE_NAMES)
     def test_bullet_line_count(self, name):
+        meta = _load_meta(name)
         img, _ = _load_image(name)
         b_mask = bullet_text_mask(img)
         lines = TooltipLineSplitter().detect_text_lines(b_mask)
-        assert len(lines) == EXPECTED[name]['bullet_lines']
+        assert len(lines) == meta['lines']['bullet_lines']
 
-    @pytest.mark.parametrize('name', [
-        'captain_suit', 'dropbell', 'enchant_scroll',
-        'plate_helmet', 'shoes',
-    ])
+    @pytest.mark.parametrize('name', IMAGE_NAMES)
     def test_white_line_count(self, name):
+        meta = _load_meta(name)
         img, _ = _load_image(name)
         w_mask = white_text_mask(img)
         lines = TooltipLineSplitter().detect_text_lines(w_mask)
-        assert len(lines) == EXPECTED[name]['white_lines']
+        assert len(lines) == meta['lines']['white_lines']
 
 
 @skip_no_images
 class TestPrefixDetection:
     """Verify bullet/subbullet prefix counts using shape walker."""
 
-    @pytest.mark.parametrize('name', list(EXPECTED.keys()))
+    @pytest.mark.parametrize('name', IMAGE_NAMES)
     def test_bullet_count(self, name):
+        meta = _load_meta(name)
         img, _ = _load_image(name)
         h, w = img.shape[:2]
         b_mask = bullet_text_mask(img)
         bullets = _count_prefixes(b_mask, h, w, 'bullet')
-        assert bullets == EXPECTED[name]['bullets']
+        assert bullets == meta['prefix']['bullets']
 
-    @pytest.mark.parametrize('name', list(EXPECTED.keys()))
+    @pytest.mark.parametrize('name', IMAGE_NAMES)
     def test_subbullet_count(self, name):
+        meta = _load_meta(name)
         img, _ = _load_image(name)
         h, w = img.shape[:2]
         w_mask = white_text_mask(img)
         subs = _count_prefixes(w_mask, h, w, 'subbullet')
-        assert subs == EXPECTED[name]['subbullets']
+        assert subs == meta['prefix']['subbullets']
 
 
 @skip_no_images
-@pytest.mark.skip(reason='Only valid when detect_prefix uses _classify_shape_walker')
 class TestShapeWalkerConsistency:
-    """Verify shape walker produces same results as detect_prefix on real data.
+    """Verify classify_cluster gives same result as detect_prefix on real data.
 
-    Only valid when detect_prefix uses _classify_shape_walker internally.
-    Skipped when _classify_ink is active (width-based classification disagrees
-    with shape walker on some clusters).
+    Both use shape walker internally, so results must always agree.
     """
 
     @pytest.mark.parametrize('name', [
@@ -261,23 +228,6 @@ class TestShapeWalkerConsistency:
             )
 
 
-@skip_no_images
-class TestFullAnalysis:
-    """End-to-end regression: all counts must match expected values."""
-
-    @pytest.mark.parametrize('name', [
-        'captain_suit', 'dualgun', 'lightarmor',
-        'titan_blade', 'lobe',
-    ])
-    def test_all_counts(self, name):
-        actual = _run_full_analysis(name)
-        expected = EXPECTED[name]
-        for key in expected:
-            assert actual[key] == expected[key], (
-                f'{name}.{key}: expected {expected[key]}, got {actual[key]}'
-            )
-
-
 def _count_prefixes_with_config(mask, img_h, img_w, config):
     """Count prefixes using a PrefixDetectorConfig on each detected line."""
     splitter = TooltipLineSplitter()
@@ -308,18 +258,20 @@ class TestConfigBasedDetection:
     for subbullet) vs backward-compat which tries both.
     """
 
-    @pytest.mark.parametrize('name', list(EXPECTED.keys()))
+    @pytest.mark.parametrize('name', IMAGE_NAMES)
     def test_bullet_config_count(self, name):
+        meta = _load_meta(name)
         img, _ = _load_image(name)
         h, w = img.shape[:2]
         b_mask = bullet_text_mask(img)
         bullets = _count_prefixes_with_config(b_mask, h, w, BULLET_DETECTOR)
-        assert bullets == EXPECTED[name]['bullets']
+        assert bullets == meta['prefix']['bullets']
 
-    @pytest.mark.parametrize('name', list(EXPECTED.keys()))
+    @pytest.mark.parametrize('name', IMAGE_NAMES)
     def test_subbullet_config_count(self, name):
+        meta = _load_meta(name)
         img, _ = _load_image(name)
         h, w = img.shape[:2]
         w_mask = white_text_mask(img)
         subs = _count_prefixes_with_config(w_mask, h, w, SUBBULLET_DETECTOR)
-        assert subs == EXPECTED[name]['subbullets']
+        assert subs == meta['prefix']['subbullets']

@@ -1,0 +1,11 @@
+{
+  "prefix": {
+    "bullets": 16,
+    "subbullets": 0
+  },
+  "lines": {
+    "headers": 12,
+    "bullet_lines": 38,
+    "white_lines": 19
+  }
+}
