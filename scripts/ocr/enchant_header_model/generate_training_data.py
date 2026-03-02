@@ -40,7 +40,7 @@ _VERSION = resolve_version('enchant_header', _args.version)
 print(f"Version: {_VERSION}")
 
 FONT_PATH = "data/fonts/NanumGothicBold.ttf"
-DICT_PATH = "data/dictionary/enchant_slot_header.txt"
+DICT_PATH = "data/train_words/enchant_slot_header.txt"
 OUTPUT_DIR = f"backend/ocr/enchant_header_model/{_VERSION}/enchant_header_train_data"
 IMAGES_DIR = os.path.join(OUTPUT_DIR, "images")
 LABELS_DIR = os.path.join(OUTPUT_DIR, "labels")

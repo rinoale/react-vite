@@ -77,7 +77,7 @@ def truncate_corrections(db: Session = Depends(get_db)):
 @router.get("/crop/{session_id}/{filename}")
 def get_correction_crop(session_id: str, filename: str):
     """Serve a crop image for correction review."""
-    if not re.fullmatch(r'[0-9]{3}\.png', filename):
+    if not re.fullmatch(r'[a-z_]*[0-9]{3}\.png', filename):
         raise HTTPException(status_code=400, detail="Invalid filename")
     if not re.fullmatch(r'[a-f0-9\-]{36}', session_id):
         raise HTTPException(status_code=400, detail="Invalid session_id")

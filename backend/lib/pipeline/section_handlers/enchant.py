@@ -160,13 +160,9 @@ def _parse_enchant_with_bands(parser, content_bgr, binary, grouped,
             line.setdefault('ocr_model', 'general')
             ocr_results.append(line)
 
-    merge_continuations(ocr_results)
     effect_counts = count_effects_per_header(ocr_results)
 
-    result = parser.build_enchant_structured(ocr_results)
-    result['lines'] = ocr_results
-    result['effect_counts'] = effect_counts
-    return result
+    return {'lines': ocr_results, 'effect_counts': effect_counts}
 
 
 def _apply_enchant_fm(lines, corrector, parsed_item_name):

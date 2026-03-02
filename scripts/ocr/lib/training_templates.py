@@ -13,7 +13,6 @@ import yaml
 # Dictionary paths (relative to project root)
 DICT_PATHS = [
     "data/dictionary/reforge.txt",
-    "data/dictionary/enchant_effect.txt",
     "data/dictionary/tooltip_general.txt",
 ]
 
@@ -39,6 +38,7 @@ HEADER_BOOSTS = [
 
 _NUM_RE = re.compile(r'\d+(?:\.\d+)?')
 _RANGE_RE = re.compile(r'(\d+(?:\.\d+)?)\s*~\s*(\d+(?:\.\d+)?)')
+_PLACEHOLDER_N = re.compile(r'(?<![A-Za-z])N(?![A-Za-z])')
 
 
 def rand_int(lo, hi):
@@ -507,8 +507,8 @@ def generate_template_lines():
         lines.append(f"대미지 감소율 {rand_int(1, 15)}.{rand_int(0, 99):02d}%")
 
     # --- Equipment types ---
-    armor_path = "data/dictionary/item_type_armor.txt"
-    weapon_path = "data/dictionary/item_type_weapon.txt"
+    armor_path = "data/train_words/item_type_armor.txt"
+    weapon_path = "data/train_words/item_type_melee.txt"
     attack_speeds = ['매우느린속도', '느린속도', '보통속도', '빠른속도', '매우빠른속도']
     max_hits = ['1타', '2타', '3타', '4타', '5타', '6타']
     if os.path.exists(armor_path):
@@ -586,8 +586,8 @@ def collect_all_chars():
     # --- Dictionary files (content OCR only — no item_name.txt) ---
     for path in DICT_PATHS:
         _add_file(path)
-    _add_file("data/dictionary/item_type_armor.txt")
-    _add_file("data/dictionary/item_type_weapon.txt")
+    _add_file("data/train_words/item_type_armor.txt")
+    _add_file("data/train_words/item_type_melee.txt")
 
     # --- All hardcoded Korean strings from templates ---
     _hardcoded = [
@@ -666,6 +666,9 @@ def load_dictionaries(dict_paths=None):
     if dict_paths is None:
         dict_paths = DICT_PATHS
 
+    # Weight multipliers by filename (default 1x)
+    _WEIGHT = {'reforge.txt': 5}
+
     words = []
     for dict_path in dict_paths:
         if not os.path.exists(dict_path):
@@ -673,6 +676,14 @@ def load_dictionaries(dict_paths=None):
             continue
         with open(dict_path, 'r', encoding='utf-8') as f:
             entries = [line.strip() for line in f if line.strip()]
-        words.extend(entries)
-        print(f"  Loaded {len(entries):5d} entries from {os.path.basename(dict_path)}")
+        # Replace placeholder N with random numbers so the model trains on digits
+        expanded = []
+        for entry in entries:
+            if _PLACEHOLDER_N.search(entry):
+                expanded.append(_PLACEHOLDER_N.sub(lambda _: str(rand_int(1, 99)), entry))
+            else:
+                expanded.append(entry)
+        weight = _WEIGHT.get(os.path.basename(dict_path), 1)
+        words.extend(expanded * weight)
+        print(f"  Loaded {len(expanded):5d} x{weight} entries from {os.path.basename(dict_path)}")
     return words

@@ -61,7 +61,7 @@ class MabinogiTextCorrector(TextCorrector):
 
         Special handling:
         - enchant.yaml (in data/source_of_truth/) → structured DB via _load_enchant_structured()
-        - 'enchant_*.txt' (enchant_slot_header.txt, enchant_effect.txt) → merged into section 'enchant'
+        - 'enchant_*.txt' (enchant_prefix.txt, enchant_suffix.txt) → merged into section 'enchant'
         """
         # First pass: load enchant.yaml for structured DB
         sot_dir = os.path.join(os.path.dirname(dict_dir), 'source_of_truth')
