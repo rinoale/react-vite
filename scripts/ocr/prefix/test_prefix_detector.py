@@ -119,6 +119,95 @@ def _crop_tooltip_border(img):
     return img[0:y1, x0:x1]
 
 
+# --- Debug: ASCII neighborhood dump ---
+
+def _hsv_group(h, s, v):
+    """Classify a pixel into one of 5 groups by HSV.
+
+    Returns a lowercase letter:
+      d = dark   (V < 40)
+      g = grey   (S < 30, V >= 40) — desaturated
+      w = warm   (H 0-30 or 150-180, red/yellow/orange)
+      c = cool   (H 90-130, blue/cyan)
+      m = mid    (everything else, green/magenta/etc.)
+    """
+    if v < 40:
+        return 'd'
+    if s < 30:
+        return 'g'
+    if h <= 30 or h >= 150:
+        return 'w'
+    if 90 <= h <= 130:
+        return 'c'
+    return 'm'
+
+
+def _debug_dot_neighborhood(img_bgr, result):
+    """Print 20x20 pixel neighborhood around detected dot.
+
+    Dot pixels (matching the triggering color) shown as 'b'.
+    Other pixels shown as HSV group letter.
+    """
+    from lib.prefix_detector import _color_mask, BULLET_DETECTOR
+
+    dot_x = result['crop_x0'] + result['x']
+    dot_y = result['crop_y0'] + result['y'] // 2 + result['crop_h'] // 2
+    # Center the 20x20 window on the dot cluster
+    cx = dot_x + result['w'] // 2
+    cy = result['crop_y0'] + result['crop_h'] // 2
+    h_img, w_img = img_bgr.shape[:2]
+    x0 = max(0, cx - 10)
+    y0 = max(0, cy - 10)
+    x1 = min(w_img, x0 + 20)
+    y1 = min(h_img, y0 + 20)
+
+    # Build combined bullet mask to identify dot pixels
+    bullet_mask = BULLET_DETECTOR.build_mask(img_bgr)
+
+    # Per-color masks to find which color triggered
+    triggered_mask = None
+    for rgb in BULLET_DETECTOR.colors:
+        m = _color_mask(img_bgr, rgb, 15)
+        from lib.prefix_detector import _detect_prefix_on_mask
+        r = _detect_prefix_on_mask(
+            m[result['crop_y0']:result['crop_y0'] + result['crop_h'],
+              result['crop_x0']:result['crop_x0'] + result['crop_w']],
+            BULLET_DETECTOR)
+        if r['type'] == 'bullet':
+            triggered_mask = m
+            cname = {(74,149,238): 'BLUE', (255,103,103): 'RED',
+                     (128,128,128): 'GREY', (167,167,167): 'LGREY'}[rgb]
+            break
+
+    hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV)
+    region = img_bgr[y0:y1, x0:x1]
+    region_hsv = hsv[y0:y1, x0:x1]
+    region_mask = triggered_mask[y0:y1, x0:x1] if triggered_mask is not None else None
+
+    print(f'\n  === Debug: bullet #22 at y={result["y"]}, '
+          f'color={cname}, window=[{x0}:{x1}, {y0}:{y1}] ===')
+    print(f'  Legend: B=bullet(triggered color), '
+          f'd=dark(V<40), g=grey(S<30), w=warm(red/org), c=cool(blue), m=mid')
+    print()
+    rh, rw = region.shape[:2]
+    # Column headers — tens and units rows for actual x coordinates
+    pad = '     '
+    print(pad + ''.join(f'{(x0+c) // 10 % 10}' for c in range(rw)))
+    print(pad + ''.join(f'{(x0+c) % 10}' for c in range(rw)))
+    for row in range(rh):
+        line = f'  {y0+row:3d} '
+        for col in range(rw):
+            if region_mask is not None and region_mask[row, col] > 0:
+                line += 'B'
+            else:
+                hv, sv, vv = int(region_hsv[row, col, 0]), \
+                             int(region_hsv[row, col, 1]), \
+                             int(region_hsv[row, col, 2])
+                line += _hsv_group(hv, sv, vv)
+        print(line)
+    print()
+
+
 # --- Main ---
 
 def _summary_str(results):
@@ -171,6 +260,14 @@ def run_on_image(path, out_dir):
                                           config=BULLET_DETECTOR, img_bgr=img)
     bul_found = [r for r in bul_all if r['type'] == 'bullet']
     bul_found.sort(key=lambda r: r['y'])
+
+    # Debug: print 20x20 surrounding the 22nd bullet (index 21)
+    _bullet_idx = 0
+    for r in bul_all:
+        if r['type'] == 'bullet':
+            if _bullet_idx == 21:
+                _debug_dot_neighborhood(img, r)
+            _bullet_idx += 1
 
     out2 = os.path.join(out_dir, f"{stem}_bullet.png")
     _draw_results(img, bul_found, out2,

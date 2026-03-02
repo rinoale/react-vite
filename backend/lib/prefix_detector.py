@@ -304,18 +304,32 @@ def detect_prefix_per_color(img_bgr_line, config, tolerance=15):
     Returns:
         Same dict as detect_prefix.
     """
+    binary = None  # lazy BT.601 binary, built once if needed
     for rgb in config.colors:
         mask = _color_mask(img_bgr_line, rgb, tolerance)
         result = _detect_prefix_on_mask(mask, config)
         if result['type'] is not None:
-            # Cross-validate: the prefix must also appear in the full
-            # combined mask (all prefix colors).  Anti-aliased specks
-            # from a single color form false [dot][gap][text] patterns
-            # that vanish once all colors are combined (the speck merges
-            # into the main text body).
-            combined = bullet_text_mask(img_bgr_line, tolerance)
-            if _detect_prefix_on_mask(combined, config)['type'] is not None:
-                return result
+            cluster = mask[:, result['x']:result['x'] + result['w']]
+            # A real bullet dot in any single-color mask has 2+ ink
+            # pixels in exactly 1 ink row.  Anti-aliased specks are
+            # either too sparse (1 pixel) or scattered across rows.
+            total_ink = int(np.sum(cluster > 0))
+            if total_ink < 2:
+                continue
+            if result['type'] == 'bullet':
+                ink_rows = int(np.sum(np.any(cluster > 0, axis=1)))
+                if ink_rows > 1:
+                    continue
+                # BT.601 isolation: a real dot is isolated from all
+                # text, not just same-color text.  Anti-aliased specks
+                # sit at character edges and fail this check.
+                if binary is None:
+                    gray = np.dot(img_bgr_line[..., ::-1].astype(np.float32),
+                                  [0.299, 0.587, 0.114]).astype(np.uint8)
+                    binary = ((gray > 80) * 255).astype(np.uint8)
+                if not _is_dot_isolated(binary, result['x'], result['x'] + result['w']):
+                    continue
+            return result
     return _no_prefix()
 
 
