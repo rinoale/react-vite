@@ -76,6 +76,14 @@ You will get monkey's pawed if you ask the AI to find the white colored 'ㄴ' sh
 Offer the coordinates where the shapes are and define the 'white' with RGB values.
 AI try to explain difficult things to me with ELI5 strategy. Human also have to try ELIS(explain like I'm Sheldon)
 
+### Once you started to feel the changes AI made are dirty, unreadable or obfuscated
+Try to follow the entire stacktrace by yourself. Don't need to fully understand.
+If you sense any of those like, too many loops, too many arguments or too many monkey-patches,
+ask AI to refactor the current pipeline(with suggestion would be better)
+
+AI is just trying its best on given situation. You're the only one(maybe I'm underestimating AI) who can see further.
+(Maybe I can ask AI to look further for next project)
+
 ## Commands
 
 ### generate segmentation

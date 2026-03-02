@@ -120,7 +120,7 @@ const AddReforgeOption = ({ onLineChange, existingCount }) => {
               level: null,
               max_level: maxLevel,
               effect: null,
-              global_index: null,
+              line_index: null,
             };
             onLineChange(-1, '', (sec) => {
               sec.options = [...(sec.options || []), newOpt];
@@ -151,9 +151,9 @@ const ReforgeSection = ({ options, lines, onLineChange }) => {
     return (
       <div className="space-y-3">
         {options.map((opt, idx) => {
-          // Resolve section-local line index from option's global_index
-          const lineIdx = opt.global_index != null
-            ? lines?.findIndex(l => l.global_index === opt.global_index) ?? -1
+          // Resolve section-local line index from option's line_index
+          const lineIdx = opt.line_index != null
+            ? lines?.findIndex(l => l.line_index === opt.line_index) ?? -1
             : -1;
           return (
             <ReforgeOption

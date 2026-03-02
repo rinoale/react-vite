@@ -65,6 +65,7 @@ sections:
     required: false
     ocr: true
     parse_mode: reforge_options
+    prefix_required: true
 
   erg:
     order: 50

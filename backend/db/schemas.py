@@ -143,7 +143,8 @@ class RegisterReforgeOption(BaseModel):
     max_level: Optional[int] = None
 
 class RegisterListingLine(BaseModel):
-    global_index: int
+    section: str
+    line_index: int
     text: str
 
 class RegisterListingRequest(BaseModel):

@@ -20,17 +20,17 @@ const _RANK_SUFFIX_RE = /\s*\(랭크\s*[A-F0-9]+\)\s*$/;
 const _ENCHANT_HDR_RE = /^\[접[두미]\]/;
 
 export function buildRegistrationPayload({ sessionId, name, price, category, gameItem, sections }) {
-  // Collect all lines with global_index + current text
+  // Collect all lines with (section, line_index) + current text
   const lines = [];
-  for (const secData of Object.values(sections)) {
+  for (const [secKey, secData] of Object.entries(sections)) {
     if (!secData.lines) continue;
     for (const line of secData.lines) {
-      if (line.global_index != null) {
+      if (line.line_index != null) {
         // Strip rank suffix from enchant headers — rank is not in the crop image
         const text = _ENCHANT_HDR_RE.test(line.text)
           ? line.text.replace(_RANK_SUFFIX_RE, '')
           : line.text;
-        lines.push({ global_index: line.global_index, text });
+        lines.push({ section: secKey, line_index: line.line_index, text });
       }
     }
   }

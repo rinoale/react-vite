@@ -34,7 +34,7 @@ function buildEffectText(ce, level, abbreviated) {
 }
 
 /** Rebuild effects from new config, pulling rolled values from OCR lines.
- *  Each effect owns its line reference via global_index. */
+ *  Each effect owns its line reference via line_index. */
 function rebuildEffects(newConfig, sectionLines, abbreviated) {
   if (!newConfig?.effects) return [];
   // Collect non-header OCR lines
@@ -43,7 +43,7 @@ function rebuildEffects(newConfig, sectionLines, abbreviated) {
   );
   const usedOcr = new Set();
   return newConfig.effects.map(ce => {
-    const eff = { text: ce.text, option_name: ce.option_name || null, option_level: null, global_index: null };
+    const eff = { text: ce.text, option_name: ce.option_name || null, option_level: null, line_index: null };
     if (!ce.option_name) return eff;
     // Find OCR line containing this option_name to extract rolled value
     const ocrIdx = ocrLines.findIndex(
@@ -52,7 +52,7 @@ function rebuildEffects(newConfig, sectionLines, abbreviated) {
     if (ocrIdx >= 0) {
       usedOcr.add(ocrIdx);
       const line = ocrLines[ocrIdx];
-      eff.global_index = line.global_index;
+      eff.line_index = line.line_index;
       const after = line.text.slice(line.text.indexOf(ce.option_name) + ce.option_name.length);
       const rolled = extractNumber(after);
       if (rolled != null) {
@@ -239,9 +239,9 @@ const EnchantSlot = ({ slot, slotLabel, headerLineIdx, lines, onLineChange, abbr
       </div>
       <div className="space-y-1.5 pl-3 border-l border-purple-900/30">
         {slot.effects.map((eff, i) => {
-          // Resolve section-local line index from effect's global_index
-          const lineIdx = eff.global_index != null
-            ? lines?.findIndex(l => l.global_index === eff.global_index) ?? -1
+          // Resolve section-local line index from effect's line_index
+          const lineIdx = eff.line_index != null
+            ? lines?.findIndex(l => l.line_index === eff.line_index) ?? -1
             : -1;
           const handleEffectChange = (li, newText, extraUpdate, effectMeta) => {
             const sk = slotLabel === 'Prefix' ? 'prefix' : 'suffix';
@@ -309,7 +309,7 @@ const AddEnchantSlot = ({ slotLabel, onLineChange }) => {
               text: e.text,
               option_name: e.option_name || null,
               option_level: null,
-              global_index: null,
+              line_index: null,
             }));
             onLineChange(-1, '', (sec) => {
               sec[slotKey] = { name: item.name, rank: item.rank_label, text: headerText, effects };

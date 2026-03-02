@@ -594,11 +594,11 @@ class TextCorrector:
         Args:
             entry: enchant DB entry dict (from _enchant_db)
             ocr_effect_lines: list of line dicts with 'text' and
-                'global_index' keys (tooltip order)
+                'line_index' keys (tooltip order)
 
         Returns:
             list of enriched effect dicts in tooltip order with keys:
-                text, option_name, option_level, global_index, db_effect,
+                text, option_name, option_level, line_index, db_effect,
                 min_value, max_value, rolled_value
         """
         if not entry or not ocr_effect_lines:
@@ -628,7 +628,7 @@ class TextCorrector:
         # Iterate OCR lines in tooltip order — preserves visual ordering
         for ocr_idx, (ocr_core, norm_ocr) in enumerate(zip(ocr_cores, ocr_norms)):
             ocr_line = ocr_effect_lines[ocr_idx]
-            gi = ocr_line.get('global_index') if isinstance(ocr_line, dict) else None
+            gi = ocr_line.get('line_index') if isinstance(ocr_line, dict) else None
 
             # Find best-matching DB effect for this OCR line (try both forms)
             best_score, best_db_idx, best_used_full = 0, -1, False
@@ -648,7 +648,7 @@ class TextCorrector:
 
             if best_score < 50 or best_db_idx < 0:
                 # No DB match — keep OCR text as-is
-                eff = {'text': ocr_core, 'global_index': gi}
+                eff = {'text': ocr_core, 'line_index': gi}
                 opt_name, opt_level = _parse_effect_number(ocr_core)
                 if opt_name is not None:
                     eff['option_name'] = opt_name
@@ -698,7 +698,7 @@ class TextCorrector:
             eff = {
                 'text': corrected,
                 'db_effect': raw_effect_only,
-                'global_index': gi,
+                'line_index': gi,
             }
 
             # Rolled value = first extracted OCR number (the effect value)
@@ -994,155 +994,11 @@ class TextCorrector:
 
         return result
 
-    def apply_fm(self, all_lines, sections):
-        """Apply section-aware FM correction to OCR output lines.
-
-        Strips structural prefixes (- or ㄴ), then runs FM per section.
-        Mutates line['text'] in place and sets line['fm_applied'].
-        Shared by /upload-item-v3 endpoint and test scripts.
-        """
-        # Strip structural prefixes (- or ㄴ) from content lines.
-        # Dictionary entries don't have these prefixes.
-        for line in all_lines:
-            if line.get('is_header'):
-                continue
-            text = line.get('text', '')
-            m = _PREFIX_PAT.match(text)
-            if m:
-                line['text'] = text[m.end():]
-
-        enchant_db_ready = bool(self._enchant_db)
-        fm_sections = set(self._section_norm_cache.keys())
-
-        # Per-line FM for non-enchant sections
-        for line in all_lines:
-            raw_text = line.get('text', '')
-            section = line.get('section', '')
-
-            if not raw_text.strip():
-                line['fm_applied'] = False
-                continue
-
-            if line.get('is_header'):
-                line['fm_applied'] = False
-                continue
-
-            # Enchant handled separately below
-            if section == 'enchant':
-                line['fm_applied'] = False
-                continue
-
-            # FM only for bullet-prefixed lines (skip sub-bullets and unprefixed)
-            if line.get('_prefix_type') != 'bullet':
-                line['fm_applied'] = False
-                continue
-
-            if section in fm_sections:
-                # Reforge is a closed set — always accept the best match
-                cutoff = 0 if section == 'reforge' else 80
-                fm_text, fm_score, paren_range = self.correct_normalized(raw_text, section=section, cutoff_score=cutoff)
-            else:
-                fm_text, fm_score, paren_range = raw_text, 0, None
-
-            if fm_score > 0:
-                line['text'] = fm_text
-                line['fm_applied'] = True
-                if paren_range:
-                    line['detail_range'] = paren_range
-            elif fm_score < 0 and fm_score not in (-2, -3):
-                # Rejected candidate — store for diagnostics
-                line['fm_applied'] = False
-                line['fm_rejected'] = fm_text
-                line['fm_rejected_score'] = -fm_score
-            else:
-                line['fm_applied'] = False
-
-        # Enchant FM
-        if 'enchant' in sections and sections['enchant'].get('lines') and enchant_db_ready:
-            enchant_lines = [l for l in sections['enchant']['lines']
-                             if not l.get('is_header')]
-            has_slot_hdrs = any(l.get('is_enchant_hdr') for l in enchant_lines)
-
-            # P1 entries from item name (parsed before FM).
-            # P1 is prioritized for effect dictionary selection;
-            # final enchant header winner is resolved separately in _step_resolve_enchant.
-            parsed = sections.get('pre_header', {}).get('parsed_item_name')
-            p1_entries = {}
-            if parsed:
-                for slot_type, field in [('접두', 'enchant_prefix'), ('접미', 'enchant_suffix')]:
-                    name = parsed.get(field)
-                    if name:
-                        p1_entry = self.lookup_enchant_by_name(name, slot_type=slot_type)
-                        if p1_entry:
-                            p1_entries[slot_type] = p1_entry
-
-            if has_slot_hdrs:
-                # Group lines by slot header (white-mask detected)
-                slots = []
-                current_hdr, current_effects = None, []
-                for line in enchant_lines:
-                    if line.get('is_enchant_hdr'):
-                        if current_hdr is not None:
-                            slots.append((current_hdr, current_effects))
-                        current_hdr = line
-                        current_effects = []
-                    elif current_hdr is not None:
-                        current_effects.append(line)
-                if current_hdr is not None:
-                    slots.append((current_hdr, current_effects))
-
-                for hdr_line, effect_lines in slots:
-                    raw_hdr = hdr_line.get('text', '')
-                    hdr_line['_raw_enchant_header'] = raw_hdr   # P2 snapshot before Dullahan
-                    effect_texts = [l.get('text', '') for l in effect_lines
-                                    if l.get('text', '').strip()
-                                    and not l.get('is_grey')]
-                    slot_type = hdr_line.get('enchant_slot', '')
-
-                    fm_hdr, fm_score, entry = self.do_dullahan(
-                        raw_hdr, effect_texts, slot_type=slot_type)
-
-                    if fm_score > 0:
-                        hdr_line['text'] = fm_hdr
-                        hdr_line['fm_applied'] = True
-                        hdr_line['_dullahan_score'] = fm_score   # P3 score
-                        if entry:
-                            hdr_line['enchant_slot'] = entry['slot']
-                            hdr_line['enchant_name'] = entry['name']
-                            hdr_line['enchant_rank'] = entry['rank']
-
-                    # P1 prioritized for effect dictionary; Dullahan fallback
-                    effect_entry = p1_entries.get(slot_type, entry)
-
-                    # FM effect lines against the resolved entry's effects
-                    if effect_entry:
-                        for eff_line in effect_lines:
-                            eff_text = eff_line.get('text', '')
-                            if not eff_text.strip() or eff_line.get('is_grey'):
-                                continue
-                            fm_eff, eff_score = self.match_enchant_effect(
-                                eff_text, effect_entry)
-                            if eff_score > 0:
-                                eff_line['text'] = fm_eff
-                                eff_line['fm_applied'] = True
-                            elif eff_score < 0:
-                                eff_line['fm_rejected'] = fm_eff
-                                eff_line['fm_rejected_score'] = -eff_score
-            else:
-                # Fallback: old linear approach (regex-detected or no headers)
-                current_entry = None
-                for line in enchant_lines:
-                    raw_text = line.get('text', '')
-                    if not raw_text.strip():
-                        continue
-                    hdr_text, hdr_score, hdr_entry = self.match_enchant_header(raw_text)
-                    if hdr_score > 0:
-                        line['text'] = hdr_text
-                        line['fm_applied'] = True
-                        current_entry = hdr_entry
-                    else:
-                        fm_text, fm_score = self.match_enchant_effect(
-                            raw_text, current_entry)
-                        if fm_score > 0:
-                            line['text'] = fm_text
-                            line['fm_applied'] = True
+    def strip_text_prefix(self, line):
+        """Strip structural prefix (. - ㄴ) from line['text'].  Idempotent."""
+        if line.get('is_header'):
+            return
+        text = line.get('text', '')
+        m = _PREFIX_PAT.match(text)
+        if m:
+            line['text'] = text[m.end():]

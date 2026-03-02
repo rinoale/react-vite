@@ -16,6 +16,7 @@ from lib.dual_reader import DualReader
 from lib.log import logger, timed, timed_block
 from lib.mabinogi_tooltip_parser import MabinogiTooltipParser
 from lib.ocr_utils import patch_reader_imgw
+from lib.section_handlers import PreHeaderHandler, get_handler
 from lib.text_corrector import TextCorrector
 from lib.tooltip_segmenter import (
     init_header_reader,
@@ -215,55 +216,6 @@ def _ocr_pre_header_image(detect_binary, ocr_binary, parser, reader,
         attach_crops=attach_crops)
 
 
-@timed("v3 pre_header")
-def _step_pre_header(pre_header_seg, parser, preheader_mc_reader,
-                     preheader_ng_reader, crop_session_dir):
-    """Step 2a: Process the pre_header region (above first orange header).
-
-    Produces two preprocessed images and OCR's both with dedicated readers:
-      - mabinogi_classic: color-mask → dedicated preheader_mc model (fitted)
-      - nanum_gothic: HSV yellow-isolate + threshold 120 → dedicated preheader_ng model (fitted)
-    Picks the higher-confidence result per line to determine the best font/model.
-
-    Returns:
-        (lines, sections)
-    """
-    if not pre_header_seg:
-        return [], {}
-
-    content_bgr = pre_header_seg['content_crop']
-    _save = os.environ.get('SAVE_OCR_CROPS')
-    attach = crop_session_dir is not None
-
-    # Preprocess: two approaches
-    mc_detect, mc_ocr = _preprocess_mabinogi_classic(content_bgr)
-    ng_detect, ng_ocr = _preprocess_nanum_gothic(content_bgr)
-
-    # OCR: dedicated preheader models for both font paths
-    mc_results = _ocr_pre_header_image(
-        mc_detect, mc_ocr, parser, preheader_mc_reader,
-        'pre_header_mc', _save, attach)
-    ng_results = _ocr_pre_header_image(
-        ng_detect, ng_ocr, parser, preheader_ng_reader,
-        'pre_header_ng', _save, attach)
-
-    # Pick best per line by confidence
-    ocr_results = _pick_best_per_line(mc_results, ng_results)
-
-    for line in ocr_results:
-        line['section'] = 'pre_header'
-    sections = parser._parse_pre_header(ocr_results)
-    lines = sections.get('pre_header', {}).get('lines', [])
-
-    # Determine dominant font from pre_header results
-    mc_count = sum(1 for l in ocr_results if l.get('preprocess') == 'mabinogi_classic')
-    ng_count = sum(1 for l in ocr_results if l.get('preprocess') == 'nanum_gothic')
-    detected_font = 'nanum_gothic' if ng_count > mc_count else 'mabinogi_classic'
-
-    logger.info("v3 pre_header  %d lines  font=%s", len(lines), detected_font)
-    return lines, sections, detected_font
-
-
 def _pick_best_per_line(mc_results, ng_results):
     """Pick the higher-confidence OCR result per line from two preprocessing paths.
 
@@ -306,82 +258,8 @@ def _pick_best_per_line(mc_results, ng_results):
     return merged
 
 
-@timed("v3 content_ocr")
-def _step_content_ocr(content_segments, parser, content_reader,
-                      enchant_header_reader, crop_session_dir):
-    """Step 2b: Content OCR for each tagged segment (excluding pre_header).
-
-    Each segment's content crop is preprocessed (BT.601 grayscale + threshold),
-    split into lines via TooltipLineSplitter, then OCR'd with DualReader
-    (mabinogi_classic + nanum_gothic_bold, highest confidence wins).
-    Enchant segments use a dedicated enchant_header_reader for slot headers.
-
-    Returns:
-        (all_lines, sections)
-    """
-    result = parser.parse_from_segments(
-        content_segments, content_reader,
-        enchant_header_reader=enchant_header_reader,
-        crop_session_dir=crop_session_dir)
-    return result.get('all_lines', []), result.get('sections', {})
-
-
-@timed("v3 fm")
-def _step_fm(all_lines, sections, corrector):
-    """Step 3: Section-aware fuzzy matching against per-section dictionaries.
-
-    Strips bullet prefixes (., ㄴ), then matches OCR text against known
-    dictionary entries using RapidFuzz. If fm_score > 0, replaces text
-    with the matched dictionary entry (fm_applied=true). Enchant effects
-    use condition-stripped matching to avoid short-entry inflation.
-
-    Mutates all_lines and sections in place.
-    """
-    corrector.apply_fm(all_lines, sections)
-    fm_count = sum(1 for l in all_lines if l.get('fm_applied'))
-    logger.info("v3 fm  %d/%d lines corrected", fm_count, len(all_lines))
-
-
-@timed("v3 rebuild_structured")
-def _step_rebuild_structured(sections, parser):
-    """Step 4: Rebuild structured data for enchant and reforge sections.
-
-    After FM correction, re-parses enchant lines into prefix/suffix slot dicts
-    (name, rank, effects[]) and reforge lines into option_name/option_level pairs.
-    Must run after FM so corrected text propagates into structured data.
-
-    Mutates sections in place.
-    """
-    if 'enchant' in sections and sections['enchant'].get('lines'):
-        enchant_updated = parser.build_enchant_structured(sections['enchant']['lines'])
-        sections['enchant'].update(enchant_updated)
-
-    if 'reforge' in sections and sections['reforge'].get('lines'):
-        reforge_updated = parser.build_reforge_structured(sections['reforge']['lines'])
-        sections['reforge'].update(reforge_updated)
-
-
-def _step_parse_item_name(sections, corrector):
-    """Step 5: Parse the first pre_header line into structured item name components.
-
-    Extracts holywater, enchant_prefix, enchant_suffix, ego, and item_name
-    from the OCR text. Stores result in sections['pre_header']['parsed_item_name'].
-    """
-    ph = sections.get('pre_header', {})
-    ph_lines = ph.get('lines', [])
-    if not ph_lines:
-        return
-
-    first_text = ph_lines[0].get('text', '')
-    if not first_text:
-        return
-
-    parsed = corrector.parse_item_name(first_text)
-    ph['parsed_item_name'] = parsed
-
-
 def _step_resolve_enchant(sections, corrector):
-    """Step 6: Three-strategy enchant resolution (P1/P2/P3).
+    """Three-strategy enchant resolution (P1/P2/P3).
 
     Collects enchant name candidates from three sources:
       P1: Item name parsing (pre_header OCR → FM against enchant dicts)
@@ -467,7 +345,7 @@ def _step_resolve_enchant(sections, corrector):
 
         # Enrich enchant slot with DB-templated effects for any winner with a DB entry
         if winner_entry:
-            # Collect OCR effect lines (dicts with text + global_index) for this slot
+            # Collect OCR effect lines for this slot
             ocr_effect_lines = []
             in_slot = False
             for line in enchant_lines:
@@ -491,51 +369,64 @@ def _step_resolve_enchant(sections, corrector):
     logger.info("v3 resolve_enchant  %s", {k: v.get('winner') for k, v in resolution.items()})
 
 
-def _save_crops(all_lines, crop_session_dir, session_id):
-    """Persist OCR results JSON for correction training.
+def _save_crops_by_section(sections, crop_session_dir, session_id):
+    """Persist per-line crop images and OCR results JSON.
 
-    Crop images are already saved before FM in run_v3_pipeline.
+    Crop filenames: {section}/{line_index:03d}.png
     """
     originals = []
-    for line in all_lines:
-        originals.append({
-            'global_index': line['global_index'],
-            'text': line.get('text', ''),
-            'raw_text': line.get('raw_text', line.get('text', '')),
-            'confidence': float(line.get('confidence', 0)),
-            'section': line.get('section', ''),
-            'ocr_model': line.get('ocr_model', ''),
-            'fm_applied': bool(line.get('fm_applied', False)),
-        })
+    for sec_key, sec_data in sections.items():
+        lines = sec_data.get('lines') or []
+        sec_dir = os.path.join(crop_session_dir, sec_key)
+        for line in lines:
+            li = line.get('line_index')
+            if li is None:
+                continue
+            crop = line.pop('_crop', None)
+            if crop is not None:
+                os.makedirs(sec_dir, exist_ok=True)
+                cv2.imwrite(os.path.join(sec_dir, f"{li:03d}.png"), crop)
+
+            originals.append({
+                'section': sec_key,
+                'line_index': li,
+                'text': line.get('text', ''),
+                'raw_text': line.get('raw_text', line.get('text', '')),
+                'confidence': float(line.get('confidence', 0)),
+                'ocr_model': line.get('ocr_model', ''),
+                'fm_applied': bool(line.get('fm_applied', False)),
+            })
+
     with open(os.path.join(crop_session_dir, 'ocr_results.json'), 'w',
               encoding='utf-8') as f:
         json.dump(originals, f, ensure_ascii=False, indent=2)
+
     n_crops = sum(1 for o in originals
-                  if os.path.isfile(os.path.join(crop_session_dir, f"{o['global_index']:03d}.png")))
+                  if os.path.isfile(os.path.join(
+                      crop_session_dir, o['section'], f"{o['line_index']:03d}.png")))
     logger.info("v3 crops  session=%s  %d/%d saved", session_id, n_crops, len(originals))
 
 
 @timed("v3 pipeline total")
-def run_v3_pipeline(img_bgr, header_reader, section_patterns, config,
-                    content_reader, content_mc_reader, content_ng_reader,
-                    enchant_header_reader,
-                    preheader_mc_reader, preheader_ng_reader,
-                    parser, corrector,
-                    save_crops=False, save_crops_dir=None):
+def run_v3_pipeline(img_bgr, pipeline, *, save_crops=False, save_crops_dir=None):
     """Run the full v3 pipeline on a color screenshot.
 
-    Steps:
-      1. segment    — header detection + section labeling
-      2a. pre_header — color mask + OCR for item name region
-      2b. content    — content OCR per segment
-      3. fm          — prefix stripping + section-aware fuzzy matching
-      4. rebuild     — structured data for enchant/reforge sections
-      5. parse_item_name — extract enchant prefix/suffix from item name
-      6. resolve_enchant — three-strategy resolution (P1/P2/P3)
+    Args:
+        img_bgr: Original color screenshot (BGR numpy array).
+        pipeline: Dict from init_pipeline() with all shared resources.
+        save_crops: Whether to persist per-line crop images.
+        save_crops_dir: Base directory for crop sessions.
+
+    Each section is processed end-to-end by its handler.
+    No flat all_lines list — sections dict is the sole output.
 
     Returns:
-        dict with 'sections', 'all_lines', 'tagged_segments', and optionally 'session_id'
+        dict with 'sections', 'tagged_segments', 'abbreviated',
+        and optionally 'session_id'
     """
+    parser = pipeline['parser']
+    corrector = pipeline['corrector']
+
     session_id = None
     crop_session_dir = None
     if save_crops:
@@ -549,69 +440,69 @@ def run_v3_pipeline(img_bgr, header_reader, section_patterns, config,
 
     # Step 1: Detect orange headers → segment into pre_header + tagged sections
     pre_header_seg, content_segments, tagged = _step_segment(
-        img_bgr, header_reader, section_patterns, config)
+        img_bgr, pipeline['header_reader'], pipeline['section_patterns'],
+        pipeline['config'])
 
-    # Step 2a: Pre-header — dedicated preheader models for both fonts, pick best
-    pre_header_lines, pre_header_sections, detected_font = _step_pre_header(
-        pre_header_seg, parser, preheader_mc_reader,
-        preheader_ng_reader, crop_session_dir)
+    sections = {}
+    attach = crop_session_dir is not None
 
-    # Step 2b: Content — font-matched single reader + BT.601 grayscale
-    font_reader = content_ng_reader if detected_font == 'nanum_gothic' else content_mc_reader
-    content_lines, content_sections = _step_content_ocr(
-        content_segments, parser, font_reader,
-        enchant_header_reader, crop_session_dir)
+    # Step 2: Pre-header — must run first (produces parsed_item_name for enchant)
+    ph_handler = PreHeaderHandler()
+    section_data, detected_font = ph_handler.process(
+        pre_header_seg, pipeline, crop_session_dir=crop_session_dir)
+    sections['pre_header'] = section_data
+    parsed_item_name = section_data.get('parsed_item_name')
 
-    # Merge pre_header and content results
-    all_lines = pre_header_lines + content_lines
-    sections = {**pre_header_sections, **content_sections}
+    # Set font_reader on pipeline for content handlers to use
+    pipeline['font_reader'] = (
+        pipeline['content_ng_reader'] if detected_font == 'nanum_gothic'
+        else pipeline['content_mc_reader'])
 
-    # Assign global indices for frontend line mapping
-    for idx, line in enumerate(all_lines):
-        line['global_index'] = idx
+    # Step 3: Content sections — each handler processes its section end-to-end
+    for seg in content_segments:
+        section_key = seg['section']
+        content_crop = seg['content_crop']
+        if content_crop is None or content_crop.shape[0] == 0:
+            continue
 
-    # Snapshot raw OCR text before FM overwrites it
-    for line in all_lines:
-        line['raw_text'] = line.get('text', '')
+        sec_config = parser.sections_config.get(section_key, {})
+        if sec_config.get('skip', False):
+            sections[section_key] = {'skipped': True, 'line_count': 0}
+            continue
 
-    # Step 3a: Parse item name BEFORE FM — P1 enchant names are prioritized
-    # for effect dictionary selection in enchant FM
-    _step_parse_item_name(sections, corrector)
+        handler = get_handler(section_key)
+        section_data = handler.process(
+            seg, pipeline,
+            attach_crops=attach,
+            parsed_item_name=parsed_item_name)
 
-    # Step 3b: Fuzzy match OCR text against per-section dictionaries
-    # Enchant effect FM uses P1 entry when available, Dullahan (P3) as fallback
-    _step_fm(all_lines, sections, corrector)
+        if section_key not in sections:
+            sections[section_key] = section_data
+        else:
+            # Merge duplicate sections (multiple headers with same label)
+            existing = sections[section_key]
+            if 'lines' in existing and 'lines' in section_data:
+                existing['lines'].extend(section_data['lines'])
 
-    # Remove merged fragment lines so line counts match expected effects
-    if 'enchant' in sections and sections['enchant'].get('lines'):
-        sections['enchant']['lines'] = [
-            l for l in sections['enchant']['lines']
-            if not l.get('_merged') and not l.get('_cont_merged')]
-    all_lines = [l for l in all_lines
-                 if not l.get('_merged') and not l.get('_cont_merged')]
-    # Re-index after filtering so frontend gets consecutive indices
-    for idx, line in enumerate(all_lines):
-        line['global_index'] = idx
+    # Step 4: Assign line_index per section (0-based within each section)
+    for sec_data in sections.values():
+        for idx, line in enumerate(sec_data.get('lines') or []):
+            line['line_index'] = idx
 
-    # Save crop images after FM+merge so stitched crops are included.
-    # Original image + per-line crops (merged lines already filtered out).
+    # Step 5: Save crop images (iterate sections, not flat list)
     if crop_session_dir:
         cv2.imwrite(os.path.join(crop_session_dir, 'original.png'), img_bgr)
-        for line in all_lines:
-            crop = line.pop('_crop', None)
-            if crop is not None:
-                fname = f"{line['global_index']:03d}.png"
-                cv2.imwrite(os.path.join(crop_session_dir, fname), crop)
+        _save_crops_by_section(sections, crop_session_dir, session_id)
 
-    # Step 4: Rebuild enchant prefix/suffix slots and reforge options from corrected text
-    _step_rebuild_structured(sections, parser)
-
-    # Step 5: Final enchant header competition (P1/P2/P3)
+    # Step 6: Final enchant header competition (P1/P2/P3)
     _step_resolve_enchant(sections, corrector)
 
-    # Persist OCR results JSON for correction training
-    if crop_session_dir:
-        _save_crops(all_lines, crop_session_dir, session_id)
+    # Log FM stats
+    all_fm = sum(
+        sum(1 for l in (sd.get('lines') or []) if l.get('fm_applied'))
+        for sd in sections.values())
+    all_total = sum(len(sd.get('lines') or []) for sd in sections.values())
+    logger.info("v3 fm  %d/%d lines corrected", all_fm, all_total)
 
     # Detect abbreviated vs detail tooltip mode from item_grade content lines
     item_grade = sections.get('item_grade', {})
@@ -620,7 +511,6 @@ def run_v3_pipeline(img_bgr, header_reader, section_patterns, config,
 
     result_dict = {
         'sections': sections,
-        'all_lines': all_lines,
         'tagged_segments': tagged,
         'abbreviated': abbreviated,
     }
@@ -645,7 +535,7 @@ def prepare_sections_for_response(sections):
             h = header_lines[0]
             sec_copy['header_text'] = h.get('text', '')
             sec_copy['header_confidence'] = h.get('confidence', 0.0)
-            sec_copy['header_index'] = h.get('global_index')
+            sec_copy['header_index'] = h.get('line_index')
         sec_copy['lines'] = [l for l in lines if not l.get('is_header')]
         out[key] = sec_copy
     return out

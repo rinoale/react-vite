@@ -249,152 +249,6 @@ class MabinogiTooltipParser(TooltipLineSplitter):
             for pattern in sec.get('header_patterns', []):
                 self._header_patterns[pattern] = key
 
-    def parse_from_segments(self, tagged_segments, reader,
-                            enchant_header_reader=None, crop_session_dir=None):
-        """Build full structured result from segment_and_tag() output.
-
-        Drop-in replacement for parse_tooltip() in the new segment-first pipeline.
-        Section labels come from header OCR — no post-hoc pattern matching needed.
-
-        Args:
-            tagged_segments:       list of dicts from tooltip_segmenter.segment_and_tag()
-            reader:                content OCR EasyOCR reader (custom_mabinogi, imgW patched)
-            enchant_header_reader: optional dedicated enchant slot header OCR reader
-                                   (custom_enchant_header). If None, falls back to content reader.
-            crop_session_dir:      if set, each line dict will carry a '_crop' key
-                                   (grayscale numpy array) for the caller to persist.
-
-        Returns:
-            dict with 'sections' (OrderedDict) and 'all_lines' — same format as
-            parse_tooltip() so callers need no changes.
-        """
-        sections = OrderedDict()
-        all_lines = []
-
-        for seg in tagged_segments:
-            section      = seg['section']
-            content_crop = seg['content_crop']
-
-            if content_crop is None or content_crop.shape[0] == 0:
-                continue
-
-            # Prepend header text as a line so line count matches GT
-            header_line = None
-            if seg['header_crop'] is not None and seg.get('header_ocr_text'):
-                header_line = {
-                    'text':       seg['header_ocr_text'],
-                    'confidence': seg['header_ocr_conf'],
-                    'bounds':     {},
-                    'section':    section,
-                    'is_header':  True,
-                }
-
-            section_data = self._parse_segment_from_array(
-                content_crop, section, reader,
-                enchant_header_reader=enchant_header_reader,
-                attach_crops=crop_session_dir is not None)
-
-            if section == 'pre_header':
-                sections.update(section_data)
-                if 'lines' in section_data.get('pre_header', {}):
-                    all_lines.extend(section_data['pre_header']['lines'])
-            else:
-                # Insert header text as first line of this segment
-                if header_line is not None and 'lines' in section_data:
-                    section_data['lines'].insert(0, header_line)
-
-                if section and section not in sections:
-                    sections[section] = section_data
-                elif section:
-                    # Merge duplicate sections (multiple headers with same label)
-                    existing = sections[section]
-                    if 'lines' in existing and 'lines' in section_data:
-                        existing['lines'].extend(section_data['lines'])
-                if 'lines' in section_data:
-                    all_lines.extend(section_data['lines'])
-
-        return {'sections': sections, 'all_lines': all_lines}
-
-    def _parse_segment_from_array(self, content_bgr, section, reader,
-                                    enchant_header_reader=None,
-                                    attach_crops=False):
-        """Parse one content region (BGR numpy array) with a pre-known section label.
-
-        Preprocessing: BT.601 grayscale → threshold=80 (mirrors frontend pipeline).
-        Passes the binary image directly to line detection and OCR.
-
-        Args:
-            content_bgr:           numpy BGR array (content_crop from segment_and_tag)
-            section:               section label string (e.g. 'enchant', 'reforge', 'pre_header')
-            reader:                content OCR reader (custom_mabinogi, imgW patched)
-            enchant_header_reader: optional dedicated enchant slot header reader
-
-        Returns:
-            section data dict — same per-section format as _categorize_sections produces.
-            For 'pre_header' returns {'item_name': {...}, 'item_type': {...}}.
-        """
-        gray = cv2.cvtColor(content_bgr, cv2.COLOR_BGR2GRAY)
-        # black text on white — correct polarity for OCR (matches training data)
-        _, binary = cv2.threshold(gray, 80, 255, cv2.THRESH_BINARY_INV)
-        # detect_text_lines counts pixels > 0 as foreground, so it needs
-        # white text on black — invert the binary before line detection
-        binary_detect = cv2.bitwise_not(binary)
-
-        detected_lines = self.detect_text_lines(binary_detect)
-        grouped        = self._group_by_y(detected_lines)
-
-        # Enchant with white-mask bands: classify lines before OCR
-        # to skip grey/description lines and save inference cost.
-        sec_config = self.sections_config.get(section, {})
-        parse_mode = sec_config.get('parse_mode')
-        if parse_mode == 'enchant_options':
-            slot_bands = detect_enchant_slot_headers(content_bgr)
-            if slot_bands:
-                return self._parse_enchant_with_bands(
-                    content_bgr, binary, grouped, slot_bands, section, reader,
-                    enchant_header_reader=enchant_header_reader,
-                    attach_crops=attach_crops)
-
-        # All other sections: OCR every line
-        _save = os.environ.get('SAVE_OCR_CROPS')
-        should_detect_prefix = (section != 'pre_header'
-                                and not sec_config.get('skip', False))
-        prefix_kw = {}
-        if should_detect_prefix:
-            prefix_kw = {'prefix_bgr': content_bgr,
-                         'prefix_configs': [BULLET_DETECTOR, SUBBULLET_DETECTOR]}
-        ocr_results    = self._ocr_grouped_lines(binary, grouped, reader,
-                                                  save_crops_dir=_save,
-                                                  save_label=f'content_{section}',
-                                                  attach_crops=attach_crops,
-                                                  **prefix_kw)
-
-        for line in ocr_results:
-            line['section'] = section
-
-        if section == 'pre_header':
-            return self._parse_pre_header(ocr_results)
-
-        if sec_config.get('skip', False):
-            return {'skipped': True, 'line_count': len(ocr_results)}
-
-        if parse_mode == 'color_parts':
-            return self._parse_color_section(ocr_results)
-        if parse_mode == 'reforge_options':
-            return self._parse_reforge_section(ocr_results)
-        if parse_mode == 'enchant_options':
-            # Fallback: no bands detected, regex-based header detection
-            return self._parse_enchant_section(ocr_results)
-
-        return {
-            'lines': [
-                {'text': l['text'], 'confidence': l['confidence'],
-                 'bounds': l['bounds'], 'section': l.get('section', section),
-                 'ocr_model': l.get('ocr_model', ''),
-                 '_prefix_type': l.get('_prefix_type')}
-                for l in ocr_results
-            ]
-        }
 
     def _parse_pre_header(self, ocr_results):
         """Return all pre-header lines as a single 'pre_header' section.
@@ -980,7 +834,7 @@ class MabinogiTooltipParser(TooltipLineSplitter):
                     'option_name':  name,
                     'option_level': level,
                     'effect':       None,
-                    'global_index': line.get('global_index'),
+                    'line_index': line.get('line_index'),
                 }
                 options.append(current)
 
@@ -1169,7 +1023,7 @@ class MabinogiTooltipParser(TooltipLineSplitter):
             elif current is not None:
                 eff_text = line['text'].strip().lstrip('-').strip()
                 if eff_text:
-                    entry = {'text': eff_text, 'global_index': line.get('global_index')}
+                    entry = {'text': eff_text, 'line_index': line.get('line_index')}
                     opt_name, opt_level = _parse_effect_number(eff_text)
                     if opt_name is not None:
                         entry['option_name']  = opt_name

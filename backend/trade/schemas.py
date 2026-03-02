@@ -5,7 +5,7 @@ from pydantic import BaseModel, field_validator
 class OcrLineResponse(BaseModel):
     text: str = ''
     confidence: float = 0.0
-    global_index: int
+    line_index: int
 
     @field_validator('confidence', mode='before')
     @classmethod
@@ -23,7 +23,7 @@ class EnchantEffectResponse(BaseModel):
     rolled_value: Optional[Union[int, float]] = None
     min_value: Optional[Union[int, float]] = None
     max_value: Optional[Union[int, float]] = None
-    global_index: Optional[int] = None
+    line_index: Optional[int] = None
 
 
 class EnchantSlotResponse(BaseModel):
@@ -57,7 +57,7 @@ class ReforgeOptionResponse(BaseModel):
     level: Optional[int] = None
     max_level: Optional[int] = None
     effect: Optional[str] = None
-    global_index: Optional[int] = None
+    line_index: Optional[int] = None
 
 
 class ColorPartResponse(BaseModel):

@@ -151,7 +151,7 @@ async def examine_item(file: UploadFile = File(...)):
         h, w = img_bgr.shape[:2]
         logger.info("examine-item  file=%s  size=%dx%d", file.filename, w, h)
 
-        result = run_v3_pipeline(img_bgr, **_pipeline, save_crops=True)
+        result = run_v3_pipeline(img_bgr, _pipeline, save_crops=True)
 
         sections = result.get('sections', {})
         session_id = result.get('session_id', '')
@@ -202,13 +202,13 @@ def register_listing(payload: RegisterListingRequest, db: Session = Depends(get_
             with open(results_path, 'r', encoding='utf-8') as f:
                 originals = json.load(f)
 
-            # Build lookup: global_index → original line data
-            orig_by_idx = {o['global_index']: o for o in originals}
+            # Build lookup: (section, line_index) → original line data
+            orig_by_key = {(o['section'], o['line_index']): o for o in originals}
 
             dest_dir = os.path.join(_CORRECTIONS_DIR, payload.session_id)
 
             for line in payload.lines:
-                orig = orig_by_idx.get(line.global_index)
+                orig = orig_by_key.get((line.section, line.line_index))
                 if orig is None:
                     continue
 
@@ -239,26 +239,26 @@ def register_listing(payload: RegisterListingRequest, db: Session = Depends(get_
                             charset_mismatch = ''.join(sorted(bad))
 
                 # Copy crop image
-                crop_name = f"{line.global_index:03d}.png"
-                src_path = os.path.join(session_dir, crop_name)
+                crop_name = f"{line.line_index:03d}.png"
+                src_path = os.path.join(session_dir, line.section, crop_name)
                 if not os.path.isfile(src_path):
                     continue
 
                 os.makedirs(dest_dir, exist_ok=True)
-                shutil.copy2(src_path, os.path.join(dest_dir, crop_name))
+                shutil.copy2(src_path, os.path.join(dest_dir, f"{line.section}_{crop_name}"))
 
                 db.add(OcrCorrection(
                     session_id=payload.session_id,
-                    line_index=line.global_index,
+                    line_index=line.line_index,
                     original_text=orig.get('raw_text', orig['text']),
                     corrected_text=submitted,
                     confidence=orig.get('confidence'),
-                    section=orig.get('section', ''),
+                    section=line.section,
                     ocr_model=orig.get('ocr_model', ''),
                     fm_applied=orig.get('fm_applied', False),
                     status='pending',
                     charset_mismatch=charset_mismatch,
-                    image_filename=crop_name,
+                    image_filename=f"{line.section}_{crop_name}",
                 ))
                 corrections_saved += 1
 

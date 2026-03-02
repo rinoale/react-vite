@@ -4,9 +4,8 @@ Test the v3 OCR pipeline: segment-first (header detection → section label → 
 
 Runs the same logic as the /upload-item-v3 endpoint:
   1. detect_headers() → segment_and_tag() using header OCR model
-  2. parse_from_segments() → content OCR per segment (3 models)
-  3. FM applied exactly as business logic does (mutates line['text'])
-  4. Compare final text against GT if available
+  2. per-section handlers: image process → OCR → FM → structured rebuild
+  3. Compare final text against GT if available
 
 Usage:
     python3 scripts/v3/test_v3_pipeline.py data/sample_images/titan_blade_original.png
@@ -28,6 +27,20 @@ sys.path.insert(0, os.path.join(PROJECT_ROOT, 'backend'))
 
 from lib.v3_pipeline import init_pipeline, run_v3_pipeline
 from lib.text_corrector import _PREFIX_PAT
+
+
+def _flatten_sections(sections):
+    """Reconstruct a flat ocr_lines list from sections dict.
+
+    Iterates sections in insertion order.  Within each section,
+    lines are already in line_index order.
+    """
+    flat = []
+    for sec_key, sec_data in sections.items():
+        for line in (sec_data.get('lines') or []):
+            line['section'] = sec_key
+            flat.append(line)
+    return flat
 
 
 def load_ground_truth(txt_path):
@@ -63,11 +76,13 @@ def test_image(pipeline, image_path, gt_path=None, verbose=True):
         return None
 
     save_crops_dir = os.environ.get('SAVE_OCR_CROPS')
-    result = run_v3_pipeline(img_bgr, **pipeline, save_crops=bool(save_crops_dir),
+    result = run_v3_pipeline(img_bgr, pipeline, save_crops=bool(save_crops_dir),
                              save_crops_dir=save_crops_dir)
-    ocr_lines = result['all_lines']
     sections  = result['sections']
     tagged    = result['tagged_segments']
+
+    # Reconstruct flat line list from sections
+    ocr_lines = _flatten_sections(sections)
 
     gt_lines_raw = load_ground_truth(gt_path) if gt_path else None
     # Strip structural prefixes from GT too (- or ㄴ) — output no longer has them
