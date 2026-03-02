@@ -27,7 +27,7 @@ cd frontend && npm run test:watch  # Watch mode
 ```bash
 pip install -r backend/requirements.txt
 cd backend && uvicorn main:app --reload --port 8000   # API at http://localhost:8000
-python -m pytest tests/ -v     # Run pytest (58 tests, from project root)
+python -m pytest tests/ -v     # Run pytest (262 tests, from project root)
 ```
 
 ### Database (PostgreSQL via Docker)
@@ -81,20 +81,58 @@ Original color screenshot (BGR, any resolution)
 
 ### Key Backend Components
 
-**Tooltip Segmenter** (`backend/lib/tooltip_segmenter.py`):
+**Backend module layout:**
+```
+backend/lib/
++-- pipeline/
+|   +-- v3.py                    # V3 pipeline orchestrator (init, segment, run)
+|   +-- segmenter.py             # Orange header detection, segmentation, header OCR
+|   +-- tooltip_parsers/
+|   |   +-- mabinogi.py          # Section-aware parser, structured builders
+|   +-- line_split/
+|   |   +-- line_splitter.py     # Horizontal projection line detection
+|   |   +-- mabinogi_tooltip_splitter.py  # Mabinogi-specific splitter subclass
+|   |   +-- line_processing.py   # Group/merge/classify utilities
+|   |   +-- line_merge.py        # Continuation merge, excess line absorption
+|   +-- section_handlers/        # Per-section handler classes
+|       +-- pre_header.py        # PreHeaderHandler: dual-font OCR, item name parsing
+|       +-- enchant.py           # EnchantHandler: white-mask bands, Dullahan FM
+|       +-- reforge.py           # ReforgeHandler: prefix detection, level parsing
+|       +-- color.py             # ColorHandler: regex RGB parse (no OCR)
+|       +-- default.py           # DefaultHandler: generic sections
+|       +-- _helpers.py          # Shared: BT.601 binary, header prepend, snapshot
+|       +-- _ocr.py              # Shared: OCR grouped lines, enchant headers
++-- text_processors/
+|   +-- common.py                # TextCorrector base: dictionary loading, correct()
+|   +-- mabinogi.py              # MabinogiTextCorrector: Dullahan, FM, item name parsing
++-- image_processors/
+|   +-- prefix_detector.py       # Bullet/subbullet detection via color masks
+|   +-- mabinogi_processor.py    # Enchant line classification, oreo_flip
+|   +-- shape_walker.py          # Shape recognition (DOT, NIEUN)
++-- patches/
+|   +-- easyocr_imgw.py          # EasyOCR inference patch (double-resize fix, fixed imgW)
++-- legacy/
+|   +-- dual_reader.py           # DualReader (legacy, superseded by font-matched routing)
++-- utils/
+    +-- log.py                   # Logging + @timed decorator
+```
+
+**Section Handlers** (`backend/lib/pipeline/section_handlers/`):
+- Each section processed end-to-end by its handler (image process -> OCR -> FM -> structured rebuild)
+- `get_handler(section_key)` dispatches to: `EnchantHandler`, `ReforgeHandler`, `ColorHandler`, `DefaultHandler`
+- `PreHeaderHandler` runs first (produces `parsed_item_name` for enchant P1)
+- No `all_lines` flat list -- lines identified by `(section, line_index)` instead of `global_index`
+
+**Tooltip Segmenter** (`backend/lib/pipeline/segmenter.py`):
 - `detect_headers()`: Orange-anchored header detection, 26/26 themes
 - `classify_header()`: Header OCR + fuzzy match to section label (9 labels, cutoff 50)
-- `build_segments()`: Pair headers with content regions
+- `segment_and_tag()`: Segment + classify in one pass
 
-**Section-Aware Parser** (`backend/lib/mabinogi_tooltip_parser.py`):
-- Extends `TooltipLineSplitter` with Mabinogi-specific section categorization
+**Section-Aware Parser** (`backend/lib/pipeline/tooltip_parsers/mabinogi.py`):
 - Config: `configs/mabinogi_tooltip.yaml` -- sections, header patterns, parse modes, skip flags
-- Color parts (`parse_mode: color_parts`): RGB parsed via regex, bypassing OCR
-- Enchant (`parse_mode: enchant_options`): Structured as `prefix`/`suffix` slot dicts with `name`, `rank`, `effects[]`
-- Reforge (`parse_mode: reforge_options`): Options include `option_name`/`option_level` unified fields
 - `build_enchant_structured(lines)` / `build_reforge_structured(lines)`: Rebuild structured data from FM-corrected lines
 
-**Line Splitter** (`backend/lib/tooltip_line_splitter.py`):
+**Line Splitter** (`backend/lib/pipeline/line_split/line_splitter.py`):
 - Horizontal projection profiling, auto-detects background polarity
 - `_remove_borders()`: Masks narrow (<=3px) high-density vertical column runs
 - Gap tolerance=2 rows, `_rescue_gaps()` two-pass detection for sparse lines
@@ -104,18 +142,18 @@ Original color screenshot (BGR, any resolution)
 - Parameters: `min_height=6, max_height=25, min_width=10`
 - `_add_line()` filters thin vertical borders and wide horizontal bars
 
-**Line Processing** (`backend/lib/line_processing.py`):
+**Line Processing** (`backend/lib/pipeline/line_split/line_processing.py`):
 - `merge_group_bounds()`, `trim_outlier_tail()`, `promote_grey_by_prefix()`
 - `determine_enchant_slots()`, `merge_continuations()`, `count_effects_per_header()`
 
-**Inference Patch** (`backend/lib/ocr_utils.py`):
+**Inference Patch** (`backend/lib/patches/easyocr_imgw.py`):
 - `patch_reader_imgw()`: Fixes two EasyOCR issues:
   1. **Double-dip resize**: EasyOCR resized twice (cv2.LANCZOS then PIL.BICUBIC); training only once. Patch replaces `get_image_list()` with `_crop_boxes()`. **+37 exact matches, no retraining.**
   2. **Fixed imgW**: Uses yaml's fixed imgW (200) instead of dynamic per-image width
 - **NEVER bypass this patch** -- unpatched `recognize()` suffers double-dip degradation
 - **Verification rule**: OCR-ing training images must give ~100% accuracy. If not, preprocessing mismatch -- investigate before retraining.
 
-**Prefix Detector** (`backend/lib/prefix_detector.py`):
+**Prefix Detector** (`backend/lib/image_processors/prefix_detector.py`):
 - Detects bullet (`·`) and subbullet (`ㄴ`) prefixes via color masks (blue RGB(74,149,238), red RGB(255,103,103), grey RGB(128,128,128), light grey RGB(167,167,167), white RGB(255,255,255))
 - Column projection state machine: [small ink cluster] -> [gap] -> [main text]
 - Both bullet and subbullet prefixes are sliced from line crops before OCR in all content sections
@@ -123,15 +161,15 @@ Original color screenshot (BGR, any resolution)
 
 ### Key Algorithms (details in `documents/CORE_LOGIC.md`)
 
-**Dullahan** (`text_corrector.py` -> `do_dullahan()`): Effect-guided enchant header correction. When header OCR is garbled (e.g., `폭단` instead of `성단`), scores all DB entries by name similarity, then uses effect lines to break ties. 802/1172 enchants have unique effect signatures.
+**Dullahan** (`text_processors/mabinogi.py` -> `do_dullahan()`): Effect-guided enchant header correction. When header OCR is garbled (e.g., `폭단` instead of `성단`), scores all DB entries by name similarity, then uses effect lines to break ties. 802/1172 enchants have unique effect signatures.
 
-**Number-Normalized FM** (`text_corrector.py` -> `correct_normalized()`): Extracts numbers from OCR text, replaces with N, matches against N-normalized dictionary, re-injects OCR numbers. Section-specific transforms (reforge strips level suffix, enchant extracts name).
+**Number-Normalized FM** (`text_processors/mabinogi.py` -> `correct_normalized()`): Extracts numbers from OCR text, replaces with N, matches against N-normalized dictionary, re-injects OCR numbers. Section-specific transforms (reforge strips level suffix, enchant extracts name).
 
 **Dual-Form Matching**: Enchant effects matched against both `effects_norm` (effect-only) and `effects_full_norm` (condition+effect). Pick higher `fuzz.ratio` score. Full form wins when `merge_fragments` rejoins wrapped lines. Uses `fuzz.ratio` (not `partial_ratio`) to prevent short-entry inflation.
 
-**Item Name Parsing** (`text_corrector.py` -> `parse_item_name()`): Right-to-left anchor: strip holywater (fuzzy >=70) -> strip ego keyword -> anchor item_name from right against item_name.txt -> split remaining into enchant prefix/suffix.
+**Item Name Parsing** (`text_processors/mabinogi.py` -> `parse_item_name()`): Right-to-left anchor: strip holywater (fuzzy >=70) -> strip ego keyword -> anchor item_name from right against item_name.txt -> split remaining into enchant prefix/suffix.
 
-**P1/P2/P3 Enchant Resolution** (`v3_pipeline.py` -> `_step_resolve_enchant()`): P1 (item name parsing) > P2 (raw header OCR) > P3 (Dullahan). Winner's DB entry -> `build_templated_effects()` injects OCR numbers into DB templates.
+**P1/P2/P3 Enchant Resolution** (`pipeline/v3.py` -> `_step_resolve_enchant()`): P1 (item name parsing) > P2 (raw header OCR) > P3 (Dullahan). Winner's DB entry -> `build_templated_effects()` injects OCR numbers into DB templates.
 
 ## Models
 
@@ -147,7 +185,7 @@ All models: `TPS-ResNet-BiLSTM-CTC`, `imgH=32`, `hidden_size=256`.
 | Preheader (NanumGothicBold) | v1 | 1,181 | 200 | NanumGothicBold.ttf | Item name region OCR |
 | Legacy Content (rollback) | a18 | 554 | 200 | both fonts mixed | Combined content OCR |
 
-**DualReader** (`backend/lib/dual_reader.py`): Wraps two font-specific readers. Both run `recognize()` per line; highest-confidence result wins. Transparent to parser. Falls back to legacy single model if font-specific models aren't deployed.
+**DualReader** (`backend/lib/legacy/dual_reader.py`): Legacy wrapper for two font-specific readers. Superseded by font-matched routing in V3 (pre_header detects font, pipeline selects matching reader).
 
 **Model versioning**: `backend/ocr/{model_type}/{version}/` -- self-contained with `.pth`, `.py`, `.yaml`, `training_config.yaml`, charset, training data. Symlinks at `backend/ocr/models/` point to active versions.
 
@@ -171,7 +209,7 @@ scripts/ocr/
 +-- category_header_model/            # Category header OCR
 +-- enchant_header_model/             # Enchant header OCR
 +-- switch_model.sh                   # Switch active model version
-+-- generate_enchant_dicts.py         # Generate enchant dictionaries from YAML
++-- generate_enchant_dicts.py         # Generate enchant_slot_header.txt from YAML
 +-- lib/
     +-- model_version.py              # Shared version resolution
     +-- render_utils.py               # Game-like rendering pipeline
@@ -205,7 +243,7 @@ python3 scripts/v3/test_v3_pipeline.py 'data/sample_images/*_original.png'
 ```
 
 ### Training Configuration Gotchas
-- `imgW: 200` -- Fixed via `ocr_utils.py` patch. Dynamic imgW causes garbage output.
+- `imgW: 200` -- Fixed via `patches/easyocr_imgw.py` patch. Dynamic imgW causes garbage output.
 - `workers: 0` -- Required. LMDB can't be pickled for multiprocessing.
 - `sensitive: true` -- Required. Prevents lowercasing (needed for R,G,B,L,A-F).
 - `PAD: true` -- Required. Matches EasyOCR's hardcoded `keep_ratio_with_pad=True`.
@@ -229,25 +267,23 @@ Synthetic training images must match real line crops from the splitter:
 - `recognize(img_grey, horizontal_list=[[0, w, 0, h]], free_list=[], reformat=False)` = recognition only on pre-cropped images
 - `recognition.py` lines 199, 213: `keep_ratio_with_pad=True` is hardcoded; `PAD` in yaml is ignored
 - Must pass `free_list=[]` (not None) when `horizontal_list` is set, otherwise TypeError
-- **Dynamic imgW pitfall**: `recognize()` computes `max_width = ceil(w/h) * 32` per image (576-1056px). Fixed by `ocr_utils.py`.
+- **Dynamic imgW pitfall**: `recognize()` computes `max_width = ceil(w/h) * 32` per image (576-1056px). Fixed by `patches/easyocr_imgw.py`.
 
 ## Testing
 
 ### Unit Tests
 ```bash
-python -m pytest tests/ -v                # Backend (58 tests) — from project root
+python -m pytest tests/ -v                # Backend (262 tests) — from project root
 cd frontend && npm test                   # Frontend (29 tests) — vitest
 ```
 
-**Backend (pytest):** Config in `pyproject.toml`, fixtures in `tests/conftest.py`. Tests cover `line_processing`, `line_merge`, `prefix_detector`, `line_splitter`, `text_corrector`, `mabinogi_tooltip_parser`. No GPU/DB/images needed — pure functions + synthetic numpy arrays.
+**Backend (pytest):** Config in `pyproject.toml`, fixtures in `tests/conftest.py`. Tests cover `line_processing`, `line_merge`, `prefix_detector`, `line_splitter`, `text_corrector`, `tooltip_parser`, `shape_walker`, `parse_effect_number`. No GPU/DB/images needed — pure functions + synthetic numpy arrays.
 
 **Frontend (vitest):** Config in `frontend/vitest.config.js`, setup in `frontend/test-setup.js` (mocks i18n + window globals). Tests cover `gameItems`, `examineResult`, `SectionCard`, `ConfigSearchInput`, `EnchantSection`, `ReforgeSection`.
 
 ### Pipeline Eval (end-to-end, requires GPU + sample images)
 - `scripts/v3/test_v3_pipeline.py` -- V3 pipeline test on original color screenshots. **Primary eval.**
-- `scripts/v2/test_v2_pipeline.py` -- Legacy v2 test. **Always run with `--normalize --gt-suffix _expected.txt`** -- without these flags scores are artificially low.
-- `scripts/v2/line_split/test_line_splitter.py <image> <output_dir>` -- Visual line detection verification
-- `scripts/v2/ocr/regenerate_gt.py` -- Regenerate GT candidates from parser output
+- `scripts/legacy/test_v2_pipeline.py` -- Legacy v2 test. **Always run with `--normalize --gt-suffix _expected.txt`** -- without these flags scores are artificially low.
 - Ground truth in `data/sample_images/`: `*.txt` (full GT), `*_expected.txt` (expected OCR output), `*_gt_candidate.txt` (pipeline candidates)
 
 ## Frontend
@@ -276,7 +312,8 @@ frontend/packages/
 | Source | Path | Purpose |
 |--------|------|---------|
 | `enchant.yaml` | `data/source_of_truth/enchant.yaml` | Canonical enchant DB: 1,172 entries with slot/name/rank/effects |
-| Section dictionaries | `data/dictionary/*.txt` | Per-section FM dictionaries |
+| FM dictionaries | `data/dictionary/*.txt` | Runtime FM: `reforge.txt`, `tooltip_general.txt`, `item_name.txt`, `enchant_prefix.txt`, `enchant_suffix.txt` |
+| Training words | `data/train_words/*.txt` | Training-only: `enchant_slot_header.txt`, `item_type_armor.txt`, `item_type_melee.txt`, `special_weight_item_name.txt` |
 | Tooltip config | `configs/mabinogi_tooltip.yaml` | Section definitions, header patterns, parse modes, detection params |
 | GT images | `data/sample_images/*_original.png` | Test images with ground truth `.txt` files |
 
@@ -310,7 +347,7 @@ frontend/packages/
 - EasyOCR always uses `keep_ratio_with_pad=True` during inference (hardcoded). Training must use `--PAD` to match.
 - Item database is currently mocked in `backend/lib/recommendation.py` (`ITEMS_DB`); no persistent storage yet.
 - The `data/` directory (fonts, dictionary, sample images, source_of_truth) is not fully committed to git.
-- `data/source_of_truth/enchant.yaml` is the canonical enchant data source; `data/dictionary/enchant_*.txt` files are generated from it via `scripts/ocr/generate_enchant_dicts.py`.
+- `data/source_of_truth/enchant.yaml` is the canonical enchant data source; `data/train_words/enchant_slot_header.txt` is generated from it via `scripts/ocr/generate_enchant_dicts.py`. Enchant effects for training come directly from enchant.yaml via `training_templates.py`.
 
 ## Design Principles
 

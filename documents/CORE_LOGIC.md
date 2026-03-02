@@ -6,9 +6,9 @@ Detailed descriptions of individual algorithms and correction strategies in the 
 
 ## 1. Dullahan — Effect-Guided Enchant Header Correction
 
-**File:** `backend/lib/text_corrector.py`
+**File:** `backend/lib/text_processors/mabinogi.py`
 **Methods:** `do_dullahan()`, `_dullahan_score_body()`
-**Called from:** `apply_fm()` → `has_slot_hdrs` branch
+**Called from:** `EnchantHandler._apply_enchant_fm()` → `has_slot_hdrs` branch
 
 *Named after the headless horseman (and Mabinogi boss monster) who searches for its head. The algorithm's "body" (effect lines) finds the correct "head" (header name) when OCR can't tell them apart.*
 
@@ -145,7 +145,7 @@ Return: sum of matched scores (0 if no matches above 50)
 
 ## 2. Number-Normalized Fuzzy Matching
 
-**File:** `backend/lib/text_corrector.py`
+**File:** `backend/lib/text_processors/mabinogi.py`
 **Method:** `correct_normalized()`
 
 ### Problem
@@ -189,7 +189,7 @@ Output: ("내구력 11/12", 100)
 
 ## 3. Two-Phase Enchant Matching
 
-**File:** `backend/lib/text_corrector.py`
+**File:** `backend/lib/text_processors/mabinogi.py`
 **Methods:** `match_enchant_header()`, `match_enchant_effect()`
 **Used in:** Both `has_slot_hdrs` branch (effect FM after Dullahan header match) and linear fallback (`has_slot_hdrs = False`)
 
@@ -272,7 +272,7 @@ DB effect (wrong):      "지력 N 증가"              → ratio=56 ✗  (loses)
 
 ## 4. Effect-Only Enchant Identification
 
-**File:** `backend/lib/text_corrector.py`
+**File:** `backend/lib/text_processors/mabinogi.py`
 **Method:** `identify_enchant_from_effects()`
 
 ### Problem
@@ -299,7 +299,7 @@ Note: This method uses `total / n_eff` (average), unlike `_dullahan_score_body` 
 
 ## 5. Dual-Model Inference
 
-**File:** `backend/lib/dual_reader.py`
+**File:** `backend/lib/legacy/dual_reader.py`
 **Class:** `DualReader`
 
 ### Problem
@@ -326,7 +326,7 @@ Falls back to single legacy model (`custom_mabinogi.pth`) if font-specific model
 
 ## 6. Double-Dip Resize Fix
 
-**File:** `backend/lib/ocr_utils.py`
+**File:** `backend/lib/patches/easyocr_imgw.py`
 **Function:** `patch_reader_imgw()`
 
 ### Problem
@@ -351,7 +351,7 @@ OCR on training images must give ~100% accuracy. If not, there's a preprocessing
 
 ## 7. Orange-Anchored Header Detection
 
-**File:** `backend/tooltip_segmenter.py`
+**File:** `backend/lib/pipeline/segmenter.py`
 **Method:** `detect_headers()`
 
 ### Problem
@@ -417,7 +417,7 @@ This closes both the ink ratio gap and the height distribution gap between synth
 
 ## 9. Oreo-Flip Enchant Header Preprocessing
 
-**File:** `backend/lib/mabinogi_tooltip_parser.py`
+**File:** `backend/lib/pipeline/tooltip_parsers/mabinogi.py`
 **Functions:** `_oreo_flip()`, `_strip_border_cols()`, `detect_enchant_slot_headers()`
 **Training counterpart:** `scripts/ocr/lib/render_utils.py` → `render_enchant_header()`
 
@@ -522,7 +522,7 @@ Standard grayscale + threshold=80 (used for general content) fails on enchant he
 
 ## 10. Item Name Parsing (`parse_item_name`)
 
-**File:** `backend/lib/text_corrector.py`
+**File:** `backend/lib/text_processors/mabinogi.py`
 **Method:** `TextCorrector.parse_item_name()`
 **Constants:** `_HOLYWATER`, `_EGO_KEYWORD`
 
@@ -639,7 +639,7 @@ Holywater and ego detection use `fuzz.ratio ≥ 70` on individual words.
 
 ## 11. Distanced Line Finder — Gap-Based Outlier Detection
 
-**File:** `backend/lib/line_merge.py`
+**File:** `backend/lib/pipeline/line_split/line_merge.py`
 **Function:** `detect_gap_outlier()`
 
 ### Problem
@@ -700,9 +700,9 @@ The `max(2×, +4)` formula adapts to different resolutions without resolution-sp
 
 ## 12. Excess Effect Line Merging
 
-**File:** `backend/lib/line_merge.py`
+**File:** `backend/lib/pipeline/line_split/line_merge.py`
 **Orchestrator:** `merge_excess_lines()`
-**Called from:** `text_corrector.py` → `apply_fm()` → after Dullahan header match, before effect FM
+**Called from:** `section_handlers/enchant.py` → `_apply_enchant_fm()` → after Dullahan header match, before effect FM
 
 ### Problem
 
@@ -780,20 +780,19 @@ Detection functions return positions/indices only — no side effects. Mutation 
 
 ### Post-Merge Filtering
 
-After `merge_excess_lines` runs, absorbed lines have `_merged=True`. The pipeline (`v3_pipeline.py`) removes these from both section data and `all_lines`:
+After `merge_excess_lines` runs, absorbed lines have `_merged=True`. The handler removes these from section data:
 
 ```python
-sections['enchant']['lines'] = [l for l in ... if not l.get('_merged')]
-all_lines = [l for l in all_lines if not l.get('_merged')]
+section_data['lines'] = [l for l in lines if not l.get('_merged') and not l.get('_cont_merged')]
 ```
 
-This filtering is a pipeline-level concern, not part of the merge algorithm itself.
+This filtering is a handler-level concern, not part of the merge algorithm itself.
 
 ---
 
 ## 13. Prefix Detection — Combined Classifier
 
-**Files:** `backend/lib/prefix_detector.py`, `backend/lib/shape_walker.py`
+**Files:** `backend/lib/image_processors/prefix_detector.py`, `backend/lib/image_processors/shape_walker.py`
 **Tests:** `tests/test_finding_bullet_images.py`, `tests/test_prefix_detector.py`
 **Ground truth:** `tests/sample_images/*_original.meta.json`
 
@@ -1024,7 +1023,7 @@ Each fix targeted a specific false positive class:
 
 ### Per-Color Detection
 
-`detect_prefix_per_color(img_bgr_line, config)` iterates over each color in the config independently. Used in the production pipeline (`mabinogi_tooltip_parser.py`, `line_processing.py`) where BGR images are available.
+`detect_prefix_per_color(img_bgr_line, config)` iterates over each color in the config independently. Used in the production pipeline (`tooltip_parsers/mabinogi.py`, `line_split/line_processing.py`) where BGR images are available.
 
 `detect_prefix(mask_line, config)` operates on a pre-built binary mask. Used in tests and the visualization script where masks are already constructed.
 
@@ -1177,7 +1176,7 @@ Two images per input:
 
 ## 14. Shape Walker — General-Purpose Shape Detection
 
-**File:** `backend/lib/shape_walker.py`
+**File:** `backend/lib/image_processors/shape_walker.py`
 
 The shape walker is a general-purpose shape detection library used by prefix detection (Section 13) but designed for reuse across other detection tasks.
 

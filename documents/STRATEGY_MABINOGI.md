@@ -137,9 +137,9 @@ The 3:3 ratio of size-10 to size-11 was chosen to produce a unimodal distributio
 **Why:**
 EasyOCR computes a per-image dynamic imgW during inference, which produces values of 576–1056px for typical line crops — completely mismatching the training imgW=200. The TPS spatial transformer is built with `I_size=(imgH, imgW)` and produces garbage output when the input size differs from training.
 
-The patch is in `backend/lib/ocr_utils.py` and must be applied after `easyocr.Reader()` is initialized.
+The patch is in `backend/lib/patches/easyocr_imgw.py` and must be applied after `easyocr.Reader()` is initialized.
 
-**Porting guide:** Always verify that inference imgW matches training imgW before evaluating accuracy. This mismatch is silent — the model produces output but it will be garbage. Check `ocr_utils.py` is applied in any new inference script.
+**Porting guide:** Always verify that inference imgW matches training imgW before evaluating accuracy. This mismatch is silent — the model produces output but it will be garbage. Check `patches/easyocr_imgw.py` is applied in any new inference script.
 
 ---
 
@@ -188,7 +188,7 @@ Finally, for each detected line, scan columns left to right looking for: a tiny 
 **Results:** Validated across 26 theme images + 18 sample images. All bullets: w=2, gap=4, main_x=9. Subbullets: w=4-9, gap=2-7. Zero false positives on theme images.
 
 **Files:**
-- `backend/lib/prefix_detector.py` — Python detection module (`bullet_text_mask()`, `white_text_mask()`, `detect_prefix()`)
+- `backend/lib/image_processors/prefix_detector.py` — Python detection module (`bullet_text_mask()`, `white_text_mask()`, `detect_prefix()`)
 - `scripts/v3/test_prefix_detector.py` — CLI test on masked or color images
 - `frontend/packages/misc/src/pages/image_process_lab.jsx` — JS port with visualization (Mabinogi Tools sidebar, separate Detect Bullet / Detect Subbullet buttons with independent tolerances)
 

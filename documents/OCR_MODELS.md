@@ -153,7 +153,7 @@ The original single-model approach — trained on both fonts mixed together. Sup
 
 ## Inference Architecture
 
-### DualReader (`backend/lib/dual_reader.py`)
+### DualReader (`backend/lib/legacy/dual_reader.py`)
 
 Wraps two EasyOCR readers. Both run `recognize()` on the same line crop image. Per-line, the result with higher confidence wins. Transparent to the parser — it sees a single "reader" object.
 
@@ -162,7 +162,7 @@ Wraps two EasyOCR readers. Both run `recognize()` on the same line crop image. P
 
 Falls back to the legacy single model (`custom_mabinogi`) if font-specific models aren't deployed.
 
-### Inference Patch (`backend/lib/ocr_utils.py`)
+### Inference Patch (`backend/lib/patches/easyocr_imgw.py`)
 
 `patch_reader_imgw()` fixes two EasyOCR issues:
 

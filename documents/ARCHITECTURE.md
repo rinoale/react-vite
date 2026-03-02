@@ -12,74 +12,48 @@ For algorithm details of individual correction strategies, see [CORE_LOGIC.md](C
 Original color screenshot (BGR, any resolution)
     │
     ├── Stage 1: Border Detection + Crop
-    │     tooltip_segmenter.detect_bottom_border() + detect_vertical_borders()
+    │     segmenter.detect_bottom_border() + detect_vertical_borders()
     │     → crop to tooltip boundary
     │
     ├── Stage 2: Orange Header Detection
-    │     tooltip_segmenter.detect_headers()
+    │     segmenter.detect_headers()
     │     → list of header bands (y, h, x, w, content_y)
     │
     ├── Stage 3: Segmentation + Header Classification
-    │     tooltip_segmenter.build_segments() + classify_header()
+    │     segmenter.segment_and_tag()
     │     → pre_header + N labeled (section, content) segments
     │
-    ├── Stage 4: Content OCR (per segment)
+    ├── Stage 4: Per-Section Handler Processing
+    │     Each section processed end-to-end by its handler:
+    │     get_handler(section_key).process(seg, font_reader=..., ...)
     │     │
-    │     ├── All sections: Preprocessing
-    │     │     cv2.cvtColor(BGR2GRAY) → cv2.threshold(80, BINARY_INV)
-    │     │     → TooltipLineSplitter.detect_text_lines() → _group_by_y()
+    │     ├── PreHeaderHandler (runs first — produces parsed_item_name):
+    │     │     Dual-font preprocessing → OCR → font detection → parse_item_name()
+    │     │     → P1 enchant entries, detected_font for content reader selection
     │     │
-    │     ├── All content sections: Prefix Detection + Slicing
-    │     │     prefix_detector.detect_prefix_per_color(bgr_crop, BULLET_DETECTOR)
-    │     │     prefix_detector.detect_prefix_per_color(bgr_crop, SUBBULLET_DETECTOR)
-    │     │     → bullet/subbullet prefix sliced from gray crop before OCR
-    │     │     → _prefix_type flag set on each line
+    │     ├── EnchantHandler:
+    │     │     oreo_flip → detect_enchant_slot_headers() → classify lines
+    │     │     Headers → enchant_header_reader; Effects → font_reader; Grey → skip
+    │     │     FM: do_dullahan() on headers, match_enchant_effect() on effects
+    │     │     merge_continuations() → build_enchant_structured()
     │     │
-    │     ├── Enchant section (with bands):
-    │     │     _oreo_flip() → detect_enchant_slot_headers()
-    │     │     classify_enchant_line() → header / effect / grey
-    │     │     promote_grey_by_prefix() → rescue grey lines with bullet prefix
-    │     │     _ocr_enchant_headers() → enchant_header_reader
-    │     │     _ocr_grouped_lines(prefix_config=BULLET_DETECTOR) → DualReader
-    │     │     Grey lines → skipped (no OCR)
+    │     ├── ReforgeHandler:
+    │     │     BT.601 binary → OCR with prefix detection (bullet + subbullet)
+    │     │     FM: correct_normalized(cutoff=0) on bullet lines
+    │     │     build_reforge_structured()
     │     │
-    │     ├── Reforge section:
-    │     │     _ocr_grouped_lines(prefix_configs=[BULLET, SUBBULLET]) → DualReader
-    │     │     _detect_sub_lines() → tag is_reforge_sub from _prefix_type=='subbullet'
-    │     │     _REFORGE_HEADER_RE → parse name/level/max_level
-    │     │
-    │     ├── Color section:
+    │     ├── ColorHandler:
     │     │     Regex parse RGB from sub-segments (no OCR)
     │     │
-    │     └── Pre-header:
-    │           _preprocess_mabinogi_classic() or _preprocess_nanum_gothic()
-    │           _ocr_pre_header_image() → font-specific preheader reader
-    │           (no prefix detection)
+    │     └── DefaultHandler (item_attrs, item_mod, erg, set_item, ego, item_grade):
+    │           BT.601 binary → OCR with prefix detection (bullet + subbullet)
+    │           FM: correct_normalized(cutoff=80) on bullet lines
     │
-    ├── Stage 5: Item Name Parsing (before FM)
-    │     text_corrector.parse_item_name()
-    │     → enchant_prefix, enchant_suffix, item_name → P1 entries
+    ├── Stage 5: Line Index Assignment
+    │     line_index = 0-based position within each section's lines[]
+    │     Crop files: {section}/{line_index:03d}.png
     │
-    ├── Stage 6: Fuzzy Matching (FM)
-    │     text_corrector.apply_fm()
-    │     │
-    │     ├── Gate: FM only runs on lines with _prefix_type == 'bullet'
-    │     │   (sub-bullets, unprefixed lines, headers, enchant → all skip)
-    │     │
-    │     ├── Non-enchant bullet lines:
-    │     │     correct_normalized(text, section) → fuzz.ratio against section dict
-    │     │
-    │     └── Enchant section (separate loop):
-    │           do_dullahan() → header correction
-    │           match_enchant_effect() → effect correction
-    │           Non-ranged effects → DB text directly (no number regex)
-    │           Ranged effects → extract OCR number, inject into DB template
-    │
-    ├── Stage 7: Structured Rebuild
-    │     build_enchant_structured() → prefix/suffix slots with effects[]
-    │     build_reforge_structured() → options[] with name/level/effect
-    │
-    └── Stage 8: Enchant Resolution (P1/P2/P3)
+    └── Stage 6: Enchant Resolution (P1/P2/P3)
           _step_resolve_enchant()
           P1 (item name) > P2 (raw header OCR) > P3 (Dullahan)
           → winner's DB entry → build_templated_effects()
@@ -89,8 +63,8 @@ Original color screenshot (BGR, any resolution)
 
 ## Stage 1: Border Detection
 
-**File:** `backend/lib/tooltip_segmenter.py`
-**Entry:** `v3_pipeline._step_segment()` → `segment_and_tag()`
+**File:** `backend/lib/pipeline/segmenter.py`
+**Entry:** `v3._step_segment()` → `segment_and_tag()`
 
 ### Methods called:
 
@@ -122,7 +96,7 @@ All subsequent stages operate on this cropped tooltip. If any border is not dete
 
 ## Stage 2: Orange Header Detection
 
-**File:** `backend/lib/tooltip_segmenter.py`
+**File:** `backend/lib/pipeline/segmenter.py`
 **Method:** `detect_headers(img_bgr, config)`
 
 ### Algorithm:
@@ -159,8 +133,8 @@ Step 4: Black-square boundary expansion — for each orange band:
 
 ## Stage 3: Segmentation + Header Classification
 
-**File:** `backend/lib/tooltip_segmenter.py`
-**Methods:** `build_segments()`, `classify_header()`, `_preprocess_header_crop()`
+**File:** `backend/lib/pipeline/segmenter.py`
+**Methods:** `segment_and_tag()`, `classify_header()`, `_preprocess_header_crop()`
 
 ### `build_segments(headers, img_h)`
 
@@ -199,11 +173,11 @@ Step 3: Fuzzy match against section patterns
 
 ---
 
-## Stage 4: Content OCR
+## Stage 4: Per-Section Handler Processing
 
-**File:** `backend/lib/mabinogi_tooltip_parser.py`
-**Entry:** `v3_pipeline._step_content_ocr()` → `parser.parse_from_segments()`
-**Per-segment:** `_parse_segment_from_array(content_bgr, section, reader)`
+**Files:** `backend/lib/pipeline/section_handlers/` (one file per handler)
+**Entry:** `v3.run_v3_pipeline()` → `handler.process(seg, font_reader=..., ...)`
+**Dispatch:** `get_handler(section_key)` → `EnchantHandler`, `ReforgeHandler`, `ColorHandler`, or `DefaultHandler`
 
 ### 4.0 Common preprocessing (all sections except pre_header and enchant-with-bands)
 
@@ -224,7 +198,7 @@ Step 5: _group_by_y(detected_lines) → list of line groups (sub-segments sorted
 
 ### 4.1 Prefix Detection + Slicing
 
-**File:** `backend/lib/prefix_detector.py`
+**File:** `backend/lib/image_processors/prefix_detector.py`
 **Method:** `detect_prefix_per_color(bgr_crop, config)`
 **Called from:** `_ocr_grouped_lines()` for each sub-line
 
@@ -280,7 +254,8 @@ For each line group:
 
 ### 4.3 Enchant section (`parse_mode: enchant_options`)
 
-**Method:** `_parse_enchant_with_bands(content_bgr, binary, grouped, slot_bands, ...)`
+**File:** `backend/lib/pipeline/section_handlers/enchant.py`
+**Handler:** `EnchantHandler.process()` → `_parse_enchant_with_bands()`
 
 Only when `detect_enchant_slot_headers(content_bgr)` returns non-empty bands.
 
@@ -334,7 +309,8 @@ Step 8: Assemble results
 
 ### 4.4 Reforge section (`parse_mode: reforge_options`)
 
-**Method:** `_parse_reforge_section(lines)`
+**File:** `backend/lib/pipeline/section_handlers/reforge.py`
+**Handler:** `ReforgeHandler.process()`
 
 ```
 Step 1: OCR via common path (4.0 + 4.1 + 4.2)
@@ -367,7 +343,8 @@ No OCR. Horizontal sub-segments parsed via regex:
 
 ### 4.6 Pre-header
 
-**Entry:** `v3_pipeline._step_pre_header()`
+**File:** `backend/lib/pipeline/section_handlers/pre_header.py`
+**Handler:** `PreHeaderHandler.process()`
 
 ```
 Step 1: Preprocessing — two variants, both run:
@@ -407,12 +384,12 @@ Return: {'lines': [{text, confidence, bounds, section, ocr_model, _prefix_type}]
 
 ## Stage 5: Item Name Parsing
 
-**File:** `backend/lib/text_corrector.py`
-**Entry:** `v3_pipeline._step_parse_item_name()` → `corrector.parse_item_name()`
+**File:** `backend/lib/text_processors/mabinogi.py`
+**Entry:** `PreHeaderHandler.process()` → `corrector.parse_item_name()`
 
 **Input:** First pre_header line (OCR text, before FM).
 
-**Why before FM:** Parsed enchant names (P1 candidates) are used as the prioritized effect dictionary source in Stage 6 enchant FM.
+**Why before FM:** Parsed enchant names (P1 candidates) are used as the prioritized effect dictionary source in enchant handler FM.
 
 ### Algorithm: `parse_item_name(text)`
 
@@ -434,20 +411,14 @@ Right-to-left item_name anchor:
 
 ## Stage 6: Fuzzy Matching (FM)
 
-**File:** `backend/lib/text_corrector.py`
-**Entry:** `v3_pipeline._step_fm()` → `corrector.apply_fm(all_lines, sections)`
+**File:** `backend/lib/text_processors/mabinogi.py`
+**Entry:** Each handler calls corrector methods directly (no centralized `apply_fm()`)
 
-### Preprocessing
+FM is now per-handler. Each handler calls `corrector.strip_text_prefix()` then its section-specific FM:
 
-```
-For each non-header line:
-  Strip structural prefix (_PREFIX_PAT: leading -, ㄴ, comma, L)
-  line['text'] = text[match.end():]
-```
+### Non-enchant FM (DefaultHandler, ReforgeHandler)
 
-### Non-enchant FM loop
-
-**Gate: only lines with `_prefix_type == 'bullet'` proceed.** All others (sub-bullets, unprefixed lines, headers, enchant) → `fm_applied=False`, skip.
+**Gate: only lines with `_prefix_type == 'bullet'` proceed.** All others (sub-bullets, unprefixed lines, headers) → `fm_applied=False`, skip.
 
 For each bullet line:
 
@@ -465,9 +436,9 @@ correct_normalized(text, section):
   → (corrected_text, score, paren_range)
 ```
 
-### Enchant FM loop
+### Enchant FM (EnchantHandler)
 
-**Condition:** `enchant_db_ready=True` and section has `has_slot_hdrs=True`
+**File:** `backend/lib/pipeline/section_handlers/enchant.py` → `_apply_enchant_fm()`
 
 ```
 Step 1: Resolve P1 entries from parsed_item_name (Stage 5)
@@ -512,8 +483,8 @@ Linear scan of enchant lines:
 
 ## Stage 7: Structured Rebuild
 
-**File:** `backend/lib/mabinogi_tooltip_parser.py`
-**Entry:** `v3_pipeline._step_rebuild_structured(sections, parser)`
+**File:** `backend/lib/pipeline/tooltip_parsers/mabinogi.py`
+**Entry:** Each handler calls `parser.build_enchant_structured()` / `parser.build_reforge_structured()` after FM
 
 Called AFTER FM so corrected text propagates into structured data.
 
@@ -544,7 +515,7 @@ Output: {options: [{name, level, max_level, option_name, option_level, effect}]}
 
 ## Stage 8: Enchant Resolution (P1/P2/P3)
 
-**File:** `backend/lib/v3_pipeline.py`
+**File:** `backend/lib/pipeline/v3.py`
 **Method:** `_step_resolve_enchant(sections, corrector)`
 
 Three candidates per slot (접두/접미):
@@ -587,9 +558,9 @@ Winner with DB entry → build_templated_effects():
 
 All models: TPS-ResNet-BiLSTM-CTC architecture, imgH=32, `sensitive=true`, `PAD=true`.
 
-**DualReader** (`backend/lib/dual_reader.py`): Wraps two font-specific content readers. Both models run `recognize()` per line; highest-confidence result wins. Transparent to parser.
+**DualReader** (`backend/lib/legacy/dual_reader.py`): Legacy wrapper for two font-specific readers. Superseded by font-matched routing in V3 (pre_header detects font, pipeline selects matching reader).
 
-**Inference patch** (`backend/lib/ocr_utils.py`): `patch_reader_imgw()` replaces EasyOCR's double-resize path (cv2.LANCZOS in `get_image_list()` → PIL.BICUBIC in `AlignCollate`) with single-resize (`_crop_boxes()` → `AlignCollate`), matching training exactly.
+**Inference patch** (`backend/lib/patches/easyocr_imgw.py`): `patch_reader_imgw()` replaces EasyOCR's double-resize path (cv2.LANCZOS in `get_image_list()` → PIL.BICUBIC in `AlignCollate`) with single-resize (`_crop_boxes()` → `AlignCollate`), matching training exactly.
 
 ---
 
@@ -598,7 +569,8 @@ All models: TPS-ResNet-BiLSTM-CTC architecture, imgH=32, `sensitive=true`, `PAD=
 | Source | Path | Purpose |
 |--------|------|---------|
 | `enchant.yaml` | `data/source_of_truth/enchant.yaml` | Canonical enchant DB: 1,172 entries with slot/name/rank/effects |
-| Section dictionaries | `data/dictionary/*.txt` | Per-section FM dictionaries (reforge.txt, enchant_effect.txt, etc.) |
+| FM dictionaries | `data/dictionary/*.txt` | Runtime FM: `reforge.txt`, `tooltip_general.txt`, `item_name.txt`, `enchant_prefix.txt`, `enchant_suffix.txt` |
+| Training words | `data/train_words/*.txt` | Training-only: `enchant_slot_header.txt`, `item_type_armor.txt`, `item_type_melee.txt`, `special_weight_item_name.txt` |
 | Tooltip config | `configs/mabinogi_tooltip.yaml` | Section definitions, header patterns, parse modes, detection params |
 | GT images | `data/sample_images/*_original.png` | Test images with ground truth `.txt` files |
 
@@ -611,6 +583,6 @@ All models: TPS-ResNet-BiLSTM-CTC architecture, imgH=32, `sensitive=true`, `PAD=
 | `POST /upload-item-v3` | Original color screenshot (multipart) | Full V3 pipeline (Stages 1-8) |
 | `POST /upload-item-v2` | Browser-preprocessed binary PNG | Legacy pipeline (line split → OCR → FM, no segmentation) |
 
-V3 response: `{sections: {section_name: OcrSectionResponse}, all_lines: [OcrLineResponse], session_id?}`
+V3 response: `{sections: {section_name: OcrSectionResponse}, tagged_segments, abbreviated, session_id?}`
 
 See `documents/API_SPEC.md` for full response schema.

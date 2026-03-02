@@ -124,13 +124,19 @@ class MabinogiTextCorrector(TextCorrector):
             # Dicts have condition/effect fields; strings are plain effects.
             effects = []
             effects_full = []
+            effects_full_norm = []
             for eff in raw_effects:
                 if isinstance(eff, dict):
                     effects.append(eff['effect'])
-                    effects_full.append(f"{eff['condition']} {eff['effect']}")
+                    full = f"{eff['condition']} {eff['effect']}"
+                    effects_full.append(full)
+                    # Only normalize effect numbers; condition numbers are DB constants
+                    norm_full = f"{eff['condition']} {_normalize_nums(eff['effect'])}"
+                    effects_full_norm.append((norm_full, full))
                 else:
                     effects.append(eff)
                     effects_full.append(eff)
+                    effects_full_norm.append((_normalize_nums(eff), eff))
             entry = {
                 'header':           header,
                 'header_norm':      _normalize_nums(header),
@@ -140,7 +146,7 @@ class MabinogiTextCorrector(TextCorrector):
                 'effects':          effects,
                 'effects_norm':     [(_normalize_nums(e), e) for e in effects],
                 'effects_full':     effects_full,
-                'effects_full_norm': [(_normalize_nums(e), e) for e in effects_full],
+                'effects_full_norm': effects_full_norm,
             }
             db.append(entry)
 

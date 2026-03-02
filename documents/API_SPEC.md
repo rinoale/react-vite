@@ -34,13 +34,13 @@ The frontend should always read `text` directly — it is the best available val
     "item_name": {
       "text": "Dragon Blade",
       "lines": [
-        { "text": "Dragon Blade", "confidence": 0.99, "is_header": true, "global_index": 0 }
+        { "text": "Dragon Blade", "confidence": 0.99, "is_header": true, "line_index": 0 }
       ]
     },
     "item_attrs": {
       "lines": [
-        { "text": "공격 15~30", "confidence": 0.85, "global_index": 2 },
-        { "text": "부상률 0~10%", "confidence": 0.92, "global_index": 3 }
+        { "text": "공격 15~30", "confidence": 0.85, "line_index": 2 },
+        { "text": "부상률 0~10%", "confidence": 0.92, "line_index": 3 }
       ]
     },
     "enchant": {
@@ -55,8 +55,8 @@ The frontend should always read `text` directly — it is the best available val
       },
       "suffix": null,
       "lines": [
-        { "text": "[접두] 충격을 (랭크 F)", "confidence": 0.95, "global_index": 10 },
-        { "text": "최대대미지 5 증가", "confidence": 0.88, "global_index": 11 }
+        { "text": "[접두] 충격을 (랭크 F)", "confidence": 0.95, "line_index": 10 },
+        { "text": "최대대미지 5 증가", "confidence": 0.88, "line_index": 11 }
       ]
     },
     "reforge": {
@@ -69,7 +69,7 @@ The frontend should always read `text` directly — it is the best available val
         }
       ],
       "lines": [
-        { "text": "스매시 대미지 15 (Max 20)", "confidence": 0.90, "global_index": 15 }
+        { "text": "스매시 대미지 15 (Max 20)", "confidence": 0.90, "line_index": 15 }
       ]
     },
     "item_color": {
@@ -81,10 +81,8 @@ The frontend should always read `text` directly — it is the best available val
       "skipped": true
     }
   },
-  "all_lines": [
-    { "text": "Dragon Blade", "confidence": 0.99, "is_header": true, "global_index": 0 },
-    { "text": "공격 15~30", "confidence": 0.85, "global_index": 2 }
-  ]
+  "tagged_segments": [...],
+  "abbreviated": false
 }
 ```
 
@@ -96,7 +94,7 @@ The frontend should always read `text` directly — it is the best available val
 | :--- | :--- | :--- | :--- |
 | `text` | `string` | Always | Best available text (FM-corrected if matched, otherwise raw OCR). |
 | `confidence` | `float` | Always | OCR confidence (0.0 to 1.0), rounded to 4 decimal places. |
-| `global_index` | `int` | Always | Unique line index within the session. Sent back in `/register-listing` for correction mapping. |
+| `line_index` | `int` | Always | 0-based position within the section's lines[]. Sent back with `section` in `/register-listing` for correction mapping. |
 
 #### Section Object Properties
 All sections contain `lines` (array of Line objects) unless `skipped: true`.
@@ -163,8 +161,8 @@ All sections contain `lines` (array of Line objects) unless `skipped: true`.
   "erg_grade": "S",
   "erg_level": 25,
   "lines": [
-    { "global_index": 0, "text": "Dragon Blade" },
-    { "global_index": 2, "text": "공격 15~30" }
+    { "line_index": 0, "text": "Dragon Blade" },
+    { "line_index": 2, "text": "공격 15~30" }
   ],
   "enchants": [
     {
@@ -198,7 +196,7 @@ All sections contain `lines` (array of Line objects) unless `skipped: true`.
 | `item_grade` | `string` | No | Item grade, e.g. `에픽`, `레어`. Extracted from OCR `item_grade` section. |
 | `erg_grade` | `string` | No | ERG grade letter, e.g. `S`, `A`. Extracted from OCR `erg` section. |
 | `erg_level` | `int` | No | ERG level number, e.g. `25`. Extracted from OCR `erg` section. |
-| `lines` | `array` | No | Final line texts. Each has `global_index` (int) and `text` (string). Lines where `text` differs from the original OCR are saved as correction training data. |
+| `lines` | `array` | No | Final line texts. Each has `section` (string), `line_index` (int), and `text` (string). Lines where `text` differs from the original OCR are saved as correction training data. |
 | `enchants` | `array` | No | Structured enchant data per slot. Each has `slot` (0=prefix, 1=suffix), `name`, `rank`, `effects[]`. |
 | `reforge_options` | `array` | No | Structured reforge options. Each has `name`, optional `reforge_option_id` (from static config), `level`, `max_level`. |
 
