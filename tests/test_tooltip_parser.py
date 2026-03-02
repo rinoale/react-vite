@@ -72,7 +72,7 @@ class TestBuildReforgeStructured:
              'reforge_name': '스매시 대미지', 'reforge_level': 15,
              'reforge_max_level': 20},
             {'is_header': False, 'is_reforge_sub': True,
-             'text': 'ㄴ 대미지 150 % 증가'},
+             'text': '대미지 150 % 증가'},
         ]
         result = parser.build_reforge_structured(lines)
         assert len(result['options']) == 1
@@ -89,13 +89,13 @@ class TestBuildReforgeStructured:
              'reforge_name': '스매시 대미지', 'reforge_level': 15,
              'reforge_max_level': 20},
             {'is_header': False, 'is_reforge_sub': True,
-             'text': 'ㄴ 대미지 150 % 증가'},
+             'text': '대미지 150 % 증가'},
             {'is_header': False, 'is_reforge_sub': False,
              'text': '- 크리티컬 대미지(10/20 레벨)',
              'reforge_name': '크리티컬 대미지', 'reforge_level': 10,
              'reforge_max_level': 20},
             {'is_header': False, 'is_reforge_sub': True,
-             'text': 'ㄴ 크리티컬 대미지 120 % 증가'},
+             'text': '크리티컬 대미지 120 % 증가'},
         ]
         result = parser.build_reforge_structured(lines)
         assert len(result['options']) == 2

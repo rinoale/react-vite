@@ -21,7 +21,7 @@ _PREFIX_PAT = re.compile(rf'^[{re.escape(_BULLET)}\-,·{re.escape(_SUBBULLET)}L]
 # reforge: strip '(15/20 레벨)' level suffix before FM matching
 _REFORGE_LEVEL_PAT = re.compile(r'\s*\(\d+/\d+\s*레벨\)\s*$')
 # reforge: ㄴ sub-bullets describe effects at current level — never in dictionary
-_REFORGE_SUB_RE    = re.compile(r'^\s*ㄴ')
+
 # enchant: header line '[접두] 충격을 (랭크 F)' or '[접미] 관리자 (랭크 6)' — ranks: A-F or 1-9
 _ENCHANT_HDR_PAT   = re.compile(r'^\[?(접두|접미)\]?\s+(.+?)\s*\(랭크\s*[A-F0-9]+\)')
 # enchant: dictionary file header '[접미] 관리자 (랭크 6)' — strict form for parsing
@@ -782,10 +782,6 @@ class TextCorrector:
         if not text or not norm_cache:
             return text, 0, None
 
-        # --- Section-specific early exit ---
-        if section == 'reforge' and _REFORGE_SUB_RE.match(text):
-            return text, -3, None   # ㄴ sub-bullet: effect description, never in reforge dictionary
-
         # Separate leading structural prefix from content
         prefix_m = _PREFIX_PAT.match(text)
         prefix = prefix_m.group(0) if prefix_m else ''
@@ -1036,8 +1032,8 @@ class TextCorrector:
                 line['fm_applied'] = False
                 continue
 
-            # Skip FM for reforge sub-lines (indented effect descriptions)
-            if line.get('is_reforge_sub'):
+            # FM only for bullet-prefixed lines (skip sub-bullets and unprefixed)
+            if line.get('_prefix_type') != 'bullet':
                 line['fm_applied'] = False
                 continue
 

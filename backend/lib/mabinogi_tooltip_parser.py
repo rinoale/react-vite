@@ -41,8 +41,7 @@ _PRE_NAME_PATTERNS = {'전용 해제'}
 # Reforge section patterns
 # Header: '- 스매시 대미지(15/20 레벨)' — name before '(', level/max_level inside
 _REFORGE_HEADER_RE = re.compile(r'^[-\s]*(.+?)\s*\((\d+)/(\d+)\s*레벨\)')
-# Sub-bullet: 'ㄴ 대미지 150 % 증가' — describes effect at current level
-_REFORGE_SUB_RE    = re.compile(r'^\s*ㄴ')
+
 
 # Enchant section patterns
 # Header: '[접두] 충격을 (랭크 F)' or '[접미] 관리자 (랭크 6)' — ranks: A-F or 1-9
@@ -886,29 +885,17 @@ class MabinogiTooltipParser(TooltipLineSplitter):
                     break
 
     @staticmethod
-    def _detect_sub_lines_by_indent(lines):
-        """Tag lines as sub-lines based on x-offset from section baseline.
+    def _detect_sub_lines(lines):
+        """Tag lines as sub-lines based on prefix detection.
 
-        Lines indented significantly from the minimum x position are tagged
-        is_reforge_sub=True. Falls back to ㄴ prefix detection.
-
-        Resolution-independent: uses relative threshold (offset > min_x).
+        Lines with _prefix_type == 'subbullet' are tagged is_reforge_sub=True.
         """
-        content_lines = [l for l in lines if not l.get('is_header')]
-        if content_lines:
-            min_x = min(l.get('bounds', {}).get('x', 0) for l in content_lines)
-        else:
-            min_x = 0
-
         for line in lines:
             if line.get('is_header'):
                 continue
-            # Skip lines already tagged as reforge option headers
             if 'reforge_name' in line:
                 continue
-            line_x = line.get('bounds', {}).get('x', 0)
-            is_indented = (line_x - min_x) > min_x and min_x > 0
-            line['is_reforge_sub'] = is_indented or bool(_REFORGE_SUB_RE.match(line.get('text', '')))
+            line['is_reforge_sub'] = line.get('_prefix_type') == 'subbullet'
 
     def _parse_reforge_section(self, lines):
         """Parse reforge section into structured option records.
@@ -935,8 +922,8 @@ class MabinogiTooltipParser(TooltipLineSplitter):
                 line['reforge_max_level'] = int(m.group(3))
                 line['is_reforge_sub']    = False
 
-        # Second pass: detect sub-lines by indent
-        self._detect_sub_lines_by_indent(lines)
+        # Second pass: detect sub-lines by prefix type
+        self._detect_sub_lines(lines)
 
         # Third pass: non-indented lines without reforge_name are level-less options
         for line in lines:
@@ -998,8 +985,7 @@ class MabinogiTooltipParser(TooltipLineSplitter):
                 options.append(current)
 
             elif line.get('is_reforge_sub') and current is not None:
-                effect = _REFORGE_SUB_RE.sub('', text).strip()
-                current['effect'] = effect
+                current['effect'] = text.strip()
 
         return {'options': options}
 

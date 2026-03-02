@@ -1,6 +1,6 @@
 # Architecture
 
-Detailed stage-by-stage description of the V3 OCR pipeline. Each stage documents the exact algorithm, input format, parameters, and output.
+Detailed stage-by-stage description of the V3 OCR pipeline. Each stage documents the exact algorithm, method calls, input format, parameters, and output.
 
 For algorithm details of individual correction strategies, see [CORE_LOGIC.md](CORE_LOGIC.md).
 
@@ -11,52 +11,78 @@ For algorithm details of individual correction strategies, see [CORE_LOGIC.md](C
 ```
 Original color screenshot (BGR, any resolution)
     │
-    ├── Stage 1: Border Detection + Crop — RGB(132,132,132) pixel scan → crop to tooltip
-    │     → tooltip image (game background and UI excluded)
+    ├── Stage 1: Border Detection + Crop
+    │     tooltip_segmenter.detect_bottom_border() + detect_vertical_borders()
+    │     → crop to tooltip boundary
     │
-    ├── Stage 2: Orange Header Detection — orange mask + black-square expansion
-    │     → list of header bands (y, h, x, w) — on cropped tooltip only
+    ├── Stage 2: Orange Header Detection
+    │     tooltip_segmenter.detect_headers()
+    │     → list of header bands (y, h, x, w, content_y)
     │
-    ├── Stage 3: Segmentation — pair headers with content regions
-    │     → pre_header + N header+content segments
+    ├── Stage 3: Segmentation + Header Classification
+    │     tooltip_segmenter.build_segments() + classify_header()
+    │     → pre_header + N labeled (section, content) segments
     │
-    ├── Stage 4: Header OCR — BT.601 + threshold=50 → custom_header model → fuzzy match
-    │     → section label per segment (enchant, reforge, erg, ...)
-    │
-    ├── Stage 5: Content OCR — per-section preprocessing + line splitting + recognition
+    ├── Stage 4: Content OCR (per segment)
     │     │
-    │     ├── Enchant section:
-    │     │     ├── oreo_flip (white mask) → slot header band detection
-    │     │     ├── classify lines: header / effect / grey (by band overlap + saturation)
-    │     │     ├── Header OCR: oreo_flip crop → custom_enchant_header model
-    │     │     ├── Effect OCR: BT.601 + threshold=80 → DualReader (2 font models)
-    │     │     └── Grey lines: skipped (no OCR)
+    │     ├── All sections: Preprocessing
+    │     │     cv2.cvtColor(BGR2GRAY) → cv2.threshold(80, BINARY_INV)
+    │     │     → TooltipLineSplitter.detect_text_lines() → _group_by_y()
+    │     │
+    │     ├── All content sections: Prefix Detection + Slicing
+    │     │     prefix_detector.detect_prefix_per_color(bgr_crop, BULLET_DETECTOR)
+    │     │     prefix_detector.detect_prefix_per_color(bgr_crop, SUBBULLET_DETECTOR)
+    │     │     → bullet/subbullet prefix sliced from gray crop before OCR
+    │     │     → _prefix_type flag set on each line
+    │     │
+    │     ├── Enchant section (with bands):
+    │     │     _oreo_flip() → detect_enchant_slot_headers()
+    │     │     classify_enchant_line() → header / effect / grey
+    │     │     promote_grey_by_prefix() → rescue grey lines with bullet prefix
+    │     │     _ocr_enchant_headers() → enchant_header_reader
+    │     │     _ocr_grouped_lines(prefix_config=BULLET_DETECTOR) → DualReader
+    │     │     Grey lines → skipped (no OCR)
     │     │
     │     ├── Reforge section:
-    │     │     ├── BT.601 + threshold=80 → DualReader
-    │     │     └── Sub-line detection by x-offset indent
+    │     │     _ocr_grouped_lines(prefix_configs=[BULLET, SUBBULLET]) → DualReader
+    │     │     _detect_sub_lines() → tag is_reforge_sub from _prefix_type=='subbullet'
+    │     │     _REFORGE_HEADER_RE → parse name/level/max_level
     │     │
     │     ├── Color section:
-    │     │     └── Regex parse RGB from sub-segments (no OCR)
+    │     │     Regex parse RGB from sub-segments (no OCR)
     │     │
-    │     └── All other sections:
-    │           └── BT.601 + threshold=80 → DualReader
+    │     └── Pre-header:
+    │           _preprocess_mabinogi_classic() or _preprocess_nanum_gothic()
+    │           _ocr_pre_header_image() → font-specific preheader reader
+    │           (no prefix detection)
     │
-    ├── Stage 6a: Item Name Parsing — parse pre_header into enchant prefix/suffix names
-    │     → P1 enchant entries available for effect dictionary selection
+    ├── Stage 5: Item Name Parsing (before FM)
+    │     text_corrector.parse_item_name()
+    │     → enchant_prefix, enchant_suffix, item_name → P1 entries
     │
-    ├── Stage 6b: Fuzzy Matching (FM) — section-aware text correction
+    ├── Stage 6: Fuzzy Matching (FM)
+    │     text_corrector.apply_fm()
     │     │
-    │     ├── Enchant headers: Dullahan algorithm (effect-guided header correction)
-    │     ├── Enchant effects: P1 entry prioritized for dictionary, Dullahan fallback
-    │     ├── Reforge: correct_normalized (number-normalized, level suffix stripped)
-    │     └── Other sections: correct_normalized (section dictionary or combined)
+    │     ├── Gate: FM only runs on lines with _prefix_type == 'bullet'
+    │     │   (sub-bullets, unprefixed lines, headers, enchant → all skip)
+    │     │
+    │     ├── Non-enchant bullet lines:
+    │     │     correct_normalized(text, section) → fuzz.ratio against section dict
+    │     │
+    │     └── Enchant section (separate loop):
+    │           do_dullahan() → header correction
+    │           match_enchant_effect() → effect correction
+    │           Non-ranged effects → DB text directly (no number regex)
+    │           Ranged effects → extract OCR number, inject into DB template
     │
-    ├── Stage 7: Structured Rebuild — build_enchant_structured / build_reforge_structured
-    │     → JSON response with prefix/suffix slots, reforge options, color parts
+    ├── Stage 7: Structured Rebuild
+    │     build_enchant_structured() → prefix/suffix slots with effects[]
+    │     build_reforge_structured() → options[] with name/level/effect
     │
-    └── Stage 8: Final Enchant Header Competition — P1/P2/P3 resolution
-          → P1 (item name), P2 (raw header OCR), P3 (Dullahan) → winner + templated effects
+    └── Stage 8: Enchant Resolution (P1/P2/P3)
+          _step_resolve_enchant()
+          P1 (item name) > P2 (raw header OCR) > P3 (Dullahan)
+          → winner's DB entry → build_templated_effects()
 ```
 
 ---
@@ -64,72 +90,60 @@ Original color screenshot (BGR, any resolution)
 ## Stage 1: Border Detection
 
 **File:** `backend/lib/tooltip_segmenter.py`
-**Functions:** `detect_bottom_border()`, `detect_vertical_borders()`
+**Entry:** `v3_pipeline._step_segment()` → `segment_and_tag()`
 
-**Input:** Original color screenshot as BGR numpy array (cv2.imread default). No preprocessing, no resize, no grayscale conversion. The image is exactly what the user uploaded or screenshotted.
+### Methods called:
 
-**Algorithm:**
-
-Mabinogi tooltips have a gray border at RGB(132, 132, 132). The border is a game engine constant — same color across all 26 theme backgrounds.
-
+**`detect_bottom_border(img_bgr)`**
 ```
-Bottom border — detect_bottom_border():
-  For each row (bottom → top):
-    Count pixels where ALL of B, G, R ∈ [127, 137]  (132 ± 5)
-    If count ≥ 30% of image width → return y
-  Return None if no border found
-
-Vertical borders — detect_vertical_borders():
-  Column-wise sum of border-colored pixels
-  Scan inward from each edge:
-    Left:  first column where count ≥ 30% of image height
-    Right: last column where count ≥ 30% of image height
-  Return (left_x, right_x), each may be None
+For each row (bottom → top):
+  Count pixels where ALL of B, G, R ∈ [127, 137]  (132 ± 5)
+  If count ≥ 30% of image width → return y
+Return None if no border found
 ```
 
-**Output:** `bottom_y`, `left_x`, `right_x` — pixel coordinates. `None` if not detected (fallback to full image extent).
+**`detect_vertical_borders(img_bgr)`**
+```
+Column-wise sum of border-colored pixels (RGB 132 ± 5)
+Scan inward from each edge:
+  Left:  first column where count ≥ 30% of image height
+  Right: last column where count ≥ 30% of image height
+Return (left_x, right_x), each may be None
+```
 
-After detection, the image is **cropped to the tooltip boundary** before any further processing:
-
+**Crop:**
 ```
 tooltip = img[0 : bottom_y+1,  left_x+1 : right_x]
 ```
 
-All subsequent stages operate on this cropped `tooltip` image. This eliminates stray orange pixels, game world background, and UI elements outside the tooltip from ever reaching header detection or content OCR.
-
-If any border is not detected, that edge falls back to the full image extent (no crop on that side).
+All subsequent stages operate on this cropped tooltip. If any border is not detected, that edge falls back to the full image extent.
 
 ---
 
 ## Stage 2: Orange Header Detection
 
 **File:** `backend/lib/tooltip_segmenter.py`
-**Function:** `detect_headers()`
+**Method:** `detect_headers(img_bgr, config)`
 
-**Input:** Border-cropped tooltip image (BGR). Only tooltip pixels are scanned — stray orange outside the tooltip area is excluded by the Stage 1 crop.
-
-**Algorithm:**
-
-Section headers (인챈트, 세공, 에르그, ...) are rendered as orange text on a pure-black background square. The orange color is a game engine constant.
+### Algorithm:
 
 ```
-Step 1: Orange mask — per-pixel condition:
+Step 1: Orange mask — per-pixel:
   R > 150  AND  50 < G < 180  AND  B < 80
-  → binary mask (1 = orange pixel)
+  → binary mask
 
-Step 2: Horizontal projection — sum orange pixels per row
-  → row_counts[y]
+Step 2: Horizontal projection — sum orange pixels per row → row_counts[y]
 
 Step 3: Band clustering — contiguous rows where row_counts > 0
   Filter: band_height ≥ 8  AND  total_orange_pixels ≥ 40
 
 Step 4: Black-square boundary expansion — for each orange band:
   a. Reference columns: right of orange text (ox_max to ox_max+10)
-  b. Expand upward from band top: while pure-black density ≥ 20% in ref columns
-  c. Expand downward from band bottom: same condition
-  d. Scan left/right from orange center for pure-black extent
+  b. Expand upward: while pure-black density ≥ 20% in ref columns
+  c. Expand downward: same condition
+  d. Scan left/right for pure-black extent
   → (y_top, y_bottom, x_left, x_right) = black square bounds
-  → content_y = y_bottom + 1 (first row below the header)
+  → content_y = y_bottom + 1
 ```
 
 **Parameters** (from `configs/mabinogi_tooltip.yaml` → `header_detection`):
@@ -139,154 +153,211 @@ Step 4: Black-square boundary expansion — for each orange band:
 
 **Output:** List of header dicts sorted by y: `{y, h, x, w, content_y}`
 
-**Result:** 26/26 theme images detected, 0 false positives (on properly cropped tooltips).
+**Result:** 26/26 theme images detected, 0 false positives.
 
 ---
 
-## Stage 3: Segmentation
+## Stage 3: Segmentation + Header Classification
 
 **File:** `backend/lib/tooltip_segmenter.py`
-**Function:** `build_segments()`
+**Methods:** `build_segments()`, `classify_header()`, `_preprocess_header_crop()`
 
-**Input:** Header list from Stage 2 + cropped tooltip image from Stage 1.
-
-**Algorithm:**
-
-Since the image was already cropped to tooltip borders in Stage 1, segmentation operates on tooltip-local coordinates with full image width.
+### `build_segments(headers, img_h)`
 
 ```
 Segment 0 (pre_header):
   If first header y > 0 → content from row 0 to first header y
-  Contains: item name, item type, craftsman text
 
 Segments 1..N (header + content):
   For each header[i]:
     content starts at header[i].content_y
-    content ends at header[i+1].y (or tooltip image height for last segment)
+    content ends at header[i+1].y (or img_h for last segment)
     content width: full tooltip image width
 ```
 
-**Output:** List of segments: `{index, header: dict|None, content: {y, h, x, w}}`
-
----
-
-## Stage 4: Header OCR + Classification
-
-**File:** `backend/lib/tooltip_segmenter.py`
-**Functions:** `classify_header()`, `_preprocess_header_crop()`
-
-**Input:** Header crop (tight black-square region from original color image).
-
-**Algorithm:**
+### `classify_header(header_crop, reader, section_patterns, config)`
 
 ```
-Step 1: Preprocess header crop
-  BT.601 grayscale (cv2.cvtColor BGR2GRAY)
-  → threshold at 50, BINARY_INV
-  → black text on white background
-  (threshold=50, not 80 — orange text on dark bg needs lower threshold)
+Step 1: _preprocess_header_crop()
+  cv2.cvtColor(BGR2GRAY)
+  → cv2.threshold(50, BINARY_INV)  (50 not 80 — orange on dark needs lower threshold)
 
 Step 2: OCR with dedicated header model
-  Model: custom_header.pth (imgW=128, 22-char charset, trained on 9 section labels)
-  EasyOCR recognize() with imgW patch applied
+  reader.recognize(gray, horizontal_list=[[0,w,0,h]], free_list=[])
+  Model: custom_header.pth (imgW=128, 22-char charset)
 
 Step 3: Fuzzy match against section patterns
   Patterns from configs/mabinogi_tooltip.yaml → sections → header_patterns
-  Scorer: fuzz.partial_ratio (handles OCR adding/dropping characters)
-  Cutoff: 50 (from config)
-  Best-scoring pattern → section name
+  Scorer: fuzz.partial_ratio
+  Cutoff: 50
+  → section_name
 ```
 
 **Section labels:** `item_grade`, `item_attrs`, `enchant`, `item_mod`, `reforge`, `erg`, `set_item`, `ego`, `item_color`
 
-**Output:** `(section_name, ocr_text, confidence, match_score)`
+**Output:** List of segments: `{section, header_crop, header_ocr_text, header_ocr_conf, header_match_score, content_crop}`
 
 ---
 
-## Stage 5: Content OCR
+## Stage 4: Content OCR
 
 **File:** `backend/lib/mabinogi_tooltip_parser.py`
-**Method:** `_parse_segment_from_array()`
+**Entry:** `v3_pipeline._step_content_ocr()` → `parser.parse_from_segments()`
+**Per-segment:** `_parse_segment_from_array(content_bgr, section, reader)`
 
-**Input:** Content crop (BGR, region below each header), pre-known section label.
+### 4.0 Common preprocessing (all sections except pre_header and enchant-with-bands)
 
-Processing varies by section type:
-
-### 5a. Default content preprocessing (most sections)
+**Methods:** `cv2.cvtColor()`, `cv2.threshold()`, `detect_text_lines()`, `_group_by_y()`
 
 ```
-Step 1: BT.601 grayscale → threshold=80, BINARY_INV → black text on white
-Step 2: Invert for line detection (detect_text_lines needs white-on-black)
-Step 3: TooltipLineSplitter.detect_text_lines()
+Step 1: cv2.cvtColor(content_bgr, COLOR_BGR2GRAY)
+Step 2: cv2.threshold(gray, 80, 255, THRESH_BINARY_INV) → binary (black text on white)
+Step 3: cv2.bitwise_not(binary) → binary_detect (white text on black, for line detection)
+Step 4: TooltipLineSplitter.detect_text_lines(binary_detect)
   → horizontal projection profiling
-  → gap detection with 2-row tolerance
-  → _rescue_gaps (second pass at lower threshold)
-  → _split_tall_block (oversized merged blocks)
-  → _has_internal_gap (split blocks with 2+ zero rows)
-  → _add_line (filter border artifacts, compute tight x bounds)
-Step 4: _group_by_y() — merge horizontal sub-segments into line groups
-Step 5: _ocr_grouped_lines() — for each line group:
-  Crop with proportional padding: pad_x=max(2, h//3), pad_y=max(1, h//5)
-  DualReader.recognize():
-    Run both font-specific models (mabinogi_classic + nanum_gothic_bold)
-    Pick highest confidence result per line
-  Merge sub-line texts with space separator
+  → gap detection (tolerance=2 rows)
+  → _rescue_gaps() — second pass at lower threshold for sparse lines
+  → _split_tall_block() / _has_internal_gap() — split merged blocks
+  → _add_line() — filter border artifacts, compute tight x bounds
+Step 5: _group_by_y(detected_lines) → list of line groups (sub-segments sorted by x)
 ```
 
-### 5b. Enchant section (`parse_mode: enchant_options`)
+### 4.1 Prefix Detection + Slicing
 
-When white-mask slot header bands are detected (`detect_enchant_slot_headers` returns non-empty):
+**File:** `backend/lib/prefix_detector.py`
+**Method:** `detect_prefix_per_color(bgr_crop, config)`
+**Called from:** `_ocr_grouped_lines()` for each sub-line
+
+Runs on all content sections (not pre_header, not skipped sections). Two configs are tried in order; first match wins:
 
 ```
-Step 1: oreo_flip (white-text color mask)
+For each sub-line in a group:
+  bgr_crop = content_bgr[y_pad:y_pad+h_pad, x_pad:x_pad+w_pad]
+
+  For config in [BULLET_DETECTOR, SUBBULLET_DETECTOR]:
+    For each color in config.colors:
+      mask = _color_mask(bgr_crop, rgb, tolerance=15)
+      result = _detect_prefix_on_mask(mask, config)
+        → column projection state machine:
+          [small ink cluster] → [gap] → [main text]
+        → _classify_shape(mask, cluster_region)
+          → shape_walker.find_shape() tests SHAPE_DOT / SHAPE_NIEUN
+      If result.type is not None → break
+
+  If type in ('bullet', 'subbullet') and main_x < crop_width:
+    prefix_end = result.x + result.w
+    cut_x = max(prefix_end, result.main_x - _PREFIX_ANTIALIAS_MARGIN)
+    gray = gray[:, cut_x:]  ← slice prefix off before OCR
+
+  Line tagged: _prefix_type = result.type  ('bullet', 'subbullet', or None)
+```
+
+**Configs:**
+- `BULLET_DETECTOR`: colors=(blue, red, grey, light_grey), shapes=(SHAPE_DOT,) → detects `·`
+- `SUBBULLET_DETECTOR`: colors=(white, red, grey), shapes=(SHAPE_NIEUN,) → detects `ㄴ`
+
+### 4.2 Line OCR
+
+**Method:** `_ocr_grouped_lines(img, grouped_lines, reader, ...)`
+
+```
+For each line group:
+  For each sub-line:
+    Crop with proportional padding: pad_x=max(2, h//3), pad_y=max(1, h//5)
+    Convert to grayscale if needed
+    [Prefix detection + slicing — see 4.1]
+    reader.recognize(gray, horizontal_list=[[0,cw,0,ch]], free_list=[])
+      DualReader: runs both font-specific models, picks highest confidence
+    Record: text, confidence, ocr_model, prefix_type, prefix_abs_cut
+
+  Merge sub-line results:
+    merged_text = ' '.join(sub_texts)
+    avg_conf = mean(sub_confs)
+    merged_bounds = merge_group_bounds(group)
+    _prefix_type = first sub-line's prefix_type
+    _has_bullet = _prefix_type in ('bullet', 'subbullet')
+```
+
+### 4.3 Enchant section (`parse_mode: enchant_options`)
+
+**Method:** `_parse_enchant_with_bands(content_bgr, binary, grouped, slot_bands, ...)`
+
+Only when `detect_enchant_slot_headers(content_bgr)` returns non-empty bands.
+
+```
+Step 1: _oreo_flip(content_bgr)
   Per-pixel: max_ch = max(R,G,B), min_ch = min(R,G,B)
   white_mask = (max_ch > 150) AND (max_ch / (min_ch + 1) < 1.4)
   Strip border columns: leftmost/rightmost 3 cols with >50% density → zero out
-  Invert: white_mask → ocr_input (black text on white)
+  Invert → ocr_source (black text on white)
 
-Step 2: Horizontal projection on white_mask → detect slot header bands
-  Run detection with ROW_THRESHOLD=10, GAP_TOLERANCE=2
+Step 2: detect_enchant_slot_headers(content_bgr)
+  Horizontal projection on white_mask
+  ROW_THRESHOLD=10, GAP_TOLERANCE=2
   Filter: 8 ≤ height ≤ 15 AND total_white_px ≥ 150
+  → slot_bands = [(y_start, y_end), ...]
 
-Step 3: Classify each line group — classify_enchant_line()
-  'header': line overlaps a white-mask band
-  'effect': text pixels have mean saturation ≥ 0.15 (colored text)
-  'grey':   text pixels have mean saturation < 0.15 (desaturated descriptions)
+Step 3: classify_enchant_line(group, bounds, bands, content_bgr)
+  For each line group:
+    'header' — line overlaps a white-mask band
+    'effect' — text pixels have mean saturation ≥ 0.15
+    'grey'   — text pixels have mean saturation < 0.15
 
-Step 4: OCR by line type
+Step 4: trim_outlier_tail(classifications)
+  Remove leaked non-enchant lines at segment bottom via gap analysis
+
+Step 5: promote_grey_by_prefix(classifications, content_bgr)
+  For each grey line:
+    detect_prefix_per_color(bgr_crop, BULLET_DETECTOR)
+    If bullet detected → reclassify as 'effect'
+
+Step 6: determine_enchant_slots(classifications)
+  2 headers → ['접두', '접미']
+  1 header + grey above → ['접미']
+  1 header, no grey above → ['접두']
+
+Step 7: OCR by type
   Headers → _ocr_enchant_headers():
-    Crop from oreo_flip ocr_source (not binary)
-    Find x-extent of white pixels within the matched band (≥3 per column)
-    Proportional padding, then enchant_header_reader (custom_enchant_header model)
-  Effects → _ocr_grouped_lines():
-    Standard BT.601+threshold=80 binary → DualReader
-  Grey → skipped (no OCR, empty text, is_grey=True)
+    Crop from oreo_flip ocr_source
+    Find x-extent of white pixels within matched band (≥3 per column)
+    Proportional padding → enchant_header_reader.recognize()
+  Effects → _ocr_grouped_lines(prefix_config=BULLET_DETECTOR):
+    Standard binary → DualReader, with bullet slicing
+  Grey → skipped (text='', is_grey=True)
 
-Step 5: Position-based slot assignment (not OCR-dependent)
-  2 headers → slot_queue = ['접두', '접미']
-  1 header  → check if grey lines appear above first header
-              grey above → prefix is empty → header is '접미'
-              no grey above → header is '접두'
-  0 headers → slot_queue = []
+Step 8: Assemble results
+  Interleave header_batch and effect_batch in original order
+  Assign enchant_slot from slot_queue
 ```
 
-Fallback: if `detect_enchant_slot_headers` returns empty, falls through to `_parse_enchant_section()` which uses regex on OCR text to detect `[접두|접미]` headers.
+**Fallback:** If `detect_enchant_slot_headers` returns empty, falls through to `_parse_enchant_section()` (regex-based `[접두|접미]` detection on OCR text).
 
-### 5c. Reforge section (`parse_mode: reforge_options`)
+### 4.4 Reforge section (`parse_mode: reforge_options`)
+
+**Method:** `_parse_reforge_section(lines)`
 
 ```
-Step 1: Standard preprocessing (BT.601 + threshold=80) → DualReader OCR
+Step 1: OCR via common path (4.0 + 4.1 + 4.2)
+  prefix_configs=[BULLET_DETECTOR, SUBBULLET_DETECTOR]
+  → each line gets _prefix_type flag, bullet/subbullet sliced before OCR
+
 Step 2: Regex detection of level-suffixed options
-  Pattern: '- name(current/max 레벨)' → reforge_name, reforge_level, reforge_max_level
-Step 3: Sub-line detection by x-offset indent
-  min_x = minimum x among all content lines
-  Indented if (line.x - min_x) > min_x  (relative threshold, resolution-independent)
-  Fallback: ㄴ prefix regex detection
-  Sub-lines tagged is_reforge_sub=True → skip FM
-Step 4: Non-indented lines without reforge_name → level-less options
+  _REFORGE_HEADER_RE: '- name(current/max 레벨)'
+  → reforge_name, reforge_level, reforge_max_level, is_reforge_sub=False
+
+Step 3: _detect_sub_lines(lines)
+  For each untagged line:
+    line['is_reforge_sub'] = (line._prefix_type == 'subbullet')
+
+Step 4: Remaining non-sub, non-header lines → level-less options
+  reforge_name = text, level = None
+
+Step 5: build_reforge_structured(lines)
+  Main lines → option records {name, level, max_level}
+  Sub-bullet lines → option.effect = text
 ```
 
-### 5d. Color section (`parse_mode: color_parts`)
+### 4.5 Color section (`parse_mode: color_parts`)
 
 ```
 No OCR. Horizontal sub-segments parsed via regex:
@@ -294,108 +365,147 @@ No OCR. Horizontal sub-segments parsed via regex:
   Each sub-segment → {part, r, g, b}
 ```
 
-### 5e. Pre-header (no section label)
+### 4.6 Pre-header
+
+**Entry:** `v3_pipeline._step_pre_header()`
 
 ```
-Standard OCR, then:
-  First line matching _PRE_NAME_PATTERNS ('전용 해제') → item_flags
-  Next line → item_name
-  Remaining → item_type
+Step 1: Preprocessing — two variants, both run:
+  _preprocess_mabinogi_classic(content_bgr):
+    mabinogi_classic_mask() — white RGB(255,255,255) + yellow RGB(255,252,157), tolerance=5
+    → mask, cv2.bitwise_not(mask)
+  _preprocess_nanum_gothic(content_bgr):
+    cv2.cvtColor(BGR2HSV) → reject saturated non-yellow pixels
+    cv2.threshold(gray, 120, BINARY_INV)
+
+Step 2: OCR both variants
+  _ocr_pre_header_image(detect_binary, ocr_binary, parser, reader)
+    parser.detect_text_lines(detect_binary)
+    parser._group_by_y(detected)
+    parser._ocr_grouped_lines(ocr_binary, grouped, reader)
+  No prefix detection (pre_header has no bullets)
+
+Step 3: Font detection — pick variant with higher total confidence
+  detected_font = 'mabinogi_classic' or 'nanum_gothic'
+  (also used to select content reader for Stage 4)
+
+Step 4: _parse_pre_header(ocr_results)
+  Tag all lines section='pre_header'
+```
+
+### 4.7 Generic sections (item_attrs, item_mod, erg, set_item, ego, item_grade)
+
+```
+Common path (4.0 + 4.1 + 4.2):
+  BT.601 grayscale → threshold=80 → line detection → prefix detection → DualReader OCR
+  prefix_configs=[BULLET_DETECTOR, SUBBULLET_DETECTOR]
+
+Return: {'lines': [{text, confidence, bounds, section, ocr_model, _prefix_type}]}
 ```
 
 ---
 
-## Stage 6a: Item Name Parsing
+## Stage 5: Item Name Parsing
 
 **File:** `backend/lib/text_corrector.py`
-**Method:** `parse_item_name()`
+**Entry:** `v3_pipeline._step_parse_item_name()` → `corrector.parse_item_name()`
 
 **Input:** First pre_header line (OCR text, before FM).
 
-**Algorithm:**
+**Why before FM:** Parsed enchant names (P1 candidates) are used as the prioritized effect dictionary source in Stage 6 enchant FM.
+
+### Algorithm: `parse_item_name(text)`
 
 ```
 Right-to-left item_name anchor:
-  1. Strip holywater from start (fuzzy match, score >= 70)
-  2. Strip 정령 keyword
-  3. Anchor item_name from right — progressively longer suffixes against item_name.txt
-  4. Remaining left part → match against enchant prefix/suffix dicts
+  1. Strip holywater from start (fuzzy match against holywater dict, score ≥ 70)
+  2. Strip '정령' ego keyword
+  3. Anchor item_name from right:
+     For progressively longer suffixes of remaining text:
+       fuzzy match against item_name.txt (20k entries)
+     Pick longest match with score ≥ 85
+  4. Remaining left part → match against _enchant_prefixes / _enchant_suffixes
   → {item_name, enchant_prefix, enchant_suffix, _holywater, _ego}
 ```
 
-**Why before FM:** The parsed enchant names (P1 candidates) are used as the prioritized effect dictionary source in Stage 6b. When P1 resolves an enchant name to a DB entry, that entry's effects are used for enchant effect FM — more accurate than the Dullahan-matched (P3) entry when header OCR is garbled.
-
-**Output:** `sections['pre_header']['parsed_item_name']` dict with enchant_prefix, enchant_suffix, item_name.
+**Output:** `sections['pre_header']['parsed_item_name']`
 
 ---
 
-## Stage 6b: Fuzzy Matching (FM)
+## Stage 6: Fuzzy Matching (FM)
 
 **File:** `backend/lib/text_corrector.py`
-**Method:** `apply_fm()`
+**Entry:** `v3_pipeline._step_fm()` → `corrector.apply_fm(all_lines, sections)`
 
-**Input:** `all_lines` (flat list) + `sections` dict (with parsed item name from Stage 6a).
-
-**Preprocessing:** Strip structural prefixes (`-`, `ㄴ`, `,`, `L`) from content lines before matching. Dictionary entries don't have these prefixes.
-
-### Non-enchant sections
-
-For each line with a known section:
+### Preprocessing
 
 ```
-correct_normalized(text, section=section):
-  1. Choose dictionary: section-specific if available, skip if known but no dict (score=-2)
+For each non-header line:
+  Strip structural prefix (_PREFIX_PAT: leading -, ㄴ, comma, L)
+  line['text'] = text[match.end():]
+```
+
+### Non-enchant FM loop
+
+**Gate: only lines with `_prefix_type == 'bullet'` proceed.** All others (sub-bullets, unprefixed lines, headers, enchant) → `fm_applied=False`, skip.
+
+For each bullet line:
+
+```
+correct_normalized(text, section):
+  1. Section dictionary lookup:
+     Known section with dict → use section-specific entries
+     Known section, no dict → score=-2, skip
   2. Section-specific transform:
      reforge: strip '(N/N 레벨)' suffix, re-attach after match
-     enchant header: extract just the name via regex
-  3. Extract numbers, replace with N
-  4. Match against normalized dictionary entries (fuzz.ratio, cutoff=80)
+  3. _normalize_nums(text): replace all numbers with 'N'
+  4. fuzz.ratio(normalized_text, each_dict_entry)
+     cutoff: 0 for reforge (closed set), 80 for others
   5. Re-inject OCR numbers into matched template
-  → (corrected_text, score)
+  → (corrected_text, score, paren_range)
 ```
 
-Reforge sub-lines (`is_reforge_sub=True`) skip FM entirely (score=-3).
+### Enchant FM loop
 
-### Enchant section — has_slot_hdrs=True (white-mask detected)
+**Condition:** `enchant_db_ready=True` and section has `has_slot_hdrs=True`
 
 ```
-Resolve P1 entries from parsed item name (Stage 6a):
-  For each slot type (접두/접미):
-    If parsed_item_name has enchant_prefix/suffix → lookup_enchant_by_name()
-    → p1_entries = {slot_type: entry}
+Step 1: Resolve P1 entries from parsed_item_name (Stage 5)
+  For '접두'/'접미': lookup_enchant_by_name(name) → DB entry
 
-Group lines by slot header:
+Step 2: Group lines by slot header
   Each slot = (header_line, [effect_lines])
 
-For each slot:
-  Header FM: do_dullahan(header_text, effect_texts, slot_type)
-    → Dullahan algorithm: score DB entries by name similarity,
-      use effect lines to break ties or find correct entry when header is garbled
-    → Returns (corrected_header, score, entry)
-    → Sets enchant_slot, enchant_name, enchant_rank from matched entry
+Step 3: Header FM — do_dullahan(header_text, effect_texts, slot_type)
+  Score all DB entries by fuzz.ratio on header name
+  Use effect lines to break ties (body scoring)
+  → (corrected_header, score, matched_entry)
 
-  Effect dictionary selection:
-    → P1 entry prioritized; Dullahan entry as fallback
-    → effect_entry = p1_entries.get(slot_type, dullahan_entry)
+Step 4: Effect FM — for each effect line:
+  effect_entry = P1 entry (prioritized) or Dullahan entry (fallback)
+  match_enchant_effect(text, effect_entry, cutoff_score=75):
+    Normalize both OCR and DB effects (numbers → N)
+    Match OCR against entry's effects_norm + effects_full_norm
+    Pick higher fuzz.ratio score (effect-only vs full-form)
 
-  Effect FM: match_enchant_effect(text, effect_entry) for each effect line
-    → Searches only the resolved entry's effects (4-8 lines, not full dict)
-    → Number normalization + re-injection
-    → Cutoff: 75
+    If NOT ranged (no '~' in DB effect):
+      → Return raw DB text directly (all numbers are fixed constants)
+
+    If ranged ('N ~ N' in DB effect):
+      Extract rolled value from OCR text
+      Primary: find opt_name in OCR, take numbers after it
+      Fallback: cond_has_number → skip first number, take second
+      _inject(template, numbers): replace N placeholders, clean up '~ N'
+      → Return template with OCR number injected
 ```
 
-**Why P1 priority for effects:** When header OCR is garbled (e.g. "스크니 사수" → Dullahan picks 스파이크), the effect dictionary is wrong. P1 from item name parsing ("레지스탕스") is more reliable because the item name line has higher OCR confidence and is matched against a clean dictionary.
-
-### Enchant section — has_slot_hdrs=False (linear fallback)
+### Enchant FM — has_slot_hdrs=False (linear fallback)
 
 ```
 Linear scan of enchant lines:
-  Try match_enchant_header(line):
-    fuzz.ratio against all _enchant_headers_norm, cutoff=80
-    If match → remember entry as current_entry
-
-  Else try match_enchant_effect(line, current_entry):
-    fuzz.partial_ratio against current entry's effects, cutoff=75
+  Try match_enchant_header(line): fuzz.ratio, cutoff=80
+    If match → remember as current_entry
+  Else try match_enchant_effect(line, current_entry): cutoff=75
 ```
 
 ---
@@ -403,63 +513,64 @@ Linear scan of enchant lines:
 ## Stage 7: Structured Rebuild
 
 **File:** `backend/lib/mabinogi_tooltip_parser.py`
-**Methods:** `build_enchant_structured()`, `build_reforge_structured()`
+**Entry:** `v3_pipeline._step_rebuild_structured(sections, parser)`
 
-Called AFTER FM correction to propagate corrected text into structured section data.
+Called AFTER FM so corrected text propagates into structured data.
 
-### 7a. Enchant structured
+### 7a. `build_enchant_structured(lines)`
 
 ```
-For each line tagged is_enchant_hdr=True:
+For each line with is_enchant_hdr=True:
   Create slot record: {text, name, rank, effects: []}
-  Enrich text with rank from DB if available but not in OCR output:
-    display_text = "[slot] name (랭크 rank)" when rank known but absent from text
+  Enrich text with rank from DB if available:
+    "[slot] name (랭크 rank)" when rank known but absent from OCR
   Following non-header, non-grey lines → effects[]
     Each effect: {text, option_name, option_level} via _parse_effect_number()
 
 Output: {prefix: slot_record | None, suffix: slot_record | None}
 ```
 
-### 7b. Reforge structured
+### 7b. `build_reforge_structured(lines)`
 
 ```
 For each main line (is_reforge_sub=False, has reforge_name):
-  Re-parse name/level/max_level from corrected text (regex)
-  Following sub-lines → effect text
+  Re-parse name/level/max_level from FM-corrected text via _REFORGE_HEADER_RE
+  Following sub-bullet lines → option.effect = text.strip()
 
 Output: {options: [{name, level, max_level, option_name, option_level, effect}]}
 ```
 
 ---
 
-## Stage 8: Final Enchant Header Competition
+## Stage 8: Enchant Resolution (P1/P2/P3)
 
 **File:** `backend/lib/v3_pipeline.py`
-**Function:** `_step_resolve_enchant()`
-
-**Input:** `sections` dict after FM and structured rebuild.
+**Method:** `_step_resolve_enchant(sections, corrector)`
 
 Three candidates per slot (접두/접미):
 
 ```
-P1: Item name parsing (Stage 6a) — enchant_prefix/suffix from pre_header OCR
-    → lookup_enchant_by_name() → exact or fuzzy (≥85) match
-    → Score: 100 (exact name match)
+P1: Item name parsing (Stage 5)
+  enchant_prefix/suffix from pre_header OCR
+  → lookup_enchant_by_name() → exact or fuzzy (≥85) match
+  Score: 100 (exact name match)
 
-P2: Raw header OCR — snapshot of enchant header text before Dullahan
-    → Extract name via regex from '[접두] name (랭크 X)'
+P2: Raw header OCR
+  Snapshot of enchant header text before Dullahan
+  → extract name via regex from '[접두] name (랭크 X)'
 
-P3: Dullahan result — header + effect body matching from Stage 6b
-    → enchant_name and _dullahan_score from matched entry
+P3: Dullahan result (Stage 6)
+  enchant_name and _dullahan_score from matched entry
 
 Priority: P1 > P2 > P3
 Winner with DB entry → build_templated_effects():
   Match OCR effect lines to DB effects by dual-form matching
-  Extract rolled values (numbers) from OCR, inject into DB templates
+  Non-ranged effects: use DB text directly
+  Ranged effects: extract rolled values from OCR, inject into DB templates
   → final enchant slot: {text, name, rank, effects[], source}
 ```
 
-**Output:** `sections['enchant']['resolution']` with per-slot winner info, `sections['enchant']['prefix'|'suffix']` updated with winning entry's templated effects.
+**Output:** `sections['enchant']['resolution']` with per-slot winner info, `sections['enchant']['prefix'|'suffix']` enriched with templated effects.
 
 ---
 
@@ -468,15 +579,17 @@ Winner with DB entry → build_templated_effects():
 | Model | File | imgW | Charset | Purpose |
 |-------|------|------|---------|---------|
 | custom_header | `backend/ocr/models/custom_header.*` | 128 | 22 chars | Section header OCR (9 labels) |
-| custom_enchant_header | `backend/ocr/models/custom_enchant_header.*` | 200 | 627 chars | Enchant slot header OCR |
-| custom_mabinogi_classic | `backend/ocr/models/custom_mabinogi_classic.*` | 200 | 509 chars | Content OCR (mabinogi_classic font) |
-| custom_nanum_gothic_bold | `backend/ocr/models/custom_nanum_gothic_bold.*` | 200 | 509 chars | Content OCR (NanumGothicBold font) |
+| custom_enchant_header | `backend/ocr/models/custom_enchant_header.*` | 256 | 626 chars | Enchant slot header OCR |
+| custom_mabinogi_classic | `backend/ocr/models/custom_mabinogi_classic.*` | 200 | 554 chars | Content OCR (mabinogi_classic font) |
+| custom_nanum_gothic_bold | `backend/ocr/models/custom_nanum_gothic_bold.*` | 200 | 554 chars | Content OCR (NanumGothicBold font) |
+| preheader_mabinogi_classic | `backend/ocr/models/preheader_mabinogi_classic.*` | 200 | 1,181 chars | Pre-header OCR (mabinogi_classic font) |
+| preheader_nanum_gothic | `backend/ocr/models/preheader_nanum_gothic.*` | 200 | 1,181 chars | Pre-header OCR (NanumGothicBold font) |
 
 All models: TPS-ResNet-BiLSTM-CTC architecture, imgH=32, `sensitive=true`, `PAD=true`.
 
-DualReader wraps the two content models. For each line, both models run and the highest-confidence result wins. Transparent to the parser — it sees one `reader.recognize()` call.
+**DualReader** (`backend/lib/dual_reader.py`): Wraps two font-specific content readers. Both models run `recognize()` per line; highest-confidence result wins. Transparent to parser.
 
-All readers have `patch_reader_imgw()` applied after creation. This replaces EasyOCR's double-resize inference path (cv2.LANCZOS in `get_image_list()` → PIL.BICUBIC in `AlignCollate`) with a single-resize path (`_crop_boxes()` → `AlignCollate`), matching training exactly.
+**Inference patch** (`backend/lib/ocr_utils.py`): `patch_reader_imgw()` replaces EasyOCR's double-resize path (cv2.LANCZOS in `get_image_list()` → PIL.BICUBIC in `AlignCollate`) with single-resize (`_crop_boxes()` → `AlignCollate`), matching training exactly.
 
 ---
 
@@ -495,37 +608,9 @@ All readers have `patch_reader_imgw()` applied after creation. This replaces Eas
 
 | Endpoint | Input | Pipeline |
 |----------|-------|----------|
-| `POST /upload-item-v3` | Original color screenshot (multipart) | Full V3 pipeline (Stages 1-7) |
+| `POST /upload-item-v3` | Original color screenshot (multipart) | Full V3 pipeline (Stages 1-8) |
 | `POST /upload-item-v2` | Browser-preprocessed binary PNG | Legacy pipeline (line split → OCR → FM, no segmentation) |
 
 V3 response: `{sections: {section_name: OcrSectionResponse}, all_lines: [OcrLineResponse], session_id?}`
 
 See `documents/API_SPEC.md` for full response schema.
-
----
-
-## EasyOCR Internals
-
-Key details about EasyOCR's recognition path, relevant for understanding inference behavior:
-
-- `readtext()` = CRAFT detection + recognition (not used in v2/v3 — we bypass CRAFT)
-- `recognize(img_grey, horizontal_list=[[0, w, 0, h]], free_list=[], reformat=False)` = recognition only on pre-cropped images
-- `recognition.py` lines 199, 213: `keep_ratio_with_pad=True` is hardcoded — the `PAD` field in yaml is ignored during inference
-- When both `horizontal_list` and `free_list` are None, it uses the entire image as one bbox
-- Must pass `free_list=[]` (not None) when `horizontal_list` is set, otherwise TypeError
-- **Dynamic imgW pitfall:** `recognize()` passes `int(max_width)` to `get_text()` where `max_width = ceil(w/h) * 32` — varies per image. Fixed by `ocr_utils.py` patch.
-
----
-
-## Real Line Crop Statistics
-
-From 235 lines across 5 GT images (after splitter improvements):
-- Text height: min=6, max=14, **median=10px** (two clusters: 7px and 10px)
-- Padded width: min=22, max=269, **median=261px** (most lines span full tooltip width)
-- Tooltip width: consistently 262-271px across all images
-- All images are strictly binary (0, 255) after frontend thresholding at 80
-
-Ground truth file types in `data/sample_images/`:
-- `*_processed.txt` / `*_original.txt` — Full ground truth (all text in image)
-- `*_expected.txt` — Expected OCR output (may skip flavor text, bottom area)
-- `*_gt_candidate.txt` — Pipeline-generated candidates for manual review (created by `scripts/v2/ocr/regenerate_gt.py`)
