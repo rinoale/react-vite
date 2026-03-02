@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Mabinogi (MMORPG) item trading marketplace with OCR-powered item registration. Users upload a screenshot of an in-game item tooltip, and the system automatically extracts item details using a custom-trained EasyOCR model.
 
-**Current performance:** 151/309 exact, 84.7% char accuracy, FM=60 (19 images, 7 with GT).
+**Current performance:** 184/311 exact, 90.4% char accuracy, FM=60 (18 images, 7 with GT).
 
 **Eval command:** `python3 scripts/v3/test_v3_pipeline.py -q 'data/sample_images/*_original.png'`
 
@@ -118,6 +118,7 @@ Original color screenshot (BGR, any resolution)
 **Prefix Detector** (`backend/lib/prefix_detector.py`):
 - Detects bullet (`·`) and subbullet (`ㄴ`) prefixes via color masks (blue RGB(74,149,238), red RGB(255,103,103), grey RGB(128,128,128), light grey RGB(167,167,167), white RGB(255,255,255))
 - Column projection state machine: [small ink cluster] -> [gap] -> [main text]
+- Both bullet and subbullet prefixes are sliced from line crops before OCR in all content sections
 - Zero false positives on 26 theme images
 
 ### Key Algorithms (details in `documents/CORE_LOGIC.md`)

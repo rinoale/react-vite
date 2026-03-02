@@ -521,13 +521,13 @@ class MabinogiTooltipParser(TooltipLineSplitter):
                         prefix_info = detect_prefix_per_color(bgr_crop, config=_cfg)
                         if prefix_info['type'] is not None:
                             break
-                    if prefix_info['type'] == 'bullet' and prefix_info['main_x'] < cw:
+                    if prefix_info['type'] in ('bullet', 'subbullet') and prefix_info['main_x'] < cw:
                         # main_x from color mask can be 1-2px beyond actual text
                         # start on grayscale (anti-aliased edge pixels pass brightness
                         # threshold but not color match). Back off by margin, clamped
-                        # to bullet_end so we always remove the dot.
-                        bullet_end = prefix_info['x'] + prefix_info['w']
-                        cut_x = max(bullet_end, prefix_info['main_x'] - _PREFIX_ANTIALIAS_MARGIN)
+                        # to prefix_end so we always remove the prefix glyph.
+                        prefix_end = prefix_info['x'] + prefix_info['w']
+                        cut_x = max(prefix_end, prefix_info['main_x'] - _PREFIX_ANTIALIAS_MARGIN)
                         prefix_abs_cut = x_pad + cut_x
                         gray = gray[:, cut_x:]
                         cw = gray.shape[1]
@@ -577,9 +577,9 @@ class MabinogiTooltipParser(TooltipLineSplitter):
             # Use the model from the first sub-line (or most common if multiple)
             ocr_model = sub_details[0].get('ocr_model', '') if sub_details else ''
 
-            # Check if first sub-line had a bullet prefix
+            # Check if first sub-line had a prefix that was sliced
             first_prefix = sub_details[0].get('prefix_type') if sub_details else None
-            has_bullet = first_prefix == 'bullet'
+            has_prefix = first_prefix in ('bullet', 'subbullet')
 
             entry = {
                 'text': merged_text,
@@ -588,12 +588,12 @@ class MabinogiTooltipParser(TooltipLineSplitter):
                 'bounds': merged_bounds,
                 'sub_lines': sub_details,
                 'ocr_model': ocr_model,
-                '_has_bullet': has_bullet,
+                '_has_bullet': has_prefix,
                 '_prefix_type': first_prefix,
             }
 
             # Attach line crop for correction training.
-            # If bullet prefix was detected, trim it from the crop so the
+            # If prefix was detected, trim it from the crop so the
             # image matches what the OCR model actually sees (prefix is
             # re-attached as text, not part of the model's input).
             if attach_crops:
@@ -604,8 +604,8 @@ class MabinogiTooltipParser(TooltipLineSplitter):
                 y1 = min(img.shape[0], mb['y'] + mb['height'] + pad_y)
                 x0 = max(0, mb['x'] - pad_x)
                 x1 = min(img.shape[1], mb['x'] + mb['width'] + pad_x)
-                # Use bullet cut position from first sub-line to trim prefix
-                if has_bullet and sub_details:
+                # Use prefix cut position from first sub-line to trim prefix
+                if has_prefix and sub_details:
                     abs_cut = sub_details[0].get('prefix_abs_cut')
                     if abs_cut is not None and abs_cut > x0:
                         x0 = abs_cut
