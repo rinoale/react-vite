@@ -50,9 +50,9 @@ def mini_text_corrector():
     Also sets up _enchant_prefixes, _enchant_suffixes, and a minimal
     _enchant_db for match_enchant_effect tests.
     """
-    from lib.text_corrector import TextCorrector, _normalize_nums
+    from lib.text_processors import MabinogiTextCorrector, _normalize_nums
 
-    tc = TextCorrector.__new__(TextCorrector)
+    tc = MabinogiTextCorrector.__new__(MabinogiTextCorrector)
     tc.dictionary = []
     tc._norm_cache = []
     tc._section_dicts = {}

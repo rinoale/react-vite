@@ -12,14 +12,14 @@ from db.connector import get_db
 from db.models import OcrCorrection, Listing, ListingEnchantEffect, ListingReforgeOption, Enchant, EnchantEffect, ReforgeOption, GameItem
 from db.schemas import RegisterListingRequest
 from trade.schemas import ExamineItemResponse
-from lib.log import logger
-from lib.v3_pipeline import init_pipeline, run_v3_pipeline, prepare_sections_for_response
+from lib.utils.log import logger
+from lib.pipeline import init_pipeline, run_v3_pipeline, prepare_sections_for_response
 from crud.admin import get_listing_detail
 
 router = APIRouter()
 
-# Initialize all OCR pipeline components
-_pipeline = init_pipeline()
+# Initialize pipeline singleton (loaded once at import time)
+init_pipeline()
 
 # --- Correction capture constants ---
 _BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -151,7 +151,7 @@ async def examine_item(file: UploadFile = File(...)):
         h, w = img_bgr.shape[:2]
         logger.info("examine-item  file=%s  size=%dx%d", file.filename, w, h)
 
-        result = run_v3_pipeline(img_bgr, _pipeline, save_crops=True)
+        result = run_v3_pipeline(img_bgr, save_crops=True)
 
         sections = result.get('sections', {})
         session_id = result.get('session_id', '')

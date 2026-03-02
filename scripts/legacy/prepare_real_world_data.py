@@ -4,9 +4,9 @@ import os
 import argparse
 import sys
 
-# Add backend to path for TooltipLineSplitter
+# Add backend to path for MabinogiTooltipSplitter
 sys.path.append(os.path.join(os.getcwd(), 'backend'))
-from lib.tooltip_line_splitter import TooltipLineSplitter
+from lib.pipeline.line_split import MabinogiTooltipSplitter
 
 def preprocess_image(img, contrast=1.0, brightness=1.0, threshold=80):
     """Matches frontend logic: Black text on White background."""
@@ -44,10 +44,10 @@ def run_pipeline(input_image, output_dir="real_world_data"):
     processed_path = os.path.join(task_dir, f"{image_name}_processed.png")
     cv2.imwrite(processed_path, processed_img)
 
-    # 2. Use TooltipLineSplitter on the SAVED processed image
+    # 2. Use MabinogiTooltipSplitter on the SAVED processed image
     # This allows the splitter to use its internal 'preprocess_image' logic
     # which correctly handles the Black-on-White inversion.
-    splitter = TooltipLineSplitter(output_dir=task_dir)
+    splitter = MabinogiTooltipSplitter(output_dir=task_dir)
     
     # process_image returns the extracted line info
     extracted_lines = splitter.process_image(processed_path, save_visualization=True)

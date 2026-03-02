@@ -2,11 +2,11 @@
 
 import numpy as np
 
-from lib.prefix_detector import (
+from lib.image_processors.prefix_detector import (
     detect_prefix, PrefixDetectorConfig, BULLET_DETECTOR, SUBBULLET_DETECTOR,
     EFFECT_BLUE_RGB, EFFECT_RED_RGB,
 )
-from lib.shape_walker import SHAPE_DOT, SHAPE_NIEUN
+from lib.image_processors.shape_walker import SHAPE_DOT, SHAPE_NIEUN
 
 
 class TestDetectPrefix:

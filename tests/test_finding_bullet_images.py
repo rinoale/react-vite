@@ -17,7 +17,7 @@ import cv2
 import numpy as np
 import pytest
 
-from lib.prefix_detector import (
+from lib.image_processors.prefix_detector import (
     bullet_text_mask,
     white_text_mask,
     detect_prefix,
@@ -25,9 +25,9 @@ from lib.prefix_detector import (
     BULLET_DETECTOR,
     SUBBULLET_DETECTOR,
 )
-from lib.shape_walker import classify_cluster, SHAPE_NIEUN, SHAPE_DOT
-from lib.tooltip_line_splitter import TooltipLineSplitter
-from lib.tooltip_segmenter import (
+from lib.image_processors.shape_walker import classify_cluster, SHAPE_NIEUN, SHAPE_DOT
+from lib.pipeline.line_split import MabinogiTooltipSplitter
+from lib.pipeline.segmenter import (
     detect_headers, load_config,
     detect_bottom_border, detect_vertical_borders,
 )
@@ -122,7 +122,7 @@ def _combined_mask(img):
 
 def _count_prefixes(mask, img_h, img_w, target_type):
     """Count prefixes of target_type using detect_prefix on each detected line."""
-    splitter = TooltipLineSplitter()
+    splitter = MabinogiTooltipSplitter()
     lines = splitter.detect_text_lines(mask)
     count = 0
     for line in lines:
@@ -165,7 +165,7 @@ class TestLineDetection:
         meta = _load_meta(name)
         img, _ = _load_image(name)
         b_mask = bullet_text_mask(img)
-        lines = TooltipLineSplitter().detect_text_lines(b_mask)
+        lines = MabinogiTooltipSplitter().detect_text_lines(b_mask)
         assert len(lines) == meta['lines']['bullet_lines']
 
     @pytest.mark.parametrize('name', IMAGE_NAMES)
@@ -173,7 +173,7 @@ class TestLineDetection:
         meta = _load_meta(name)
         img, _ = _load_image(name)
         w_mask = white_text_mask(img)
-        lines = TooltipLineSplitter().detect_text_lines(w_mask)
+        lines = MabinogiTooltipSplitter().detect_text_lines(w_mask)
         assert len(lines) == meta['lines']['white_lines']
 
 
@@ -217,7 +217,7 @@ class TestShapeWalkerConsistency:
         img, _ = _load_image(name)
         h, w = img.shape[:2]
         mask = _combined_mask(img)
-        splitter = TooltipLineSplitter()
+        splitter = MabinogiTooltipSplitter()
         lines = splitter.detect_text_lines(mask)
 
         for line in lines:
@@ -252,7 +252,7 @@ class TestShapeWalkerConsistency:
 
 def _count_prefixes_with_config(mask, img_h, img_w, config):
     """Count prefixes using a PrefixDetectorConfig on each detected line."""
-    splitter = TooltipLineSplitter()
+    splitter = MabinogiTooltipSplitter()
     lines = splitter.detect_text_lines(mask)
     count = 0
     for line in lines:
@@ -279,7 +279,7 @@ def _count_prefixes_per_color(img_bgr, img_h, img_w, config):
     and line_processing.promote_grey_by_prefix() use.
     """
     mask = config.build_mask(img_bgr)
-    splitter = TooltipLineSplitter()
+    splitter = MabinogiTooltipSplitter()
     lines = splitter.detect_text_lines(mask)
     count = 0
     for line in lines:

@@ -1,7 +1,7 @@
 """Centralized logger and timing utilities for the backend.
 
 Usage:
-    from lib.log import logger, timed, timed_block
+    from lib.utils.log import logger, timed, timed_block
 
 All modules share a single 'mabinogi' logger configured in main.py.
 """

@@ -1,8 +1,9 @@
-"""DualReader: wraps two EasyOCR readers, picks higher confidence per line.
+"""LEGACY — no longer used by the V3 pipeline.
 
-Zero changes needed to mabinogi_tooltip_parser.py — the parser sees one
-"reader" object. Line splitting runs once; each recognize() call runs both
-models and merges results by confidence.
+DualReader wraps two EasyOCR readers, picks higher confidence per line.
+Superseded by PreHeaderHandler._pick_best_per_line (dual-preprocessing merge)
+and font_reader selection (pre_header detects font, content sections use a
+single font-matched reader).
 """
 
 

@@ -1,6 +1,6 @@
 """Tests for backend/lib/line_merge.py — gap outlier detection."""
 
-from lib.line_merge import detect_gap_outlier
+from lib.pipeline.line_split.line_merge import detect_gap_outlier
 
 
 class TestDetectGapOutlier:

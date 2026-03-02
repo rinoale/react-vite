@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from lib.tooltip_line_splitter import TooltipLineSplitter
+from lib.pipeline.line_split import TooltipLineSplitter
 
 
 class TestDetectTextLines:

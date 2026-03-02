@@ -8,8 +8,8 @@ Each function has a single responsibility and can be imported independently.
 
 import numpy as np
 
-from lib.line_merge import detect_gap_outlier
-from lib.prefix_detector import detect_prefix_per_color, BULLET_DETECTOR
+from lib.pipeline.line_split.line_merge import detect_gap_outlier
+from lib.image_processors.prefix_detector import detect_prefix_per_color, BULLET_DETECTOR
 
 # Vertical pixel offset applied to the right (continuation) crop when stitching.
 # Compensates for sub-pixel baseline misalignment between split line crops.

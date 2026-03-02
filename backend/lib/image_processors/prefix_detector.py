@@ -22,7 +22,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from lib.shape_walker import classify_cluster, SHAPE_NIEUN, SHAPE_DOT
+from lib.image_processors.shape_walker import classify_cluster, SHAPE_NIEUN, SHAPE_DOT
 
 # Blue effect text — game engine constant across all 26 themes.
 # Marks enchant effects, reforge options, set bonuses, stat modifiers.

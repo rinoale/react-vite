@@ -10,66 +10,48 @@ import uuid
 
 import cv2
 import easyocr
-import numpy as np
 
-from lib.dual_reader import DualReader
-from lib.log import logger, timed, timed_block
-from lib.mabinogi_tooltip_parser import MabinogiTooltipParser
-from lib.ocr_utils import patch_reader_imgw
-from lib.section_handlers import PreHeaderHandler, get_handler
-from lib.text_corrector import TextCorrector
-from lib.tooltip_segmenter import (
+from lib.utils.log import logger, timed, timed_block
+from lib.pipeline.tooltip_parsers import MabinogiTooltipParser
+from lib.pipeline.line_split import MabinogiTooltipSplitter
+from lib.patches import patch_reader_imgw
+from lib.pipeline.section_handlers import PreHeaderHandler, get_handler
+from lib.pipeline.segmenter import (
     init_header_reader,
     init_enchant_header_reader,
     load_section_patterns,
     load_config,
     segment_and_tag,
 )
+from lib.text_processors import MabinogiTextCorrector
 
-# Known mabinogi_classic.ttf text colors in tooltips (RGB).
-MABINOGI_CLASSIC_COLORS = [
-    (255, 252, 157),  # yellow (item name, emphasis)
-    (255, 255, 255),  # white (general text)
-]
-
-
-def mabinogi_classic_mask(img_bgr, tolerance=5):
-    """Create a binary mask of pixels matching known mabinogi_classic font colors.
-
-    Args:
-        img_bgr: BGR image (numpy array)
-        tolerance: per-channel tolerance for color matching
-
-    Returns:
-        Binary mask (numpy uint8, 255=match, 0=no match)
-    """
-    mask = np.zeros(img_bgr.shape[:2], dtype=np.uint8)
-    for r, g, b in MABINOGI_CLASSIC_COLORS:
-        bgr = np.array([b, g, r], dtype=np.int16)
-        diff = np.abs(img_bgr.astype(np.int16) - bgr)
-        match = np.all(diff <= tolerance, axis=2)
-        mask[match] = 255
-    return mask
-
-
-BASE_DIR    = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BASE_DIR    = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 MODELS_DIR  = os.path.join(BASE_DIR, 'ocr', 'models')
 CONFIG_PATH = os.path.join(BASE_DIR, '..', 'configs', 'mabinogi_tooltip.yaml')
 DICT_DIR    = os.path.join(BASE_DIR, '..', 'data', 'dictionary')
 
 
+_pipeline = None
+
+
+def get_pipeline():
+    """Return the initialized pipeline singleton."""
+    return _pipeline
+
+
 @timed("v3 init_pipeline")
 def init_pipeline():
-    """Initialize all V3 pipeline components.
+    """Initialize all V3 pipeline components (module singleton).
 
-    Returns:
-        dict with keys: header_reader, enchant_header_reader,
-        content_reader, parser, section_patterns, config, corrector
+    Call once at startup.  After this, get_pipeline() and
+    run_v3_pipeline() use the singleton directly.
     """
+    global _pipeline
+
     header_reader = init_header_reader(models_dir=MODELS_DIR)
     enchant_header_reader = init_enchant_header_reader(models_dir=MODELS_DIR)
 
-    # Dual-reader: two font-specific models, pick higher confidence per line.
+    # Font-specific content readers (pre_header determines which one to use)
     classic_reader = easyocr.Reader(
         ['ko'],
         model_storage_directory=MODELS_DIR,
@@ -85,11 +67,6 @@ def init_pipeline():
         recog_network='custom_nanum_gothic_bold',
     )
     patch_reader_imgw(nanum_reader, MODELS_DIR, recog_network='custom_nanum_gothic_bold')
-
-    content_reader = DualReader(
-        [classic_reader, nanum_reader],
-        ['mabinogi_classic', 'nanum_gothic_bold'],
-    )
 
     # Dedicated preheader reader for mabinogi_classic font
     preheader_mc_reader = easyocr.Reader(
@@ -112,23 +89,26 @@ def init_pipeline():
                       recog_network='custom_preheader_nanum_gothic')
 
     parser = MabinogiTooltipParser(CONFIG_PATH)
+    splitter = MabinogiTooltipSplitter()
+    splitter.horizontal_split_factor = parser.config.get('horizontal_split_factor', 3)
     section_patterns = load_section_patterns(CONFIG_PATH)
     config = load_config(CONFIG_PATH)
-    corrector = TextCorrector(dict_dir=DICT_DIR)
+    corrector = MabinogiTextCorrector(dict_dir=DICT_DIR)
 
-    return {
+    _pipeline = {
         'header_reader': header_reader,
         'enchant_header_reader': enchant_header_reader,
-        'content_reader': content_reader,
         'content_mc_reader': classic_reader,
         'content_ng_reader': nanum_reader,
         'preheader_mc_reader': preheader_mc_reader,
         'preheader_ng_reader': preheader_ng_reader,
         'parser': parser,
+        'splitter': splitter,
         'section_patterns': section_patterns,
         'config': config,
         'corrector': corrector,
     }
+    return _pipeline
 
 
 @timed("v3 segment")
@@ -155,107 +135,6 @@ def _step_segment(img_bgr, header_reader, section_patterns, config):
             content_segments.append(seg)
 
     return pre_header_seg, content_segments, tagged
-
-
-def _preprocess_mabinogi_classic(content_bgr):
-    """Color-mask preprocessing for mabinogi_classic font.
-
-    Isolates white/yellow text pixels matching known mabinogi_classic font
-    colors, then inverts to black-text-on-white for OCR.
-
-    Returns:
-        (detect_binary, ocr_binary) — detect has white text on black for
-        line detection; ocr has black text on white for OCR.
-    """
-    mask = mabinogi_classic_mask(content_bgr)
-    return mask, cv2.bitwise_not(mask)
-
-
-def _preprocess_nanum_gothic(content_bgr):
-    """HSV yellow-isolate + threshold 120 preprocessing for nanum_gothic text.
-
-    Isolates yellow-hued pixels (H=15-45, OpenCV scale) while preserving
-    white/gray text (low saturation → skipped). All other colored pixels
-    (blue, purple, etc.) are set to black.
-
-    Then threshold 120 BINARY_INV cleanly binarizes even AA'd text.
-
-    Returns:
-        (detect_binary, ocr_binary)
-    """
-    hsv = cv2.cvtColor(content_bgr, cv2.COLOR_BGR2HSV)
-    h = hsv[:, :, 0]  # 0-180 in OpenCV
-    s = hsv[:, :, 1]  # 0-255 in OpenCV
-
-    # Isolate yellow hue (H=15-45), skip low-saturation pixels (white/black)
-    sat_mask = s >= 38  # ~15% of 255
-    not_yellow = ~((h >= 15) & (h <= 45))
-    reject_mask = sat_mask & not_yellow
-
-    masked = content_bgr.copy()
-    masked[reject_mask] = 0
-
-    gray = cv2.cvtColor(masked, cv2.COLOR_BGR2GRAY)
-    _, ocr_binary = cv2.threshold(gray, 120, 255, cv2.THRESH_BINARY_INV)
-    detect_binary = cv2.bitwise_not(ocr_binary)
-    return detect_binary, ocr_binary
-
-
-def _ocr_pre_header_image(detect_binary, ocr_binary, parser, reader,
-                          save_label, save_crops_dir, attach_crops):
-    """Run line detection + OCR on a preprocessed pre_header image.
-
-    Returns:
-        list of OCR result dicts with 'text', 'confidence', etc.
-    """
-    detected = parser.detect_text_lines(detect_binary)
-    grouped = parser._group_by_y(detected)
-    return parser._ocr_grouped_lines(
-        ocr_binary, grouped, reader,
-        save_crops_dir=save_crops_dir, save_label=save_label,
-        attach_crops=attach_crops)
-
-
-def _pick_best_per_line(mc_results, ng_results):
-    """Pick the higher-confidence OCR result per line from two preprocessing paths.
-
-    Lines are matched by vertical position (bounds['y']). If line counts differ,
-    the longer list is used as the base and unmatched lines keep their original result.
-
-    Tie-breaking: mabinogi_classic is the default (more common font in tooltips).
-    NG must have strictly higher confidence to win.
-
-    Each result gets a 'preprocess' tag: 'mabinogi_classic' or 'nanum_gothic'.
-    """
-    def _y_key(line):
-        return line.get('bounds', {}).get('y', 0)
-
-    mc_by_y = {_y_key(line): line for line in mc_results}
-    ng_by_y = {_y_key(line): line for line in ng_results}
-
-    all_ys = sorted(set(mc_by_y) | set(ng_by_y))
-
-    merged = []
-    for y in all_ys:
-        mc_line = mc_by_y.get(y)
-        ng_line = ng_by_y.get(y)
-
-        if mc_line and ng_line:
-            # NG must strictly beat MC to win; tie goes to MC
-            if ng_line.get('confidence', 0) > mc_line.get('confidence', 0):
-                ng_line['preprocess'] = 'nanum_gothic'
-                merged.append(ng_line)
-            else:
-                mc_line['preprocess'] = 'mabinogi_classic'
-                merged.append(mc_line)
-        elif mc_line:
-            mc_line['preprocess'] = 'mabinogi_classic'
-            merged.append(mc_line)
-        else:
-            ng_line['preprocess'] = 'nanum_gothic'
-            merged.append(ng_line)
-
-    return merged
 
 
 def _step_resolve_enchant(sections, corrector):
@@ -408,24 +287,22 @@ def _save_crops_by_section(sections, crop_session_dir, session_id):
 
 
 @timed("v3 pipeline total")
-def run_v3_pipeline(img_bgr, pipeline, *, save_crops=False, save_crops_dir=None):
+def run_v3_pipeline(img_bgr, *, save_crops=False, save_crops_dir=None):
     """Run the full v3 pipeline on a color screenshot.
+
+    Uses the module-level pipeline singleton (initialized by init_pipeline()).
 
     Args:
         img_bgr: Original color screenshot (BGR numpy array).
-        pipeline: Dict from init_pipeline() with all shared resources.
         save_crops: Whether to persist per-line crop images.
         save_crops_dir: Base directory for crop sessions.
-
-    Each section is processed end-to-end by its handler.
-    No flat all_lines list — sections dict is the sole output.
 
     Returns:
         dict with 'sections', 'tagged_segments', 'abbreviated',
         and optionally 'session_id'
     """
-    parser = pipeline['parser']
-    corrector = pipeline['corrector']
+    parser = _pipeline['parser']
+    corrector = _pipeline['corrector']
 
     session_id = None
     crop_session_dir = None
@@ -440,8 +317,8 @@ def run_v3_pipeline(img_bgr, pipeline, *, save_crops=False, save_crops_dir=None)
 
     # Step 1: Detect orange headers → segment into pre_header + tagged sections
     pre_header_seg, content_segments, tagged = _step_segment(
-        img_bgr, pipeline['header_reader'], pipeline['section_patterns'],
-        pipeline['config'])
+        img_bgr, _pipeline['header_reader'], _pipeline['section_patterns'],
+        _pipeline['config'])
 
     sections = {}
     attach = crop_session_dir is not None
@@ -449,14 +326,14 @@ def run_v3_pipeline(img_bgr, pipeline, *, save_crops=False, save_crops_dir=None)
     # Step 2: Pre-header — must run first (produces parsed_item_name for enchant)
     ph_handler = PreHeaderHandler()
     section_data, detected_font = ph_handler.process(
-        pre_header_seg, pipeline, crop_session_dir=crop_session_dir)
+        pre_header_seg, crop_session_dir=crop_session_dir)
     sections['pre_header'] = section_data
     parsed_item_name = section_data.get('parsed_item_name')
 
-    # Set font_reader on pipeline for content handlers to use
-    pipeline['font_reader'] = (
-        pipeline['content_ng_reader'] if detected_font == 'nanum_gothic'
-        else pipeline['content_mc_reader'])
+    # Choose font-matched reader for content sections (per-request)
+    font_reader = (
+        _pipeline['content_ng_reader'] if detected_font == 'nanum_gothic'
+        else _pipeline['content_mc_reader'])
 
     # Step 3: Content sections — each handler processes its section end-to-end
     for seg in content_segments:
@@ -472,7 +349,8 @@ def run_v3_pipeline(img_bgr, pipeline, *, save_crops=False, save_crops_dir=None)
 
         handler = get_handler(section_key)
         section_data = handler.process(
-            seg, pipeline,
+            seg,
+            font_reader=font_reader,
             attach_crops=attach,
             parsed_item_name=parsed_item_name)
 

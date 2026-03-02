@@ -376,7 +376,7 @@ def init_header_reader(models_dir=None, gpu=True):
         EasyOCR Reader with imgW patched to 128.
     """
     import easyocr
-    from lib.ocr_utils import patch_reader_imgw
+    from lib.patches import patch_reader_imgw
 
     if models_dir is None:
         models_dir = _MODELS_DIR
@@ -408,7 +408,7 @@ def init_enchant_header_reader(models_dir=None, gpu=True):
         EasyOCR Reader with imgW patched to 200.
     """
     import easyocr
-    from lib.ocr_utils import patch_reader_imgw
+    from lib.patches import patch_reader_imgw
 
     if models_dir is None:
         models_dir = _MODELS_DIR

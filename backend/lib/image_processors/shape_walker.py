@@ -7,7 +7,7 @@ The walker traces ink pixels in each direction, chaining segments together.
 No domain-specific logic; consumers define shapes via ShapeDef constants.
 
 Usage:
-    from lib.shape_walker import classify_cluster, SHAPE_NIEUN, SHAPE_DOT
+    from lib.image_processors.shape_walker import classify_cluster, SHAPE_NIEUN, SHAPE_DOT
 
     match = classify_cluster(cluster_mask, [SHAPE_NIEUN, SHAPE_DOT])
     if match:

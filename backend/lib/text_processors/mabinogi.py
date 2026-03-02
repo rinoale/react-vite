@@ -1,20 +1,21 @@
+"""Mabinogi-specific text correction: section-aware FM, enchant DB, item name parsing."""
+
 import os
-from pathlib import Path
-from rapidfuzz import process, fuzz
 import re
+from pathlib import Path
 
 import yaml
+from rapidfuzz import process, fuzz
 
-from lib.mabinogi_tooltip_parser import _parse_effect_number
+from lib.pipeline.tooltip_parsers import _parse_effect_number
+from .common import TextCorrector, _NUM_PAT, _TMPL_N, _normalize_nums
+
 
 # Load canonical prefix characters from tooltip config (game constants, not model-specific).
-_tooltip_cfg = yaml.safe_load((Path(__file__).parents[2] / 'configs' / 'mabinogi_tooltip.yaml').read_text())
+_tooltip_cfg = yaml.safe_load((Path(__file__).parents[3] / 'configs' / 'mabinogi_tooltip.yaml').read_text())
 _BULLET = _tooltip_cfg['prefixes']['bullet']
 _SUBBULLET = _tooltip_cfg['prefixes']['subbullet']
 
-# Number normalization patterns
-_NUM_PAT    = re.compile(r'\d+(?:\.\d+)?')   # digit sequences (incl. decimals)
-_TMPL_N     = re.compile(r'(?<!\w)n(?!\w)')  # standalone 'n' placeholder in dict entries
 _PREFIX_PAT = re.compile(rf'^[{re.escape(_BULLET)}\-,·{re.escape(_SUBBULLET)}L]\s*')  # canonical prefixes from config + OCR misreadings (. → - or ,   ㄴ → L) + detector-attached · (U+00B7)
 
 # Section-specific preprocessing patterns
@@ -31,19 +32,10 @@ _ENCHANT_FILE_HDR  = re.compile(r'^\[(접두|접미)\]\s+(.+?)\s*\(랭크\s*([A-
 _PAREN_PAT = re.compile(r'\s*\([^)]*\)')
 
 
-def _normalize_nums(text):
-    """Replace digit sequences and standalone template 'n' with N."""
-    text = _NUM_PAT.sub('N', text)
-    text = _TMPL_N.sub('N', text)
-    return text
+class MabinogiTextCorrector(TextCorrector):
+    """Section-aware text correction with enchant DB, Dullahan, and item name parsing."""
 
-
-class TextCorrector:
     def __init__(self, dict_dir=None, dictionary_path=None):
-        self.dictionary = []           # combined entries from all loaded files
-        self._norm_cache = []          # combined normalized cache
-        self._section_dicts = {}       # section_name → [entries]
-        self._section_norm_cache = {}  # section_name → [(normalized, original)]
         # Structured enchant DB for two-phase matching
         self._enchant_db = []                    # list of enchant entry dicts
         self._enchant_headers_norm = []          # [(norm_header, entry)] for phase-1 FM
@@ -52,11 +44,13 @@ class TextCorrector:
         self._enchant_suffixes = []              # enchant suffix names
 
         if dict_dir and os.path.exists(dict_dir):
+            super().__init__()
             self.load_dict_dir(dict_dir)
         elif dictionary_path:
-            self.load_dictionary(dictionary_path)
+            super().__init__(dictionary_path=dictionary_path)
         else:
-            print("Warning: No dictionary source provided to TextCorrector")
+            super().__init__()
+            print("Warning: No dictionary source provided to MabinogiTextCorrector")
 
     def load_dict_dir(self, dict_dir):
         """Load dictionary files in dict_dir, keyed by section name.
@@ -109,15 +103,6 @@ class TextCorrector:
         self._norm_cache = [(_normalize_nums(e), e) for e in self.dictionary]
         print(f"TextCorrector total: {len(self.dictionary)} entries across "
               f"{len(self._section_dicts)} section(s): {list(self._section_dicts)}")
-
-    def load_dictionary(self, path):
-        """Load a single dictionary file into the combined pool (no section key)."""
-        with open(path, 'r', encoding='utf-8') as f:
-            new_entries = [line.strip() for line in f if line.strip()]
-        self.dictionary.extend(new_entries)
-        self._norm_cache = [(_normalize_nums(e), e) for e in self.dictionary]
-        print(f"TextCorrector loaded {len(new_entries)} entries from {os.path.basename(path)} "
-              f"(total: {len(self.dictionary)})")
 
     def _load_enchant_structured(self, path):
         """Load enchant.yaml into a structured two-phase match DB.
@@ -727,26 +712,8 @@ class TextCorrector:
 
         return result
 
-    def correct(self, text, cutoff_score=80):
-        """
-        Fuzzy match against the combined dictionary (no number normalization).
-        Returns: (corrected_text, score)
-        If no match above cutoff_score, returns (original_text, 0)
-        """
-        if not text or not self.dictionary:
-            return text, 0
-
-        result = process.extractOne(text, self.dictionary, scorer=fuzz.ratio)
-        if result:
-            match, score, _ = result
-            if score >= cutoff_score:
-                return match, score
-
-        return text, 0
-
     def correct_normalized(self, text, section=None, cutoff_score=80):
-        """
-        Fuzzy match with number normalization and prefix handling.
+        """Fuzzy match with number normalization and prefix handling.
 
         If section is given and a matching dictionary file exists (e.g. section='reforge'
         looks up 'reforge.txt' entries), only that section's entries are searched.

@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from lib.shape_walker import (
+from lib.image_processors.shape_walker import (
     Direction,
     Segment,
     ShapeDef,

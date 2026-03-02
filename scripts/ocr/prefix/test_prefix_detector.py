@@ -16,12 +16,12 @@ import cv2
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'backend'))
-from backend.lib.prefix_detector import (
+from backend.lib.image_processors.prefix_detector import (
     detect_prefix, detect_prefix_per_color,
     BULLET_DETECTOR, SUBBULLET_DETECTOR,
 )
-from backend.lib.tooltip_line_splitter import TooltipLineSplitter
-from backend.lib.tooltip_segmenter import detect_bottom_border, detect_vertical_borders
+from backend.lib.pipeline.line_split import MabinogiTooltipSplitter
+from backend.lib.pipeline.segmenter import detect_bottom_border, detect_vertical_borders
 
 
 # --- Detection ---
@@ -148,7 +148,7 @@ def _debug_dot_neighborhood(img_bgr, result):
     Dot pixels (matching the triggering color) shown as 'b'.
     Other pixels shown as HSV group letter.
     """
-    from lib.prefix_detector import _color_mask, BULLET_DETECTOR
+    from lib.image_processors.prefix_detector import _color_mask, BULLET_DETECTOR
 
     dot_x = result['crop_x0'] + result['x']
     dot_y = result['crop_y0'] + result['y'] // 2 + result['crop_h'] // 2
@@ -168,7 +168,7 @@ def _debug_dot_neighborhood(img_bgr, result):
     triggered_mask = None
     for rgb in BULLET_DETECTOR.colors:
         m = _color_mask(img_bgr, rgb, 15)
-        from lib.prefix_detector import _detect_prefix_on_mask
+        from lib.image_processors.prefix_detector import _detect_prefix_on_mask
         r = _detect_prefix_on_mask(
             m[result['crop_y0']:result['crop_y0'] + result['crop_h'],
               result['crop_x0']:result['crop_x0'] + result['crop_w']],
@@ -239,7 +239,7 @@ def run_on_image(path, out_dir):
     print(f"{'='*60}")
 
     _project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
-    splitter = TooltipLineSplitter(output_dir=os.path.join(_project_root, 'tmp', 'prefix_test'))
+    splitter = MabinogiTooltipSplitter(output_dir=os.path.join(_project_root, 'tmp', 'prefix_test'))
     os.makedirs(out_dir, exist_ok=True)
 
     # --- 1. Subbullet: per-color detection ---

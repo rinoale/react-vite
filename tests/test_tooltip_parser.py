@@ -11,7 +11,7 @@ from pathlib import Path
 @pytest.fixture
 def parser():
     """MabinogiTooltipParser with real yaml config."""
-    from lib.mabinogi_tooltip_parser import MabinogiTooltipParser
+    from lib.pipeline.tooltip_parsers import MabinogiTooltipParser
     config_path = Path(__file__).resolve().parents[1] / 'configs' / 'mabinogi_tooltip.yaml'
     return MabinogiTooltipParser(str(config_path))
 

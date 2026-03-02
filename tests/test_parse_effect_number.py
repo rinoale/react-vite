@@ -1,6 +1,6 @@
-"""Tests for _parse_effect_number in backend/lib/mabinogi_tooltip_parser.py."""
+"""Tests for _parse_effect_number."""
 
-from lib.mabinogi_tooltip_parser import _parse_effect_number
+from lib.pipeline.tooltip_parsers import _parse_effect_number
 
 
 class TestParseEffectNumber:

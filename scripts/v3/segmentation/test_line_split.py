@@ -41,8 +41,8 @@ sys.path.insert(0, os.path.join(PROJECT_ROOT, 'backend'))
 
 CONFIG_PATH = os.path.join(PROJECT_ROOT, 'configs', 'mabinogi_tooltip.yaml')
 
-from lib.tooltip_segmenter import load_config, detect_headers, build_segments
-from lib.tooltip_line_splitter import TooltipLineSplitter
+from lib.pipeline.segmenter import load_config, detect_headers, build_segments
+from lib.pipeline.line_split import MabinogiTooltipSplitter
 
 
 SEGMENT_COLORS = [
@@ -98,7 +98,7 @@ def process_image(image_path, output_root, config):
 
     headers = detect_headers(img, config)
     segments = build_segments(img, headers)
-    splitter = TooltipLineSplitter()
+    splitter = MabinogiTooltipSplitter()
 
     h_img, w_img = img.shape[:2]
     overview = img.copy()

@@ -18,14 +18,14 @@ import numpy as np
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'backend'))
 
-from backend.lib.tooltip_segmenter import (
+from backend.lib.pipeline.segmenter import (
     segment_and_tag,
     load_section_patterns,
     load_config,
     init_header_reader,
 )
-from backend.lib.mabinogi_tooltip_parser import detect_enchant_slot_headers
-from backend.lib.ocr_utils import patch_reader_imgw
+from backend.lib.image_processors.mabinogi_processor import detect_enchant_slot_headers
+from backend.lib.patches import patch_reader_imgw
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 CONFIG_PATH = os.path.join(PROJECT_ROOT, 'configs', 'mabinogi_tooltip.yaml')

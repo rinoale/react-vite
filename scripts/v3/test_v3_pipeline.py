@@ -25,8 +25,8 @@ PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..
 sys.path.insert(0, PROJECT_ROOT)
 sys.path.insert(0, os.path.join(PROJECT_ROOT, 'backend'))
 
-from lib.v3_pipeline import init_pipeline, run_v3_pipeline
-from lib.text_corrector import _PREFIX_PAT
+from lib.pipeline import init_pipeline, run_v3_pipeline, get_pipeline
+from lib.text_processors import _PREFIX_PAT
 
 
 def _flatten_sections(sections):
@@ -66,7 +66,7 @@ def find_gt_file(image_path, gt_dir, gt_suffix):
     return None
 
 
-def test_image(pipeline, image_path, gt_path=None, verbose=True):
+def test_image(image_path, gt_path=None, verbose=True):
     """Run v3 pipeline on a single image and optionally compare against GT."""
     basename = os.path.basename(image_path)
 
@@ -76,7 +76,7 @@ def test_image(pipeline, image_path, gt_path=None, verbose=True):
         return None
 
     save_crops_dir = os.environ.get('SAVE_OCR_CROPS')
-    result = run_v3_pipeline(img_bgr, pipeline, save_crops=bool(save_crops_dir),
+    result = run_v3_pipeline(img_bgr, save_crops=bool(save_crops_dir),
                              save_crops_dir=save_crops_dir)
     sections  = result['sections']
     tagged    = result['tagged_segments']
@@ -346,7 +346,8 @@ def main():
                       help='Print machine-parseable JSON summary (last line)')
     args = argp.parse_args()
 
-    pipeline = init_pipeline()
+    init_pipeline()
+    pipeline = get_pipeline()
     print(f"Loaded {len(pipeline['section_patterns'])} section patterns")
 
     images = collect_images(args.path)
@@ -360,7 +361,7 @@ def main():
     for image_path in images:
         gt_path = find_gt_file(image_path, args.gt_dir, args.gt_suffix)
         summary = test_image(
-            pipeline, image_path, gt_path=gt_path,
+            image_path, gt_path=gt_path,
             verbose=not args.quiet,
         )
         if summary:
