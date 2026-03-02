@@ -257,9 +257,6 @@ const EFFECT_BLUE = { r: 74, g: 149, b: 238 }
 const EFFECT_RED = { r: 255, g: 103, b: 103 }
 const EFFECT_GREY = { r: 128, g: 128, b: 128 }
 const TEXT_WHITE = { r: 255, g: 255, b: 255 }
-const BULLET_COLORS = [EFFECT_BLUE, EFFECT_RED, EFFECT_GREY]
-const SUBBULLET_COLORS = [TEXT_WHITE, EFFECT_RED]
-
 function _buildColorMask(data, w, h, color, tolerance) {
   const mask = new Uint8Array(w * h)
   for (let y = 0; y < h; y++) {
@@ -347,124 +344,12 @@ function _detectLines(mask, w, h) {
   return lines
 }
 
-function _detectPrefixes(lines, prefixMask, w, h, colorLabel) {
-  // Per-line prefix detection via column projection on prefix mask
-  const results = []
-  for (const line of lines) {
-    const padX = Math.max(2, Math.floor(line.h / 3))
-    const padY = Math.max(1, Math.floor(line.h / 5))
-    const y0 = Math.max(0, line.y - padY)
-    const y1 = Math.min(h, line.y + line.h + padY)
-    const x0 = Math.max(0, line.x - padX)
-    const x1 = Math.min(w, line.x + line.w + padX)
-
-    const regionW = x1 - x0
-    const colProj = new Uint32Array(regionW)
-    for (let ly = y0; ly < y1; ly++) {
-      for (let lx = 0; lx < regionW; lx++) {
-        colProj[lx] += prefixMask[ly * w + (x0 + lx)]
-      }
-    }
-
-    let firstStart = -1, firstEnd = -1, mainStart = -1
-    for (let x = 0; x < regionW; x++) {
-      const hasInk = colProj[x] > 0
-      if (firstStart < 0) { if (hasInk) firstStart = x }
-      else if (firstEnd < 0) { if (!hasInk) firstEnd = x }
-      else if (mainStart < 0) { if (hasInk) { mainStart = x; break } }
-    }
-
-    const lineH = y1 - y0
-    if (firstStart >= 0 && firstEnd >= 0 && mainStart >= 0) {
-      const firstW = firstEnd - firstStart
-      const gapW = mainStart - firstEnd
-      const maxPrefixW = Math.max(8, Math.floor(lineH * 0.7))
-      const minGap = Math.max(2, Math.floor(lineH * 0.2))
-
-      if (firstW <= maxPrefixW && gapW >= minGap) {
-        // Vertical ink extent of first cluster — reject full-height characters
-        let inkRows = 0
-        for (let ly = y0; ly < y1; ly++) {
-          let rowHasInk = false
-          for (let lx = firstStart; lx < firstEnd; lx++) {
-            if (prefixMask[ly * w + (x0 + lx)]) { rowHasInk = true; break }
-          }
-          if (rowHasInk) inkRows++
-        }
-
-        const bulletMaxW = Math.max(3, Math.floor(lineH * 0.25))
-        let prefixType = null
-        if (firstW <= bulletMaxW) {
-          // Bullet (·): must be vertically small
-          if (inkRows <= Math.max(4, Math.floor(lineH * 0.5))) prefixType = 'bullet'
-        } else {
-          // Subbullet (ㄴ): can be taller but not full-height
-          if (inkRows <= Math.max(8, Math.floor(lineH * 0.75))) prefixType = 'subbullet'
-        }
-
-        if (prefixType) {
-          results.push({
-            color: colorLabel,
-            line: { x: x0, y: y0, w: regionW, h: lineH },
-            prefix: {
-              type: prefixType,
-              x: x0 + firstStart, y: y0,
-              w: firstW, h: lineH,
-            },
-            mainX: x0 + mainStart,
-          })
-          continue
-        }
-      }
-    }
-    results.push({
-      color: colorLabel,
-      line: { x: x0, y: y0, w: regionW, h: lineH },
-      prefix: null,
-      mainX: x0,
-    })
-  }
-  return results
-}
-
-function detectBullets(imageData, tolerance) {
+function detectPrefixesWithConfig(imageData, config, tolerance) {
   const { data, width: w, height: h } = imageData
-  // Line detection: all bullet colors (blue + red + grey)
-  const LINE_COLORS = BULLET_COLORS
-  const lineMask = new Uint8Array(w * h)
-  for (const color of LINE_COLORS) {
-    const m = _buildColorMask(data, w, h, color, tolerance)
-    for (let i = 0; i < lineMask.length; i++) if (m[i]) lineMask[i] = 1
-  }
-  const lines = _detectLines(lineMask, w, h)
-  // Prefix detection: all bullet colors (including grey)
-  const prefixMask = new Uint8Array(w * h)
-  for (const color of BULLET_COLORS) {
-    const m = _buildColorMask(data, w, h, color, tolerance)
-    for (let i = 0; i < prefixMask.length; i++) if (m[i]) prefixMask[i] = 1
-  }
-  return _detectPrefixes(lines, prefixMask, w, h, 'bullet')
-    .filter(r => r.prefix?.type === 'bullet')
-}
-
-function detectSubbullets(imageData, tolerance) {
-  const { data, width: w, height: h } = imageData
-  // Line detection: white + red (no grey)
-  const LINE_COLORS = [TEXT_WHITE, EFFECT_RED]
-  const lineMask = new Uint8Array(w * h)
-  for (const color of LINE_COLORS) {
-    const m = _buildColorMask(data, w, h, color, tolerance)
-    for (let i = 0; i < lineMask.length; i++) if (m[i]) lineMask[i] = 1
-  }
-  const lines = _detectLines(lineMask, w, h)
-  // Prefix detection: all subbullet colors
-  const prefixMask = new Uint8Array(w * h)
-  for (const color of SUBBULLET_COLORS) {
-    const m = _buildColorMask(data, w, h, color, tolerance)
-    for (let i = 0; i < prefixMask.length; i++) if (m[i]) prefixMask[i] = 1
-  }
-  return _detectPrefixes(lines, prefixMask, w, h, 'subbullet')
-    .filter(r => r.prefix?.type === 'subbullet')
+  const mask = _buildConfigMask(data, w, h, config, tolerance)
+  const lines = _detectLines(mask, w, h)
+  return _detectPrefixesShapeWalker(lines, mask, w, h, config.shapes, config.name)
+    .filter(r => r.prefix?.type === config.name)
 }
 
 function drawPrefixVisualization(imageData, detections) {
@@ -507,6 +392,196 @@ function drawPrefixVisualization(imageData, detections) {
     }
   }
   return imageData
+}
+
+// --- Shape Walker (directional shape detection) ---
+// JS port of backend/lib/shape_walker.py — classifies prefix marks by tracing
+// ink pixels in directional segments (DOWN→RIGHT for ㄴ, flood fill for ·).
+
+const SW_DELTAS = { down: [1, 0], right: [0, 1], up: [-1, 0], left: [0, -1] }
+const SW_PERP = { down: [0, 1], right: [1, 0], up: [0, 1], left: [1, 0] }
+const SW_NIEUN = { name: 'ㄴ', segments: [{ dir: 'down', min: 3 }, { dir: 'right', min: 3 }] }
+const SW_DOT = { name: '·', segments: [{ dir: 'dot', min: 1, max: 4 }] }
+
+// Config-driven detector definitions — mirrors backend PrefixDetectorConfig
+const BULLET_DETECTOR = { name: 'bullet', colors: [EFFECT_BLUE, EFFECT_RED, EFFECT_GREY], shapes: [SW_DOT] }
+const SUBBULLET_DETECTOR = { name: 'subbullet', colors: [TEXT_WHITE, EFFECT_RED], shapes: [SW_NIEUN] }
+
+function _buildConfigMask(data, w, h, config, tolerance) {
+  const mask = new Uint8Array(w * h)
+  for (const color of config.colors) {
+    const m = _buildColorMask(data, w, h, color, tolerance)
+    for (let i = 0; i < mask.length; i++) if (m[i]) mask[i] = 1
+  }
+  return mask
+}
+
+function _swFindSeeds(mask, w, h) {
+  let leftCol = -1
+  for (let c = 0; c < w && leftCol < 0; c++) {
+    for (let r = 0; r < h; r++) {
+      if (mask[r * w + c] > 0) { leftCol = c; break }
+    }
+  }
+  if (leftCol < 0) return []
+  const seeds = []
+  let inRun = false
+  for (let r = 0; r < h; r++) {
+    if (mask[r * w + leftCol] > 0) {
+      if (!inRun) { seeds.push([r, leftCol]); inRun = true }
+    } else { inRun = false }
+  }
+  return seeds
+}
+
+function _swStrokeWidth(mask, w, h, row, col, dir) {
+  const [pr, pc] = SW_PERP[dir]
+  let width = 1
+  for (const sign of [1, -1]) {
+    for (let step = 1; ; step++) {
+      const nr = row + pr * sign * step, nc = col + pc * sign * step
+      if (nr >= 0 && nr < h && nc >= 0 && nc < w && mask[nr * w + nc] > 0) width++
+      else break
+    }
+  }
+  return width
+}
+
+function _swWalkSegment(mask, w, h, row, col, dir, minPx, maxPx) {
+  const [dr, dc] = SW_DELTAS[dir]
+  const [pr, pc] = SW_PERP[dir]
+  const halfW = Math.floor(_swStrokeWidth(mask, w, h, row, col, dir) / 2)
+  let cr = row, cc = col, length = 0
+  while (true) {
+    const nr = cr + dr, nc = cc + dc
+    if (nr < 0 || nr >= h || nc < 0 || nc >= w) break
+    let bandHasInk = false
+    for (let off = -halfW; off <= halfW; off++) {
+      const br = nr + pr * off, bc = nc + pc * off
+      if (br >= 0 && br < h && bc >= 0 && bc < w && mask[br * w + bc] > 0) { bandHasInk = true; break }
+    }
+    if (!bandHasInk) break
+    cr = nr; cc = nc; length++
+    if (maxPx != null && length >= maxPx) break
+  }
+  return length < minPx ? null : { row: cr, col: cc, length }
+}
+
+function _swCheckDot(mask, w, h, row, col, minPx, maxPx) {
+  if (mask[row * w + col] === 0) return null
+  const visited = new Set([row * w + col])
+  const queue = [[row, col]]
+  let minR = row, minC = col, maxR = row, maxC = col
+  while (queue.length > 0) {
+    const [r, c] = queue.shift()
+    minR = Math.min(minR, r); minC = Math.min(minC, c)
+    maxR = Math.max(maxR, r); maxC = Math.max(maxC, c)
+    for (const [dr, dc] of [[0,1],[0,-1],[1,0],[-1,0]]) {
+      const nr = r + dr, nc = c + dc, key = nr * w + nc
+      if (nr >= 0 && nr < h && nc >= 0 && nc < w && !visited.has(key) && mask[key] > 0) {
+        visited.add(key); queue.push([nr, nc])
+      }
+    }
+  }
+  const extMax = Math.max(maxR - minR + 1, maxC - minC + 1)
+  if (extMax < minPx || (maxPx != null && extMax > maxPx)) return null
+  return { name: '·' }
+}
+
+function _swTryShape(mask, w, h, seed, shapeDef) {
+  let [row, col] = seed
+  if (mask[row * w + col] === 0) return null
+  for (let i = 0; i < shapeDef.segments.length; i++) {
+    const seg = shapeDef.segments[i]
+    if (seg.dir === 'dot') {
+      return _swCheckDot(mask, w, h, row, col, seg.min, seg.max) ? { name: shapeDef.name } : null
+    }
+    const result = _swWalkSegment(mask, w, h, row, col, seg.dir, seg.min, seg.max)
+    if (!result) return null
+    if (i < shapeDef.segments.length - 1) {
+      const nextSeg = shapeDef.segments[i + 1]
+      if (nextSeg.dir === 'dot') { row = result.row; col = result.col; continue }
+      const [ndr, ndc] = SW_DELTAS[nextSeg.dir]
+      const tol = Math.max(1, Math.floor(_swStrokeWidth(mask, w, h, seed[0], seed[1], seg.dir) / 2))
+      const [pr, pc] = SW_PERP[nextSeg.dir]
+      let found = null
+      for (let off = -tol; off <= tol && !found; off++) {
+        const sr = result.row + ndr + pr * off, sc = result.col + ndc + pc * off
+        if (sr >= 0 && sr < h && sc >= 0 && sc < w && mask[sr * w + sc] > 0) found = [sr, sc]
+      }
+      if (!found) {
+        const sr = result.row + ndr, sc = result.col + ndc
+        if (sr >= 0 && sr < h && sc >= 0 && sc < w && mask[sr * w + sc] > 0) found = [sr, sc]
+      }
+      if (!found) return null
+      row = found[0]; col = found[1]
+    }
+  }
+  return { name: shapeDef.name }
+}
+
+function _swClassifyCluster(mask, w, h, shapes) {
+  const seeds = _swFindSeeds(mask, w, h)
+  for (const seed of seeds) {
+    for (const shape of shapes) {
+      const match = _swTryShape(mask, w, h, seed, shape)
+      if (match) return match
+    }
+  }
+  return null
+}
+
+function _detectPrefixesShapeWalker(lines, prefixMask, w, h, shapes = [SW_NIEUN, SW_DOT], configName = null) {
+  const results = []
+  for (const line of lines) {
+    const padX = Math.max(2, Math.floor(line.h / 3))
+    const padY = Math.max(1, Math.floor(line.h / 5))
+    const y0 = Math.max(0, line.y - padY)
+    const y1 = Math.min(h, line.y + line.h + padY)
+    const x0 = Math.max(0, line.x - padX)
+    const x1 = Math.min(w, line.x + line.w + padX)
+    const regionW = x1 - x0
+    const lineH = y1 - y0
+
+    const colProj = new Uint32Array(regionW)
+    for (let ly = y0; ly < y1; ly++) {
+      for (let lx = 0; lx < regionW; lx++) colProj[lx] += prefixMask[ly * w + (x0 + lx)]
+    }
+    let firstStart = -1, firstEnd = -1, mainStart = -1
+    for (let x = 0; x < regionW; x++) {
+      const hasInk = colProj[x] > 0
+      if (firstStart < 0) { if (hasInk) firstStart = x }
+      else if (firstEnd < 0) { if (!hasInk) firstEnd = x }
+      else if (mainStart < 0) { if (hasInk) { mainStart = x; break } }
+    }
+
+    if (firstStart >= 0 && firstEnd >= 0 && mainStart >= 0) {
+      const firstW = firstEnd - firstStart
+      const gapW = mainStart - firstEnd
+      const maxPrefixW = Math.max(8, Math.floor(lineH * 0.7))
+      const minGap = Math.max(2, Math.floor(lineH * 0.2))
+      if (firstW <= maxPrefixW && gapW >= minGap) {
+        const clW = firstW, clH = lineH
+        const clMask = new Uint8Array(clW * clH)
+        for (let r = 0; r < clH; r++) {
+          for (let c = 0; c < clW; c++) clMask[r * clW + c] = prefixMask[(y0 + r) * w + (x0 + firstStart + c)]
+        }
+        const match = _swClassifyCluster(clMask, clW, clH, shapes)
+        if (match) {
+          const prefixType = configName || (match.name === 'ㄴ' ? 'subbullet' : 'bullet')
+          results.push({
+            color: prefixType,
+            line: { x: x0, y: y0, w: regionW, h: lineH },
+            prefix: { type: prefixType, x: x0 + firstStart, y: y0, w: firstW, h: lineH },
+            mainX: x0 + mainStart,
+          })
+          continue
+        }
+      }
+    }
+    results.push({ color: 'none', line: { x: x0, y: y0, w: regionW, h: lineH }, prefix: null, mainX: x0 })
+  }
+  return results
 }
 
 // --- Tabs ---
@@ -558,6 +633,10 @@ const ImageProcessLab = () => {
   const [bulletResults, setBulletResults] = useState(null)
   const [subbulletResults, setSubbulletResults] = useState(null)
 
+  // Shape walker detection
+  const [shapeWalkerTol, setShapeWalkerTol] = useState(15)
+  const [shapeWalkerResults, setShapeWalkerResults] = useState(null)
+
   const canvasRef = useRef(null)
   const fileInputRef = useRef(null)
 
@@ -581,6 +660,16 @@ const ImageProcessLab = () => {
       img.src = src
     })
   }, [processedDataURL, image])
+
+  const getOriginalImageData = useCallback(() => {
+    const canvas = canvasRef.current
+    if (!canvas || !image) return null
+    canvas.width = image.naturalWidth
+    canvas.height = image.naturalHeight
+    const ctx = canvas.getContext('2d')
+    ctx.drawImage(image, 0, 0)
+    return ctx.getImageData(0, 0, canvas.width, canvas.height)
+  }, [image])
 
   const commitImageData = useCallback((imageData) => {
     const canvas = canvasRef.current
@@ -625,12 +714,12 @@ const ImageProcessLab = () => {
     commitImageData(data)
   }
 
-  const handleReset = () => { setProcessedDataURL(null); setBulletResults(null); setSubbulletResults(null) }
+  const handleReset = () => { setProcessedDataURL(null); setBulletResults(null); setSubbulletResults(null); setShapeWalkerResults(null) }
 
   const handleDetectBullet = async () => {
-    const data = await getProcessedImageData()
+    const data = await getOriginalImageData()
     if (!data) return
-    const results = detectBullets(data, bulletTol)
+    const results = detectPrefixesWithConfig(data, BULLET_DETECTOR, bulletTol)
     setBulletResults(results)
     const vizData = await getProcessedImageData()
     drawPrefixVisualization(vizData, results)
@@ -638,12 +727,24 @@ const ImageProcessLab = () => {
   }
 
   const handleDetectSubbullet = async () => {
-    const data = await getProcessedImageData()
+    const data = await getOriginalImageData()
     if (!data) return
-    const results = detectSubbullets(data, subbulletTol)
+    const results = detectPrefixesWithConfig(data, SUBBULLET_DETECTOR, subbulletTol)
     setSubbulletResults(results)
     const vizData = await getProcessedImageData()
     drawPrefixVisualization(vizData, results)
+    commitImageData(vizData)
+  }
+
+  const handleShapeWalker = async () => {
+    const data = await getOriginalImageData()
+    if (!data) return
+    const bulletResults = detectPrefixesWithConfig(data, BULLET_DETECTOR, shapeWalkerTol)
+    const subbulletResults = detectPrefixesWithConfig(data, SUBBULLET_DETECTOR, shapeWalkerTol)
+    const prefixResults = [...bulletResults, ...subbulletResults]
+    setShapeWalkerResults(prefixResults)
+    const vizData = await getProcessedImageData()
+    drawPrefixVisualization(vizData, prefixResults)
     commitImageData(vizData)
   }
 
@@ -719,6 +820,37 @@ const ImageProcessLab = () => {
                 </div>
                 {subbulletResults && (
                   <div className="text-xs text-orange-400">{subbulletResults.length} found</div>
+                )}
+              </div>
+
+              <div className="border-t border-indigo-900/40" />
+
+              {/* Shape Walker (combined · + ㄴ via directional walk) */}
+              <div className="space-y-2">
+                <button
+                  onClick={handleShapeWalker}
+                  disabled={!image}
+                  className="w-full px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-medium flex items-center gap-2 transition-colors"
+                >
+                  <Search className="w-3.5 h-3.5" />
+                  Shape Walker
+                </button>
+                <div className="space-y-1">
+                  <label className="text-xs text-gray-400">Tol: {shapeWalkerTol}</label>
+                  <input
+                    type="range" min="5" max="40" step="1"
+                    value={shapeWalkerTol}
+                    onChange={e => setShapeWalkerTol(parseInt(e.target.value))}
+                    className="w-full"
+                  />
+                  <div className="text-xs text-gray-500">all colors</div>
+                </div>
+                {shapeWalkerResults && (
+                  <div className="text-xs space-y-0.5">
+                    <div className="text-emerald-400">{shapeWalkerResults.length} found</div>
+                    <div className="text-blue-400 pl-2">· {shapeWalkerResults.filter(r => r.prefix?.type === 'bullet').length}</div>
+                    <div className="text-orange-400 pl-2">ㄴ {shapeWalkerResults.filter(r => r.prefix?.type === 'subbullet').length}</div>
+                  </div>
                 )}
               </div>
             </div>

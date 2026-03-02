@@ -26,8 +26,10 @@ Each attempt has identified and fixed a specific bottleneck, steadily raising re
 | Enchant Hdr v2 | 98.1% | **86.9%** | — | Enchant header retrain: 3→10 variations, font [10-12] (was 11 only), imgW 256, 11.6k images. Flat result (103/203 vs 104/203). Header model was not the bottleneck. |
 | 19 | 100% (enchant hdr) | **88.5%** | 0.63 | Enchant header v3 (real sample mixed training), Dullahan FM, reforge sub-lines, GT fix. **Proved real sample mixing works** — 55 real crops at ~10% ratio took enchant header accuracy from 46.3% → 100%. 123/202 exact (60.9%), enchant 38/47 (80.9%). |
 | 20 | — | **88.5%** | 0.63 | No retraining — three-strategy enchant resolution (P1/P2/P3). Item name parsing (P1) prioritized over header OCR (P2) and Dullahan (P3). DB effects as templates + OCR numbers as rolled values. Enchant accuracy now depends on name identification, not effect-line OCR. |
+| 21 | — | **84.7%** | — | general_mabinogi_classic v1 retrain, prefix detection refactor (config-driven + ink classification), `·` prefix re-attachment removed. **151/309 exact (48.9%), FM=60.** Test set expanded 18→19 images. |
+| 22 | — | **90.4%** | — | No retraining — wired prefix detection into all V3 segments + subbullet slicing. `ㄴ` prefix now sliced before OCR (was only flagged). Non-ranged enchant FM uses DB text directly (no number regex). **184/311 exact (59.2%), FM=60.** +33 exact matches from pipeline changes alone. |
 
-Real-world char accuracy: **0% → 19.5% → 35.8% → 27.0% (regression) → 36.2% → 38.1% → 52.4% → 75.5% → 77.0% → 87.5% → 88.6% → 86.7% → 86.9% → 88.5%**. Note: Attempt 18 shows lower char_acc than 17b (86.7% vs 88.6%) because the test set expanded from 5→8 images (3 new images without GT reduce the measured total). On the same 5 GT images, exact matches jumped 67→104. Attempts 1-15 improved the OCR model. Attempt 16 regressed (charset expansion). Attempts 17/17b redesigned the pipeline without retraining. Attempt 18 fixed a fundamental EasyOCR inference bug ("double-dip resize") that affected all models since the beginning. Enchant Header v2 retrained with more variation but was essentially flat — header model was not the bottleneck. Attempt 19 proved that mixing real user crops into training data dramatically improves accuracy — validating the user correction feedback pipeline as a strategy. Attempt 20 added three-strategy enchant resolution — no retraining, pipeline-only improvement that uses DB effects as templates with OCR rolled values.
+Real-world char accuracy: **0% → 19.5% → 35.8% → 27.0% (regression) → 36.2% → 38.1% → 52.4% → 75.5% → 77.0% → 87.5% → 88.6% → 86.7% → 86.9% → 88.5% → 84.7% → 90.4%**. Note: Attempt 18 shows lower char_acc than 17b (86.7% vs 88.6%) because the test set expanded from 5→8 images (3 new images without GT reduce the measured total). On the same 5 GT images, exact matches jumped 67→104. Attempts 1-15 improved the OCR model. Attempt 16 regressed (charset expansion). Attempts 17/17b redesigned the pipeline without retraining. Attempt 18 fixed a fundamental EasyOCR inference bug ("double-dip resize") that affected all models since the beginning. Enchant Header v2 retrained with more variation but was essentially flat — header model was not the bottleneck. Attempt 19 proved that mixing real user crops into training data dramatically improves accuracy — validating the user correction feedback pipeline as a strategy. Attempt 20 added three-strategy enchant resolution — no retraining, pipeline-only improvement that uses DB effects as templates with OCR rolled values. Attempt 21 retrained general_mabinogi_classic content model (v1) and refactored prefix detection to config-driven architecture; char_acc appears lower (84.7% vs 88.5%) because the test set expanded to 19 images — on the same images, exact matches improved significantly (151 vs 128). Attempt 22 wired prefix detection to all content segments and extended subbullet slicing — the `ㄴ` glyph polluted OCR input across item_mod (+22), set_item (+4), reforge (+3), and item_attrs (+3). Also fixed enchant FM to use DB text directly for non-ranged effects instead of fragile number extraction/injection.
 
 ---
 
@@ -1557,3 +1559,90 @@ Pipeline order is now:
 1. segment → 2a. pre_header → 2b. content_ocr → 3. fm (Dullahan runs, snapshots P2)
 → 4. rebuild_structured → 5. parse_item_name → 6. resolve_enchant (NEW)
 ```
+
+---
+
+## Attempt 21: general_mabinogi_classic v1 + Config-Driven Prefix Detection
+
+**Date:** 2026-03-01
+
+### Changes
+
+Three independent improvements shipped together:
+
+#### 1. general_mabinogi_classic Model v1
+
+Retrained the mabinogi_classic font-specific content OCR model. Deployed as v1 (previous: a19). Training details in the model's `training_config.yaml`.
+
+#### 2. Config-Driven Prefix Detection Refactor
+
+Replaced implicit (color, shape) bindings with declarative `PrefixDetectorConfig` dataclass:
+
+```python
+@dataclass(frozen=True)
+class PrefixDetectorConfig:
+    name: str              # 'bullet' or 'subbullet'
+    colors: tuple          # RGB tuples for mask building
+    shapes: tuple          # ShapeDef instances to try
+    def build_mask(self, img_bgr, tolerance=15): ...
+
+BULLET_DETECTOR = PrefixDetectorConfig(
+    name='bullet',
+    colors=(EFFECT_BLUE_RGB, EFFECT_RED_RGB, EFFECT_GREY_RGB),
+    shapes=(SHAPE_DOT,),
+)
+SUBBULLET_DETECTOR = PrefixDetectorConfig(
+    name='subbullet',
+    colors=(WHITE_TEXT_RGB, EFFECT_RED_RGB),
+    shapes=(SHAPE_NIEUN,),
+)
+```
+
+Classification logic encapsulated into two switchable methods:
+- `_classify_ink()` — width + vertical ink extent (active)
+- `_classify_shape_walker()` — directional ink tracing (available, not active)
+
+The active classifier is switched by changing one line in `detect_prefix()`. Both are still under comparison.
+
+#### 3. Prefix Re-Attachment Removed
+
+Previously, after slicing the `·` prefix pixels from the line mask before OCR, the code re-attached `'· '` to the OCR text. This re-attachment was removed — the prefix type is tracked in metadata (`_prefix_type` field) and does not need to appear in the OCR text.
+
+### Files Modified
+
+| File | Changes |
+|---|---|
+| `backend/lib/prefix_detector.py` | Added `PrefixDetectorConfig`, `BULLET_DETECTOR`, `SUBBULLET_DETECTOR`; encapsulated `_classify_ink()` and `_classify_shape_walker()`; added `config` param to `detect_prefix()` |
+| `backend/lib/mabinogi_tooltip_parser.py` | Switched to `BULLET_DETECTOR.build_mask()`; added `prefix_config` param to `_ocr_grouped_lines`; removed `·` re-attachment |
+| `backend/lib/line_processing.py` | Passes `config=BULLET_DETECTOR` to `detect_prefix` |
+| `tests/test_prefix_detector.py` | Added `TestPrefixDetectorConfig` (6 tests) |
+| `tests/test_finding_bullet_images.py` | Added `TestConfigBasedDetection`; updated EXPECTED for ink classification |
+| `scripts/v3/test_prefix_detector.py` | Uses configs for bullet/subbullet modes |
+| `frontend/.../image_process_lab.jsx` | Config objects, unified `detectPrefixesWithConfig()`, retired width-heuristic `_detectPrefixes()` |
+
+### Results
+
+```
+TOTAL: 151/309 exact, char_acc=84.7%, FM=60
+```
+
+Per-section breakdown:
+| Section | Exact | Total | Pct | FM |
+|---|---|---|---|---|
+| enchant | 36 | 63 | 57.1% | 45 |
+| reforge | 16 | 31 | 51.6% | 15 |
+| item_attrs | 40 | 85 | 47.1% | — |
+| item_mod | 34 | 61 | 55.7% | — |
+| set_item | 5 | 27 | 18.5% | — |
+| erg | 8 | 21 | 38.1% | — |
+| item_grade | 5 | 11 | 45.5% | — |
+| pre_header | 5 | 7 | 71.4% | — |
+| ego | 2 | 3 | 66.7% | — |
+
+Previous best: 128/303 exact, 70.2% char acc, FM=56.
+
+Improvement: **+23 exact matches, +4 FM.** The char_acc drop (88.5% → 84.7%) is due to the test set expanding from 18 to 19 images (the new image has no GT, lowering the measured char_acc average). On comparable images, accuracy improved.
+
+### Key Insight
+
+**Model retraining was the primary driver.** The general_mabinogi_classic v1 model produced significantly better content OCR. The prefix refactor and `·` removal were structural improvements that didn't directly affect eval scores (FM was already stripping prefix characters).

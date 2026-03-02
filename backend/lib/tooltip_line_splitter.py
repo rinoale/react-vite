@@ -178,7 +178,7 @@ class TooltipLineSplitter:
         return lines
 
     def _has_internal_gap(self, projection, y_start, y_end):
-        """Check if a block has a clear internal gap (2+ consecutive zero rows).
+        """Check if a block has a clear internal gap (1+ consecutive zero rows).
 
         Indicates two lines merged into one block by gap_tolerance.
         """
@@ -186,7 +186,7 @@ class TooltipLineSplitter:
         for y in range(y_start, y_end):
             if projection[y] == 0:
                 consecutive_zeros += 1
-                if consecutive_zeros >= 2:
+                if consecutive_zeros >= 1:
                     return True
             else:
                 consecutive_zeros = 0
@@ -323,7 +323,7 @@ class TooltipLineSplitter:
                         # Corner bracket artifact (e.g. 「 before section headers):
                         # First cluster only, with low ink density and clear gap to main text.
                         # Real text characters have avg_density >= 3.5; the 「 bracket is ~1.8.
-                        if idx == 0 and avg_density < 3.5:
+                        if idx == 0 and avg_density < 2.0:
                             if idx + 1 < len(clusters):
                                 gap_to_next = clusters[idx + 1][0] - ce - 1
                                 if gap_to_next >= 4:

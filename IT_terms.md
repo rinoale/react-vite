@@ -85,11 +85,13 @@
 - coupling: degree of dependency between modules
 - interface: contract defining available operations/behavior
 - implementation: concrete code that fulfills an interface
+- arbitrary: based on random choice or personal whim, rather than any reason or system. Example: "The initial `imgW` of 200 was somewhat **arbitrary**, so we tested higher values to find the optimal size."
 - design pattern: reusable solution template for common design problems
 - anti-pattern: common but ineffective/harmful approach
 - singleton: design pattern ensuring single instance exists
 - extensibility: ease of adding new features without major rewrites
 - interoperability: ability of systems to work together
+- orthogonal: property of a system where components or features can vary independently without affecting each other. Example: "The database schema is **orthogonal** to the UI design, allowing us to change the layout without modifying the table structure."
 
 ### Backend and Distributed Systems
 - stateful: system that keeps session/state between requests
@@ -180,6 +182,7 @@
 - integration test: test of interactions between components
 - end-to-end test: test of full workflow from user perspective
 - regression test: test ensuring old functionality still works after changes
+- calibrate: the process of adjusting a system or tool to ensure its accuracy or to match it with a standard. Example: "We need to **calibrate** our image thresholding to 80 to match the frontend's output exactly."
 - discrepancy: a mismatch between expected and actual results. Example: "We found a discrepancy between OCR output and ground-truth labels."
 - test coverage: proportion of code executed by tests
 - mock: simulated dependency used in tests

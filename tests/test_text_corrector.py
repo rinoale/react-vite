@@ -3,35 +3,35 @@
 
 class TestCorrectNormalized:
     def test_exact_match_high_score(self, mini_text_corrector):
-        text, score = mini_text_corrector.correct_normalized(
+        text, score, _range = mini_text_corrector.correct_normalized(
             '스매시 대미지 15 % 증가', section='reforge')
         assert score >= 90
         assert '스매시 대미지' in text
         assert '15' in text
 
     def test_close_fuzzy_match(self, mini_text_corrector):
-        text, score = mini_text_corrector.correct_normalized(
+        text, score, _range = mini_text_corrector.correct_normalized(
             '스메시 대미지 15 % 증가', section='reforge')
         assert score > 0
         assert '스매시 대미지' in text
 
     def test_no_match_returns_original(self, mini_text_corrector):
         original = '완전히 다른 텍스트 없는 항목'
-        text, score = mini_text_corrector.correct_normalized(
+        text, score, _range = mini_text_corrector.correct_normalized(
             original, section='reforge')
         # Below cutoff -> negative score (candidate) or 0
         assert score <= 0
 
     def test_section_specific_dict(self, mini_text_corrector):
         """Reforge section should only search reforge entries."""
-        text, score = mini_text_corrector.correct_normalized(
+        text, score, _range = mini_text_corrector.correct_normalized(
             '최대대미지 15 증가', section='reforge')
         # '최대대미지 N 증가' is in enchant, not reforge
         # Should not match reforge entries well
         assert score <= 0 or '대미지' in text
 
     def test_unknown_section_returns_minus_2(self, mini_text_corrector):
-        text, score = mini_text_corrector.correct_normalized(
+        text, score, _range = mini_text_corrector.correct_normalized(
             '아무거나', section='nonexistent_section')
         assert score == -2
 
@@ -71,8 +71,9 @@ class TestMatchEnchantEffect:
         entry = mini_text_corrector._enchant_db[0]
         text, score = mini_text_corrector.match_enchant_effect(
             '최대대미지 99 증가', entry)
-        # Should match template and re-inject 99
-        assert '99' in text
+        # Non-ranged effect: DB value (15) is used, not OCR value (99)
+        assert '15' in text
+        assert score > 0
 
     def test_no_entry_returns_original(self, mini_text_corrector):
         text, score = mini_text_corrector.match_enchant_effect(

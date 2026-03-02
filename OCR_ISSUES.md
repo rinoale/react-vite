@@ -105,6 +105,10 @@ Ink ratio gap: real padded crops 0.201 vs synthetic 0.144 (strokes ~1.4× thicke
 
 9. ~~**Leading `-` misread as `소` / `#`**~~ — No longer relevant. Prefix area is trimmed from crops via `prefix_abs_cut` before OCR, and training data contains no prefixes.
 
+9b. ~~**Subbullet `ㄴ` not sliced before OCR**~~ — Prefix detection flagged subbullets but didn't slice them from line crops. The `ㄴ` glyph polluted OCR input across item_mod, set_item, reforge, and item_attrs. Fixed by extending the slice condition from `== 'bullet'` to `in ('bullet', 'subbullet')`. +33 exact matches.
+
+9c. ~~**Non-ranged enchant FM dropped numbers**~~ — `match_enchant_effect()` normalized ALL numbers to `N` and tried to re-extract from garbled OCR. For non-ranged effects (e.g., `이면을 보는 눈 특성 사용 1회 당 경계흔 최대 획득 갯수 3 증가`), the `1` and `3` are fixed DB constants, not rolled values. The number extraction fallback picked only one number, leaving the second `N` slot empty. Fixed by short-circuiting: non-ranged effects return DB text directly.
+
 ### Open issues
 
 10. **v1 content model training pending** — Both font-specific models (mabinogi_classic, nanum_gothic_bold) training with new data: 748-char charset, enchant.yaml-sourced effects, no bullet prefixes, reduced threshold noise. Deploy and evaluate after training completes.

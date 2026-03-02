@@ -168,6 +168,10 @@ def test_image(pipeline, image_path, gt_path=None, verbose=True):
                     print(f"       GT:  {gt_text}")
                 continue
 
+            prefix_type = line.get('_prefix_type')
+            _PREFIX_LABELS = {'bullet': 'Bullet ', 'subbullet': 'Sub-bullet '}
+            prefix_tag = _PREFIX_LABELS.get(prefix_type, '')
+
             # Model tag
             ocr_model = line.get('ocr_model', '')
             model_tag = f' [{ocr_model}]' if ocr_model else ''
@@ -180,7 +184,7 @@ def test_image(pipeline, image_path, gt_path=None, verbose=True):
             if has_gt:
                 status = 'OK' if exact_match else 'XX'
 
-                print(f"  [{status}] Line {i+1:2d} (conf={line.get('confidence', 0):.3f}, "
+                print(f"  [{status}] Line {i+1:2d} {prefix_tag}(conf={line.get('confidence', 0):.3f}, "
                       f"acc={char_accuracy:.1%}){sub_tag}{model_tag}")
                 print(f"       GT:  {gt_text}")
                 if fm_applied:
@@ -192,19 +196,16 @@ def test_image(pipeline, image_path, gt_path=None, verbose=True):
                 else:
                     print(f"       OCR: {text}")
             else:
+                print(f"  Line {i+1:2d} {prefix_tag}(conf={line.get('confidence', 0):.3f})"
+                      f"{sub_tag}{model_tag}")
                 if fm_applied:
-                    print(f"  Line {i+1:2d} (conf={line.get('confidence', 0):.3f})"
-                          f"{sub_tag}{model_tag}")
                     print(f"       OCR: {raw_text}")
                     print(f"       FM:  {text}")
                 elif fm_rejected:
-                    print(f"  Line {i+1:2d} (conf={line.get('confidence', 0):.3f})"
-                          f"{sub_tag}{model_tag}")
                     print(f"       OCR: {text}")
                     print(f"       FM✗: {fm_rejected}  (score={fm_rejected_score:.0f}, rejected)")
                 else:
-                    print(f"  Line {i+1:2d} (conf={line.get('confidence', 0):.3f})"
-                          f"{sub_tag}{model_tag}  {text}")
+                    print(f"       OCR: {text}")
 
     if has_gt and len(ocr_lines) > len(gt_lines) and verbose:
         print(f"\n  ({len(ocr_lines) - len(gt_lines)} extra OCR lines beyond GT — not scored)")

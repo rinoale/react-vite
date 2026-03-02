@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Mabinogi (MMORPG) item trading marketplace with OCR-powered item registration. Users upload a screenshot of an in-game item tooltip, and the system automatically extracts item details using a custom-trained EasyOCR model.
 
-**Current performance:** 128/303 exact, 70.2% char accuracy, FM=56 (18 images, 7 with GT).
+**Current performance:** 184/311 exact, 90.4% char accuracy, FM=60 (18 images, 7 with GT).
 
 **Eval command:** `python3 scripts/v3/test_v3_pipeline.py -q 'data/sample_images/*_original.png'`
 
@@ -98,7 +98,7 @@ Original color screenshot (BGR, any resolution)
 - Horizontal projection profiling, auto-detects background polarity
 - `_remove_borders()`: Masks narrow (<=3px) high-density vertical column runs
 - Gap tolerance=2 rows, `_rescue_gaps()` two-pass detection for sparse lines
-- `_split_tall_block()`, `_has_internal_gap()` for merged blocks
+- `_split_tall_block()`, `_has_internal_gap()` for merged blocks (1+ consecutive zero rows triggers split)
 - `horizontal_split_factor`: 3 default, 1.5 for Mabinogi color parts
 - Proportional padding: `pad_x = max(2, h//3)`, `pad_y = max(1, h//5)`
 - Parameters: `min_height=6, max_height=25, min_width=10`
@@ -116,8 +116,9 @@ Original color screenshot (BGR, any resolution)
 - **Verification rule**: OCR-ing training images must give ~100% accuracy. If not, preprocessing mismatch -- investigate before retraining.
 
 **Prefix Detector** (`backend/lib/prefix_detector.py`):
-- Detects bullet (`·`) and subbullet (`ㄴ`) prefixes via color masks (blue RGB(74,149,238), red RGB(255,103,103), white RGB(255,255,255))
+- Detects bullet (`·`) and subbullet (`ㄴ`) prefixes via color masks (blue RGB(74,149,238), red RGB(255,103,103), grey RGB(128,128,128), light grey RGB(167,167,167), white RGB(255,255,255))
 - Column projection state machine: [small ink cluster] -> [gap] -> [main text]
+- Both bullet and subbullet prefixes are sliced from line crops before OCR in all content sections
 - Zero false positives on 26 theme images
 
 ### Key Algorithms (details in `documents/CORE_LOGIC.md`)
@@ -150,7 +151,7 @@ All models: `TPS-ResNet-BiLSTM-CTC`, `imgH=32`, `hidden_size=256`.
 
 **Model versioning**: `backend/ocr/{model_type}/{version}/` -- self-contained with `.pth`, `.py`, `.yaml`, `training_config.yaml`, charset, training data. Symlinks at `backend/ocr/models/` point to active versions.
 
-**Active versions**: general=a18 (legacy), general_mabinogi_classic=a19, general_nanum_gothic_bold=a19, category_header=v1, enchant_header=v3, preheader_mabinogi_classic=v1, preheader_nanum_gothic=v1.
+**Active versions**: general=a18 (legacy), general_mabinogi_classic=v1, general_nanum_gothic_bold=a19, category_header=v1, enchant_header=v3, preheader_mabinogi_classic=v1, preheader_nanum_gothic=v1.
 
 **Switch**: `bash scripts/ocr/switch_model.sh <type> <version>`
 **Deploy**: `bash scripts/ocr/<model_type>/deploy.sh <version>`
