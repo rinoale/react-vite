@@ -827,7 +827,7 @@ BULLET_DETECTOR = PrefixDetectorConfig(
 )
 SUBBULLET_DETECTOR = PrefixDetectorConfig(
     name='subbullet',
-    colors=(WHITE_TEXT_RGB, EFFECT_RED_RGB),
+    colors=(WHITE_TEXT_RGB, EFFECT_RED_RGB, EFFECT_GREY_RGB),
     shapes=(SHAPE_NIEUN,),
 )
 ```
@@ -886,7 +886,7 @@ Cluster mask (7×5 example):
   . x . . .    row 1  ← seed
   . x . . .    row 2  ↓ walk DOWN
   . x . . .    row 3  ↓ (length=3 ≥ min_px=3 ✓)
-  . x x x .    row 4  → walk RIGHT (length=3 ≥ min_px=3 ✓)
+  . x x x .    row 4  → walk RIGHT (length=2 ≥ min_px=2 ✓)
   . . . . .    row 5
 
   _walk_segment(DOWN) from seed → end at corner
@@ -1031,15 +1031,125 @@ Each fix targeted a specific false positive class:
 ### Color Masks
 
 - **Bullet:** blue RGB(74,149,238) + red RGB(255,103,103) + grey RGB(128,128,128) + light grey RGB(167,167,167)
-- **Subbullet:** white RGB(255,255,255) + red RGB(255,103,103)
+- **Subbullet:** white RGB(255,255,255) + red RGB(255,103,103) + grey RGB(128,128,128)
 
-The game uses two distinct grey shades: RGB(128,128,128) for `ㄴ` subbullet text and RGB(167,167,167) for disabled/conditional bullet (`·`) text.
+Grey RGB(128,128,128) appears in both configs: the game uses it for both disabled bullet `·` and grey subbullet `ㄴ` lines (e.g. greyed-out conditional effects). Light grey RGB(167,167,167) is bullet-only (a distinct shade for partially disabled effects).
 
-### Why Subbullet (ㄴ) Detection Fails on White Mask
+### Per-Color Subbullet Detection — Two-Stage Fallback
 
-This is a Stage 1 (isolation) failure, not a classification failure. The column projection assumes the prefix is the **first** ink cluster from the left. On the white text mask, the ㄴ prefix AND all the white main text appear as ink — one giant continuous cluster with no gap. The ㄴ is never isolated, so Stage 2 never runs.
+#### The Problem: ㄴ Fragments in Single-Color Masks
 
-Bullet detection doesn't have this problem because `·` bullets use different colors (blue/red/grey) than main text, so the mask naturally separates prefix from text.
+On a **combined** mask (BT.601 binary or all-colors-merged), the ㄴ character is a solid L-shape. But `detect_prefix_per_color` tests each color independently. On a single-color mask, the ㄴ character **fragments** because anti-aliased (AA) pixels between the vertical and horizontal strokes don't match the target color:
+
+```
+Combined mask (BT.601 binary):         White-only mask (±15 tolerance):
+
+  col:  0  1  2  3  4  5  6  ...       col:  0  1  2  3  4  5  6  ...
+  row 0: .  .  .  .  .  .  .           row 0: .  .  .  .  .  .  .
+  row 1: .  #  #  .  .  .  .           row 1: .  #  #  .  .  .  .
+  row 2: .  #  #  .  .  .  .           row 2: .  #  #  .  .  .  .
+  row 3: .  #  #  .  .  .  .           row 3: .  #  .  .  .  .  .    ← col 2 lost (AA pixel)
+  row 4: .  #  #  #  #  .  .           row 4: .  .  .  #  #  .  .    ← cols 1-2 lost (AA)
+  row 5: .  .  .  .  .  .  .           row 5: .  .  .  .  .  .  .
+
+  Shape walker: DOWN(3) → RIGHT(2) ✓   Shape walker: DOWN(2) only → fails
+  Result: ㄴ detected                   Vertical stub too short, no corner
+```
+
+The corner where vertical meets horizontal has sub-pixel blending. Those transitional pixels have RGB values partway between the stroke color and the background — outside the ±15 tolerance of any single color.
+
+On the combined mask, the shape walker sees the full L-shape and classifies it as ㄴ. But per-color detection can't use the combined mask (it would re-introduce mixed-color false positives for bullets). The solution is a two-stage fallback.
+
+#### The Solution: Color Mask Locator → BT.601 Binary Validator
+
+The fallback uses each mask type for what it's best at:
+
+```
+Stage A: Color mask → LOCATE the prefix position
+  - Scan single-color masks for a narrow first cluster at left edge
+  - The fragmented vertical stub is enough to find x-position
+
+Stage B: BT.601 binary → VALIDATE the full shape
+  - At the position from Stage A, examine the binary mask
+  - Binary preserves the full ㄴ including corner AA pixels
+  - Validate: tall ink block + gap + main text follows
+```
+
+Why this is safe: BT.601 binary is only used for **validation at a known position** (anchored by the color mask hit), never for open-ended scanning. This prevents the "white mask sees everything as one blob" problem.
+
+#### Algorithm: `_detect_subbullet_fallback()`
+
+```
+Input: img_bgr_line (one line crop, BGR color)
+       config.colors = [WHITE, RED, GREY]
+
+Step 1 — Find narrow cluster in any config color:
+  For each color:
+    mask = _color_mask(img_bgr, color, ±15)
+    col_proj = sum(mask > 0, per column)
+    Scan for: [first_start] → [first_end] → [main_start]
+    Reject if first_start > max(10, 15% of width)    ← position check
+    Reject if first_w > max(6, h * 0.5)              ← width check
+    → cluster_x = first_start
+
+Step 2 — Build BT.601 binary (lazy, shared with bullet path):
+    gray = 0.299R + 0.587G + 0.114B
+    binary = (gray > 80) * 255
+
+Step 3 — Find ink block in binary near cluster_x:
+    bin_col_proj = sum(binary > 0, per column)
+    Search cluster_x ± 2 → bin_ink_start
+    Find end of ink block → bin_ink_end
+    Find main text start → bin_main_start
+
+Step 4 — Validate:
+    nieun_w = bin_ink_end - bin_ink_start    (must be ≤ 6)
+    gap_w = bin_main_start - bin_ink_end     (must be ≥ max(3, h * 0.2))
+    ink_rows = rows with any ink in block    (must be ≥ max(6, h * 0.5))
+
+    All pass → return {type: 'subbullet', x, w, gap, main_x}
+```
+
+#### The Gap Discriminator
+
+The key insight that separates real ㄴ from false positives is the **gap width**. The game renderer places a fixed-width space between the ㄴ prefix and the main text, while inter-character gaps within text are narrower:
+
+```
+Real ㄴ subbullet line:                    Text character fragment (FP):
+
+  ㄴ  ····  재련 5 이상 일 때              세 ···  공 옵션 레벨 ...
+  ^^  ^^^^  ^^^^^^^^^^^^^^^^^^^            ^^  ^^^  ^^^^^^^^^^^^^^^^
+  w=4 gap=4 main text                      w=5 gap=2 continues
+
+  first_start=2, first_end=6              first_start=134, first_end=139
+  gap=4 ≥ 3 ✓                             gap=2 < 3 ✗ → rejected
+  position: 2 < 15% ✓                     position: 134 > 15% ✗ → rejected
+```
+
+All verified real ㄴ have gap=4. All observed false positives have gap=1-2. The threshold gap≥3 perfectly separates them.
+
+#### Per-Color Filter Summary
+
+After the main detection loop and before the fallback, per-color filters reject common FP patterns:
+
+| Filter | Threshold | Rejects |
+|---|---|---|
+| `total_ink < 6` | 6 pixels min | AA specks (1-3 px) in grey masks |
+| `gap < 3` | 3 columns min | Inter-character gaps within text |
+| `crop_h < 10` | 10 rows min | Short lines where text mimics L-shape |
+| `first_w > max(6, h*0.45)` | proportional width | Multi-char fragments passing shape walker |
+| `first_start > max(10, 15%)` | left-edge position | Fragments mid-line, not at prefix position |
+
+#### No Bullet Regression
+
+Bullet (`·`) and subbullet (`ㄴ`) detection are fully isolated by `PrefixDetectorConfig`:
+
+```
+BULLET_DETECTOR    → colors=(BLUE, RED, GREY, LIGHT_GREY), shapes=(SHAPE_DOT,)
+SUBBULLET_DETECTOR → colors=(WHITE, RED, GREY),             shapes=(SHAPE_NIEUN,)
+```
+
+Each config restricts both which colors to mask and which shapes to accept. The shape walker rejects ㄴ when looking for DOT (and vice versa). The per-color filters are type-specific (`result['type'] == 'bullet'` vs `'subbullet'`). The fallback only activates for `config.name == 'subbullet'`. Changes to subbullet detection cannot affect bullet detection because they never share a code path at runtime.
 
 ### Ground Truth and Testing
 
@@ -1078,7 +1188,7 @@ Shapes are defined declaratively as sequences of directional segments:
 ```python
 SHAPE_NIEUN = ShapeDef('ㄴ', segments=[
     Segment(DOWN,  min_px=3),    # vertical stroke ≥ 3px
-    Segment(RIGHT, min_px=3),    # horizontal stroke ≥ 3px
+    Segment(RIGHT, min_px=2),    # horizontal stroke ≥ 2px
 ])
 
 SHAPE_DOT = ShapeDef('·', segments=[

@@ -70,7 +70,7 @@ class ShapeMatch:
 
 
 # Built-in shape constants
-SHAPE_NIEUN = ShapeDef('ㄴ', (Segment(Direction.DOWN, min_px=3), Segment(Direction.RIGHT, min_px=3)))
+SHAPE_NIEUN = ShapeDef('ㄴ', (Segment(Direction.DOWN, min_px=3), Segment(Direction.RIGHT, min_px=2)))
 SHAPE_DOT = ShapeDef('·', (Segment(Direction.DOT, min_px=1, max_px=4),))
 
 

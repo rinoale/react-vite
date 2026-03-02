@@ -252,7 +252,54 @@ In the pipeline, we reject everything from 210° to 330° (blue through purple).
 | Local projection | **[USED]** | Projection within a sub-region for splitting merged blocks. |
 | Density thresholding | **[USED]** | Filter by pixel density per row/column to separate text from borders. |
 
-**Project usage**: Core technique for line splitting in `tooltip_line_splitter.py`. Also used for orange band detection in `tooltip_segmenter.py` and white-pixel band detection in enchant header processing.
+**Project usage**: Core technique for line splitting in `tooltip_line_splitter.py`. Also used for orange band detection in `tooltip_segmenter.py`, white-pixel band detection in enchant header processing, and prefix detection column projection in `prefix_detector.py`.
+
+---
+
+### 7.1 Two-Stage Subbullet Detection — Color Mask Locator + BT.601 Binary Validator
+
+**Problem**: The subbullet `ㄴ` character must be detected per-color (to avoid mixed-color false positives), but the character **fragments** in single-color masks. Anti-aliased pixels at the corner where the vertical and horizontal strokes meet have intermediate RGB values outside the ±15 tolerance of any single color target.
+
+```
+Combined BT.601 binary:          White-only color mask (±15):
+
+  col: 0 1 2 3 4 5              col: 0 1 2 3 4 5
+       . # # . . .                    . # # . . .
+       . # # . . .                    . # # . . .
+       . # # . . .                    . # . . . .    ← col 2 lost (AA pixel)
+       . # # # # .                    . . . # # .    ← cols 1-2 lost at corner
+       . . . . . .                    . . . . . .
+
+  Full L-shape intact             Vertical stub only — shape walker fails
+```
+
+**Solution — Two-stage fallback** (`_detect_subbullet_fallback`):
+
+| Stage | Input | Purpose | Technique |
+|-------|-------|---------|-----------|
+| A: Locate | Single-color mask | Find prefix x-position | Column projection (§7) → state machine |
+| B: Validate | BT.601 binary (gray > 80) | Confirm full ㄴ shape | Column projection → width/gap/height checks |
+
+Stage A scans each color mask for a narrow first cluster at the left edge. The fragmented vertical stub is enough to determine the x-position. Stage B examines the BT.601 binary at that position, where all AA pixels survive the threshold and the full L-shape is intact. BT.601 binary is only used for **validation at a known position** — never for open-ended scanning — preventing the "everything merges into one blob" problem.
+
+**Key discriminator — gap width**:
+
+| Source | gap (cols) | Position |
+|--------|-----------|----------|
+| Real ㄴ prefix | 4 (game-rendered fixed space) | x < 15% of line width |
+| Inter-character gap | 1-2 (font kerning) | x > 15% (mid-line) |
+
+Threshold: `gap ≥ 3` perfectly separates real prefixes from text character fragments across all 18 test images.
+
+**Validation filters** (Step B):
+
+| Check | Threshold | Purpose |
+|-------|-----------|---------|
+| Ink block width | ≤ 6 cols | Reject multi-character clusters |
+| Gap to main text | ≥ max(3, h × 0.2) | Reject inter-character gaps |
+| Ink row count | ≥ max(6, h × 0.5) | Reject horizontal-only fragments |
+
+**Project usage**: `prefix_detector.py` → `_detect_subbullet_fallback()`, called from `detect_prefix_per_color()` when main per-color loop fails. For algorithmic details see [CORE_LOGIC.md §13](CORE_LOGIC.md#13-prefix-detection--combined-classifier).
 
 ---
 
@@ -265,11 +312,11 @@ In the pipeline, we reject everything from 210° to 330° (blue through purple).
 | Watershed | [—] | Treats image as topographic surface — flood-fills from markers to segment touching objects. |
 | Distance transform | [—] | Each foreground pixel = distance to nearest background. Useful as watershed marker. |
 | Region growing | [—] | Start from seed points, grow regions by adding similar neighbors. |
-| Flood fill | [—] | Fill connected region of similar pixels from seed point. |
+| Flood fill | **[USED]** | Fill connected region of similar pixels from seed point. |
 | GrabCut | [—] | Iterative foreground/background segmentation using graph cuts. |
 | Superpixels (SLIC) | [—] | Over-segment image into perceptually meaningful atomic regions. |
 
-**Project usage**: `cv2.connectedComponentsWithStats()` in `find_black_squares.py` for header boundary detection.
+**Project usage**: `cv2.connectedComponentsWithStats()` in `find_black_squares.py` for header boundary detection. 8-connected flood fill in `shape_walker.py` → `_check_dot()` for bullet `·` shape verification.
 
 ---
 

@@ -323,7 +323,7 @@ class TooltipLineSplitter:
                         # Corner bracket artifact (e.g. 「 before section headers):
                         # First cluster only, with low ink density and clear gap to main text.
                         # Real text characters have avg_density >= 3.5; the 「 bracket is ~1.8.
-                        if idx == 0 and avg_density < 3.5:
+                        if idx == 0 and avg_density < 2.0:
                             if idx + 1 < len(clusters):
                                 gap_to_next = clusters[idx + 1][0] - ce - 1
                                 if gap_to_next >= 4:

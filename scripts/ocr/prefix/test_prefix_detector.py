@@ -261,14 +261,6 @@ def run_on_image(path, out_dir):
     bul_found = [r for r in bul_all if r['type'] == 'bullet']
     bul_found.sort(key=lambda r: r['y'])
 
-    # Debug: print 20x20 surrounding the 22nd bullet (index 21)
-    _bullet_idx = 0
-    for r in bul_all:
-        if r['type'] == 'bullet':
-            if _bullet_idx == 21:
-                _debug_dot_neighborhood(img, r)
-            _bullet_idx += 1
-
     out2 = os.path.join(out_dir, f"{stem}_bullet.png")
     _draw_results(img, bul_found, out2,
                   title=f"Bullet (per-color): {len(bul_found)} found")

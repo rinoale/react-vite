@@ -43,8 +43,9 @@ WHITE_TEXT_RGB = (255, 255, 255)
 # All bullet (·) colors — blue (positive) + red (negative) + grey (disabled) + light grey.
 BULLET_COLORS = [EFFECT_BLUE_RGB, EFFECT_RED_RGB, EFFECT_GREY_RGB, EFFECT_LIGHT_GREY_RGB]
 
-# All subbullet (ㄴ) colors — white (reforge sub-lines) + red (negative effects).
-SUBBULLET_COLORS = [WHITE_TEXT_RGB, EFFECT_RED_RGB]
+# All subbullet (ㄴ) colors — white (reforge sub-lines) + red (negative effects)
+# + grey (disabled/conditional effects).
+SUBBULLET_COLORS = [WHITE_TEXT_RGB, EFFECT_RED_RGB, EFFECT_GREY_RGB]
 
 
 @dataclass(frozen=True)
@@ -74,7 +75,7 @@ BULLET_DETECTOR = PrefixDetectorConfig(
 
 SUBBULLET_DETECTOR = PrefixDetectorConfig(
     name='subbullet',
-    colors=(WHITE_TEXT_RGB, EFFECT_RED_RGB),
+    colors=(WHITE_TEXT_RGB, EFFECT_RED_RGB, EFFECT_GREY_RGB),
     shapes=(SHAPE_NIEUN,),
 )
 
@@ -262,6 +263,11 @@ def _classify_combined(cluster_region, h, first_w, config,
             if not _is_dot_isolated(mask_line, first_start, first_end):
                 return None
     elif prefix_type == 'subbullet':
+        # A real ㄴ at game font is 3-5 cols wide in the cluster.
+        # Wider clusters are multi-character fragments that happen
+        # to pass the L-shape check.
+        if first_w > max(6, int(h * 0.45)):
+            return None
         if ink_rows > max(8, int(h * 0.75)):
             return None
 
@@ -314,9 +320,10 @@ def detect_prefix_per_color(img_bgr_line, config, tolerance=15):
             # pixels in exactly 1 ink row.  Anti-aliased specks are
             # either too sparse (1 pixel) or scattered across rows.
             total_ink = int(np.sum(cluster > 0))
-            if total_ink < 2:
-                continue
             if result['type'] == 'bullet':
+                # A real dot has 2+ ink pixels in exactly 1 row.
+                if total_ink < 2:
+                    continue
                 ink_rows = int(np.sum(np.any(cluster > 0, axis=1)))
                 if ink_rows > 1:
                     continue
@@ -329,8 +336,151 @@ def detect_prefix_per_color(img_bgr_line, config, tolerance=15):
                     binary = ((gray > 80) * 255).astype(np.uint8)
                 if not _is_dot_isolated(binary, result['x'], result['x'] + result['w']):
                     continue
+            elif result['type'] == 'subbullet':
+                # A real ㄴ has ~10 pixels: 6 vertical + 4 horizontal.
+                # Shape walker already validates the L-shape, so only
+                # a minimum ink check is needed here.
+                if total_ink < 6:
+                    continue
+                # A real ㄴ has a clear gap (≥3 cols) before main text.
+                # Text character fragments have smaller gaps (1-2 cols).
+                if result['gap'] < 3:
+                    continue
+                # A real ㄴ line is 10+ rows after padding. Short lines
+                # (h<10) have text characters that mimic L-shapes.
+                if img_bgr_line.shape[0] < 10:
+                    continue
             return result
+
+    # Fallback for subbullet: the ㄴ character can fragment in a
+    # single-color mask (vertical stroke separated from horizontal).
+    # Find the narrow cluster position from single-color mask, then
+    # run shape walker on BT.601 binary where the full ㄴ is intact.
+    if config.name == 'subbullet':
+        result = _detect_subbullet_fallback(img_bgr_line, config, tolerance,
+                                            binary)
+
+        if result is not None:
+            return result
+
     return _no_prefix()
+
+
+def _detect_subbullet_fallback(img_bgr_line, config, tolerance, binary):
+    """Detect fragmented ㄴ by finding narrow cluster in color mask,
+    then validating vertical stroke + gap on BT.601 binary.
+
+    In some fonts/sizes the ㄴ vertical and horizontal strokes separate
+    in a single-color mask.  The vertical stroke alone is too narrow
+    for the shape walker.  Here we:
+      1. Find a narrow first cluster in any config color mask
+      2. In BT.601 binary, find the ink block near that position
+      3. Validate: tall vertical stroke, gap after, text follows
+    """
+    # Step 1: find narrow cluster position from any config color
+    cluster_x = None
+    for rgb in config.colors:
+        mask = _color_mask(img_bgr_line, rgb, tolerance)
+        h, w = mask.shape[:2]
+        if w < 10 or h < 3:
+            continue
+        col_proj = np.sum(mask > 0, axis=0)
+        first_start = first_end = main_start = -1
+        for x in range(w):
+            has_ink = col_proj[x] > 0
+            if first_start < 0:
+                if has_ink:
+                    first_start = x
+            elif first_end < 0:
+                if not has_ink:
+                    first_end = x
+            elif main_start < 0:
+                if has_ink:
+                    main_start = x
+                    break
+        if first_start < 0 or first_end < 0 or main_start < 0:
+            continue
+        # Cluster must be near the left edge — a subbullet prefix
+        # is always at the start of the line, not mid-text.
+        if first_start > max(10, int(w * 0.15)):
+            continue
+        first_w = first_end - first_start
+        max_prefix_w = max(6, int(h * 0.5))
+        if first_w <= max_prefix_w:
+            cluster_x = first_start
+            break
+
+    if cluster_x is None:
+        return None
+
+    # Step 2: build BT.601 binary
+    if binary is None:
+        gray = np.dot(img_bgr_line[..., ::-1].astype(np.float32),
+                      [0.299, 0.587, 0.114]).astype(np.uint8)
+        binary = ((gray > 80) * 255).astype(np.uint8)
+
+    h_bin, w_bin = binary.shape[:2]
+    bin_col_proj = np.sum(binary > 0, axis=0)
+
+    # Step 3: find ink block in binary near cluster_x
+    search_start = max(0, cluster_x - 2)
+    bin_ink_start = -1
+    for x in range(search_start, min(w_bin, cluster_x + 3)):
+        if bin_col_proj[x] > 0:
+            bin_ink_start = x
+            break
+
+    if bin_ink_start < 0:
+        return None
+
+    # Find end of ink block (first zero column)
+    bin_ink_end = -1
+    for x in range(bin_ink_start + 1, min(w_bin, bin_ink_start + 10)):
+        if bin_col_proj[x] == 0:
+            bin_ink_end = x
+            break
+
+    if bin_ink_end < 0:
+        return None
+
+    # Find main text start (first ink after gap)
+    bin_main_start = -1
+    for x in range(bin_ink_end + 1, min(w_bin, bin_ink_end + 10)):
+        if bin_col_proj[x] > 0:
+            bin_main_start = x
+            break
+
+    if bin_main_start < 0:
+        return None
+
+    # Step 4: validate — ink block must be a tall vertical stroke
+    nieun_w = bin_ink_end - bin_ink_start
+    gap_w = bin_main_start - bin_ink_end
+
+    # Width: a real ㄴ in binary is 3-4 cols wide.
+    # Text characters are 8+.
+    if nieun_w > 6:
+        return None
+
+    # Gap: a real ㄴ has a clear gap (≥3 cols) before main text.
+    # Text character inter-character gaps are typically 1-2 cols.
+    min_gap = max(3, int(h_bin * 0.2))
+    if gap_w < min_gap:
+        return None
+
+    bin_block = binary[:, bin_ink_start:bin_ink_end]
+    ink_rows = int(np.sum(np.any(bin_block > 0, axis=1)))
+
+    if ink_rows < max(6, int(h_bin * 0.5)):
+        return None
+
+    return {
+        'type': 'subbullet',
+        'x': bin_ink_start,
+        'w': nieun_w,
+        'gap': gap_w,
+        'main_x': bin_main_start,
+    }
 
 
 def _detect_prefix_on_mask(mask_line, config):

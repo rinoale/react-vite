@@ -71,6 +71,11 @@ column projection does not handle the dimensional issue.
 flood fill does not handle anti aliased pixels
 - what if we search broadly across all directions? Not to detect ※ as a dot
 
+### Try to convey the meaning with more understanding how the AI sees the data
+You will get monkey's pawed if you ask the AI to find the white colored 'ㄴ' shape from the image.
+Offer the coordinates where the shapes are and define the 'white' with RGB values.
+AI try to explain difficult things to me with ELI5 strategy. Human also have to try ELIS(explain like I'm Sheldon)
+
 ## Commands
 
 ### generate segmentation
