@@ -71,8 +71,9 @@ class TestMatchEnchantEffect:
         entry = mini_text_corrector._enchant_db[0]
         text, score = mini_text_corrector.match_enchant_effect(
             '최대대미지 99 증가', entry)
-        # Should match template and re-inject 99
-        assert '99' in text
+        # Non-ranged effect: DB value (15) is used, not OCR value (99)
+        assert '15' in text
+        assert score > 0
 
     def test_no_entry_returns_original(self, mini_text_corrector):
         text, score = mini_text_corrector.match_enchant_effect(

@@ -264,6 +264,19 @@ class TextCorrector:
         # The leftover "~ N" is cleaned up by _inject().
         norm_eff_only = effects_norm[best_idx][0]
         is_ranged = bool(re.search(r'N\s*~\s*N', norm_eff_only))
+
+        # Non-ranged effects: every number in the DB text is a fixed constant.
+        # Use the raw DB text directly — no number extraction or injection.
+        if not is_ranged:
+            if best_used_full and effects_full_norm:
+                _, raw_full = effects_full_norm[best_idx]
+                output = raw_full
+            else:
+                output = raw_effect
+            if best_score >= cutoff_score:
+                return prefix + output, best_score
+            return prefix + output, -best_score
+
         n_eff_inject = 1 if is_ranged else norm_eff_only.count('N')
 
         # Determine if the matched DB effect's condition contains a number.
