@@ -98,7 +98,7 @@ Original color screenshot (BGR, any resolution)
 - Horizontal projection profiling, auto-detects background polarity
 - `_remove_borders()`: Masks narrow (<=3px) high-density vertical column runs
 - Gap tolerance=2 rows, `_rescue_gaps()` two-pass detection for sparse lines
-- `_split_tall_block()`, `_has_internal_gap()` for merged blocks
+- `_split_tall_block()`, `_has_internal_gap()` for merged blocks (1+ consecutive zero rows triggers split)
 - `horizontal_split_factor`: 3 default, 1.5 for Mabinogi color parts
 - Proportional padding: `pad_x = max(2, h//3)`, `pad_y = max(1, h//5)`
 - Parameters: `min_height=6, max_height=25, min_width=10`
@@ -116,7 +116,7 @@ Original color screenshot (BGR, any resolution)
 - **Verification rule**: OCR-ing training images must give ~100% accuracy. If not, preprocessing mismatch -- investigate before retraining.
 
 **Prefix Detector** (`backend/lib/prefix_detector.py`):
-- Detects bullet (`·`) and subbullet (`ㄴ`) prefixes via color masks (blue RGB(74,149,238), red RGB(255,103,103), white RGB(255,255,255))
+- Detects bullet (`·`) and subbullet (`ㄴ`) prefixes via color masks (blue RGB(74,149,238), red RGB(255,103,103), grey RGB(128,128,128), light grey RGB(167,167,167), white RGB(255,255,255))
 - Column projection state machine: [small ink cluster] -> [gap] -> [main text]
 - Zero false positives on 26 theme images
 

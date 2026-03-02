@@ -6,7 +6,7 @@ Usage:
 
 Generates two visualization images per input:
   1. *_subbullet.png  — subbullet (ㄴ) via per-color detection
-  2. *_shapewalk.png  — shape walker on all colors combined (bullets + subbullets)
+  2. *_bullet.png  — shape walker on all colors combined (bullets + subbullets)
 
 Output saved to tmp/prefix_viz/
 """
@@ -165,29 +165,28 @@ def run_on_image(path, out_dir):
                   title=f"Subbullet (per-color): {len(sub_found)} found")
     print(f"  [1] Subbullet : {_summary_str(sub_all):30s}  -> {out1}")
 
-    # --- 2. Shape Walker: all colors combined, classify both types ---
+    # --- 2. Bullet: per-color detection ---
     b_mask = BULLET_DETECTOR.build_mask(img)
-    combined = np.maximum(b_mask, s_mask)
-    sw_all, _ = _detect_on_mask(combined, h, w, 'combined', splitter)
-    sw_found = [r for r in sw_all if r['type'] is not None]
-    sw_found.sort(key=lambda r: r['y'])
+    bul_all, bullet_ink = _detect_on_mask(b_mask, h, w, 'bullet', splitter,
+                                          config=BULLET_DETECTOR, img_bgr=img)
+    bul_found = [r for r in bul_all if r['type'] == 'bullet']
+    bul_found.sort(key=lambda r: r['y'])
 
-    out2 = os.path.join(out_dir, f"{stem}_shapewalk.png")
-    _draw_results(img, sw_found, out2,
-                  title=f"Shape Walker (all colors): {len(sw_found)} found")
-    print(f"  [2] ShapeWalk : {_summary_str(sw_all):30s}  -> {out2}")
+    out2 = os.path.join(out_dir, f"{stem}_bullet.png")
+    _draw_results(img, bul_found, out2,
+                  title=f"Bullet (per-color): {len(bul_found)} found")
+    print(f"  [2] Bullet    : {_summary_str(bul_all):30s}  -> {out2}")
 
     # --- Summary ---
     print()
-    bullet_ink = 100.0 * np.sum(b_mask > 0) / b_mask.size
     print(f"  Bullet ink: {bullet_ink:.1f}%  White ink: {white_ink:.1f}%")
-    print(f"  Lines scanned: subbullet={len(sub_all)}, combined={len(sw_all)}")
+    print(f"  Lines scanned: subbullet={len(sub_all)}, bullet={len(bul_all)}")
 
 
 def main():
     if len(sys.argv) < 2:
         print("Usage: python3 scripts/ocr/prefix/test_prefix_detector.py <image> [<image> ...]")
-        print("  Output: tmp/prefix_viz/<stem>_{subbullet,shapewalk}.png")
+        print("  Output: tmp/prefix_viz/<stem>_{subbullet,bullet}.png")
         sys.exit(1)
 
     paths = []

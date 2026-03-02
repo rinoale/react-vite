@@ -86,6 +86,7 @@ def _color_mask(img_bgr, rgb, tolerance):
     return np.all(diff <= tolerance, axis=2).astype(np.uint8) * 255
 
 
+
 def blue_text_mask(img_bgr, tolerance=15):
     """Binary mask matching blue effect text color.
 
@@ -307,7 +308,14 @@ def detect_prefix_per_color(img_bgr_line, config, tolerance=15):
         mask = _color_mask(img_bgr_line, rgb, tolerance)
         result = _detect_prefix_on_mask(mask, config)
         if result['type'] is not None:
-            return result
+            # Cross-validate: the prefix must also appear in the full
+            # combined mask (all prefix colors).  Anti-aliased specks
+            # from a single color form false [dot][gap][text] patterns
+            # that vanish once all colors are combined (the speck merges
+            # into the main text body).
+            combined = bullet_text_mask(img_bgr_line, tolerance)
+            if _detect_prefix_on_mask(combined, config)['type'] is not None:
+                return result
     return _no_prefix()
 
 

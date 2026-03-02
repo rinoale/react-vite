@@ -794,13 +794,13 @@ This filtering is a pipeline-level concern, not part of the merge algorithm itse
 ## 13. Prefix Detection — Combined Classifier
 
 **Files:** `backend/lib/prefix_detector.py`, `backend/lib/shape_walker.py`
-**Tests:** `tests/test_shape_walker_images.py`, `tests/test_prefix_detector.py`
+**Tests:** `tests/test_finding_bullet_images.py`, `tests/test_prefix_detector.py`
 **Ground truth:** `tests/sample_images/*_original.meta.json`
 
 ### Problem
 
 Mabinogi tooltip lines use small prefix marks to indicate structure:
-- `·` (bullet) — enchant effects, reforge options, stat lines (blue/red/grey)
+- `·` (bullet) — enchant effects, reforge options, stat lines (blue/red/grey/light grey)
 - `ㄴ` (subbullet) — reforge sub-effects at current level (white)
 
 These 2-7px marks are frequently misread by OCR (`·` → `.`, `-`, `,` or dropped; `ㄴ` → `L` or dropped). Visual detection bypasses OCR entirely.
@@ -822,7 +822,7 @@ Each prefix type is a declarative config binding color masks to shape definition
 ```python
 BULLET_DETECTOR = PrefixDetectorConfig(
     name='bullet',
-    colors=(EFFECT_BLUE_RGB, EFFECT_RED_RGB, EFFECT_GREY_RGB),
+    colors=(EFFECT_BLUE_RGB, EFFECT_RED_RGB, EFFECT_GREY_RGB, EFFECT_LIGHT_GREY_RGB),
     shapes=(SHAPE_DOT,),
 )
 SUBBULLET_DETECTOR = PrefixDetectorConfig(
@@ -1030,8 +1030,10 @@ Each fix targeted a specific false positive class:
 
 ### Color Masks
 
-- **Bullet:** blue RGB(74,149,238) + red RGB(255,103,103) + grey RGB(128,128,128)
+- **Bullet:** blue RGB(74,149,238) + red RGB(255,103,103) + grey RGB(128,128,128) + light grey RGB(167,167,167)
 - **Subbullet:** white RGB(255,255,255) + red RGB(255,103,103)
+
+The game uses two distinct grey shades: RGB(128,128,128) for `ㄴ` subbullet text and RGB(167,167,167) for disabled/conditional bullet (`·`) text.
 
 ### Why Subbullet (ㄴ) Detection Fails on White Mask
 
@@ -1056,13 +1058,12 @@ Tests auto-discover images by scanning for `.meta.json` files — adding a new t
 
 ```bash
 python3 scripts/ocr/prefix/test_prefix_detector.py tests/sample_images/*_original.png
-# Output: tmp/prefix_viz/<stem>_{bullet,subbullet,shapewalk}.png
+# Output: tmp/prefix_viz/<stem>_{subbullet,shapewalk}.png
 ```
 
-Three images per input:
-1. `_bullet.png` — per-color bullet detection (BULLET_DETECTOR config)
-2. `_subbullet.png` — per-color subbullet detection (SUBBULLET_DETECTOR config)
-3. `_shapewalk.png` — combined mask, both shapes, no config restriction
+Two images per input:
+1. `_subbullet.png` — per-color subbullet detection (SUBBULLET_DETECTOR config)
+2. `_bullet.png` — combined mask, both shapes, no config restriction
 
 ## 14. Shape Walker — General-Purpose Shape Detection
 

@@ -1615,7 +1615,7 @@ Previously, after slicing the `·` prefix pixels from the line mask before OCR, 
 | `backend/lib/mabinogi_tooltip_parser.py` | Switched to `BULLET_DETECTOR.build_mask()`; added `prefix_config` param to `_ocr_grouped_lines`; removed `·` re-attachment |
 | `backend/lib/line_processing.py` | Passes `config=BULLET_DETECTOR` to `detect_prefix` |
 | `tests/test_prefix_detector.py` | Added `TestPrefixDetectorConfig` (6 tests) |
-| `tests/test_shape_walker_images.py` | Added `TestConfigBasedDetection`; updated EXPECTED for ink classification |
+| `tests/test_finding_bullet_images.py` | Added `TestConfigBasedDetection`; updated EXPECTED for ink classification |
 | `scripts/v3/test_prefix_detector.py` | Uses configs for bullet/subbullet modes |
 | `frontend/.../image_process_lab.jsx` | Config objects, unified `detectPrefixesWithConfig()`, retired width-heuristic `_detectPrefixes()` |
 
