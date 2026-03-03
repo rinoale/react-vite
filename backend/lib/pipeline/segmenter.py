@@ -50,6 +50,7 @@ def _get_header_detection_config(config):
     hd = config.get('header_detection', {})
     orange = hd.get('orange', {})
     boundary = hd.get('boundary', {})
+    grey = hd.get('grey', {})
     ocr = hd.get('ocr', {})
     return {
         'orange': {
@@ -65,6 +66,12 @@ def _get_header_detection_config(config):
             'ref_columns': boundary.get('ref_columns', 10),
             'density_threshold': boundary.get('density_threshold', 0.2),
             'max_expansion': boundary.get('max_expansion', 40),
+        },
+        'grey': {
+            'val': grey.get('val', 132),
+            'min_density': grey.get('min_density', 0.5),
+            'cap_above': grey.get('cap_above', 7),
+            'cap_below': grey.get('cap_below', 8),
         },
         'ocr': {
             'threshold': ocr.get('threshold', 50),
@@ -98,6 +105,7 @@ def detect_headers(img, config):
     hd = _get_header_detection_config(config)
     orange_cfg = hd['orange']
     boundary_cfg = hd['boundary']
+    grey_cfg = hd['grey']
 
     h_img, w_img = img.shape[:2]
     b, g, r = img[:, :, 0], img[:, :, 1], img[:, :, 2]
@@ -137,6 +145,31 @@ def detect_headers(img, config):
             cols = np.where(orange_mask[band_start:h_img, :].any(axis=0))[0]
             bands.append((band_start, bh, int(cols[0]), int(cols[-1])))
 
+    # Build grey boundary mask for expansion capping (Step 2b)
+    grey_val = grey_cfg['val']
+    grey_mask = (
+        (img[:, :, 0] == grey_val) &
+        (img[:, :, 1] == grey_val) &
+        (img[:, :, 2] == grey_val)
+    )
+    grey_row_density = grey_mask.sum(axis=1) / w_img
+    grey_min_density = grey_cfg['min_density']
+    cap_above = grey_cfg['cap_above']
+    cap_below = grey_cfg['cap_below']
+
+    # Step 2b: find within-band grey reference for each band.
+    # Every real header has a grey separator at ~band_start+3; bands without
+    # one are false positives (e.g. orange text in set-item content).
+    band_grey = []  # parallel to bands: grey_y or None
+    for oy, oh, _, _ in bands:
+        grey_y = None
+        best_density = 0
+        for y in range(oy, oy + oh):
+            if grey_row_density[y] >= grey_min_density and grey_row_density[y] > best_density:
+                grey_y = y
+                best_density = grey_row_density[y]
+        band_grey.append(grey_y)
+
     # Step 3: expand each band to find black-square boundaries
     pb_max = boundary_cfg['pure_black_max']
     ref_cols = boundary_cfg['ref_columns']
@@ -146,7 +179,11 @@ def detect_headers(img, config):
     pure_black = (img.max(axis=2) <= pb_max)
 
     headers = []
-    for oy, oh, ox_min, ox_max in bands:
+    for i, (oy, oh, ox_min, ox_max) in enumerate(bands):
+        grey_y = band_grey[i]
+        if grey_y is None:
+            continue  # no grey separator → not a real header
+
         # Reference columns: right of orange text, avoids left-border interference
         x_ref_start = ox_max
         x_ref_end = min(w_img, ox_max + ref_cols)
@@ -172,6 +209,11 @@ def detect_headers(img, config):
                 bottom = y
             else:
                 break
+
+        # Grey-line cap: clamp expansion to cap_above/cap_below from grey ref.
+        # TODO: static cap config must be avoided. be graceful not brutal
+        top = max(top, grey_y - cap_above)
+        bottom = min(bottom, grey_y + cap_below)
 
         # Find horizontal extent of the black square.
         # Use a margin row (above orange text, inside the square).
@@ -211,7 +253,7 @@ def detect_headers(img, config):
 # 1b. Border detection
 # ---------------------------------------------------------------------------
 
-def detect_bottom_border(img, border_val=132, tolerance=5, min_density=0.3):
+def detect_bottom_border(img, border_val=132, tolerance=5, min_density=0.5):
     """Find the y-coordinate of the bottom horizontal border line.
 
     Mabinogi tooltips have section borders at RGB(132,132,132). The bottom
@@ -251,7 +293,7 @@ def detect_bottom_border(img, border_val=132, tolerance=5, min_density=0.3):
     return None
 
 
-def detect_vertical_borders(img, border_val=132, tolerance=5, min_density=0.3):
+def detect_vertical_borders(img, border_val=132, tolerance=5, min_density=0.5):
     """Find x-coordinates of left and right vertical border lines.
 
     Same color matching as detect_bottom_border() but scans columns instead

@@ -145,6 +145,15 @@ header_detection:
     density_threshold: 0.2  # fraction of ref columns that must be pure-black to continue expanding
     max_expansion: 40    # max rows to search in each direction from orange band
 
+  # Step 3: Grey-line cap — structural bound for black-square expansion
+  # Each header has a grey separator line (RGB 132,132,132) running through it.
+  # The expanded header is capped at grey_y - cap_above to grey_y + cap_below.
+  grey:
+    val: 132               # exact grey border pixel value (all channels)
+    min_density: 0.5       # fraction of row width that must be grey
+    cap_above: 7           # max pixels above grey line (header top)
+    cap_below: 8           # max pixels below grey line (header bottom)
+
   # Header OCR preprocessing and section label matching
   ocr:
     threshold: 50        # grayscale > this → black (text), else white (bg)
