@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Search, ShoppingBag, Wand2, Hammer, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { getListings, getListingDetail, getListingsByGameItem, searchGameItems } from '@mabi/shared/api/recommend';
@@ -39,8 +40,21 @@ const Marketplace = () => {
     }
   };
 
+  const [searchParams] = useSearchParams();
+
   useEffect(() => {
-    fetchListings();
+    const itemId = searchParams.get('item');
+    const itemName = searchParams.get('name');
+    if (itemId) {
+      const gi = { id: Number(itemId), name: itemName || '' };
+      setSelectedGameItem(gi);
+      setGameItemQuery(gi.name);
+      getListingsByGameItem(gi.id)
+        .then(({ data }) => setListings(data))
+        .catch(() => fetchListings());
+    } else {
+      fetchListings();
+    }
   }, []);
 
   useEffect(() => {

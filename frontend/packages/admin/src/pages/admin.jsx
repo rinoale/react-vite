@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Loader2, ChevronDown, ChevronRight, Info, List, RefreshCw, Check, Image, Pencil, X, Save, Package, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { getSummary, getEnchantEntries, getEnchantEffects, getLinks, getCorrections, approveCorrection, editCorrection, truncateCorrections, getListings, getListingDetail } from '@mabi/shared/api/admin';
@@ -563,8 +564,12 @@ const ListingsPanel = () => {
   );
 };
 
+const VALID_TABS = ['enchants', 'listings', 'corrections'];
+
 const Admin = () => {
   const { t } = useTranslation();
+  const { tab } = useParams();
+  const activeTab = VALID_TABS.includes(tab) ? tab : null;
   const [summary, setSummary] = useState(null);
   const [entries, setEntries] = useState([]);
   const [effectsByEnchant, setEffectsByEnchant] = useState({});
@@ -573,7 +578,6 @@ const Admin = () => {
   const [expandedEnchantIds, setExpandedEnchantIds] = useState({});
   const [nameQuery, setNameQuery] = useState('');
   const [pagination, setPagination] = useState({ limit: 100, offset: 0 });
-  const [activeTab, setActiveTab] = useState('enchants');
 
   const TABS = useMemo(() => [
     { key: 'enchants', label: t('tabs.enchants') },
@@ -680,22 +684,22 @@ const Admin = () => {
         </header>
 
         <nav className="flex gap-1 mb-6">
-          {TABS.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
+          {TABS.map((tb) => (
+            <Link
+              key={tb.key}
+              to={`/${tb.key}`}
               className={`px-5 py-2 text-sm font-bold uppercase tracking-wide rounded-t-lg border border-b-0 ${
-                activeTab === tab.key
+                activeTab === tb.key
                   ? 'bg-gray-800 text-cyan-400 border-gray-700'
                   : 'bg-gray-900 text-gray-500 border-gray-800 hover:text-gray-300'
               }`}
             >
-              {tab.label}
-            </button>
+              {tb.label}
+            </Link>
           ))}
         </nav>
 
-        {activeTab === 'corrections' ? (
+        {!activeTab ? null : activeTab === 'corrections' ? (
           <CorrectionsPanel />
         ) : activeTab === 'listings' ? (
           <ListingsPanel />
