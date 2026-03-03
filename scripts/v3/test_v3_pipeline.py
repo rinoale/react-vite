@@ -25,7 +25,7 @@ PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..
 sys.path.insert(0, PROJECT_ROOT)
 sys.path.insert(0, os.path.join(PROJECT_ROOT, 'backend'))
 
-from lib.pipeline import init_pipeline, run_v3_pipeline, get_pipeline
+from lib.pipeline.v3 import init_pipeline, run_v3_pipeline, get_pipeline
 from lib.text_processors import _PREFIX_PAT
 
 

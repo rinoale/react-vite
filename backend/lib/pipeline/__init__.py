@@ -1,6 +1,5 @@
 """V3 OCR pipeline: segment → split lines → handle sections.
 
-Public API re-exported here for convenient imports.
+Import from submodules directly (e.g. lib.pipeline.v3) to avoid
+circular imports with lib.text_processors.
 """
-
-from .v3 import init_pipeline, get_pipeline, run_v3_pipeline, prepare_sections_for_response

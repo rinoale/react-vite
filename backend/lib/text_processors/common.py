@@ -18,6 +18,51 @@ def _normalize_nums(text):
     return text
 
 
+def find_best_pairs(queries, candidates, scorer=None):
+    """Greedy 1:1 best-match assignment between queries and candidates.
+
+    Scores all (query, candidate) pairs, then assigns greedily from highest
+    score down. Each query matches at most one candidate and vice versa.
+
+    Args:
+        queries:    list of items to match.
+        candidates: list of items to match against.
+        scorer:     fn(query, candidate) -> numeric score.  Default: fuzz.ratio.
+
+    Returns:
+        list parallel to queries: (candidate_index, score) per query.
+        Unmatched queries get (-1, 0).
+    """
+    if scorer is None:
+        scorer = fuzz.ratio
+
+    n_q = len(queries)
+    n_c = len(candidates)
+    if n_q == 0 or n_c == 0:
+        return [(-1, 0)] * n_q
+
+    scored = []
+    for qi in range(n_q):
+        for ci in range(n_c):
+            scored.append((scorer(queries[qi], candidates[ci]), qi, ci))
+    scored.sort(reverse=True)
+
+    used_q = set()
+    used_c = set()
+    result = [(-1, 0)] * n_q
+
+    for score, qi, ci in scored:
+        if qi in used_q or ci in used_c:
+            continue
+        if score <= 0:
+            break
+        result[qi] = (ci, score)
+        used_q.add(qi)
+        used_c.add(ci)
+
+    return result
+
+
 class TextCorrector:
     def __init__(self, dictionary_path=None):
         self.dictionary = []           # combined entries from all loaded files

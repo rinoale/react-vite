@@ -14,7 +14,7 @@ import numpy as np
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'backend'))
 from lib.pipeline.segmenter import segment_and_tag
 from lib.pipeline.line_split import MabinogiTooltipSplitter
-from lib.pipeline import init_pipeline
+from lib.pipeline.v3 import init_pipeline
 
 # Expected item name text (line 1 of pre_header)
 EXPECTED = '각인된 회오리 퓨리 정령 나이트브링어 뱅퀴셔'

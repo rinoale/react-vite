@@ -61,14 +61,16 @@ class EnchantHandler:
         lines = section_data.get('lines', [])
         snapshot_and_strip(lines, corrector)
 
+        # Merge continuations BEFORE FM so FM sees the complete line
+        # and extracts rolled numbers correctly.
+        merge_continuations(lines)
+
         if not corrector._enchant_db:
             for line in lines:
                 line.setdefault('fm_applied', False)
         else:
             _apply_enchant_fm(lines, corrector, parsed_item_name)
 
-        # Merge continuations (multi-line effects wrapped across lines)
-        merge_continuations(lines)
         section_data['lines'] = [
             l for l in lines
             if not l.get('_merged') and not l.get('_cont_merged')]
@@ -165,6 +167,46 @@ def _parse_enchant_with_bands(parser, content_bgr, binary, grouped,
     return {'lines': ocr_results, 'effect_counts': effect_counts}
 
 
+def _assign_effects_batch(effect_lines, entry, corrector):
+    """Greedy 1:1 assignment of OCR effect lines to DB effects.
+
+    When the enchant header is known, we know exactly which effects should
+    appear. Uses find_best_pairs for 1:1 assignment, then match_enchant_effect
+    with force_idx to generate corrected text.
+    """
+    from lib.text_processors.common import find_best_pairs
+
+    valid = [(i, line) for i, line in enumerate(effect_lines)
+             if line.get('text', '').strip() and not line.get('is_grey')]
+    if not valid:
+        return
+
+    effects_norm = entry.get('effects_norm', [])
+    if not effects_norm:
+        return
+
+    # Pre-compute score matrix (N texts × M effects)
+    score_rows = [corrector.score_enchant_effects(line['text'], entry)
+                  for _, line in valid]
+
+    def scorer(qi, ci):
+        return score_rows[qi][ci]
+
+    pairs = find_best_pairs(
+        list(range(len(valid))), list(range(len(effects_norm))),
+        scorer=scorer)
+
+    for li, (ei, _score) in enumerate(pairs):
+        if ei < 0:
+            continue
+        line = valid[li][1]
+        fm_eff, eff_score = corrector.match_enchant_effect(
+            line['text'], entry, force_idx=ei)
+        if eff_score > 0:
+            line['text'] = fm_eff
+            line['fm_applied'] = True
+
+
 def _apply_enchant_fm(lines, corrector, parsed_item_name):
     """Dullahan on headers, match_enchant_effect on effects."""
     # Build P1 entries from parsed_item_name
@@ -216,18 +258,7 @@ def _apply_enchant_fm(lines, corrector, parsed_item_name):
 
             effect_entry = p1_entries.get(slot_type, entry)
             if effect_entry:
-                for eff_line in effect_lines:
-                    eff_text = eff_line.get('text', '')
-                    if not eff_text.strip() or eff_line.get('is_grey'):
-                        continue
-                    fm_eff, eff_score = corrector.match_enchant_effect(
-                        eff_text, effect_entry)
-                    if eff_score > 0:
-                        eff_line['text'] = fm_eff
-                        eff_line['fm_applied'] = True
-                    elif eff_score < 0:
-                        eff_line['fm_rejected'] = fm_eff
-                        eff_line['fm_rejected_score'] = -eff_score
+                _assign_effects_batch(effect_lines, effect_entry, corrector)
     else:
         current_entry = None
         for line in enchant_lines:

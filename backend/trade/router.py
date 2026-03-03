@@ -13,7 +13,7 @@ from db.models import OcrCorrection, Listing, ListingEnchantEffect, ListingRefor
 from db.schemas import RegisterListingRequest
 from trade.schemas import ExamineItemResponse
 from lib.utils.log import logger
-from lib.pipeline import init_pipeline, run_v3_pipeline, prepare_sections_for_response
+from lib.pipeline.v3 import init_pipeline, run_v3_pipeline, prepare_sections_for_response
 from crud.admin import get_listing_detail
 
 router = APIRouter()

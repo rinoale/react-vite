@@ -7,8 +7,8 @@ from pathlib import Path
 import yaml
 from rapidfuzz import process, fuzz
 
-from lib.pipeline.tooltip_parsers import _parse_effect_number
-from .common import TextCorrector, _NUM_PAT, _TMPL_N, _normalize_nums
+from lib.pipeline.tooltip_parsers.mabinogi import _parse_effect_number
+from .common import TextCorrector, _NUM_PAT, _TMPL_N, _normalize_nums, find_best_pairs
 
 
 # Load canonical prefix characters from tooltip config (game constants, not model-specific).
@@ -189,7 +189,37 @@ class MabinogiTextCorrector(TextCorrector):
 
         return text, 0, None
 
-    def match_enchant_effect(self, text, entry, cutoff_score=75):
+    def score_enchant_effects(self, text, entry):
+        """Score an OCR line against all effects in an enchant entry.
+
+        Used for batch 1:1 assignment when the enchant header is known.
+
+        Returns:
+            list of scores (one per effect in the entry), or empty list.
+        """
+        if not text or not entry:
+            return []
+        effects_norm = entry.get('effects_norm', [])
+        if not effects_norm:
+            return []
+        effects_full_norm = entry.get('effects_full_norm', [])
+
+        prefix_m = _PREFIX_PAT.match(text)
+        core = text[len(prefix_m.group(0)):] if prefix_m else text
+        if not core:
+            return [0] * len(effects_norm)
+
+        norm_core = _normalize_nums(core)
+        scores = []
+        for idx, (norm_entry, _) in enumerate(effects_norm):
+            score = fuzz.ratio(norm_core, norm_entry)
+            if effects_full_norm:
+                norm_full, _ = effects_full_norm[idx]
+                score = max(score, fuzz.ratio(norm_core, norm_full))
+            scores.append(score)
+        return scores
+
+    def match_enchant_effect(self, text, entry, cutoff_score=75, force_idx=None):
         """Two-phase enchant matching — phase 2: match OCR effect line against one enchant's effects.
 
         Searches only the ~4-8 effects of the given enchant entry, not the full dictionary.
@@ -198,6 +228,8 @@ class MabinogiTextCorrector(TextCorrector):
         Args:
             text:  OCR text of the effect line (may start with '- ')
             entry: enchant DB entry dict from match_enchant_header phase 1
+            force_idx: when set, skip scoring loop and use this effect index directly.
+                       Also bypasses cutoff_score (always returns positive score).
 
         Returns:
             (corrected_text, score) on match
@@ -224,22 +256,30 @@ class MabinogiTextCorrector(TextCorrector):
         numbers = _NUM_PAT.findall(core_for_nums)
         norm_core = _normalize_nums(core)
 
-        best_score = 0
-        best_idx = -1
-        for idx, (norm_entry, _) in enumerate(effects_norm):
-            score = fuzz.ratio(norm_core, norm_entry)
-            # Also try full condition+effect form
-            score_full = 0
+        if force_idx is not None:
+            best_idx = force_idx
+            norm_entry, _ = effects_norm[force_idx]
+            best_score = fuzz.ratio(norm_core, norm_entry)
             if effects_full_norm:
-                norm_full, _ = effects_full_norm[idx]
-                score_full = fuzz.ratio(norm_core, norm_full)
-            pick = max(score, score_full)
-            if pick > best_score:
-                best_score = pick
-                best_idx = idx
+                norm_full, _ = effects_full_norm[force_idx]
+                best_score = max(best_score, fuzz.ratio(norm_core, norm_full))
+        else:
+            best_score = 0
+            best_idx = -1
+            for idx, (norm_entry, _) in enumerate(effects_norm):
+                score = fuzz.ratio(norm_core, norm_entry)
+                # Also try full condition+effect form
+                score_full = 0
+                if effects_full_norm:
+                    norm_full, _ = effects_full_norm[idx]
+                    score_full = fuzz.ratio(norm_core, norm_full)
+                pick = max(score, score_full)
+                if pick > best_score:
+                    best_score = pick
+                    best_idx = idx
 
-        if best_idx < 0:
-            return text, 0
+            if best_idx < 0:
+                return text, 0
 
         # Use the winning form's template for the correction row text.
         # Full form preserves condition text for admin OCR correction review.
@@ -272,7 +312,7 @@ class MabinogiTextCorrector(TextCorrector):
                 output = raw_full
             else:
                 output = raw_effect
-            if best_score >= cutoff_score:
+            if force_idx is not None or best_score >= cutoff_score:
                 return prefix + output, best_score
             return prefix + output, -best_score
 
@@ -332,7 +372,7 @@ class MabinogiTextCorrector(TextCorrector):
             result = re.sub(r'N\s*~\s*', '', result)
             return result.replace('N', '').strip()
 
-        if best_score >= cutoff_score:
+        if force_idx is not None or best_score >= cutoff_score:
             return prefix + _inject(best_norm, inject_numbers), best_score
 
         # Below cutoff — return candidate with negative score for diagnostics
@@ -350,23 +390,25 @@ class MabinogiTextCorrector(TextCorrector):
         if not effects_norm or not norm_effects:
             return 0
         effects_full_norm = entry.get('effects_full_norm', [])
-        used = set()
-        total = 0
+
+        # Pre-compute score matrix
+        score_rows = []
         for norm in norm_effects:
-            best_s, best_idx = 0, -1
+            row = []
             for idx, (norm_eff, _) in enumerate(effects_norm):
-                if idx in used:
-                    continue
                 s = fuzz.ratio(norm, norm_eff)
-                if effects_full_norm:
+                if effects_full_norm and idx < len(effects_full_norm):
                     s = max(s, fuzz.ratio(norm, effects_full_norm[idx][0]))
-                if s > best_s:
-                    best_s = s
-                    best_idx = idx
-            if best_s > 50 and best_idx >= 0:
-                total += best_s
-                used.add(best_idx)
-        return total
+                row.append(s)
+            score_rows.append(row)
+
+        def scorer(qi, ci):
+            return score_rows[qi][ci]
+
+        pairs = find_best_pairs(
+            list(range(len(norm_effects))), list(range(len(effects_norm))),
+            scorer=scorer)
+        return sum(score for _, score in pairs if score > 50)
 
     def do_dullahan(self, header_text, effect_texts,
                      slot_type=None):
