@@ -57,6 +57,7 @@ class ReforgeOptionResponse(BaseModel):
     level: Optional[int] = None
     max_level: Optional[int] = None
     effect: Optional[str] = None
+    text: Optional[str] = None
     line_index: Optional[int] = None
 
 

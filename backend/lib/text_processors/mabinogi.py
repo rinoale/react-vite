@@ -20,7 +20,7 @@ _PREFIX_PAT = re.compile(rf'^[{re.escape(_BULLET)}\-,·{re.escape(_SUBBULLET)}L]
 
 # Section-specific preprocessing patterns
 # reforge: strip '(15/20 레벨)' level suffix before FM matching
-_REFORGE_LEVEL_PAT = re.compile(r'\s*\(\d+/\d+\s*레벨\)\s*$')
+_REFORGE_LEVEL_PAT = re.compile(r'\s*\(?\d+/\d+\s*레벨\)?\s*$')
 # reforge: ㄴ sub-bullets describe effects at current level — never in dictionary
 
 # enchant: header line '[접두] 충격을 (랭크 F)' or '[접미] 관리자 (랭크 6)' — ranks: A-F or 1-9

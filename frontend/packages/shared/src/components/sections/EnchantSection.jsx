@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Pencil, Plus, AlertTriangle } from 'lucide-react';
+import { Pencil, Plus, AlertTriangle, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import ConfigSearchInput from '../ConfigSearchInput';
 import { LINE_BULLET } from '../../lib/constants';
@@ -181,7 +181,7 @@ const EffectRow = ({ eff, lineIdx, onLineChange, configEffects, abbreviated }) =
   );
 };
 
-const EnchantSlot = ({ slot, slotLabel, headerLineIdx, lines, onLineChange, abbreviated }) => {
+const EnchantSlot = ({ slot, slotLabel, headerLineIdx, lines, onLineChange, onRemove, abbreviated }) => {
   const { t } = useTranslation();
   const [editingHeader, setEditingHeader] = useState(false);
 
@@ -230,6 +230,13 @@ const EnchantSlot = ({ slot, slotLabel, headerLineIdx, lines, onLineChange, abbr
               title={t('sections.enchant.correctEnchant')}
             >
               <Pencil className="w-3 h-3" />
+            </button>
+            <button
+              onClick={onRemove}
+              className="p-0.5 text-gray-600 opacity-0 group-hover:opacity-100 hover:text-red-400 transition-opacity"
+              title={t('sections.enchant.remove')}
+            >
+              <X className="w-3 h-3" />
             </button>
           </div>
         )}
@@ -371,6 +378,13 @@ const EnchantSection = ({ prefix, suffix, lines, onLineChange, abbreviated = tru
           headerLineIdx={headerIndices.prefix}
           lines={lines}
           onLineChange={onLineChange}
+          onRemove={() => {
+            const drop = new Set(groups.prefix.map(g => g.lineIdx));
+            onLineChange(-1, '', (sec) => {
+              sec.prefix = null;
+              if (sec.lines) sec.lines = sec.lines.filter((_, i) => !drop.has(i));
+            });
+          }}
           abbreviated={abbreviated}
         />
       ) : groups.prefix.length > 0 ? (
@@ -385,6 +399,13 @@ const EnchantSection = ({ prefix, suffix, lines, onLineChange, abbreviated = tru
           headerLineIdx={headerIndices.suffix}
           lines={lines}
           onLineChange={onLineChange}
+          onRemove={() => {
+            const drop = new Set(groups.suffix.map(g => g.lineIdx));
+            onLineChange(-1, '', (sec) => {
+              sec.suffix = null;
+              if (sec.lines) sec.lines = sec.lines.filter((_, i) => !drop.has(i));
+            });
+          }}
           abbreviated={abbreviated}
         />
       ) : groups.suffix.length > 0 ? (

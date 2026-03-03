@@ -10,8 +10,9 @@ from pathlib import Path
 import yaml
 
 # Reforge section patterns
-# Header: '- 스매시 대미지(15/20 레벨)' — name before '(', level/max_level inside
-_REFORGE_HEADER_RE = re.compile(r'^[-\s]*(.+?)\s*\((\d+)/(\d+)\s*레벨\)')
+# Flexible: two digit groups near 레벨 at end, optional parens, any non-digit separator
+# Matches: '보호(13/20 레벨)', '보호13/20 레벨)', '보호 13 20 레벨'
+_REFORGE_LEVEL_RE = re.compile(r'^[-\s]*(.+?)\s*\(?(\d+)\D+(\d+)\s*레벨\)?\s*$')
 
 # Enchant section patterns
 # Header: '[접두] 충격을 (랭크 F)' or '[접미] 관리자 (랭크 6)' — ranks: A-F or 1-9
@@ -93,7 +94,7 @@ class MabinogiTooltipParser:
         # First pass: detect level-suffixed options via regex
         for line in lines:
             text = line.get('text', '')
-            m = _REFORGE_HEADER_RE.match(text)
+            m = _REFORGE_LEVEL_RE.match(text)
             if m:
                 line['reforge_name']      = m.group(1).strip().lstrip('-').strip()
                 line['reforge_level']     = int(m.group(2))
@@ -129,7 +130,7 @@ class MabinogiTooltipParser:
         Lines must already be tagged by _parse_reforge_section.
 
         Returns:
-            {'options': [{name, level, max_level, option_name, option_level, effect}]}
+            {'options': [{name, level, max_level, option_name, option_level, effect, raw_text}]}
         """
         options = []
         current = None
@@ -141,7 +142,7 @@ class MabinogiTooltipParser:
             text = line.get('text', '')
 
             if not line.get('is_reforge_sub', True) and 'reforge_name' in line:
-                m = _REFORGE_HEADER_RE.match(text)
+                m = _REFORGE_LEVEL_RE.match(text)
                 if m:
                     name      = m.group(1).strip().lstrip('-').strip()
                     level     = int(m.group(2))
@@ -158,6 +159,7 @@ class MabinogiTooltipParser:
                     'option_name':  name,
                     'option_level': level,
                     'effect':       None,
+                    'text':         line.get('raw_text', text),
                     'line_index': line.get('line_index'),
                 }
                 options.append(current)
