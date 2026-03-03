@@ -414,7 +414,7 @@ Right-to-left item_name anchor:
 **File:** `backend/lib/text_processors/mabinogi.py`
 **Entry:** Each handler calls corrector methods directly (no centralized `apply_fm()`)
 
-FM is now per-handler. Each handler calls `corrector.strip_text_prefix()` then its section-specific FM:
+FM is now per-handler. Each handler calls `snapshot_and_strip()` (which saves `raw_text` before FM), then its section-specific FM. `merge_continuations()` runs BEFORE FM in the enchant handler so FM sees complete merged text with all numbers.
 
 ### Non-enchant FM (DefaultHandler, ReforgeHandler)
 
@@ -441,6 +441,11 @@ correct_normalized(text, section):
 **File:** `backend/lib/pipeline/section_handlers/enchant.py` → `_apply_enchant_fm()`
 
 ```
+Step 0: merge_continuations(lines)  — BEFORE FM
+  Merge continuation lines (no bullet prefix) into preceding anchor.
+  Merges both 'text' and 'raw_text'. Sets anchor['_is_stitched'] = True.
+  This ensures FM sees the complete effect text with all rolled numbers.
+
 Step 1: Resolve P1 entries from parsed_item_name (Stage 5)
   For '접두'/'접미': lookup_enchant_by_name(name) → DB entry
 
@@ -452,9 +457,15 @@ Step 3: Header FM — do_dullahan(header_text, effect_texts, slot_type)
   Use effect lines to break ties (body scoring)
   → (corrected_header, score, matched_entry)
 
-Step 4: Effect FM — for each effect line:
-  effect_entry = P1 entry (prioritized) or Dullahan entry (fallback)
-  match_enchant_effect(text, effect_entry, cutoff_score=75):
+Step 4: Effect FM — _assign_effects_batch() when entry is known:
+  a. Build score matrix: score_enchant_effects(texts, entry)
+     → scores[i][j] = fuzz.ratio(ocr_line_i, db_effect_j)
+  b. find_best_pairs(queries, candidates, scorer=matrix_lookup)
+     → greedy 1:1 assignment: highest score first, no duplicates
+  c. For each assigned pair: match_enchant_effect(text, entry, force_idx=j)
+     → text correction with known DB effect index
+
+  Fallback (no entry): match_enchant_effect per line (cutoff_score=75):
     Normalize both OCR and DB effects (numbers → N)
     Match OCR against entry's effects_norm + effects_full_norm
     Pick higher fuzz.ratio score (effect-only vs full-form)
@@ -468,6 +479,15 @@ Step 4: Effect FM — for each effect line:
       Fallback: cond_has_number → skip first number, take second
       _inject(template, numbers): replace N placeholders, clean up '~ N'
       → Return template with OCR number injected
+```
+
+### Continuation Stitch Tracking
+
+```
+merge_continuations() sets _is_stitched=True on anchor lines
+  → _save_crops_by_section() propagates to ocr_results.json
+    → router.py reads from ocr_results.json and writes to OcrCorrection.is_stitched
+      → Admin dashboard shows badge for stitched corrections
 ```
 
 ### Enchant FM — has_slot_hdrs=False (linear fallback)

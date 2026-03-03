@@ -18,13 +18,9 @@ sys.path.insert(0, PROJECT_ROOT)
 
 **Affected files:** All 9 Python scripts under `scripts/ocr/` and `scripts/ocr/lib/model_version.py`.
 
-### Deferred: Enchant Effect Line Continuation Merge
+### Resolved: Enchant Effect Line Continuation Merge
 
-Enchant effects can wrap across two lines. The idea is to detect continuation lines (no `-` bullet prefix) and merge them into the previous effect:
-- `text_corrector.py`: tag lines with `_has_bullet` when stripping `-` prefix
-- `mabinogi_tooltip_parser.py`: in `build_enchant_structured()`, merge lines without `_has_bullet` into previous effect
-
-**Why deferred:** OCR accuracy is not yet reliable enough to distinguish whether a `-` prefix was present. Mis-detected bullets cause incorrect merges. Revisit once content OCR accuracy improves significantly (e.g. after real-crop mixed training for content models).
+Implemented in attempt 22. Continuation lines (no bullet prefix) are merged into the preceding bullet-prefixed anchor by `merge_continuations()` in `line_processing.py`. Both `text` and `raw_text` are merged; `_is_stitched=True` flags the anchor. Runs BEFORE FM so merged text has all rolled numbers available for matching. The `_is_stitched` flag propagates through `ocr_results.json` → `OcrCorrection.is_stitched` → admin badge.
 
 ### Blue Mask: Color-Based Effect Line Detection
 
@@ -186,7 +182,8 @@ Both font-specific models (mabinogi_classic, nanum_gothic_bold) training with ne
 - [x] `pyproject.toml` with `pythonpath = ["backend"]` — run via `python -m pytest tests/ -v`
 - [x] `tests/conftest.py` — shared fixtures: `make_line_dict`, `make_bounds`, `make_classification`, `mini_text_corrector`
 
-**Unit tests (done — 58 tests passing):**
+**Unit tests (done — 287 tests passing):**
+- [x] `tests/test_data_structures.py` — pipeline data structure examples, HTTP response schema validation, ocr_results.json shape, stitch flag contracts (14 tests)
 - [x] `tests/test_line_processing.py` — `merge_group_bounds`, `trim_outlier_tail`, `determine_enchant_slots`, `merge_continuations`, `count_effects_per_header` (13 tests)
 - [x] `tests/test_line_merge.py` — `detect_gap_outlier` (5 tests)
 - [x] `tests/test_parse_effect_number.py` — `_parse_effect_number` (6 tests)

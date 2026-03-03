@@ -1222,3 +1222,111 @@ if match:
 Column projection (`col_proj[x] = sum of ink pixels in column x`) is a lossy 1D reduction — it discards row positions. Two pixels at rows 2 and 12 in the same column produce the same count (2) as two adjacent pixels at rows 5 and 6. This is why shape walker (2D) is necessary for shape verification.
 
 A bitmask encoding (`col_proj[x] = sum of 2^y for each ink pixel at row y`) would preserve exact row positions in a single integer. For example, ink at rows 1,2,3 → `2+4+8 = 14 = 0b1110` (contiguous bits), while ink at rows 2,12 → `4+4096 = 4100 = 0b1000000000100` (gap in bits, clearly scattered). Contiguity can be checked with bit operations. This approach could replace shape walker for dot detection but would be more complex for multi-segment shapes like ㄴ.
+
+---
+
+## 15. Greedy 1:1 Best-Match Assignment (`find_best_pairs`)
+
+**File:** `backend/lib/text_processors/common.py`
+**Function:** `find_best_pairs(queries, candidates, scorer=None)`
+**Used by:** `EnchantHandler._assign_effects_batch()` (effect-to-DB matching)
+
+### Problem
+
+When an enchant entry is known (via Dullahan or P1), we need to assign each OCR effect line to exactly one DB effect. Multiple OCR lines may partially match the same DB effect (especially with garbled OCR), and vice versa. A naive per-line `argmax` can assign two OCR lines to the same DB effect, leaving one DB effect unmatched.
+
+### Algorithm
+
+```
+Input: queries   = [0, 1, 2, ...]   (OCR line indices)
+       candidates = [0, 1, 2, ...]   (DB effect indices)
+       scorer(qi, ci) → numeric score (e.g. fuzz.ratio via pre-computed matrix)
+
+Step 1: Score ALL (query, candidate) pairs
+        → [(score, qi, ci), ...] for all qi × ci
+
+Step 2: Sort by score descending
+
+Step 3: Greedy assign — iterate sorted list:
+        If qi already used OR ci already used → skip
+        If score ≤ 0 → stop (no useful matches remain)
+        Assign: result[qi] = (ci, score)
+        Mark qi and ci as used
+
+Output: list parallel to queries: [(candidate_index, score), ...]
+        Unmatched queries get (-1, 0)
+```
+
+### Properties
+
+- **Greedy-optimal for top matches:** The highest-confidence assignments are made first, preventing weaker matches from stealing candidates.
+- **1:1 guarantee:** Each query matches at most one candidate and vice versa. No duplicate assignments.
+- **O(n×m) scoring + O(n×m log(n×m)) sort:** Practical for small sets (typically 3-8 effects per enchant).
+
+### Usage in Batch Effect Assignment
+
+```python
+# In _assign_effects_batch():
+scores = score_enchant_effects(valid_texts, entry)  # pre-compute matrix
+scorer = lambda qi, ci: scores[qi][ci]               # matrix lookup
+pairs = find_best_pairs(range(len(valid)), range(len(effects)), scorer=scorer)
+
+for qi, (ci, score) in enumerate(pairs):
+    if ci >= 0:
+        match_enchant_effect(text, entry, force_idx=ci)  # correct with known DB effect
+```
+
+The `force_idx` parameter bypasses the per-line matching loop — instead of trying all DB effects, it goes directly to the assigned one.
+
+---
+
+## 16. Continuation Merge Ordering
+
+**File:** `backend/lib/pipeline/section_handlers/enchant.py`
+**Function:** `merge_continuations()` from `line_processing.py`
+
+### Problem
+
+Long enchant effects wrap across multiple visual lines. The continuation line has no bullet prefix and contains part of the effect text (often including rolled numbers). If FM runs before merging, it sees incomplete text and can't extract numbers correctly.
+
+### Ordering Constraint
+
+```
+snapshot_and_strip()     — save raw_text (pre-FM snapshot)
+    ↓
+merge_continuations()    — merge both text AND raw_text; set _is_stitched=True
+    ↓
+_apply_enchant_fm()      — FM sees complete merged text with all numbers
+    ↓
+build_enchant_structured() — structured rebuild from FM-corrected lines
+```
+
+### Why Before FM
+
+```
+Example: "엘리멘탈 웨이브 랭크 1 이상일 때" (line 1)
+         "모든 속성 연금술 대미지 10 증가"    (line 2, continuation)
+
+DB template: "엘리멘탈 웨이브 랭크 N 이상일 때 모든 속성 연금술 대미지 N ~ N 증가"
+
+If FM runs FIRST (before merge):
+  Line 1 alone: "...랭크 1 이상일 때" → matches partial template → extracts "1"
+  Line 2 alone: "...대미지 10 증가"   → matches partial template → extracts "10"
+  But the 1:1 assignment can't see both numbers in context.
+
+If merge runs FIRST:
+  Merged: "엘리멘탈 웨이브 랭크 1 이상일 때 모든 속성 연금술 대미지 10 증가"
+  FM matches full template → correctly extracts rolled value "10"
+```
+
+### Stitch Tracking Flow
+
+```
+merge_continuations() sets anchor['_is_stitched'] = True
+  → v3._save_crops_by_section() writes to ocr_results.json
+    → router.py reads ocr_results.json on correction submit
+      → OcrCorrection(is_stitched=True) saved to DB
+        → Admin dashboard shows stitched badge
+```
+
+This flow enables reviewers to identify corrections where the original OCR text came from merged lines (potentially lower confidence due to continuation joining).
