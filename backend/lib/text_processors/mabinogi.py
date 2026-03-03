@@ -118,7 +118,15 @@ class MabinogiTextCorrector(TextCorrector):
 
         db = []
         for item in data:
-            header = f"[{item['slot']}] {item['name']} (랭크 {item['rank']})"
+            # Oreo flip (white-mask preprocessing) captures only white text from
+            # enchant headers. Numeric-ranked (1-9) enchants don't display rank
+            # in the tooltip; letter-ranked (A-F) enchants do.
+            # If oreo flip is improved to capture rank for all enchants, update.
+            rank_str = str(item['rank'])
+            if rank_str.isdigit():
+                header = f"[{item['slot']}] {item['name']}"
+            else:
+                header = f"[{item['slot']}] {item['name']} (랭크 {rank_str})"
             raw_effects = item.get('effects', [])
             # Extract effect-only text and full condition+effect text.
             # Dicts have condition/effect fields; strings are plain effects.

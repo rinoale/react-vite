@@ -264,6 +264,9 @@ const CorrectionsPanel = () => {
                     </span>
                   )}
                   <span className="text-[10px] font-mono text-gray-600">ID: {c.id}</span>
+                  {c.created_at && (
+                    <span className="text-[10px] text-gray-600">{new Date(c.created_at).toLocaleString()}</span>
+                  )}
                 </div>
               </div>
 

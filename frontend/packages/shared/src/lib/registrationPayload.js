@@ -13,12 +13,6 @@
  * @param {Object} params.sections - form sections data
  * @returns {Object} payload ready for POST /register-listing
  */
-/** Strip (랭크 ...) from enchant header text.
- *  Rank is DB metadata injected by FM — not visible in the crop image,
- *  so it must not appear in correction training data. */
-const _RANK_SUFFIX_RE = /\s*\(랭크\s*[A-F0-9]+\)\s*$/;
-const _ENCHANT_HDR_RE = /^\[접[두미]\]/;
-
 export function buildRegistrationPayload({ sessionId, name, price, category, gameItem, sections }) {
   // Collect all lines with (section, line_index) + current text
   const lines = [];
@@ -26,11 +20,7 @@ export function buildRegistrationPayload({ sessionId, name, price, category, gam
     if (!secData.lines) continue;
     for (const line of secData.lines) {
       if (line.line_index != null) {
-        // Strip rank suffix from enchant headers — rank is not in the crop image
-        const text = _ENCHANT_HDR_RE.test(line.text)
-          ? line.text.replace(_RANK_SUFFIX_RE, '')
-          : line.text;
-        lines.push({ section: secKey, line_index: line.line_index, text });
+        lines.push({ section: secKey, line_index: line.line_index, text: line.text });
       }
     }
   }

@@ -212,14 +212,9 @@ def register_listing(payload: RegisterListingRequest, db: Session = Depends(get_
                 if orig is None:
                     continue
 
-                # Skip enchant headers — FM enriches them with rank info
-                # that isn't in the crop image, so they always diff.
-                if orig.get('ocr_model') == 'enchant_header':
-                    continue
+                submitted = line.text.strip()
+                original = orig['text'].strip()
 
-                # Normalize: strip bullet prefix that frontend may re-add
-                submitted = re.sub(r'^[.\-,·ㄴL]\s*', '', line.text).strip()
-                original = re.sub(r'^[.\-,·ㄴL]\s*', '', orig['text']).strip()
                 if submitted == original:
                     continue  # No change
 

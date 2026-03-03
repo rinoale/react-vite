@@ -2,7 +2,6 @@ import React, { useState, useMemo } from 'react';
 import { Pencil, Plus, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import ConfigSearchInput from '../ConfigSearchInput';
-import { LINE_BULLET } from '../../lib/constants';
 
 const ReforgeOption = ({ opt, optIdx, lineIdx, onLineChange, onRemove }) => {
   const { t } = useTranslation();
@@ -19,7 +18,7 @@ const ReforgeOption = ({ opt, optIdx, lineIdx, onLineChange, onRemove }) => {
     if (value === '' || value === String(opt.level)) return;
     const numLevel = parseInt(value, 10);
     if (isNaN(numLevel)) return;
-    const newText = `${LINE_BULLET}${opt.name} (${numLevel}/${opt.max_level} 레벨)`;
+    const newText = `${opt.name} (${numLevel}/${opt.max_level} 레벨)`;
     onLineChange(lineIdx, newText, (sec) => {
       if (sec.options) {
         const opts = [...sec.options];
@@ -42,8 +41,8 @@ const ReforgeOption = ({ opt, optIdx, lineIdx, onLineChange, onRemove }) => {
             const newLevel = hasLevel ? 1 : null;
             const newMaxLevel = hasLevel ? (typeof item === 'string' ? 20 : (item.max_level || 20)) : null;
             const newText = hasLevel
-              ? `${LINE_BULLET}${name} (${newLevel}/${newMaxLevel} 레벨)`
-              : `${LINE_BULLET}${name}`;
+              ? `${name} (${newLevel}/${newMaxLevel} 레벨)`
+              : name;
             onLineChange(lineIdx, newText, (sec) => {
               if (sec.options) {
                 const opts = [...sec.options];
