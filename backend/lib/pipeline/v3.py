@@ -154,7 +154,11 @@ def _step_resolve_enchant(sections, corrector):
     if not enchant:
         return
 
-    parsed = sections.get('pre_header', {}).get('parsed_item_name')
+    pre_header = sections.get('pre_header', {})
+    parsed = {
+        'enchant_prefix': pre_header.get('enchant_prefix'),
+        'enchant_suffix': pre_header.get('enchant_suffix'),
+    }
     enchant_lines = enchant.get('lines', [])
 
     resolution = {}
@@ -331,7 +335,10 @@ def run_v3_pipeline(img_bgr, *, save_crops=False, save_crops_dir=None):
     section_data, detected_font = ph_handler.process(
         pre_header_seg, crop_session_dir=crop_session_dir)
     sections['pre_header'] = section_data
-    parsed_item_name = section_data.get('parsed_item_name')
+    parsed_item_name = {
+        'enchant_prefix': section_data.get('enchant_prefix'),
+        'enchant_suffix': section_data.get('enchant_suffix'),
+    }
 
     # Choose font-matched reader for content sections (per-request)
     font_reader = (

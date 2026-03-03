@@ -149,16 +149,38 @@ class PreHeaderHandler:
         ng_count = sum(1 for l in ocr_results if l.get('preprocess') == 'nanum_gothic')
         detected_font = 'nanum_gothic' if ng_count > mc_count else 'mabinogi_classic'
 
-        # Snapshot raw text, no FM
+        # Snapshot raw text
         for line in lines:
             line['raw_text'] = line.get('text', '')
             line['fm_applied'] = False
 
-        # Parse item name from first line
+        # Parse item name from first line, apply FM from parsed components
         if lines:
             first_text = lines[0].get('text', '')
             if first_text:
-                section_data['parsed_item_name'] = corrector.parse_item_name(first_text)
+                parsed = corrector.parse_item_name(first_text)
+
+                # Promote structured fields to section-level metadata
+                section_data['item_name'] = parsed.get('item_name')
+                section_data['enchant_prefix'] = parsed.get('enchant_prefix')
+                section_data['enchant_suffix'] = parsed.get('enchant_suffix')
+
+                # Reconstruct corrected text from fuzzy-matched components
+                parts = []
+                if parsed.get('_holywater'):
+                    parts.append(parsed['_holywater'])
+                if parsed.get('enchant_prefix'):
+                    parts.append(parsed['enchant_prefix'])
+                if parsed.get('enchant_suffix'):
+                    parts.append(parsed['enchant_suffix'])
+                if parsed.get('_ego'):
+                    parts.append('정령')
+                parts.append(parsed['item_name'])
+                fm_text = ' '.join(parts)
+
+                if fm_text != first_text:
+                    lines[0]['text'] = fm_text
+                    lines[0]['fm_applied'] = True
 
         logger.info("v3 pre_header  %d lines  font=%s", len(lines), detected_font)
         return section_data, detected_font

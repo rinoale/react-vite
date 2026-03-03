@@ -68,13 +68,6 @@ class ColorPartResponse(BaseModel):
     b: Optional[int] = None
 
 
-class ParsedItemNameResponse(BaseModel):
-    item_name: Optional[str] = None
-    enchant_prefix: Optional[str] = None
-    enchant_suffix: Optional[str] = None
-    raw_text: Optional[str] = None
-
-
 class OcrSectionResponse(BaseModel):
     header_text: Optional[str] = None
     header_confidence: Optional[float] = None
@@ -91,7 +84,9 @@ class OcrSectionResponse(BaseModel):
     # item_color
     parts: Optional[List[ColorPartResponse]] = None
     # pre_header
-    parsed_item_name: Optional[ParsedItemNameResponse] = None
+    item_name: Optional[str] = None
+    enchant_prefix: Optional[str] = None
+    enchant_suffix: Optional[str] = None
 
 
 class ExamineItemResponse(BaseModel):

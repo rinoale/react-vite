@@ -1122,10 +1122,10 @@ const V3PipelineViewer = () => {
             {serverResult && (
               <div className="space-y-4">
                 {/* Parsed Item Name */}
-                {serverResult.sections?.pre_header?.parsed_item_name && (
+                {serverResult.sections?.pre_header?.item_name && (
                   <div className="p-3 bg-gray-900 rounded-lg border border-gray-700">
                     <h3 className="text-sm font-medium text-yellow-400 mb-2">{t('v3Pipeline.server.parsedItemName')}</h3>
-                    <ParsedItemName parsed={serverResult.sections.pre_header.parsed_item_name} />
+                    <ParsedItemName parsed={serverResult.sections.pre_header} />
                   </div>
                 )}
 

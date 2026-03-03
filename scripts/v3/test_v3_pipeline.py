@@ -110,14 +110,12 @@ def test_image(image_path, gt_path=None, verbose=True):
                       f"ocr='{seg['header_ocr_text']}'  "
                       f"conf={seg['header_ocr_conf']:.2f}  "
                       f"score={seg['header_match_score']}")
-        parsed = sections.get('pre_header', {}).get('parsed_item_name')
-        if parsed:
+        ph = sections.get('pre_header', {})
+        if ph.get('item_name'):
             parts = []
-            if parsed.get('_holywater'):    parts.append(f"holy={parsed['_holywater']}")
-            if parsed.get('_ego'):          parts.append('ego')
-            if parsed.get('enchant_prefix'):parts.append(f"prefix={parsed['enchant_prefix']}")
-            if parsed.get('enchant_suffix'):parts.append(f"suffix={parsed['enchant_suffix']}")
-            parts.append(f"item={parsed['item_name']}")
+            if ph.get('enchant_prefix'): parts.append(f"prefix={ph['enchant_prefix']}")
+            if ph.get('enchant_suffix'): parts.append(f"suffix={ph['enchant_suffix']}")
+            parts.append(f"item={ph['item_name']}")
             print(f"  Item Name: {', '.join(parts)}")
 
         if has_gt:

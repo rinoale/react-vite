@@ -30,7 +30,7 @@ export function parseExamineResult(data) {
   const sections = data.sections || {};
   const sessionId = data.session_id || null;
 
-  const parsedItemName = sections.pre_header?.parsed_item_name?.item_name || '';
+  const parsedItemName = sections.pre_header?.item_name || '';
   const itemName = parsedItemName || sections.item_name?.text || '';
   const description = collectLinesFromSections(sections).join('\n');
 
