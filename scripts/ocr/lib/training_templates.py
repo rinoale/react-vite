@@ -13,7 +13,6 @@ import yaml
 # Dictionary paths (relative to project root)
 DICT_PATHS = [
     "data/dictionary/reforge.txt",
-    "data/dictionary/tooltip_general.txt",
 ]
 
 # Source of truth paths
@@ -21,20 +20,6 @@ ENCHANT_YAML_PATH = "data/source_of_truth/enchant.yaml"
 ITEM_NAME_DICT_PATH = "data/dictionary/item_name.txt"
 REFORGE_DICT_PATH = "data/dictionary/reforge.txt"
 
-# Section headers that need training boost (post-dedup).
-# Formula: extra = ceil(target_images / VARIATIONS_PER_LABEL) - 1
-HEADER_BOOSTS = [
-    ('세공',         43),  # 44 total → ~132 images
-    ('- 세공 -',      9),  # 10 total → ~30 images
-    ('에르그',        26),  # 27 total → ~81 images
-    ('- 에르그 -',    6),  # 7 total  → ~21 images
-    ('인챈트',         9),  # 10 total → ~30 images
-    ('- 인챈트 -',    3),  # 4 total  → ~12 images
-    ('아이템 속성',   12),  # 13 total → ~39 images
-    ('아이템 색상',   12),  # 13 total → ~39 images
-    ('개조',           9),  # 10 total → ~30 images
-    ('- 개조 -',      3),  # 4 total  → ~12 images
-]
 
 _NUM_RE = re.compile(r'\d+(?:\.\d+)?')
 _RANGE_RE = re.compile(r'(\d+(?:\.\d+)?)\s*~\s*(\d+(?:\.\d+)?)')
@@ -155,32 +140,78 @@ def _randomize_numbers(text):
     return _NUM_RE.sub(_replace_num, text)
 
 
+def _roll_ranged_effect(effect):
+    """Replace range in effect with a single rolled value + range display.
+
+    Example: '마법 공격력 8 ~ 15 증가'
+         -> ('마법 공격력 10 증가', '(8~15)')
+    Numbers are randomized for training variety.
+    """
+    m = _RANGE_RE.search(effect)
+    if not m:
+        return None
+
+    lo_str, hi_str = m.group(1), m.group(2)
+    is_float = '.' in lo_str or '.' in hi_str
+
+    if is_float:
+        lo, hi = float(lo_str), float(hi_str)
+        spread = max(0.1, hi - lo)
+        new_lo = round(random.uniform(max(0.1, lo * 0.5), hi * 1.5), 1)
+        new_hi = round(new_lo + random.uniform(spread * 0.5, spread * 2), 1)
+        rolled = round(random.uniform(new_lo, new_hi), 1)
+        rolled_str = f"{rolled:.1f}"
+        range_disp = f"({new_lo:.1f}~{new_hi:.1f})"
+    else:
+        lo, hi = int(lo_str), int(hi_str)
+        spread = max(1, hi - lo)
+        new_lo = rand_int(max(1, lo // 2), max(lo, hi * 2))
+        new_hi = new_lo + rand_int(1, max(1, spread * 2))
+        rolled = rand_int(new_lo, new_hi)
+        rolled_str = str(rolled)
+        range_disp = f"({new_lo}~{new_hi})"
+
+    # Replace "lo ~ hi" with single rolled value
+    effect_rolled = effect[:m.start()] + rolled_str + effect[m.end():]
+    return effect_rolled, range_disp
+
+
 def _generate_enchant_lines(enchant_effects):
     """Generate training lines from enchant.yaml effects.
 
     For each effect:
+    - Ranged effects (N ~ N) → rolled value + range display "(lo~hi)"
     - Plain effects with numbers → randomize the numbers
-    - Conditional effects → generate both full (condition + effect) and effect-only forms
     - Effects without numbers → include as-is
+    - Conditional effects → full form "{condition} {effect} (range)"
     """
     lines = []
 
     for condition, effect in enchant_effects:
-        # Effect-only form (always included)
-        if _NUM_RE.search(effect):
-            for _ in range(2):
-                lines.append(_randomize_numbers(effect))
-        else:
-            lines.append(effect)
+        range_match = _RANGE_RE.search(effect)
 
-        # Full condition+effect form
-        if condition:
-            full = f"{condition} {effect}"
-            if _NUM_RE.search(full):
-                for _ in range(2):
-                    lines.append(_randomize_numbers(full))
+        if range_match:
+            # Ranged: rolled value + display e.g. "최대대미지 10 증가 (8~15)"
+            result = _roll_ranged_effect(effect)
+            if result:
+                rolled_text, range_disp = result
+                lines.append(f"{rolled_text} {range_disp}")
+                if condition:
+                    cond = _randomize_numbers(condition) if _NUM_RE.search(condition) else condition
+                    lines.append(f"{cond} {rolled_text} {range_disp}")
+        else:
+            # Non-ranged effect
+            if _NUM_RE.search(effect):
+                lines.append(_randomize_numbers(effect))
             else:
-                lines.append(full)
+                lines.append(effect)
+
+            if condition:
+                full = f"{condition} {effect}"
+                if _NUM_RE.search(full):
+                    lines.append(_randomize_numbers(full))
+                else:
+                    lines.append(full)
 
     return lines
 
@@ -225,53 +256,70 @@ def _load_reforge_names():
 # ---------------------------------------------------------------------------
 
 def _generate_number_formats():
-    """Generate standalone number format lines matching tooltip_general patterns.
+    """Generate standalone number format lines for number recognition training.
 
-    Covers: percentages, decimals, signed integers, level fractions, ranges.
-    Extends range up to 1000.
+    Covers: plain integers, percentages, decimals, signed integers,
+    level fractions, ranges, multi-digit sequences.
     """
     lines = []
 
+    # Plain integers — full range coverage
+    for _ in range(200):
+        lines.append(str(rand_int(0, 9)))          # single digit
+    for _ in range(300):
+        lines.append(str(rand_int(10, 99)))         # two digit
+    for _ in range(300):
+        lines.append(str(rand_int(100, 999)))       # three digit
+    for _ in range(100):
+        lines.append(str(rand_int(1000, 9999)))     # four digit
+
     # Percentages: N%, N.N%, N.NN%
-    for _ in range(30):
+    for _ in range(200):
         lines.append(f"{rand_int(1, 1000)}%")
-    for _ in range(30):
+    for _ in range(200):
         lines.append(f"{rand_int(0, 100)}.{rand_int(0, 9)}%")
-    for _ in range(20):
+    for _ in range(120):
         lines.append(f"{rand_int(0, 100)}.{rand_int(0, 99):02d}%")
 
     # Signed integers: +N, -N
-    for _ in range(30):
+    for _ in range(200):
         lines.append(f"+{rand_int(1, 1000)}")
-    for _ in range(20):
+    for _ in range(120):
         lines.append(f"-{rand_int(1, 1000)}")
 
-    # Plain integers 0-1000
-    for _ in range(30):
-        lines.append(str(rand_int(0, 1000)))
-
     # Time format: N.NN 초
-    for _ in range(20):
+    for _ in range(120):
         lines.append(f"{rand_int(0, 30)}.{rand_int(0, 99):02d} 초")
 
-    # Level fractions: (N/N 레벨)
-    for _ in range(30):
+    # Level fractions: (N/N 레벨) — 3x weight, common in reforge/erg
+    for _ in range(240):
         mx = rand_int(3, 25)
         cur = rand_int(1, mx)
         lines.append(f"({cur}/{mx} 레벨)")
 
     # Ranges: (N~N), (N.N%~N.N%)
-    for _ in range(20):
+    for _ in range(160):
         lo = rand_int(1, 500)
         hi = rand_int(lo, lo + 500)
         lines.append(f"({lo}~{hi})")
-    for _ in range(20):
+    for _ in range(120):
         lo_i = rand_int(1, 50)
         lo_d = rand_int(0, 9)
         hi_i = rand_int(lo_i, lo_i + 30)
         hi_d = rand_int(0, 9)
         lines.append(f"({lo_i}.{lo_d}%~{hi_i}.{hi_d}%)")
 
+    # Fractions: N/N (attack, durability style)
+    for _ in range(160):
+        mx = rand_int(5, 500)
+        cur = rand_int(0, mx)
+        lines.append(f"{cur}/{mx}")
+
+    # Number with Korean unit suffixes
+    for _ in range(120):
+        lines.append(f"{rand_int(1, 300)} 증가")
+    for _ in range(120):
+        lines.append(f"{rand_int(1, 300)} 감소")
     return lines
 
 
@@ -382,8 +430,9 @@ def generate_template_lines():
     if reforge_all:
         for name in reforge_all:
             lines.append(f"{name}({rand_level()} 레벨)")
-        # Extra random samples for variety
-        for _ in range(100):
+        # Weight distribution (pre-dedup): enchant ~40%, numbers ~20%,
+        # reforge templates+dict(5x) ~20%, other templates ~20%.  Extra samples for variety:
+        for _ in range(300):
             name = random.choice(reforge_all)
             lines.append(f"{name}({rand_level()} 레벨)")
         print(f"  Reforge names from dictionary: {len(reforge_all)}")
@@ -446,11 +495,6 @@ def generate_template_lines():
         n = rand_int(2, 5)
         selected = random.sample(tags, min(n, len(tags)))
         lines.append(' '.join(selected))
-
-    # --- Price lines ---
-    for _ in range(30):
-        price = random.choice([f'{rand_int(100, 99999)} 골드', f'{rand_int(1, 99)}만 골드', '판매불가'])
-        lines.append(f"상점판매가 : {price}")
 
     # --- Grade lines ---
     grades = ['마스터', '에픽', '엘리트', '레어', '일반']
@@ -621,8 +665,6 @@ def collect_all_chars():
         '#인챈트 실패 시 아이템 보호', '#수리 실패시 아이템 보호',
         '#거래 불가', '#은행 불가', '#펫 보관 불가', '#염색 불가',
         '#소유권 보존', '#파트너 선물 및 착용 불가', '#계승 불가',
-        # Price
-        '골드', '만', '판매불가', '상점판매가',
         # Grades
         '마스터', '에픽', '엘리트', '레어', '일반', '장비 레벨',
         '최대 생명력', '보너스 대미지', '최대 마나', '등급 보너스 대미지',
@@ -646,13 +688,11 @@ def collect_all_chars():
         '세공', '에르그', '인챈트', '아이템 속성', '아이템 색상', '개조',
         # Enchant slot headers
         '접두', '접미', '랭크', '이상일 때',
+        # Misc tooltip text
+        '제외',
     ]
     for text in _hardcoded:
         _add_text(text)
-
-    # --- Header boosts ---
-    for header, _ in HEADER_BOOSTS:
-        _add_text(header)
 
     return ''.join(sorted(chars))
 
