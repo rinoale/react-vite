@@ -254,6 +254,7 @@ def register_listing(payload: RegisterListingRequest, db: Session = Depends(get_
                     status='pending',
                     charset_mismatch=charset_mismatch,
                     image_filename=f"{line.section}_{crop_name}",
+                    is_stitched=orig.get('_is_stitched', False),  # continuation stitch: mark correction row
                 ))
                 corrections_saved += 1
 

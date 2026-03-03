@@ -174,6 +174,7 @@ class CorrectionOut(BaseModel):
     status: str
     charset_mismatch: Optional[str] = None
     image_filename: str
+    is_stitched: bool = False  # continuation stitch: crop is merged from multiple lines
     created_at: datetime
     trained_version: Optional[str] = None
 

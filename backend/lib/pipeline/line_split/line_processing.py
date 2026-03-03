@@ -173,7 +173,10 @@ def merge_continuations(lines, header_field='is_enchant_hdr'):
         elif pt is None and anchor_idx is not None:
             anchor = lines[anchor_idx]
             anchor['text'] = f"{anchor['text']} {line['text']}".strip()
-            _stitch_crop(anchor, line)
+            if 'raw_text' in anchor and 'raw_text' in line:
+                anchor['raw_text'] = f"{anchor['raw_text']} {line['raw_text']}".strip()
+            _stitch_crop(anchor, line)  # continuation stitch: merge crop + mark
+            anchor['_is_stitched'] = True
             line['text'] = ''
             line['_cont_merged'] = True
         # subbullet or orphan continuation: leave as-is

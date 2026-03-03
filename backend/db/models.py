@@ -76,6 +76,8 @@ class OcrCorrection(Base):
     status = Column(Text, nullable=False, server_default='pending')
     charset_mismatch = Column(Text, nullable=True)
     image_filename = Column(Text, nullable=False)
+    is_stitched = Column(Boolean, default=False)  # continuation stitch: crop is merged from multiple lines
+    # DB migration: ALTER TABLE ocr_corrections ADD COLUMN is_stitched BOOLEAN DEFAULT FALSE;
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     trained_version = Column(Text, nullable=True)
 

@@ -266,7 +266,7 @@ def _save_crops_by_section(sections, crop_session_dir, session_id):
                 os.makedirs(sec_dir, exist_ok=True)
                 cv2.imwrite(os.path.join(sec_dir, f"{li:03d}.png"), crop)
 
-            originals.append({
+            orig = {
                 'section': sec_key,
                 'line_index': li,
                 'text': line.get('text', ''),
@@ -274,7 +274,10 @@ def _save_crops_by_section(sections, crop_session_dir, session_id):
                 'confidence': float(line.get('confidence', 0)),
                 'ocr_model': line.get('ocr_model', ''),
                 'fm_applied': bool(line.get('fm_applied', False)),
-            })
+            }
+            if line.get('_is_stitched'):  # continuation stitch: propagate to ocr_results.json
+                orig['_is_stitched'] = True
+            originals.append(orig)
 
     with open(os.path.join(crop_session_dir, 'ocr_results.json'), 'w',
               encoding='utf-8') as f:

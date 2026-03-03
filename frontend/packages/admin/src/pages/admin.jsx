@@ -264,6 +264,12 @@ const CorrectionsPanel = () => {
                       CHARSET: {c.charset_mismatch}
                     </span>
                   )}
+                  {/* continuation stitch: warn admin that crop is merged from multiple lines */}
+                  {c.is_stitched && (
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-orange-900/40 text-orange-300" title="Crop is stitched from multiple lines">
+                      ⚠ STITCHED
+                    </span>
+                  )}
                   <span className="text-[10px] font-mono text-gray-600">ID: {c.id}</span>
                   {c.created_at && (
                     <span className="text-[10px] text-gray-600">{new Date(c.created_at).toLocaleString()}</span>
