@@ -3,13 +3,14 @@
 import os
 
 from lib.pipeline.line_split import group_by_y
-from ._helpers import bt601_binary, prepend_header
+from ._helpers import bt601_preprocessed, prepend_header
 from ._ocr import ocr_grouped_lines
 
 
 class ColorHandler:
     """No OCR — regex RGB parse only."""
 
+    @bt601_preprocessed
     def process(self, seg, *, font_reader, attach_crops=False, **ctx):
         """Full color lifecycle: line detect → structural parse."""
         from lib.pipeline.v3 import get_pipeline
@@ -20,7 +21,8 @@ class ColorHandler:
 
         content_bgr = seg['content_crop']
         section = seg['section']
-        detect_binary, ocr_binary = bt601_binary(content_bgr)
+        detect_binary = seg['detect_binary']
+        ocr_binary = seg['ocr_binary']
 
         detected = splitter.detect_text_lines(detect_binary)
         grouped = group_by_y(detected)

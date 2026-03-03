@@ -1,6 +1,7 @@
 """Shared helpers for section handlers."""
 
 import os
+from functools import wraps
 
 import cv2
 
@@ -15,6 +16,19 @@ def bt601_binary(content_bgr, threshold=80):
     _, ocr_binary = cv2.threshold(gray, threshold, 255, cv2.THRESH_BINARY_INV)
     detect_binary = cv2.bitwise_not(ocr_binary)
     return detect_binary, ocr_binary
+
+
+def bt601_preprocessed(fn):
+    """Decorator: run BT.601 binarization on seg['content_crop'] before handler.
+
+    Enriches seg with 'detect_binary' and 'ocr_binary'.
+    Original 'content_crop' (BGR) is preserved.
+    """
+    @wraps(fn)
+    def wrapper(self, seg, **kw):
+        seg['detect_binary'], seg['ocr_binary'] = bt601_binary(seg['content_crop'])
+        return fn(self, seg, **kw)
+    return wrapper
 
 
 def ocr_lines(parser, splitter, detect_binary, ocr_binary, reader, section,

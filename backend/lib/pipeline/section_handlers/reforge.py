@@ -1,7 +1,7 @@
 """ReforgeHandler: standard OCR, FM cutoff=0, structured rebuild."""
 
 from ._helpers import (
-    bt601_binary, ocr_lines, apply_line_fm,
+    bt601_preprocessed, ocr_lines, apply_line_fm,
     prepend_header, snapshot_and_strip,
 )
 
@@ -9,6 +9,7 @@ from ._helpers import (
 class ReforgeHandler:
     """Standard OCR, FM cutoff=0, drop non-prefixed, build_reforge_structured."""
 
+    @bt601_preprocessed
     def process(self, seg, *, font_reader, attach_crops=False, **ctx):
         """Full reforge lifecycle: OCR → FM → filter → structured rebuild."""
         from lib.pipeline.v3 import get_pipeline
@@ -20,7 +21,8 @@ class ReforgeHandler:
 
         content_bgr = seg['content_crop']
         section = seg['section']
-        detect_binary, ocr_binary = bt601_binary(content_bgr)
+        detect_binary = seg['detect_binary']
+        ocr_binary = seg['ocr_binary']
 
         ocr_results = ocr_lines(parser, splitter, detect_binary, ocr_binary,
                                 font_reader, section, content_bgr=content_bgr,

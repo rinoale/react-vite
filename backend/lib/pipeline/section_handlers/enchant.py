@@ -11,13 +11,14 @@ from lib.image_processors.mabinogi_processor import (
     classify_enchant_line, detect_enchant_slot_headers,
 )
 
-from ._helpers import bt601_binary, prepend_header, snapshot_and_strip
+from ._helpers import bt601_preprocessed, prepend_header, snapshot_and_strip
 from ._ocr import ocr_grouped_lines, ocr_enchant_headers
 
 
 class EnchantHandler:
     """White-mask bands, line classification, enchant OCR, Dullahan FM."""
 
+    @bt601_preprocessed
     def process(self, seg, *, font_reader, attach_crops=False, parsed_item_name=None, **ctx):
         """Full enchant lifecycle: image process → OCR → FM → structured rebuild."""
         from lib.pipeline.v3 import get_pipeline
@@ -29,7 +30,8 @@ class EnchantHandler:
 
         content_bgr = seg['content_crop']
         section = seg['section']
-        detect_binary, ocr_binary = bt601_binary(content_bgr)
+        detect_binary = seg['detect_binary']
+        ocr_binary = seg['ocr_binary']
 
         detected = splitter.detect_text_lines(detect_binary)
         grouped = group_by_y(detected)
