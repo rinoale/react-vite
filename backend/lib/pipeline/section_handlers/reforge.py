@@ -1,7 +1,7 @@
 """ReforgeHandler: standard OCR, FM cutoff=0, structured rebuild."""
 
 from ._helpers import (
-    bt601_preprocessed, ocr_lines, apply_line_fm,
+    filter_prefix, bt601_preprocessed, ocr_lines, apply_line_fm,
     prepend_header, snapshot_and_strip,
 )
 
@@ -9,6 +9,7 @@ from ._helpers import (
 class ReforgeHandler:
     """Standard OCR, FM cutoff=0, drop non-prefixed, build_reforge_structured."""
 
+    @filter_prefix('bullet', 'subbullet')
     @bt601_preprocessed
     def process(self, seg, *, font_reader, attach_crops=False, **ctx):
         """Full reforge lifecycle: OCR → FM → filter → structured rebuild."""
@@ -40,14 +41,6 @@ class ReforgeHandler:
                 line['fm_applied'] = False
                 continue
             apply_line_fm(line, corrector, 'reforge', cutoff=0)
-
-        # Drop non-prefixed content lines (prefix_required)
-        sec_cfg = parser.sections_config.get('reforge', {})
-        if sec_cfg.get('prefix_required'):
-            section_data['lines'] = [
-                l for l in lines
-                if l.get('is_header') or l.get('_prefix_type') is not None
-            ]
 
         # Rebuild structured options from corrected text
         reforge_updated = parser.build_reforge_structured(section_data['lines'])

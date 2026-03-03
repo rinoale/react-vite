@@ -18,6 +18,23 @@ def bt601_binary(content_bgr, threshold=80):
     return detect_binary, ocr_binary
 
 
+def filter_prefix(*allowed_types):
+    """Decorator: keep only header lines and lines whose _prefix_type is in *allowed_types*."""
+    allowed = set(allowed_types)
+
+    def decorator(fn):
+        @wraps(fn)
+        def wrapper(self, seg, **kw):
+            section_data = fn(self, seg, **kw)
+            section_data['lines'] = [
+                l for l in section_data.get('lines', [])
+                if l.get('is_header') or l.get('_prefix_type') in allowed
+            ]
+            return section_data
+        return wrapper
+    return decorator
+
+
 def bt601_preprocessed(fn):
     """Decorator: run BT.601 binarization on seg['content_crop'] before handler.
 

@@ -50,12 +50,4 @@ class DefaultHandler:
                 continue
             apply_line_fm(line, corrector, section, cutoff=80)
 
-        # Drop non-prefixed content lines if prefix_required
-        sec_cfg = parser.sections_config.get(section, {})
-        if sec_cfg.get('prefix_required'):
-            section_data['lines'] = [
-                l for l in lines
-                if l.get('is_header') or l.get('_prefix_type') is not None
-            ]
-
         return section_data
