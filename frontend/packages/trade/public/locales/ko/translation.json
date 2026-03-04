@@ -110,10 +110,17 @@
       "levelDisplay": "Lv. {{level}} / {{maxLevel}}"
     },
     "cancel": "Cancel",
+    "erg": {
+      "unrecognized": "에르그 등급이 감지되었으나 인식에 실패했습니다",
+      "gradeLabel": "등급",
+      "levelLabel": "레벨"
+    },
     "item_mod": {
+      "label": "특별 개조",
       "unrecognized": "특별개조가 감지되었으나 인식에 실패했습니다",
       "typeLabel": "타입",
-      "levelLabel": "단계"
+      "levelLabel": "단계",
+      "levelSuffix": "단계"
     }
   }
 }

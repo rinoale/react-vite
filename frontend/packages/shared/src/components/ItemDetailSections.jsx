@@ -2,14 +2,14 @@ import React, { useState } from 'react';
 import { Plus, RotateCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import SectionCard from './SectionCard';
-import { ColorPartsSection, EnchantSection, ItemAttrsSection, ItemModSection, ReforgeSection, DefaultSection } from './sections';
+import { ColorPartsSection, EnchantSection, ErgSection, ItemAttrsSection, ItemModSection, ReforgeSection, DefaultSection } from './sections';
 
 const ADDABLE_SECTIONS = [
   'item_attrs', 'enchant', 'reforge', 'item_mod',
-  'erg', 'set_item', 'item_grade', 'item_color', 'ego',
+  'erg', 'set_item', 'item_grade', 'item_color',
 ];
 
-const HIDDEN_SECTIONS = ['item_name', 'item_type', 'flavor_text', 'shop_price', 'pre_header'];
+const HIDDEN_SECTIONS = ['item_name', 'item_type', 'flavor_text', 'shop_price', 'pre_header', 'ego'];
 
 function createEmptySection(secKey) {
   if (secKey === 'enchant') return { prefix: null, suffix: null, lines: [] };
@@ -74,6 +74,8 @@ const ItemDetailSections = ({ sections, onSectionsChange, abbreviated = true }) 
       return <ReforgeSection options={sectionData.options} lines={sectionData.lines} onLineChange={onLineChange} />;
     if (key === 'item_mod')
       return <ItemModSection lines={sectionData.lines} has_special_upgrade={sectionData.has_special_upgrade} special_upgrade_type={sectionData.special_upgrade_type} special_upgrade_level={sectionData.special_upgrade_level} onLineChange={onLineChange} />;
+    if (key === 'erg')
+      return <ErgSection lines={sectionData.lines} erg_grade={sectionData.erg_grade} erg_level={sectionData.erg_level} erg_max_level={sectionData.erg_max_level} onLineChange={onLineChange} />;
     return <DefaultSection lines={sectionData.lines} onLineChange={onLineChange} />;
   };
 

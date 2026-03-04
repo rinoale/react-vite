@@ -119,16 +119,8 @@ function extractAttributes(sections) {
   const itemType = sections?.item_type?.text || null;
   const itemGrade = sections?.item_grade?.text || null;
 
-  let ergGrade = null;
-  let ergLevel = null;
-  const ergSection = sections?.erg;
-  if (ergSection?.lines?.length) {
-    const ergText = ergSection.lines.map(l => l.text).join(' ');
-    const gradeMatch = ergText.match(/\b([SABCDEF])\b/);
-    if (gradeMatch) ergGrade = gradeMatch[1];
-    const levelMatch = ergText.match(/(\d+)/);
-    if (levelMatch) ergLevel = parseInt(levelMatch[1], 10);
-  }
+  const ergGrade = sections?.erg?.erg_grade || null;
+  const ergLevel = sections?.erg?.erg_level || null;
 
   return { itemType, itemGrade, ergGrade, ergLevel };
 }

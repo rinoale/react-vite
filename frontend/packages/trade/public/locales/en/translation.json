@@ -99,10 +99,17 @@
       "levelDisplay": "Lv. {{level}} / {{maxLevel}}"
     },
     "cancel": "Cancel",
+    "erg": {
+      "unrecognized": "Erg grade detected but OCR failed to recognize it",
+      "gradeLabel": "Grade",
+      "levelLabel": "Level"
+    },
     "item_mod": {
+      "label": "Special Upgrade",
       "unrecognized": "Special upgrade detected but OCR failed to recognize it",
       "typeLabel": "Type",
-      "levelLabel": "Level"
+      "levelLabel": "Level",
+      "levelSuffix": "Level"
     }
   }
 }
