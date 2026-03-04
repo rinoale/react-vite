@@ -8,6 +8,25 @@ import cv2
 import numpy as np
 
 # ---------------------------------------------------------------------------
+# Game engine text colors (RGB) — constant across all 26 themes
+# ---------------------------------------------------------------------------
+
+# Blue effect text — enchant effects, reforge options, set bonuses, stat modifiers.
+EFFECT_BLUE_RGB = (74, 149, 238)
+
+# Red effect text — negative enchant effects.
+EFFECT_RED_RGB = (255, 103, 103)
+
+# Grey effect text — disabled/conditional effects not meeting requirements.
+EFFECT_GREY_RGB = (128, 128, 128)
+
+# Light grey effect text — partially disabled/conditional effects (brighter shade).
+EFFECT_LIGHT_GREY_RGB = (167, 167, 167)
+
+# White text — subbullet ㄴ prefix, general tooltip text.
+WHITE_TEXT_RGB = (255, 255, 255)
+
+# ---------------------------------------------------------------------------
 # Enchant line classification
 # ---------------------------------------------------------------------------
 
@@ -50,6 +69,25 @@ _HSV_YELLOW_HUE_MAX = 40
 
 # Binary threshold applied after yellow-masked grayscale conversion.
 _YELLOW_BINARY_THRESHOLD = 120
+
+# ---------------------------------------------------------------------------
+# Enchant effect color mask (mabinogi_classic)
+# ---------------------------------------------------------------------------
+
+_EFFECT_COLORS = (
+    EFFECT_BLUE_RGB, EFFECT_RED_RGB, EFFECT_GREY_RGB,
+    EFFECT_LIGHT_GREY_RGB, WHITE_TEXT_RGB,
+)
+_COLOR_MASK_TOLERANCE = 15
+
+# ---------------------------------------------------------------------------
+# Enchant effect HSV isolation (nanum_gothic)
+# ---------------------------------------------------------------------------
+
+_ENCHANT_BLUE_HUE_MIN = 100
+_ENCHANT_BLUE_HUE_MAX = 120
+_ENCHANT_RED_HUE_LOW_MAX = 10
+_ENCHANT_RED_HUE_HIGH_MIN = 170
 
 # ---------------------------------------------------------------------------
 # Enchant slot header band detection
@@ -174,6 +212,46 @@ def hsv_yellow_binary(content_bgr):
     detect_mask = _strip_border_cols(detect_mask)
 
     return detect_mask, ocr_binary
+
+
+def effect_color_mask_binary(content_bgr):
+    """Color mask binary for mabinogi_classic enchant effects.
+
+    Exact pixel matching for effect text colors (blue, red, grey, light grey, white).
+    Returns ink=0, background=255.
+    """
+    img16 = content_bgr.astype(np.int16)
+    mask = np.full(content_bgr.shape[:2], 255, dtype=np.uint8)
+    for r, g, b in _EFFECT_COLORS:
+        target = np.array([b, g, r], dtype=np.int16)  # BGR
+        match = np.all(np.abs(img16 - target) <= _COLOR_MASK_TOLERANCE, axis=2)
+        mask[match] = 0
+    return mask
+
+
+def effect_hsv_binary(content_bgr):
+    """HSV isolation binary for nanum_gothic enchant effects.
+
+    Keeps blue and red hue ranges while passing through low-saturation pixels
+    (white/grey text). Rejects other saturated colors (e.g. orange headers).
+    Returns ink=0, background=255.
+    """
+    hsv = cv2.cvtColor(content_bgr, cv2.COLOR_BGR2HSV)
+    h = hsv[:, :, 0]
+    s = hsv[:, :, 1]
+
+    sat_mask = s >= _HSV_SATURATION_THRESHOLD
+    is_blue = (h >= _ENCHANT_BLUE_HUE_MIN) & (h <= _ENCHANT_BLUE_HUE_MAX)
+    is_red = (h <= _ENCHANT_RED_HUE_LOW_MAX) | (h >= _ENCHANT_RED_HUE_HIGH_MIN)
+    is_allowed = is_blue | is_red
+    reject_mask = sat_mask & ~is_allowed
+
+    masked = content_bgr.copy()
+    masked[reject_mask] = 0
+
+    gray = cv2.cvtColor(masked, cv2.COLOR_BGR2GRAY)
+    _, ocr_binary = cv2.threshold(gray, _YELLOW_BINARY_THRESHOLD, 255, cv2.THRESH_BINARY_INV)
+    return ocr_binary
 
 
 def detect_enchant_slot_headers(content_bgr):

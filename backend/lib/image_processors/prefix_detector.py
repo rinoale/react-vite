@@ -23,22 +23,10 @@ from dataclasses import dataclass
 import numpy as np
 
 from lib.image_processors.shape_walker import classify_cluster, SHAPE_NIEUN, SHAPE_DOT
-
-# Blue effect text — game engine constant across all 26 themes.
-# Marks enchant effects, reforge options, set bonuses, stat modifiers.
-EFFECT_BLUE_RGB = (74, 149, 238)
-
-# Red effect text — negative enchant effects.
-EFFECT_RED_RGB = (255, 103, 103)
-
-# Grey effect text — disabled/conditional effects not meeting requirements.
-EFFECT_GREY_RGB = (128, 128, 128)
-
-# Light grey effect text — partially disabled/conditional effects (brighter shade).
-EFFECT_LIGHT_GREY_RGB = (167, 167, 167)
-
-# White text — subbullet ㄴ prefix in reforge sub-lines.
-WHITE_TEXT_RGB = (255, 255, 255)
+from lib.image_processors.mabinogi_processor import (
+    EFFECT_BLUE_RGB, EFFECT_RED_RGB, EFFECT_GREY_RGB, EFFECT_LIGHT_GREY_RGB,
+    WHITE_TEXT_RGB,
+)
 
 # All bullet (·) colors — blue (positive) + red (negative) + grey (disabled) + light grey.
 BULLET_COLORS = [EFFECT_BLUE_RGB, EFFECT_RED_RGB, EFFECT_GREY_RGB, EFFECT_LIGHT_GREY_RGB]

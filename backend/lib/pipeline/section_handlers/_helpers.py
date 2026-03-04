@@ -4,7 +4,6 @@ import os
 from functools import wraps
 
 import cv2
-import numpy as np
 
 from lib.pipeline.line_split import group_by_y
 from lib.image_processors.prefix_detector import BULLET_DETECTOR, SUBBULLET_DETECTOR
@@ -47,32 +46,6 @@ def bt601_preprocessed(fn):
         return fn(self, seg, **kw)
     return wrapper
 
-def color_mask_preprocessed(*colors, tolerance=0):
-    """Decorator: multi-color binary mask on seg['content_crop'] before handler.
-
-    Enriches seg with 'ocr_binary' (ink=0, background=255).
-    A pixel matches if it's within `tolerance` of any given RGB color.
-
-    Usage::
-
-        @color_mask_preprocessed(EFFECT_BLUE_RGB, EFFECT_RED_RGB, tolerance=15)
-        def process(self, seg, **ctx):
-            ...
-    """
-    def decorator(fn):
-        @wraps(fn)
-        def wrapper(self, seg, **kw):
-            img = seg['content_crop']
-            img16 = img.astype(np.int16)
-            mask = np.full(img.shape[:2], 255, dtype=np.uint8)
-            for r, g, b in colors:
-                target = np.array([b, g, r], dtype=np.int16)   # BGR
-                match = np.all(np.abs(img16 - target) <= tolerance, axis=2)
-                mask[match] = 0
-            seg['ocr_binary'] = mask
-            return fn(self, seg, **kw)
-        return wrapper
-    return decorator
 
 def ocr_lines(parser, splitter, ocr_binary, reader, section,
               content_bgr=None, attach_crops=False):
