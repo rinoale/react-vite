@@ -7,6 +7,10 @@
 Headers in the tooltip (category headers, enchant slot headers, item_mod special upgrade line) are always rendered in NanumGothic font regardless of the item's font config. Currently we have separate models (`category_header_model`, `enchant_header_model`) trained on nanum gothic. These should be consolidated into a single `header_model` trained with nanum gothic font covering all header types. The item_mod handler already hardcodes `content_ng_reader`; a unified header model would make the pipeline simpler — just find the header line and OCR it with the one header model.
 Or at least two models, category header model and subheader model.
 
+### Merge prefix detection + filtering into a single decorator
+
+Currently handlers chain `@detect_prefix('bullet')` + `@filter_prefix('bullet')` or `@plain_lines_only` as separate decorators. These could be a single decorator like `@select_lines('bullet')` / `@select_lines(None)` that detects and filters in one pass.
+
 ### Replace `sys.path` hacks with `PROJECT_ROOT` env var
 **Context:** Scripts under `scripts/ocr/` currently use `sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))` to reach the project root for imports (e.g. `from scripts.ocr.lib.model_version import ...`). Going up 3 directory levels is fragile and will break if scripts move again.
 

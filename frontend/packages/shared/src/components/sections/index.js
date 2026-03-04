@@ -4,4 +4,5 @@ export { default as ErgSection } from './ErgSection';
 export { default as ItemAttrsSection } from './ItemAttrsSection';
 export { default as ItemModSection } from './ItemModSection';
 export { default as ReforgeSection } from './ReforgeSection';
+export { default as SetItemSection } from './SetItemSection';
 export { default as DefaultSection } from './DefaultSection';

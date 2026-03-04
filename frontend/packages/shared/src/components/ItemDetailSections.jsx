@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Plus, RotateCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import SectionCard from './SectionCard';
-import { ColorPartsSection, EnchantSection, ErgSection, ItemAttrsSection, ItemModSection, ReforgeSection, DefaultSection } from './sections';
+import { ColorPartsSection, EnchantSection, ErgSection, ItemAttrsSection, ItemModSection, ReforgeSection, SetItemSection, DefaultSection } from './sections';
 
 const ADDABLE_SECTIONS = [
   'item_attrs', 'enchant', 'reforge', 'item_mod',
@@ -76,6 +76,8 @@ const ItemDetailSections = ({ sections, onSectionsChange, abbreviated = true }) 
       return <ItemModSection lines={sectionData.lines} has_special_upgrade={sectionData.has_special_upgrade} special_upgrade_type={sectionData.special_upgrade_type} special_upgrade_level={sectionData.special_upgrade_level} onLineChange={onLineChange} />;
     if (key === 'erg')
       return <ErgSection lines={sectionData.lines} erg_grade={sectionData.erg_grade} erg_level={sectionData.erg_level} erg_max_level={sectionData.erg_max_level} onLineChange={onLineChange} />;
+    if (key === 'set_item')
+      return <SetItemSection lines={sectionData.lines} set_effects={sectionData.set_effects} onLineChange={onLineChange} />;
     return <DefaultSection lines={sectionData.lines} onLineChange={onLineChange} />;
   };
 

@@ -121,6 +121,13 @@
       "typeLabel": "타입",
       "levelLabel": "단계",
       "levelSuffix": "단계"
+    },
+    "set_item": {
+      "searchSetName": "세트 효과 검색",
+      "correct": "이름 수정",
+      "remove": "삭제",
+      "clickToEditLevel": "클릭하여 강화 수치 수정",
+      "addEffect": "세트 효과 추가"
     }
   }
 }

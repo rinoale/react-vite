@@ -83,6 +83,8 @@ class OcrSectionResponse(BaseModel):
     options: Optional[List[ReforgeOptionResponse]] = None
     # item_attrs
     attrs: Optional[Dict[str, str]] = None
+    # set_item
+    set_effects: Optional[List[Dict[str, Any]]] = None
     # erg
     erg_grade: Optional[str] = None
     erg_level: Optional[int] = None

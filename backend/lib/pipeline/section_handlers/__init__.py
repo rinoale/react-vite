@@ -15,6 +15,7 @@ from .color import ColorHandler
 from .item_attrs import ItemAttrsHandler
 from .item_mod import ItemModHandler
 from .erg import ErgHandler
+from .set_item import SetItemHandler
 from .default import DefaultHandler
 
 _HANDLER_MAP = {
@@ -24,6 +25,7 @@ _HANDLER_MAP = {
     'item_attrs': ItemAttrsHandler(),
     'item_mod': ItemModHandler(),
     'erg': ErgHandler(),
+    'set_item': SetItemHandler(),
 }
 _DEFAULT_HANDLER = DefaultHandler()
 

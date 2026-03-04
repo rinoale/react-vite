@@ -110,6 +110,13 @@
       "typeLabel": "Type",
       "levelLabel": "Level",
       "levelSuffix": "Level"
+    },
+    "set_item": {
+      "searchSetName": "Search set effect",
+      "correct": "Correct name",
+      "remove": "Remove",
+      "clickToEditLevel": "Click to edit level",
+      "addEffect": "Add set effect"
     }
   }
 }
