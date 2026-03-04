@@ -25,32 +25,26 @@ _MABINOGI_CLASSIC_COLORS = [
 ]
 
 
-def _mabinogi_classic_mask(img_bgr, tolerance=5):
-    """Create a binary mask of pixels matching known mabinogi_classic font colors."""
-    mask = np.zeros(img_bgr.shape[:2], dtype=np.uint8)
-    for r, g, b in _MABINOGI_CLASSIC_COLORS:
-        bgr = np.array([b, g, r], dtype=np.int16)
-        diff = np.abs(img_bgr.astype(np.int16) - bgr)
-        match = np.all(diff <= tolerance, axis=2)
-        mask[match] = 255
-    return mask
-
-
-def _preprocess_mabinogi_classic(content_bgr):
+def _preprocess_mabinogi_classic(content_bgr, tolerance=5):
     """Color-mask preprocessing for mabinogi_classic font.
 
-    Isolates white/yellow text pixels, then inverts to black-text-on-white.
-    Returns (detect_binary, ocr_binary).
+    Isolates white/yellow text pixels as black ink on white background.
+    Returns ocr_binary (ink=0, background=255).
     """
-    mask = _mabinogi_classic_mask(content_bgr)
-    return mask, cv2.bitwise_not(mask)
+    ocr_binary = np.full(content_bgr.shape[:2], 255, dtype=np.uint8)
+    img16 = content_bgr.astype(np.int16)
+    for r, g, b in _MABINOGI_CLASSIC_COLORS:
+        target = np.array([b, g, r], dtype=np.int16)
+        match = np.all(np.abs(img16 - target) <= tolerance, axis=2)
+        ocr_binary[match] = 0
+    return ocr_binary
 
 
 def _preprocess_nanum_gothic(content_bgr):
     """HSV yellow-isolate + threshold 120 preprocessing for nanum_gothic text.
 
     Isolates yellow-hued pixels while preserving white/gray text.
-    Returns (detect_binary, ocr_binary).
+    Returns ocr_binary (ink=0, background=255).
     """
     hsv = cv2.cvtColor(content_bgr, cv2.COLOR_BGR2HSV)
     h = hsv[:, :, 0]
@@ -65,14 +59,13 @@ def _preprocess_nanum_gothic(content_bgr):
 
     gray = cv2.cvtColor(masked, cv2.COLOR_BGR2GRAY)
     _, ocr_binary = cv2.threshold(gray, _YELLOW_BINARY_THRESHOLD, 255, cv2.THRESH_BINARY_INV)
-    detect_binary = cv2.bitwise_not(ocr_binary)
-    return detect_binary, ocr_binary
+    return ocr_binary
 
 
-def _ocr_pre_header_image(detect_binary, ocr_binary, splitter, reader,
+def _ocr_pre_header_image(ocr_binary, splitter, reader,
                           save_label, save_crops_dir, attach_crops):
     """Run line detection + OCR on a preprocessed pre_header image."""
-    detected = splitter.detect_text_lines(detect_binary)
+    detected = splitter.detect_text_lines(ocr_binary)
     grouped = group_by_y(detected)
     return ocr_grouped_lines(
         ocr_binary, grouped, reader,
@@ -136,14 +129,14 @@ class PreHeaderHandler:
         _save = os.environ.get('SAVE_OCR_CROPS')
         attach = crop_session_dir is not None
 
-        mc_detect, mc_ocr = _preprocess_mabinogi_classic(content_bgr)
-        ng_detect, ng_ocr = _preprocess_nanum_gothic(content_bgr)
+        mc_ocr = _preprocess_mabinogi_classic(content_bgr)
+        ng_ocr = _preprocess_nanum_gothic(content_bgr)
 
         mc_results = _ocr_pre_header_image(
-            mc_detect, mc_ocr, splitter, pipeline['preheader_mc_reader'],
+            mc_ocr, splitter, pipeline['preheader_mc_reader'],
             'pre_header_mc', _save, attach)
         ng_results = _ocr_pre_header_image(
-            ng_detect, ng_ocr, splitter, pipeline['preheader_ng_reader'],
+            ng_ocr, splitter, pipeline['preheader_ng_reader'],
             'pre_header_ng', _save, attach)
 
         ocr_results = _pick_best_per_line(mc_results, ng_results)

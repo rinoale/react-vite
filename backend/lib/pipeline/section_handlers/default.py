@@ -21,10 +21,9 @@ class DefaultHandler:
 
         content_bgr = seg['content_crop']
         section = seg['section']
-        detect_binary = seg['detect_binary']
         ocr_binary = seg['ocr_binary']
 
-        ocr_results = ocr_lines(parser, splitter, detect_binary, ocr_binary,
+        ocr_results = ocr_lines(parser, splitter, ocr_binary,
                                 font_reader, section, content_bgr=content_bgr,
                                 attach_crops=attach_crops)
 

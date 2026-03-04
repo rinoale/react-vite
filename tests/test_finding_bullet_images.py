@@ -117,7 +117,7 @@ def _combined_mask(img):
     """Build combined mask (all prefix colors) matching visualization script."""
     b_mask = BULLET_DETECTOR.build_mask(img)
     s_mask = SUBBULLET_DETECTOR.build_mask(img)
-    return np.maximum(b_mask, s_mask)
+    return np.minimum(b_mask, s_mask)
 
 
 def _count_prefixes(mask, img_h, img_w, target_type):

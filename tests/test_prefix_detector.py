@@ -11,23 +11,23 @@ from lib.image_processors.shape_walker import SHAPE_DOT, SHAPE_NIEUN
 
 class TestDetectPrefix:
     def test_all_white_image_no_prefix(self):
-        mask = np.zeros((16, 80), dtype=np.uint8)
+        mask = np.full((16, 80), 255, dtype=np.uint8)
         result = detect_prefix(mask)
         assert result['type'] is None
 
     def test_small_image_no_prefix(self):
-        mask = np.zeros((2, 5), dtype=np.uint8)
+        mask = np.full((2, 5), 255, dtype=np.uint8)
         result = detect_prefix(mask)
         assert result['type'] is None
 
     def test_left_column_dot_bullet(self):
         """Simulate a bullet · : small ink cluster at left, gap, then main text."""
         h, w = 16, 80
-        mask = np.zeros((h, w), dtype=np.uint8)
+        mask = np.full((h, w), 255, dtype=np.uint8)
         # Small dot: 2px wide, 3px tall in top-left region
-        mask[6:9, 2:4] = 255
+        mask[6:9, 2:4] = 0
         # Main text starting at column 12
-        mask[3:13, 12:60] = 255
+        mask[3:13, 12:60] = 0
         result = detect_prefix(mask)
         assert result['type'] == 'bullet'
         assert result['x'] == 2
@@ -37,31 +37,31 @@ class TestDetectPrefix:
     def test_wider_cluster_subbullet(self):
         """Simulate a subbullet ㄴ: wider prefix cluster."""
         h, w = 16, 80
-        mask = np.zeros((h, w), dtype=np.uint8)
+        mask = np.full((h, w), 255, dtype=np.uint8)
         # ㄴ shape: wider cluster (6px), partial height
-        mask[8:14, 2:8] = 255
+        mask[8:14, 2:8] = 0
         # Main text starting at column 16
-        mask[3:13, 16:60] = 255
+        mask[3:13, 16:60] = 0
         result = detect_prefix(mask)
         assert result['type'] == 'subbullet'
 
     def test_no_gap_no_prefix(self):
         """Continuous ink from left edge — not a prefix pattern."""
         h, w = 16, 80
-        mask = np.zeros((h, w), dtype=np.uint8)
+        mask = np.full((h, w), 255, dtype=np.uint8)
         # Continuous text from column 2 to 60, no gap
-        mask[3:13, 2:60] = 255
+        mask[3:13, 2:60] = 0
         result = detect_prefix(mask)
         assert result['type'] is None
 
     def test_full_height_cluster_rejected(self):
         """A full-height first cluster should be rejected (plain text character)."""
         h, w = 16, 80
-        mask = np.zeros((h, w), dtype=np.uint8)
+        mask = np.full((h, w), 255, dtype=np.uint8)
         # Full-height cluster: spans all rows
-        mask[0:16, 2:4] = 255
+        mask[0:16, 2:4] = 0
         # Gap then main text
-        mask[3:13, 12:60] = 255
+        mask[3:13, 12:60] = 0
         result = detect_prefix(mask)
         assert result['type'] is None
 
@@ -69,9 +69,9 @@ class TestDetectPrefix:
 def _make_dot_mask():
     """Create a mask with a small dot cluster + gap + main text."""
     h, w = 16, 80
-    mask = np.zeros((h, w), dtype=np.uint8)
-    mask[6:9, 2:4] = 255      # small dot
-    mask[3:13, 12:60] = 255   # main text
+    mask = np.full((h, w), 255, dtype=np.uint8)
+    mask[6:9, 2:4] = 0      # small dot
+    mask[3:13, 12:60] = 0   # main text
     return mask
 
 
@@ -81,13 +81,13 @@ def _make_nieun_mask():
     ㄴ shape: vertical stroke down, then horizontal stroke right.
     """
     h, w = 16, 80
-    mask = np.zeros((h, w), dtype=np.uint8)
+    mask = np.full((h, w), 255, dtype=np.uint8)
     # Vertical stroke: 2px wide, 5px tall
-    mask[4:9, 2:4] = 255
+    mask[4:9, 2:4] = 0
     # Horizontal stroke: 5px wide, 2px tall at bottom of vertical
-    mask[8:10, 2:7] = 255
+    mask[8:10, 2:7] = 0
     # Gap then main text
-    mask[3:13, 16:60] = 255
+    mask[3:13, 16:60] = 0
     return mask
 
 
@@ -133,6 +133,6 @@ class TestPrefixDetectorConfig:
         img[2, 2] = [103, 103, 255]
 
         mask = BULLET_DETECTOR.build_mask(img)
-        assert mask[1, 1] == 255  # blue matched
-        assert mask[2, 2] == 255  # red matched
-        assert mask[0, 0] == 0    # black not matched
+        assert mask[1, 1] == 0  # blue matched
+        assert mask[2, 2] == 0  # red matched
+        assert mask[0, 0] == 255   # black not matched

@@ -30,10 +30,9 @@ class EnchantHandler:
 
         content_bgr = seg['content_crop']
         section = seg['section']
-        detect_binary = seg['detect_binary']
         ocr_binary = seg['ocr_binary']
 
-        detected = splitter.detect_text_lines(detect_binary)
+        detected = splitter.detect_text_lines(ocr_binary)
         grouped = group_by_y(detected)
 
         slot_bands = detect_enchant_slot_headers(content_bgr)

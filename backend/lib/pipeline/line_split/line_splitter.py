@@ -131,16 +131,16 @@ class TooltipLineSplitter:
         # Convert to grayscale
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-        # Auto-detect background type and threshold accordingly
+        # Auto-detect background type and threshold to ocr_binary (ink=0)
         det = self.cfg['detection']
         mean_val = np.mean(gray)
         if mean_val >= det['background_polarity_cutoff']:
-            # Light background, dark text → invert so text becomes white (foreground)
-            _, binary = cv2.threshold(gray, det['binarization_threshold'], 255, cv2.THRESH_BINARY_INV)
-        else:
-            # Dark background, bright text → text is already bright (foreground)
+            # Light background, dark text → already ink=0
             _, binary = cv2.threshold(gray, det['binarization_threshold'], 255, cv2.THRESH_BINARY)
-        
+        else:
+            # Dark background, bright text → invert so ink becomes 0
+            _, binary = cv2.threshold(gray, det['binarization_threshold'], 255, cv2.THRESH_BINARY_INV)
+
         return img, gray, binary
     
     def _remove_borders(self, binary_img):
@@ -148,7 +148,10 @@ class TooltipLineSplitter:
         return binary_img
 
     def detect_text_lines(self, binary_img, min_height=None, max_height=None, min_width=None):
-        """Detect individual text lines using horizontal projection profile"""
+        """Detect individual text lines using horizontal projection profile.
+
+        Expects ocr_binary convention: ink=0 (black text), background=255 (white).
+        """
         if not DEPENDENCIES_AVAILABLE:
             return []
 
@@ -165,8 +168,8 @@ class TooltipLineSplitter:
         # Step 1: Remove UI border lines that bridge gaps between text lines
         cleaned = self._remove_borders(binary_img)
 
-        # Step 2: Horizontal projection on cleaned image
-        projection = np.sum(cleaned > 0, axis=1)
+        # Step 2: Horizontal projection on cleaned image (count ink=0 pixels)
+        projection = np.sum(cleaned == 0, axis=1)
 
         # Step 3: Find rows with actual text content
         threshold = max(det['row_density_minimum'], w * det['row_density_ratio'])
@@ -330,7 +333,7 @@ class TooltipLineSplitter:
         """Add a detected line, computing its horizontal extent from the original binary image."""
         line_h = y_end - y_start
         row_slice = binary_img[y_start:y_end, :]
-        col_projection = np.sum(row_slice > 0, axis=0)
+        col_projection = np.sum(row_slice == 0, axis=0)
 
         # Find contiguous ink clusters
         ink_cols = col_projection > 0
@@ -387,7 +390,7 @@ class TooltipLineSplitter:
                           y_start, y_end, min_height, max_height, min_width):
         """Split an oversized block into individual lines using local projection analysis."""
         block = cleaned[y_start:y_end, :]
-        projection = np.sum(block > 0, axis=1)
+        projection = np.sum(block == 0, axis=1)
 
         # Use a lower threshold to find gaps within the block
         tf = self.cfg['tall_block']['threshold_factor']

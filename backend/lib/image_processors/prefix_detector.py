@@ -114,10 +114,10 @@ class PrefixDetectorConfig:
     shapes: tuple          # ShapeDef instances to try
 
     def build_mask(self, img_bgr, tolerance=15):
-        """Combined binary mask for all configured colors."""
-        mask = np.zeros(img_bgr.shape[:2], dtype=np.uint8)
+        """Combined binary mask for all configured colors (ink=0, background=255)."""
+        mask = np.full(img_bgr.shape[:2], 255, dtype=np.uint8)
         for rgb in self.colors:
-            mask = np.maximum(mask, _color_mask(img_bgr, rgb, tolerance))
+            mask = np.minimum(mask, _color_mask(img_bgr, rgb, tolerance))
         return mask
 
 
@@ -135,23 +135,18 @@ SUBBULLET_DETECTOR = PrefixDetectorConfig(
 
 
 def _color_mask(img_bgr, rgb, tolerance):
-    """Binary mask matching a specific RGB color."""
+    """Binary mask matching a specific RGB color (ink=0, background=255)."""
     target = np.array([rgb[2], rgb[1], rgb[0]], dtype=np.int16)
     diff = np.abs(img_bgr.astype(np.int16) - target)
-    return np.all(diff <= tolerance, axis=2).astype(np.uint8) * 255
+    match = np.all(diff <= tolerance, axis=2)
+    result = np.full(img_bgr.shape[:2], 255, dtype=np.uint8)
+    result[match] = 0
+    return result
 
 
 
 def blue_text_mask(img_bgr, tolerance=15):
-    """Binary mask matching blue effect text color.
-
-    Args:
-        img_bgr: BGR color image (numpy array).
-        tolerance: per-channel distance from EFFECT_BLUE_RGB.
-
-    Returns:
-        uint8 array, 255 = match, 0 = no match.
-    """
+    """Binary mask matching blue effect text color (ink=0, background=255)."""
     return _color_mask(img_bgr, EFFECT_BLUE_RGB, tolerance)
 
 
@@ -161,27 +156,15 @@ def red_text_mask(img_bgr, tolerance=15):
 
 
 def bullet_text_mask(img_bgr, tolerance=15):
-    """Binary mask matching all prefix colors (bullet + subbullet).
-
-    Includes all colors that can carry · or ㄴ prefix marks.
-    detect_prefix() classifies by cluster width, not color.
-    """
-    mask = np.zeros(img_bgr.shape[:2], dtype=np.uint8)
+    """Binary mask matching all prefix colors (ink=0, background=255)."""
+    mask = np.full(img_bgr.shape[:2], 255, dtype=np.uint8)
     for rgb in set(BULLET_COLORS + SUBBULLET_COLORS):
-        mask = np.maximum(mask, _color_mask(img_bgr, rgb, tolerance))
+        mask = np.minimum(mask, _color_mask(img_bgr, rgb, tolerance))
     return mask
 
 
 def white_text_mask(img_bgr, tolerance=15):
-    """Binary mask matching white text color.
-
-    Args:
-        img_bgr: BGR color image (numpy array).
-        tolerance: per-channel distance from WHITE_TEXT_RGB.
-
-    Returns:
-        uint8 array, 255 = match, 0 = no match.
-    """
+    """Binary mask matching white text color (ink=0, background=255)."""
     return _color_mask(img_bgr, WHITE_TEXT_RGB, tolerance)
 
 
@@ -194,7 +177,7 @@ def _classify_ink(cluster_region, h, first_w, config, col_proj_slice=None):
 
     Returns prefix type string or None.
     """
-    ink_rows = int(np.sum(np.any(cluster_region > 0, axis=1)))
+    ink_rows = int(np.sum(np.any(cluster_region == 0, axis=1)))
     bullet_max_w = max(_BULLET_MAX_WIDTH_MINIMUM, int(h * _BULLET_MAX_WIDTH_RATIO))
 
     if first_w <= bullet_max_w:
@@ -245,7 +228,7 @@ def _is_dot_isolated(mask_line, first_start, first_end):
     then checks padding zones above and below for stray ink.
     """
     cluster_cols = mask_line[:, first_start:first_end]
-    ink_mask = np.any(cluster_cols > 0, axis=1)
+    ink_mask = np.any(cluster_cols == 0, axis=1)
     ink_indices = np.where(ink_mask)[0]
     if len(ink_indices) == 0:
         return False
@@ -268,13 +251,13 @@ def _is_dot_isolated(mask_line, first_start, first_end):
     # Check above: any ink in padding zone?
     if ink_top > 0:
         above = cluster_cols[above_start:ink_top]
-        if np.any(above > 0):
+        if np.any(above == 0):
             return False
 
     # Check below: any ink in padding zone?
     if ink_bot < h - 1:
         below = cluster_cols[ink_bot + 1:below_end]
-        if np.any(below > 0):
+        if np.any(below == 0):
             return False
 
     return True
@@ -301,7 +284,7 @@ def _classify_combined(cluster_region, h, first_w, config,
     if prefix_type is None:
         return None
 
-    ink_rows = int(np.sum(np.any(cluster_region > 0, axis=1)))
+    ink_rows = int(np.sum(np.any(cluster_region == 0, axis=1)))
 
     if prefix_type == 'bullet':
         bullet_max_w = max(_BULLET_MAX_WIDTH_MINIMUM, int(h * _BULLET_MAX_WIDTH_RATIO))
@@ -335,7 +318,7 @@ def detect_prefix(mask_line, config=None):
         [small ink cluster] → [clear gap] → [main text]
 
     Args:
-        mask_line: 2-D uint8 array of one line region (255 = ink).
+        mask_line: 2-D uint8 array of one line region (0 = ink, 255 = background).
         config:    optional PrefixDetectorConfig. When given, only accepts
                    prefixes matching config.name; rejects the other type.
 
@@ -373,12 +356,12 @@ def detect_prefix_per_color(img_bgr_line, config, tolerance=15):
             # A real bullet dot in any single-color mask has 2+ ink
             # pixels in exactly 1 ink row.  Anti-aliased specks are
             # either too sparse (1 pixel) or scattered across rows.
-            total_ink = int(np.sum(cluster > 0))
+            total_ink = int(np.sum(cluster == 0))
             if result['type'] == 'bullet':
                 # A real dot has 2+ ink pixels in exactly 1 row.
                 if total_ink < _BULLET_MIN_INK_PIXELS:
                     continue
-                ink_rows = int(np.sum(np.any(cluster > 0, axis=1)))
+                ink_rows = int(np.sum(np.any(cluster == 0, axis=1)))
                 if ink_rows > _BULLET_MAX_INK_ROWS_PER_COLOR:
                     continue
                 # BT.601 isolation: a real dot is isolated from all
@@ -387,7 +370,7 @@ def detect_prefix_per_color(img_bgr_line, config, tolerance=15):
                 if binary is None:
                     gray = np.dot(img_bgr_line[..., ::-1].astype(np.float32),
                                   [0.299, 0.587, 0.114]).astype(np.uint8)
-                    binary = ((gray > _BT601_THRESHOLD) * 255).astype(np.uint8)
+                    binary = ((gray <= _BT601_THRESHOLD) * 255).astype(np.uint8)
                 if not _is_dot_isolated(binary, result['x'], result['x'] + result['w']):
                     continue
             elif result['type'] == 'subbullet':
@@ -438,7 +421,7 @@ def _detect_subbullet_fallback(img_bgr_line, config, tolerance, binary):
         h, w = mask.shape[:2]
         if w < _MIN_MASK_WIDTH or h < _MIN_MASK_HEIGHT:
             continue
-        col_proj = np.sum(mask > 0, axis=0)
+        col_proj = np.sum(mask == 0, axis=0)
         first_start = first_end = main_start = -1
         for x in range(w):
             has_ink = col_proj[x] > 0
@@ -471,10 +454,10 @@ def _detect_subbullet_fallback(img_bgr_line, config, tolerance, binary):
     if binary is None:
         gray = np.dot(img_bgr_line[..., ::-1].astype(np.float32),
                       [0.299, 0.587, 0.114]).astype(np.uint8)
-        binary = ((gray > _BT601_THRESHOLD) * 255).astype(np.uint8)
+        binary = ((gray <= _BT601_THRESHOLD) * 255).astype(np.uint8)
 
     h_bin, w_bin = binary.shape[:2]
-    bin_col_proj = np.sum(binary > 0, axis=0)
+    bin_col_proj = np.sum(binary == 0, axis=0)
 
     # Step 3: find ink block in binary near cluster_x
     search_start = max(0, cluster_x - _FALLBACK_SEARCH_LEFT)
@@ -523,7 +506,7 @@ def _detect_subbullet_fallback(img_bgr_line, config, tolerance, binary):
         return None
 
     bin_block = binary[:, bin_ink_start:bin_ink_end]
-    ink_rows = int(np.sum(np.any(bin_block > 0, axis=1)))
+    ink_rows = int(np.sum(np.any(bin_block == 0, axis=1)))
 
     if ink_rows < max(_FALLBACK_MIN_INK_ROWS_MINIMUM, int(h_bin * _FALLBACK_MIN_INK_ROWS_RATIO)):
         return None
@@ -544,7 +527,7 @@ def _detect_prefix_on_mask(mask_line, config):
         return _no_prefix()
 
     # Column projection — number of ink pixels per column
-    col_proj = np.sum(mask_line > 0, axis=0)
+    col_proj = np.sum(mask_line == 0, axis=0)
 
     # State machine: first_cluster → gap → main_text
     first_start = first_end = main_start = -1

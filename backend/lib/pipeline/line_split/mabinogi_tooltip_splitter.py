@@ -20,7 +20,7 @@ class MabinogiTooltipSplitter(TooltipLineSplitter):
         """Remove narrow vertical border columns that interfere with line detection.
 
         Mabinogi tooltip images have thin UI border lines (1-2px wide columns
-        that span many rows).  These contribute white pixels per row that
+        that span many rows).  These contribute ink pixels per row that
         prevent gap detection between text lines.
 
         Only removes narrow runs (<=maximum_run_width wide) of high-density columns.
@@ -30,7 +30,7 @@ class MabinogiTooltipSplitter(TooltipLineSplitter):
         h, w = binary_img.shape
         cleaned = binary_img.copy()
 
-        col_density = np.sum(binary_img > 0, axis=0) / h
+        col_density = np.sum(binary_img == 0, axis=0) / h
         is_dense = col_density > br['column_density']
 
         in_run = False
@@ -42,12 +42,12 @@ class MabinogiTooltipSplitter(TooltipLineSplitter):
             elif not is_dense[col] and in_run:
                 run_width = col - run_start
                 if run_width <= br['maximum_run_width']:
-                    cleaned[:, run_start:col] = 0
+                    cleaned[:, run_start:col] = 255
                 in_run = False
         if in_run:
             run_width = w - run_start
             if run_width <= br['maximum_run_width']:
-                cleaned[:, run_start:w] = 0
+                cleaned[:, run_start:w] = 255
 
         return cleaned
 

@@ -10,20 +10,20 @@ class TestDetectTextLines:
         return TooltipLineSplitter(output_dir=str(tmp_path))
 
     def _make_binary_image(self, height, width, bands):
-        """Create a binary image with horizontal text bands.
+        """Create a binary image with horizontal text bands (ocr_binary convention).
 
         Args:
             height: image height
             width: image width
-            bands: list of (y_start, y_end) for white stripes (text)
+            bands: list of (y_start, y_end) for ink stripes (text)
 
         Returns:
-            uint8 array with 0 background, 255 text bands.
+            uint8 array with 255 background, 0 ink text bands.
         """
-        img = np.zeros((height, width), dtype=np.uint8)
+        img = np.full((height, width), 255, dtype=np.uint8)
         for y_start, y_end in bands:
             # Fill text band across most of the width (avoid edge border detection)
-            img[y_start:y_end, 10:width - 10] = 255
+            img[y_start:y_end, 10:width - 10] = 0
         return img
 
     def test_three_line_bands(self, tmp_path):
@@ -39,7 +39,7 @@ class TestDetectTextLines:
 
     def test_empty_image(self, tmp_path):
         splitter = self._make_splitter(tmp_path)
-        img = np.zeros((80, 200), dtype=np.uint8)
+        img = np.full((80, 200), 255, dtype=np.uint8)
         lines = splitter.detect_text_lines(img)
         assert len(lines) == 0
 

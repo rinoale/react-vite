@@ -84,7 +84,7 @@ def find_seeds(mask, region=None):
     Returns the topmost pixel of each vertical run in that column.
 
     Args:
-        mask: 2D uint8 array (255 = ink, 0 = background).
+        mask: 2D uint8 array (0 = ink, 255 = background).
         region: optional (r0, c0, r1, c1) sub-region.
 
     Returns:
@@ -101,13 +101,13 @@ def find_seeds(mask, region=None):
         return []
 
     # Find leftmost column with ink
-    col_has_ink = np.any(sub > 0, axis=0)
+    col_has_ink = np.any(sub == 0, axis=0)
     ink_cols = np.where(col_has_ink)[0]
     if len(ink_cols) == 0:
         return []
 
     left_col = ink_cols[0]
-    col_data = sub[:, left_col] > 0
+    col_data = sub[:, left_col] == 0
 
     # Extract topmost pixel of each vertical run
     seeds = []
@@ -134,7 +134,7 @@ def _measure_stroke_width(mask, row, col, direction):
         while True:
             nr = row + pr * sign * step
             nc = col + pc * sign * step
-            if 0 <= nr < h and 0 <= nc < w and mask[nr, nc] > 0:
+            if 0 <= nr < h and 0 <= nc < w and mask[nr, nc] == 0:
                 width += 1
                 step += 1
             else:
@@ -174,7 +174,7 @@ def _walk_segment(mask, row, col, direction, min_px, max_px):
         for offset in range(-half_w, half_w + 1):
             br = nr + pr * offset
             bc = nc + pc * offset
-            if 0 <= br < h and 0 <= bc < w and mask[br, bc] > 0:
+            if 0 <= br < h and 0 <= bc < w and mask[br, bc] == 0:
                 band_has_ink = True
                 walked.add((br, bc))
 
@@ -201,7 +201,7 @@ def _check_dot(mask, row, col, min_px, max_px):
         (extent_tuple, walked_set) or None if bounding box exceeds constraints.
     """
     h, w = mask.shape
-    if mask[row, col] == 0:
+    if mask[row, col] != 0:
         return None
 
     visited = set()
@@ -222,7 +222,7 @@ def _check_dot(mask, row, col, min_px, max_px):
         for dr, dc in ((0, 1), (0, -1), (1, 0), (-1, 0),
                        (1, 1), (1, -1), (-1, 1), (-1, -1)):
             nr, nc = r + dr, c + dc
-            if 0 <= nr < h and 0 <= nc < w and (nr, nc) not in visited and mask[nr, nc] > 0:
+            if 0 <= nr < h and 0 <= nc < w and (nr, nc) not in visited and mask[nr, nc] == 0:
                 visited.add((nr, nc))
                 queue.append((nr, nc))
 
@@ -250,7 +250,7 @@ def _try_shape(mask, seed, shape_def):
     row, col = seed
     h, w = mask.shape
 
-    if mask[row, col] == 0:
+    if mask[row, col] != 0:
         return None
 
     all_walked = set()
@@ -298,7 +298,7 @@ def _try_shape(mask, seed, shape_def):
                 pr, pc = _PERP_DELTAS[next_dir]
                 sr = end_row + next_dr + pr * offset
                 sc = end_col + next_dc + pc * offset
-                if 0 <= sr < h and 0 <= sc < w and mask[sr, sc] > 0:
+                if 0 <= sr < h and 0 <= sc < w and mask[sr, sc] == 0:
                     if best is None:
                         best = (sr, sc)
                     break
@@ -307,7 +307,7 @@ def _try_shape(mask, seed, shape_def):
                 # Try the direct next position
                 sr = end_row + next_dr
                 sc = end_col + next_dc
-                if 0 <= sr < h and 0 <= sc < w and mask[sr, sc] > 0:
+                if 0 <= sr < h and 0 <= sc < w and mask[sr, sc] == 0:
                     best = (sr, sc)
 
             if best is None:
@@ -336,7 +336,7 @@ def find_shape(mask, shapes, region=None):
     """Find the first matching shape in the mask.
 
     Args:
-        mask: 2D uint8 array (255 = ink).
+        mask: 2D uint8 array (0 = ink, 255 = background).
         shapes: list of ShapeDef to try (priority order).
         region: optional (r0, c0, r1, c1) sub-region.
 
@@ -356,7 +356,7 @@ def find_all_shapes(mask, shapes, region=None):
     """Find all matching shapes in the mask.
 
     Args:
-        mask: 2D uint8 array (255 = ink).
+        mask: 2D uint8 array (0 = ink, 255 = background).
         shapes: list of ShapeDef to try.
         region: optional (r0, c0, r1, c1) sub-region.
 
@@ -381,7 +381,7 @@ def classify_cluster(mask, shapes):
     cluster mask and tries each shape definition.
 
     Args:
-        mask: 2D uint8 array of the cluster region (255 = ink).
+        mask: 2D uint8 array of the cluster region (0 = ink, 255 = background).
         shapes: list of ShapeDef to try (priority order).
 
     Returns:

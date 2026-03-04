@@ -28,22 +28,22 @@ def _make_nieun(h, w, v_start, v_len, h_len, stroke_w=1):
         stroke_w: stroke thickness (pixels).
 
     Returns:
-        uint8 mask with 255 = ink.
+        uint8 mask with 0 = ink, 255 = background.
     """
-    mask = np.zeros((h, w), dtype=np.uint8)
+    mask = np.full((h, w), 255, dtype=np.uint8)
     # Vertical stroke (going down from v_start)
     v_end = v_start + v_len
-    mask[v_start:v_end, 0:stroke_w] = 255
+    mask[v_start:v_end, 0:stroke_w] = 0
     # Horizontal stroke (going right from bottom of vertical)
     corner_row = v_end - stroke_w
-    mask[corner_row:corner_row + stroke_w, 0:h_len] = 255
+    mask[corner_row:corner_row + stroke_w, 0:h_len] = 0
     return mask
 
 
 def _make_dot(h, w, r, c, size):
     """Draw a small square dot."""
-    mask = np.zeros((h, w), dtype=np.uint8)
-    mask[r:r + size, c:c + size] = 255
+    mask = np.full((h, w), 255, dtype=np.uint8)
+    mask[r:r + size, c:c + size] = 0
     return mask
 
 
@@ -82,36 +82,36 @@ class TestShapeDef:
 
 class TestFindSeeds:
     def test_empty_mask(self):
-        mask = np.zeros((10, 10), dtype=np.uint8)
+        mask = np.full((10, 10), 255, dtype=np.uint8)
         assert find_seeds(mask) == []
 
     def test_single_pixel(self):
-        mask = np.zeros((10, 10), dtype=np.uint8)
-        mask[5, 3] = 255
+        mask = np.full((10, 10), 255, dtype=np.uint8)
+        mask[5, 3] = 0
         seeds = find_seeds(mask)
         assert seeds == [(5, 3)]
 
     def test_prefers_leftmost(self):
-        mask = np.zeros((10, 20), dtype=np.uint8)
-        mask[3, 8] = 255   # further right
-        mask[5, 2] = 255   # leftmost
+        mask = np.full((10, 20), 255, dtype=np.uint8)
+        mask[3, 8] = 0   # further right
+        mask[5, 2] = 0   # leftmost
         seeds = find_seeds(mask)
         assert all(c == 2 for _, c in seeds)
 
     def test_multiple_runs(self):
         """Two separate vertical runs in leftmost column → two seeds."""
-        mask = np.zeros((20, 10), dtype=np.uint8)
-        mask[2:5, 0] = 255    # first run
-        mask[10:14, 0] = 255  # second run
+        mask = np.full((20, 10), 255, dtype=np.uint8)
+        mask[2:5, 0] = 0    # first run
+        mask[10:14, 0] = 0  # second run
         seeds = find_seeds(mask)
         assert len(seeds) == 2
         assert seeds[0] == (2, 0)
         assert seeds[1] == (10, 0)
 
     def test_region_restriction(self):
-        mask = np.zeros((20, 20), dtype=np.uint8)
-        mask[2, 1] = 255   # outside region
-        mask[12, 8] = 255  # inside region
+        mask = np.full((20, 20), 255, dtype=np.uint8)
+        mask[2, 1] = 0   # outside region
+        mask[12, 8] = 0  # inside region
         seeds = find_seeds(mask, region=(10, 5, 15, 15))
         assert len(seeds) == 1
         assert seeds[0] == (12, 8)
@@ -162,8 +162,8 @@ class TestShapeDot:
         assert match.shape.name == '·'
 
     def test_single_pixel_dot(self):
-        mask = np.zeros((6, 6), dtype=np.uint8)
-        mask[3, 0] = 255
+        mask = np.full((6, 6), 255, dtype=np.uint8)
+        mask[3, 0] = 0
         match = classify_cluster(mask, [SHAPE_DOT])
         assert match is not None
         assert match.shape.name == '·'
@@ -183,14 +183,14 @@ class TestShapeDot:
 
 class TestFindShape:
     def test_region_restriction(self):
-        mask = np.zeros((30, 30), dtype=np.uint8)
-        mask[20:23, 10:12] = 255  # dot in lower region
+        mask = np.full((30, 30), 255, dtype=np.uint8)
+        mask[20:23, 10:12] = 0  # dot in lower region
         match = find_shape(mask, [SHAPE_DOT], region=(15, 5, 28, 25))
         assert match is not None
         assert match.shape.name == '·'
 
     def test_no_match(self):
-        mask = np.zeros((10, 10), dtype=np.uint8)
+        mask = np.full((10, 10), 255, dtype=np.uint8)
         assert find_shape(mask, [SHAPE_NIEUN, SHAPE_DOT]) is None
 
     def test_priority_order(self):
@@ -202,10 +202,10 @@ class TestFindShape:
 
     def test_find_all_shapes(self):
         """Multiple seeds can produce multiple matches."""
-        mask = np.zeros((30, 10), dtype=np.uint8)
+        mask = np.full((30, 10), 255, dtype=np.uint8)
         # Two dots at different vertical positions in leftmost column
-        mask[3:5, 0:2] = 255
-        mask[20:22, 0:2] = 255
+        mask[3:5, 0:2] = 0
+        mask[20:22, 0:2] = 0
         matches = find_all_shapes(mask, [SHAPE_DOT])
         assert len(matches) == 2
         assert all(m.shape.name == '·' for m in matches)
@@ -215,8 +215,8 @@ class TestCustomShapes:
     def test_horizontal_bar(self):
         """A shape defined as RIGHT-only should match a horizontal bar."""
         shape_bar = ShapeDef('bar', (Segment(Direction.RIGHT, min_px=5),))
-        mask = np.zeros((5, 20), dtype=np.uint8)
-        mask[2, 0:10] = 255
+        mask = np.full((5, 20), 255, dtype=np.uint8)
+        mask[2, 0:10] = 0
         match = classify_cluster(mask, [shape_bar])
         assert match is not None
         assert match.shape.name == 'bar'
@@ -228,11 +228,11 @@ class TestCustomShapes:
             Segment(Direction.RIGHT, min_px=3),
             Segment(Direction.DOWN, min_px=3),
         ))
-        mask = np.zeros((12, 12), dtype=np.uint8)
+        mask = np.full((12, 12), 255, dtype=np.uint8)
         # Horizontal bar across top
-        mask[0, 0:6] = 255
+        mask[0, 0:6] = 0
         # Vertical bar from right end going down
-        mask[0:7, 5] = 255
+        mask[0:7, 5] = 0
         match = classify_cluster(mask, [shape_giyeok])
         assert match is not None
         assert match.shape.name == 'ㄱ'
@@ -240,31 +240,31 @@ class TestCustomShapes:
     def test_custom_shape_no_match(self):
         """Shape doesn't match when pattern is wrong."""
         shape_up = ShapeDef('up', (Segment(Direction.UP, min_px=5),))
-        mask = np.zeros((10, 10), dtype=np.uint8)
+        mask = np.full((10, 10), 255, dtype=np.uint8)
         # Horizontal line — won't match UP direction
-        mask[5, 0:8] = 255
+        mask[5, 0:8] = 0
         match = classify_cluster(mask, [shape_up])
         assert match is None
 
 
 class TestEdgeCases:
     def test_empty_mask(self):
-        mask = np.zeros((10, 10), dtype=np.uint8)
+        mask = np.full((10, 10), 255, dtype=np.uint8)
         assert classify_cluster(mask, [SHAPE_NIEUN, SHAPE_DOT]) is None
 
     def test_full_mask(self):
         """Fully inked mask — too large for DOT, ㄴ walks everywhere."""
-        mask = np.full((10, 10), 255, dtype=np.uint8)
+        mask = np.zeros((10, 10), dtype=np.uint8)
         match = classify_cluster(mask, [SHAPE_DOT])
         assert match is None  # extent > 4
 
     def test_scattered_noise(self):
         """Random sparse noise — unlikely to form a valid shape."""
         rng = np.random.RandomState(42)
-        mask = np.zeros((20, 20), dtype=np.uint8)
+        mask = np.full((20, 20), 255, dtype=np.uint8)
         # Scatter 5 random pixels
         for _ in range(5):
-            mask[rng.randint(0, 20), rng.randint(0, 20)] = 255
+            mask[rng.randint(0, 20), rng.randint(0, 20)] = 0
         # Shouldn't match ㄴ (needs connected down→right)
         match = classify_cluster(mask, [SHAPE_NIEUN])
         assert match is None

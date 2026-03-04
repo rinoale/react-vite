@@ -139,8 +139,8 @@ def oreo_flip(content_bgr):
     min_ch = np.minimum(np.minimum(r, g), b)
     white_mask = (max_ch > _WHITE_MIN_BRIGHTNESS) & ((max_ch / (min_ch + 1)) < _WHITE_MAX_CHANNEL_RATIO)
     white_mask = _strip_border_cols(white_mask)
-    ocr_input = cv2.bitwise_not(white_mask.astype(np.uint8) * 255)
-    return white_mask, ocr_input
+    ocr_binary = (~white_mask).astype(np.uint8) * 255
+    return white_mask, ocr_binary
 
 
 def hsv_yellow_binary(content_bgr):
