@@ -12,12 +12,14 @@ uses bullet prefix detection instead of effect counting.
 """
 
 
-def detect_gap_outlier(active_items):
+def detect_gap_outlier(active_items, gap_multiplier=2, gap_offset=4):
     """Find where a vertical gap outlier starts, scanning from the bottom.
 
     Args:
-        active_items: [(orig_index, bounds_dict), ...] pre-filtered active items.
-                      Each bounds_dict must have 'y' and 'height'.
+        active_items:  [(orig_index, bounds_dict), ...] pre-filtered active items.
+                       Each bounds_dict must have 'y' and 'height'.
+        gap_multiplier: Multiplier on median gap for outlier threshold.
+        gap_offset:     Additive offset on median gap for outlier threshold.
 
     Returns:
         Position in active_items where the outlier starts, or None.
@@ -34,7 +36,7 @@ def detect_gap_outlier(active_items):
 
     sorted_gaps = sorted(g for _, g in gaps)
     median_gap = sorted_gaps[len(sorted_gaps) // 2]
-    threshold = max(median_gap * 2, median_gap + 4)
+    threshold = max(median_gap * gap_multiplier, median_gap + gap_offset)
 
     for k, gap in reversed(gaps):
         if gap >= threshold:

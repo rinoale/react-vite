@@ -63,21 +63,30 @@ def trim_outlier_tail(items, header_test):
     return items
 
 
-def promote_grey_by_prefix(classifications, content_bgr):
+def promote_grey_by_prefix(classifications, content_bgr, padding_config=None):
     """Promote grey-classified lines to 'effect' if bullet prefix detected.
 
     Args:
         classifications: list of (group, bounds, line_type) tuples.
         content_bgr:     BGR color image of the content region.
+        padding_config:  padding sub-config dict (horizontal_divisor, etc.).
+                         Uses defaults matching extract_lines if None.
 
     Returns:
         Updated classifications list (mutated in place and returned).
     """
+    if padding_config is None:
+        padding_config = {
+            'horizontal_divisor': 3, 'horizontal_minimum': 2,
+            'vertical_divisor': 5, 'vertical_minimum': 1,
+        }
     for i, (group, bounds, line_type) in enumerate(classifications):
         if line_type != 'grey':
             continue
-        pad_y = max(1, bounds['height'] // 5)
-        pad_x = max(2, bounds['height'] // 3)
+        pad_y = max(padding_config['vertical_minimum'],
+                    bounds['height'] // padding_config['vertical_divisor'])
+        pad_x = max(padding_config['horizontal_minimum'],
+                    bounds['height'] // padding_config['horizontal_divisor'])
         y0 = max(0, bounds['y'] - pad_y)
         y1 = min(content_bgr.shape[0], bounds['y'] + bounds['height'] + pad_y)
         x0 = max(0, bounds['x'] - pad_x)
@@ -114,12 +123,15 @@ def determine_enchant_slots(classifications):
         return []
 
 
-def _stitch_crop(target, source):
+def _stitch_crop(target, source, baseline_offset=_STITCH_BASELINE_OFFSET):
     """Append source's _crop image to the right of target's _crop.
 
     Continuation lines are the same logical line, so crops are aligned
     at the top. The shorter crop is bottom-padded with white (255).
     No-op if either side lacks a _crop.
+
+    Args:
+        baseline_offset: Vertical pixel offset for the right (continuation) crop.
     """
     t_crop = target.get('_crop')
     s_crop = source.get('_crop')
@@ -127,8 +139,8 @@ def _stitch_crop(target, source):
         return
 
     white = np.uint8(255)
-    if _STITCH_BASELINE_OFFSET > 0:
-        s_crop = np.vstack([np.full((_STITCH_BASELINE_OFFSET, s_crop.shape[1]), white, dtype=s_crop.dtype), s_crop])
+    if baseline_offset > 0:
+        s_crop = np.vstack([np.full((baseline_offset, s_crop.shape[1]), white, dtype=s_crop.dtype), s_crop])
 
     h_t, h_s = t_crop.shape[0], s_crop.shape[0]
     max_h = max(h_t, h_s)
@@ -139,7 +151,8 @@ def _stitch_crop(target, source):
     target['_crop'] = np.hstack([t_crop, s_crop])
 
 
-def merge_continuations(lines, header_field='is_enchant_hdr'):
+def merge_continuations(lines, header_field='is_enchant_hdr',
+                        baseline_offset=_STITCH_BASELINE_OFFSET):
     """Merge continuation lines into preceding bullet-prefixed effects.
 
     Runs on assembled ocr_results (not raw effect_batch) so that headers
@@ -157,8 +170,9 @@ def merge_continuations(lines, header_field='is_enchant_hdr'):
     which is filtered in v3_pipeline.py.
 
     Args:
-        lines:        list of line dicts (mutated in place).
-        header_field: key to check for header lines (default 'is_enchant_hdr').
+        lines:           list of line dicts (mutated in place).
+        header_field:    key to check for header lines (default 'is_enchant_hdr').
+        baseline_offset: vertical pixel offset for crop stitching.
     """
     anchor_idx = None
     for i, line in enumerate(lines):
@@ -175,7 +189,7 @@ def merge_continuations(lines, header_field='is_enchant_hdr'):
             anchor['text'] = f"{anchor['text']} {line['text']}".strip()
             if 'raw_text' in anchor and 'raw_text' in line:
                 anchor['raw_text'] = f"{anchor['raw_text']} {line['raw_text']}".strip()
-            _stitch_crop(anchor, line)  # continuation stitch: merge crop + mark
+            _stitch_crop(anchor, line, baseline_offset)  # continuation stitch: merge crop + mark
             anchor['_is_stitched'] = True
             line['text'] = ''
             line['_cont_merged'] = True

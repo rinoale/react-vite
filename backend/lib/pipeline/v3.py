@@ -10,6 +10,7 @@ import uuid
 
 import cv2
 import easyocr
+import yaml
 
 from lib.utils.log import logger, timed, timed_block
 from lib.pipeline.tooltip_parsers import MabinogiTooltipParser
@@ -28,6 +29,7 @@ from lib.text_processors import MabinogiTextCorrector
 BASE_DIR    = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 MODELS_DIR  = os.path.join(BASE_DIR, 'ocr', 'models')
 CONFIG_PATH = os.path.join(BASE_DIR, '..', 'configs', 'mabinogi_tooltip.yaml')
+LINE_SPLIT_CONFIG_PATH = os.path.join(BASE_DIR, '..', 'configs', 'line_split.yaml')
 DICT_DIR    = os.path.join(BASE_DIR, '..', 'data', 'dictionary')
 
 
@@ -89,8 +91,15 @@ def init_pipeline():
                       recog_network='custom_preheader_nanum_gothic')
 
     parser = MabinogiTooltipParser(CONFIG_PATH)
-    splitter = MabinogiTooltipSplitter()
-    splitter.horizontal_split_factor = parser.config.get('horizontal_split_factor', 3)
+
+    # Load line-split config and apply game-specific horizontal split override
+    with open(LINE_SPLIT_CONFIG_PATH, 'r') as f:
+        line_split_cfg = yaml.safe_load(f) or {}
+    game_split = parser.config.get('horizontal_split_factor')
+    if game_split is not None:
+        line_split_cfg.setdefault('horizontal', {})['split_factor'] = game_split
+    splitter = MabinogiTooltipSplitter(config=line_split_cfg)
+
     section_patterns = load_section_patterns(CONFIG_PATH)
     config = load_config(CONFIG_PATH)
     corrector = MabinogiTextCorrector(dict_dir=DICT_DIR)

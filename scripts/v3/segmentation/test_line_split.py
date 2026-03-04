@@ -36,12 +36,14 @@ import sys
 
 import cv2
 import numpy as np
+import yaml
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 sys.path.insert(0, PROJECT_ROOT)
 sys.path.insert(0, os.path.join(PROJECT_ROOT, 'backend'))
 
 CONFIG_PATH = os.path.join(PROJECT_ROOT, 'configs', 'mabinogi_tooltip.yaml')
+LINE_SPLIT_CONFIG_PATH = os.path.join(PROJECT_ROOT, 'configs', 'line_split.yaml')
 MODELS_DIR = os.path.join(PROJECT_ROOT, 'backend', 'ocr', 'models')
 
 from lib.pipeline.segmenter import (
@@ -89,8 +91,12 @@ def process_image(image_path, output_root, header_reader, patterns, config):
     # detection + build_segments + header classification in one call.
     tagged = segment_and_tag(img, header_reader, patterns, config)
 
-    splitter = MabinogiTooltipSplitter()
-    splitter.horizontal_split_factor = config.get('horizontal_split_factor', 3)
+    with open(LINE_SPLIT_CONFIG_PATH, 'r') as f:
+        line_split_cfg = yaml.safe_load(f) or {}
+    game_split = config.get('horizontal_split_factor')
+    if game_split is not None:
+        line_split_cfg.setdefault('horizontal', {})['split_factor'] = game_split
+    splitter = MabinogiTooltipSplitter(config=line_split_cfg)
 
     print(f"\n{'='*60}")
     print(f"  {os.path.basename(image_path)}")

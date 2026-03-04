@@ -47,6 +47,60 @@ BULLET_COLORS = [EFFECT_BLUE_RGB, EFFECT_RED_RGB, EFFECT_GREY_RGB, EFFECT_LIGHT_
 # + grey (disabled/conditional effects).
 SUBBULLET_COLORS = [WHITE_TEXT_RGB, EFFECT_RED_RGB, EFFECT_GREY_RGB]
 
+# ---------------------------------------------------------------------------
+# Detection thresholds — extracted from inline magic numbers.
+# ---------------------------------------------------------------------------
+
+# Mask minimum dimensions (skip detection on tiny regions)
+_MIN_MASK_WIDTH = 10
+_MIN_MASK_HEIGHT = 3
+
+# Prefix cluster state machine: [small cluster] → [gap] → [main text]
+_MAX_PREFIX_WIDTH_RATIO = 0.7       # max first-cluster width relative to line height
+_MAX_PREFIX_WIDTH_MINIMUM = 8       # absolute floor for max prefix width
+_MIN_GAP_RATIO = 0.2               # min gap width relative to line height
+_MIN_GAP_MINIMUM = 2               # absolute floor for min gap width
+
+# Bullet (·) size constraints
+_BULLET_MAX_WIDTH_RATIO = 0.25     # max cluster width relative to line height
+_BULLET_MAX_WIDTH_MINIMUM = 3      # absolute floor for max bullet width
+_BULLET_MAX_INK_ROWS_RATIO = 0.5   # max ink rows relative to line height
+_BULLET_MAX_INK_ROWS_MINIMUM = 4   # absolute floor for max bullet ink rows
+_BULLET_COLUMN_UNIFORMITY_FACTOR = 2  # max/min column ink ratio (rejects '[')
+_BULLET_MIN_INK_PIXELS = 2         # minimum total ink pixels in single-color mask
+_BULLET_MAX_INK_ROWS_PER_COLOR = 1 # max ink rows in single-color mask (real dot = 1)
+
+# Dot (·) vertical isolation
+_DOT_MAX_SPAN_RATIO = 0.4          # max vertical ink span relative to line height
+_DOT_MAX_SPAN_MINIMUM = 4          # absolute floor for max ink span
+_DOT_PAD_MINIMUM = 2               # minimum padding zone for isolation check
+
+# Subbullet (ㄴ) size constraints
+_SUBBULLET_MAX_WIDTH_RATIO = 0.45  # max cluster width relative to line height
+_SUBBULLET_MAX_WIDTH_MINIMUM = 6   # absolute floor for max subbullet width
+_SUBBULLET_MAX_INK_ROWS_RATIO = 0.75  # max ink rows relative to line height
+_SUBBULLET_MAX_INK_ROWS_MINIMUM = 8   # absolute floor for max subbullet ink rows
+_SUBBULLET_MIN_INK_PIXELS = 6      # minimum total ink pixels in single-color mask
+_SUBBULLET_MIN_GAP_PER_COLOR = 3   # minimum gap width in single-color validation
+_SUBBULLET_MIN_LINE_HEIGHT = 10    # skip subbullet detection on short lines
+
+# BT.601 binary threshold (used for isolation check and fallback validation)
+_BT601_THRESHOLD = 80
+
+# Subbullet fallback: color-mask locator → BT.601 binary validator
+_FALLBACK_MAX_OFFSET_RATIO = 0.15  # max cluster x-position relative to width
+_FALLBACK_MAX_OFFSET_MINIMUM = 10  # absolute floor for max cluster x-position
+_FALLBACK_MAX_PREFIX_WIDTH_RATIO = 0.5   # max prefix width relative to height
+_FALLBACK_MAX_PREFIX_WIDTH_MINIMUM = 6   # absolute floor for max prefix width
+_FALLBACK_SEARCH_LEFT = 2          # columns to search left of color-mask cluster
+_FALLBACK_SEARCH_RIGHT = 3         # columns to search right of color-mask cluster
+_FALLBACK_SEARCH_RANGE = 10        # max columns to scan for ink block / main text
+_FALLBACK_MAX_NIEUN_WIDTH = 6      # max ㄴ width in BT.601 binary
+_FALLBACK_MIN_GAP_RATIO = 0.2      # min gap width relative to line height
+_FALLBACK_MIN_GAP_MINIMUM = 3      # absolute floor for min gap width
+_FALLBACK_MIN_INK_ROWS_RATIO = 0.5   # min ink rows relative to line height
+_FALLBACK_MIN_INK_ROWS_MINIMUM = 6   # absolute floor for min ink rows
+
 
 @dataclass(frozen=True)
 class PrefixDetectorConfig:
@@ -141,20 +195,20 @@ def _classify_ink(cluster_region, h, first_w, config, col_proj_slice=None):
     Returns prefix type string or None.
     """
     ink_rows = int(np.sum(np.any(cluster_region > 0, axis=1)))
-    bullet_max_w = max(3, int(h * 0.25))
+    bullet_max_w = max(_BULLET_MAX_WIDTH_MINIMUM, int(h * _BULLET_MAX_WIDTH_RATIO))
 
     if first_w <= bullet_max_w:
-        if ink_rows > max(4, int(h * 0.5)):
+        if ink_rows > max(_BULLET_MAX_INK_ROWS_MINIMUM, int(h * _BULLET_MAX_INK_ROWS_RATIO)):
             return None
         # Uniform column check: real '-' has similar ink count per column.
         # '[' has e.g. [4, 2] — vertical bar vs horizontal tip.
         if col_proj_slice is not None and len(col_proj_slice) > 1:
             mn, mx = int(col_proj_slice.min()), int(col_proj_slice.max())
-            if mn > 0 and mx > mn * 2:
+            if mn > 0 and mx > mn * _BULLET_COLUMN_UNIFORMITY_FACTOR:
                 return None
         prefix_type = 'bullet'
     else:
-        if ink_rows > max(8, int(h * 0.75)):
+        if ink_rows > max(_SUBBULLET_MAX_INK_ROWS_MINIMUM, int(h * _SUBBULLET_MAX_INK_ROWS_RATIO)):
             return None
         prefix_type = 'subbullet'
 
@@ -203,11 +257,11 @@ def _is_dot_isolated(mask_line, first_start, first_end):
 
     # Span check: ink rows should be compact, not scattered across the line
     # A real dot spans at most ~4 rows; bracket corners span 10+
-    if ink_span > max(4, int(h * 0.4)):
+    if ink_span > max(_DOT_MAX_SPAN_MINIMUM, int(h * _DOT_MAX_SPAN_RATIO)):
         return False
 
     # Vertical padding check: look for ink above and below the cluster
-    pad = max(2, ink_span)
+    pad = max(_DOT_PAD_MINIMUM, ink_span)
     above_start = max(0, ink_top - pad)
     below_end = min(h, ink_bot + pad + 1)
 
@@ -250,14 +304,14 @@ def _classify_combined(cluster_region, h, first_w, config,
     ink_rows = int(np.sum(np.any(cluster_region > 0, axis=1)))
 
     if prefix_type == 'bullet':
-        bullet_max_w = max(3, int(h * 0.25))
+        bullet_max_w = max(_BULLET_MAX_WIDTH_MINIMUM, int(h * _BULLET_MAX_WIDTH_RATIO))
         if first_w > bullet_max_w:
             return None
-        if ink_rows > max(4, int(h * 0.5)):
+        if ink_rows > max(_BULLET_MAX_INK_ROWS_MINIMUM, int(h * _BULLET_MAX_INK_ROWS_RATIO)):
             return None
         if col_proj_slice is not None and len(col_proj_slice) > 1:
             mn, mx = int(col_proj_slice.min()), int(col_proj_slice.max())
-            if mn > 0 and mx > mn * 2:
+            if mn > 0 and mx > mn * _BULLET_COLUMN_UNIFORMITY_FACTOR:
                 return None
         if mask_line is not None:
             if not _is_dot_isolated(mask_line, first_start, first_end):
@@ -266,9 +320,9 @@ def _classify_combined(cluster_region, h, first_w, config,
         # A real ㄴ at game font is 3-5 cols wide in the cluster.
         # Wider clusters are multi-character fragments that happen
         # to pass the L-shape check.
-        if first_w > max(6, int(h * 0.45)):
+        if first_w > max(_SUBBULLET_MAX_WIDTH_MINIMUM, int(h * _SUBBULLET_MAX_WIDTH_RATIO)):
             return None
-        if ink_rows > max(8, int(h * 0.75)):
+        if ink_rows > max(_SUBBULLET_MAX_INK_ROWS_MINIMUM, int(h * _SUBBULLET_MAX_INK_ROWS_RATIO)):
             return None
 
     return prefix_type
@@ -322,10 +376,10 @@ def detect_prefix_per_color(img_bgr_line, config, tolerance=15):
             total_ink = int(np.sum(cluster > 0))
             if result['type'] == 'bullet':
                 # A real dot has 2+ ink pixels in exactly 1 row.
-                if total_ink < 2:
+                if total_ink < _BULLET_MIN_INK_PIXELS:
                     continue
                 ink_rows = int(np.sum(np.any(cluster > 0, axis=1)))
-                if ink_rows > 1:
+                if ink_rows > _BULLET_MAX_INK_ROWS_PER_COLOR:
                     continue
                 # BT.601 isolation: a real dot is isolated from all
                 # text, not just same-color text.  Anti-aliased specks
@@ -333,22 +387,22 @@ def detect_prefix_per_color(img_bgr_line, config, tolerance=15):
                 if binary is None:
                     gray = np.dot(img_bgr_line[..., ::-1].astype(np.float32),
                                   [0.299, 0.587, 0.114]).astype(np.uint8)
-                    binary = ((gray > 80) * 255).astype(np.uint8)
+                    binary = ((gray > _BT601_THRESHOLD) * 255).astype(np.uint8)
                 if not _is_dot_isolated(binary, result['x'], result['x'] + result['w']):
                     continue
             elif result['type'] == 'subbullet':
                 # A real ㄴ has ~10 pixels: 6 vertical + 4 horizontal.
                 # Shape walker already validates the L-shape, so only
                 # a minimum ink check is needed here.
-                if total_ink < 6:
+                if total_ink < _SUBBULLET_MIN_INK_PIXELS:
                     continue
                 # A real ㄴ has a clear gap (≥3 cols) before main text.
                 # Text character fragments have smaller gaps (1-2 cols).
-                if result['gap'] < 3:
+                if result['gap'] < _SUBBULLET_MIN_GAP_PER_COLOR:
                     continue
                 # A real ㄴ line is 10+ rows after padding. Short lines
                 # (h<10) have text characters that mimic L-shapes.
-                if img_bgr_line.shape[0] < 10:
+                if img_bgr_line.shape[0] < _SUBBULLET_MIN_LINE_HEIGHT:
                     continue
             return result
 
@@ -382,7 +436,7 @@ def _detect_subbullet_fallback(img_bgr_line, config, tolerance, binary):
     for rgb in config.colors:
         mask = _color_mask(img_bgr_line, rgb, tolerance)
         h, w = mask.shape[:2]
-        if w < 10 or h < 3:
+        if w < _MIN_MASK_WIDTH or h < _MIN_MASK_HEIGHT:
             continue
         col_proj = np.sum(mask > 0, axis=0)
         first_start = first_end = main_start = -1
@@ -402,10 +456,10 @@ def _detect_subbullet_fallback(img_bgr_line, config, tolerance, binary):
             continue
         # Cluster must be near the left edge — a subbullet prefix
         # is always at the start of the line, not mid-text.
-        if first_start > max(10, int(w * 0.15)):
+        if first_start > max(_FALLBACK_MAX_OFFSET_MINIMUM, int(w * _FALLBACK_MAX_OFFSET_RATIO)):
             continue
         first_w = first_end - first_start
-        max_prefix_w = max(6, int(h * 0.5))
+        max_prefix_w = max(_FALLBACK_MAX_PREFIX_WIDTH_MINIMUM, int(h * _FALLBACK_MAX_PREFIX_WIDTH_RATIO))
         if first_w <= max_prefix_w:
             cluster_x = first_start
             break
@@ -417,15 +471,15 @@ def _detect_subbullet_fallback(img_bgr_line, config, tolerance, binary):
     if binary is None:
         gray = np.dot(img_bgr_line[..., ::-1].astype(np.float32),
                       [0.299, 0.587, 0.114]).astype(np.uint8)
-        binary = ((gray > 80) * 255).astype(np.uint8)
+        binary = ((gray > _BT601_THRESHOLD) * 255).astype(np.uint8)
 
     h_bin, w_bin = binary.shape[:2]
     bin_col_proj = np.sum(binary > 0, axis=0)
 
     # Step 3: find ink block in binary near cluster_x
-    search_start = max(0, cluster_x - 2)
+    search_start = max(0, cluster_x - _FALLBACK_SEARCH_LEFT)
     bin_ink_start = -1
-    for x in range(search_start, min(w_bin, cluster_x + 3)):
+    for x in range(search_start, min(w_bin, cluster_x + _FALLBACK_SEARCH_RIGHT)):
         if bin_col_proj[x] > 0:
             bin_ink_start = x
             break
@@ -435,7 +489,7 @@ def _detect_subbullet_fallback(img_bgr_line, config, tolerance, binary):
 
     # Find end of ink block (first zero column)
     bin_ink_end = -1
-    for x in range(bin_ink_start + 1, min(w_bin, bin_ink_start + 10)):
+    for x in range(bin_ink_start + 1, min(w_bin, bin_ink_start + _FALLBACK_SEARCH_RANGE)):
         if bin_col_proj[x] == 0:
             bin_ink_end = x
             break
@@ -445,7 +499,7 @@ def _detect_subbullet_fallback(img_bgr_line, config, tolerance, binary):
 
     # Find main text start (first ink after gap)
     bin_main_start = -1
-    for x in range(bin_ink_end + 1, min(w_bin, bin_ink_end + 10)):
+    for x in range(bin_ink_end + 1, min(w_bin, bin_ink_end + _FALLBACK_SEARCH_RANGE)):
         if bin_col_proj[x] > 0:
             bin_main_start = x
             break
@@ -459,19 +513,19 @@ def _detect_subbullet_fallback(img_bgr_line, config, tolerance, binary):
 
     # Width: a real ㄴ in binary is 3-4 cols wide.
     # Text characters are 8+.
-    if nieun_w > 6:
+    if nieun_w > _FALLBACK_MAX_NIEUN_WIDTH:
         return None
 
     # Gap: a real ㄴ has a clear gap (≥3 cols) before main text.
     # Text character inter-character gaps are typically 1-2 cols.
-    min_gap = max(3, int(h_bin * 0.2))
+    min_gap = max(_FALLBACK_MIN_GAP_MINIMUM, int(h_bin * _FALLBACK_MIN_GAP_RATIO))
     if gap_w < min_gap:
         return None
 
     bin_block = binary[:, bin_ink_start:bin_ink_end]
     ink_rows = int(np.sum(np.any(bin_block > 0, axis=1)))
 
-    if ink_rows < max(6, int(h_bin * 0.5)):
+    if ink_rows < max(_FALLBACK_MIN_INK_ROWS_MINIMUM, int(h_bin * _FALLBACK_MIN_INK_ROWS_RATIO)):
         return None
 
     return {
@@ -486,7 +540,7 @@ def _detect_subbullet_fallback(img_bgr_line, config, tolerance, binary):
 def _detect_prefix_on_mask(mask_line, config):
     """Core prefix detection on a single binary mask."""
     h, w = mask_line.shape[:2]
-    if w < 10 or h < 3:
+    if w < _MIN_MASK_WIDTH or h < _MIN_MASK_HEIGHT:
         return _no_prefix()
 
     # Column projection — number of ink pixels per column
@@ -514,8 +568,8 @@ def _detect_prefix_on_mask(mask_line, config):
     gap_w = main_start - first_end
 
     # Adaptive thresholds relative to line height
-    max_prefix_w = max(8, int(h * 0.7))
-    min_gap = max(2, int(h * 0.2))
+    max_prefix_w = max(_MAX_PREFIX_WIDTH_MINIMUM, int(h * _MAX_PREFIX_WIDTH_RATIO))
+    min_gap = max(_MIN_GAP_MINIMUM, int(h * _MIN_GAP_RATIO))
 
     if first_w > max_prefix_w or gap_w < min_gap:
         return _no_prefix()

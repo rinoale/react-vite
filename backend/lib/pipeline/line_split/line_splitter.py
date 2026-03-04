@@ -44,10 +44,76 @@ def group_by_y(lines):
     return result
 
 
+def _get_line_split_config(config=None):
+    """Build full line-split config with defaults.
+
+    Follows the same pattern as segmenter._get_header_detection_config().
+    """
+    config = config or {}
+    det = config.get('detection', {})
+    rsc = config.get('rescue', {})
+    tb = config.get('tall_block', {})
+    hz = config.get('horizontal', {})
+    pad = config.get('padding', {})
+    br = config.get('border_removal', {})
+    cf = config.get('cluster_filter', {})
+    out = config.get('outlier', {})
+    st = config.get('stitch', {})
+    return {
+        'detection': {
+            'binarization_threshold': det.get('binarization_threshold', 80),
+            'background_polarity_cutoff': det.get('background_polarity_cutoff', 128),
+            'row_density_ratio': det.get('row_density_ratio', 0.015),
+            'row_density_minimum': det.get('row_density_minimum', 3),
+            'gap_tolerance': det.get('gap_tolerance', 2),
+            'minimum_height': det.get('minimum_height', 6),
+            'maximum_height': det.get('maximum_height', 25),
+            'minimum_width': det.get('minimum_width', 10),
+        },
+        'rescue': {
+            'density_ratio': rsc.get('density_ratio', 0.01),
+            'density_minimum': rsc.get('density_minimum', 2),
+            'minimum_gap_factor': rsc.get('minimum_gap_factor', 1.5),
+        },
+        'tall_block': {
+            'threshold_factor': tb.get('threshold_factor', 0.1),
+        },
+        'horizontal': {
+            'split_factor': hz.get('split_factor', 3),
+        },
+        'padding': {
+            'horizontal_divisor': pad.get('horizontal_divisor', 3),
+            'horizontal_minimum': pad.get('horizontal_minimum', 2),
+            'vertical_divisor': pad.get('vertical_divisor', 5),
+            'vertical_minimum': pad.get('vertical_minimum', 1),
+        },
+        'border_removal': {
+            'column_density': br.get('column_density', 0.6),
+            'maximum_run_width': br.get('maximum_run_width', 3),
+        },
+        'cluster_filter': {
+            'thin_width': cf.get('thin_width', 2),
+            'bar_width_factor': cf.get('bar_width_factor', 3),
+            'bar_maximum_density': cf.get('bar_maximum_density', 2.0),
+            'bracket_maximum_density': cf.get('bracket_maximum_density', 2.0),
+            'bracket_minimum_gap': cf.get('bracket_minimum_gap', 4),
+            'border_stripe_density': cf.get('border_stripe_density', 0.85),
+            'gap_factor': cf.get('gap_factor', 2),
+        },
+        'outlier': {
+            'gap_multiplier': out.get('gap_multiplier', 2),
+            'gap_offset': out.get('gap_offset', 4),
+        },
+        'stitch': {
+            'baseline_offset': st.get('baseline_offset', 1),
+        },
+    }
+
+
 class TooltipLineSplitter:
-    def __init__(self, output_dir="split_output"):
+    def __init__(self, output_dir="split_output", config=None):
         self.output_dir = output_dir
-        self.horizontal_split_factor = 3  # gap > line_h * factor triggers split
+        self.cfg = _get_line_split_config(config)
         os.makedirs(output_dir, exist_ok=True)
         os.makedirs(os.path.join(output_dir, "images"), exist_ok=True)
         os.makedirs(os.path.join(output_dir, "labels"), exist_ok=True)
@@ -66,13 +132,14 @@ class TooltipLineSplitter:
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
         # Auto-detect background type and threshold accordingly
+        det = self.cfg['detection']
         mean_val = np.mean(gray)
-        if mean_val >= 128:
+        if mean_val >= det['background_polarity_cutoff']:
             # Light background, dark text → invert so text becomes white (foreground)
-            _, binary = cv2.threshold(gray, 80, 255, cv2.THRESH_BINARY_INV)
+            _, binary = cv2.threshold(gray, det['binarization_threshold'], 255, cv2.THRESH_BINARY_INV)
         else:
             # Dark background, bright text → text is already bright (foreground)
-            _, binary = cv2.threshold(gray, 80, 255, cv2.THRESH_BINARY)
+            _, binary = cv2.threshold(gray, det['binarization_threshold'], 255, cv2.THRESH_BINARY)
         
         return img, gray, binary
     
@@ -80,10 +147,18 @@ class TooltipLineSplitter:
         """Remove UI border columns before line detection.  No-op in base class."""
         return binary_img
 
-    def detect_text_lines(self, binary_img, min_height=6, max_height=25, min_width=10):
+    def detect_text_lines(self, binary_img, min_height=None, max_height=None, min_width=None):
         """Detect individual text lines using horizontal projection profile"""
         if not DEPENDENCIES_AVAILABLE:
             return []
+
+        det = self.cfg['detection']
+        if min_height is None:
+            min_height = det['minimum_height']
+        if max_height is None:
+            max_height = det['maximum_height']
+        if min_width is None:
+            min_width = det['minimum_width']
 
         h, w = binary_img.shape
 
@@ -94,13 +169,13 @@ class TooltipLineSplitter:
         projection = np.sum(cleaned > 0, axis=1)
 
         # Step 3: Find rows with actual text content
-        threshold = max(3, w * 0.015)
+        threshold = max(det['row_density_minimum'], w * det['row_density_ratio'])
         has_text = projection > threshold
 
-        # Step 4: Close tiny gaps in has_text (up to 2 rows)
+        # Step 4: Close tiny gaps in has_text (up to gap_tolerance rows)
         # Thin character strokes can cause 1-row dips below threshold,
         # but inter-line gaps are typically 4+ rows.
-        gap_tolerance = 2
+        gap_tolerance = det['gap_tolerance']
         i = 0
         while i < h:
             if not has_text[i] and i > 0 and has_text[i - 1]:
@@ -190,10 +265,11 @@ class TooltipLineSplitter:
         if len(blocks) < 2:
             return
 
-        rescue_threshold = max(2, img_w * 0.01)
+        rsc = self.cfg['rescue']
+        rescue_threshold = max(rsc['density_minimum'], img_w * rsc['density_ratio'])
         # A gap is "large" if it could fit another line (> typical line height)
         avg_h = sum(b[1] - b[0] for b in blocks) / len(blocks)
-        min_gap_for_rescue = avg_h * 1.5
+        min_gap_for_rescue = avg_h * rsc['minimum_gap_factor']
 
         rescued = []
         for i in range(1, len(blocks)):
@@ -281,7 +357,7 @@ class TooltipLineSplitter:
         # Split horizontally if wide gaps exist between cluster groups.
         # Normal inter-character gaps are 1-6px; large gaps indicate
         # separate text segments (e.g. "파트 A    R:0    G:0    B:0").
-        split_threshold = line_h * self.horizontal_split_factor
+        split_threshold = line_h * self.cfg['horizontal']['split_factor']
         segments = []  # list of cluster sub-lists
         seg_start = 0
         for i in range(1, len(clusters)):
@@ -314,7 +390,8 @@ class TooltipLineSplitter:
         projection = np.sum(block > 0, axis=1)
 
         # Use a lower threshold to find gaps within the block
-        threshold = max(1, np.median(projection[projection > 0]) * 0.1) if np.any(projection > 0) else 1
+        tf = self.cfg['tall_block']['threshold_factor']
+        threshold = max(1, np.median(projection[projection > 0]) * tf) if np.any(projection > 0) else 1
         has_text = projection > threshold
 
         in_line = False
@@ -346,8 +423,9 @@ class TooltipLineSplitter:
             x, y, w, h = line['x'], line['y'], line['width'], line['height']
             
             # Add proportional padding (small enough not to bleed into adjacent lines)
-            pad_x = max(2, line['height'] // 3)
-            pad_y = max(1, line['height'] // 5)
+            pcfg = self.cfg['padding']
+            pad_x = max(pcfg['horizontal_minimum'], line['height'] // pcfg['horizontal_divisor'])
+            pad_y = max(pcfg['vertical_minimum'], line['height'] // pcfg['vertical_divisor'])
             x = max(0, x - pad_x)
             y = max(0, y - pad_y)
             w = min(img.shape[1] - x, w + 2 * pad_x)
