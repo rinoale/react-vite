@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from 'react'
-import { Upload, Download, RotateCcw, FlipHorizontal, SlidersHorizontal, Droplets, Grid3X3, Scan, Pipette, HelpCircle, Grid2X2, Palette, Search, Scissors } from 'lucide-react'
+import { Upload, Download, RotateCcw, FlipHorizontal, SlidersHorizontal, Droplets, Grid3X3, Scan, Pipette, HelpCircle, Grid2X2, Palette, Search, Scissors, Plus, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 // --- Image processing kernels (pure functions on ImageData) ---
@@ -37,13 +37,13 @@ function applyThreshold(imageData, value, mode) {
   return imageData
 }
 
-function applyColorMask(imageData, targetR, targetG, targetB, tolR, tolG, tolB, outputBinary) {
+function applyColorMask(imageData, colors, tolR, tolG, tolB, outputBinary) {
   const d = imageData.data
   for (let i = 0; i < d.length; i += 4) {
-    const matchR = Math.abs(d[i] - targetR) <= tolR
-    const matchG = Math.abs(d[i+1] - targetG) <= tolG
-    const matchB = Math.abs(d[i+2] - targetB) <= tolB
-    const match = matchR && matchG && matchB
+    const pr = d[i], pg = d[i+1], pb = d[i+2]
+    const match = colors.some(c =>
+      Math.abs(pr - c.r) <= tolR && Math.abs(pg - c.g) <= tolG && Math.abs(pb - c.b) <= tolB
+    )
     if (outputBinary) {
       const val = match ? 255 : 0
       d[i] = d[i+1] = d[i+2] = val
@@ -872,6 +872,7 @@ const ImageProcessLab = () => {
   const [maskTolB, setMaskTolB] = useState(2)
   const [maskPerChannel, setMaskPerChannel] = useState(false)
   const [maskBinary, setMaskBinary] = useState(false)
+  const [maskColors, setMaskColors] = useState([])
   const [morphOp, setMorphOp] = useState('erode')
   const [morphKernel, setMorphKernel] = useState(3)
   const [filterType, setFilterType] = useState('gaussian')
@@ -892,8 +893,13 @@ const ImageProcessLab = () => {
   // Border removal
   const [borderResults, setBorderResults] = useState(null)
 
+  const [hoverInfo, setHoverInfo] = useState(null)
+
   const canvasRef = useRef(null)
   const fileInputRef = useRef(null)
+  const originalImgRef = useRef(null)
+  const processedImgRef = useRef(null)
+  const cachedPixelsRef = useRef({ original: null, processed: null })
 
   const getProcessedImageData = useCallback(() => {
     const canvas = canvasRef.current
@@ -959,7 +965,11 @@ const ImageProcessLab = () => {
     switch (activeTab) {
       case 'grayscale':  applyGrayscale(data, grayscaleMethod); break
       case 'threshold':  applyThreshold(data, thresholdValue, thresholdMode); break
-      case 'colorMask':  applyColorMask(data, maskR, maskG, maskB, maskTolR, maskTolG, maskTolB, maskBinary); break
+      case 'colorMask': {
+        const colors = maskColors.length > 0 ? maskColors : [{ r: maskR, g: maskG, b: maskB }]
+        applyColorMask(data, colors, maskTolR, maskTolG, maskTolB, maskBinary)
+        break
+      }
       case 'invert':     applyInvert(data); break
       case 'morphology': applyMorphology(data, width, height, morphOp, morphKernel); break
       case 'filter':     applyFilter(data, width, height, filterType, filterKernel); break
@@ -969,7 +979,13 @@ const ImageProcessLab = () => {
     commitImageData(data)
   }
 
-  const handleReset = () => { setProcessedDataURL(null); setBulletResults(null); setSubbulletResults(null); setBorderResults(null) }
+  const handleReset = () => {
+    setProcessedDataURL(null)
+    setBulletResults(null)
+    setSubbulletResults(null)
+    setBorderResults(null)
+    cachedPixelsRef.current.processed = null
+  }
 
   const handleRemoveBoundary = async () => {
     const data = await getProcessedImageData()
@@ -1014,6 +1030,54 @@ const ImageProcessLab = () => {
     a.download = 'processed.png'
     a.click()
   }
+
+  const getPixelFromCache = useCallback((imgEl, panel) => {
+    const cache = cachedPixelsRef.current
+    if (cache[panel]?.src === imgEl.src) return cache[panel].data
+    const c = document.createElement('canvas')
+    c.width = imgEl.naturalWidth
+    c.height = imgEl.naturalHeight
+    const ctx = c.getContext('2d')
+    ctx.drawImage(imgEl, 0, 0)
+    const data = ctx.getImageData(0, 0, c.width, c.height)
+    cache[panel] = { src: imgEl.src, data }
+    return data
+  }, [])
+
+  const handleImageMouseMove = useCallback((e, panel) => {
+    const img = e.currentTarget
+    const rect = img.getBoundingClientRect()
+    const scaleX = img.naturalWidth / rect.width
+    const scaleY = img.naturalHeight / rect.height
+    const x = Math.floor((e.clientX - rect.left) * scaleX)
+    const y = Math.floor((e.clientY - rect.top) * scaleY)
+    if (x < 0 || x >= img.naturalWidth || y < 0 || y >= img.naturalHeight) {
+      setHoverInfo(null)
+      return
+    }
+    const imageData = getPixelFromCache(img, panel)
+    const idx = (y * img.naturalWidth + x) * 4
+    setHoverInfo({ x, y, r: imageData.data[idx], g: imageData.data[idx + 1], b: imageData.data[idx + 2], panel, clientX: e.clientX, clientY: e.clientY })
+  }, [getPixelFromCache])
+
+  const handleImageClick = useCallback((e) => {
+    if (activeTab !== 'colorMask') return
+    const img = e.currentTarget
+    const rect = img.getBoundingClientRect()
+    const scaleX = img.naturalWidth / rect.width
+    const scaleY = img.naturalHeight / rect.height
+    const x = Math.floor((e.clientX - rect.left) * scaleX)
+    const y = Math.floor((e.clientY - rect.top) * scaleY)
+    if (x < 0 || x >= img.naturalWidth || y < 0 || y >= img.naturalHeight) return
+    const imageData = getPixelFromCache(img, 'original')
+    const idx = (y * img.naturalWidth + x) * 4
+    const r = imageData.data[idx], g = imageData.data[idx + 1], b = imageData.data[idx + 2]
+    setMaskColors(prev => {
+      if (prev.some(c => c.r === r && c.g === g && c.b === b)) return prev
+      return [...prev, { r, g, b }]
+    })
+    setMaskR(r); setMaskG(g); setMaskB(b)
+  }, [activeTab, getPixelFromCache])
 
   const displaySrc = processedDataURL || image?.src
 
@@ -1135,7 +1199,16 @@ const ImageProcessLab = () => {
               className="hidden"
             />
             {image ? (
-              <img src={image.src} alt="Original" className="w-full border border-gray-700 rounded" style={{ imageRendering: pixelated ? 'pixelated' : 'auto' }} />
+              <img
+                ref={originalImgRef}
+                src={image.src}
+                alt="Original"
+                className="w-full border border-gray-700 rounded"
+                style={{ imageRendering: pixelated ? 'pixelated' : 'auto', cursor: activeTab === 'colorMask' ? 'crosshair' : 'default' }}
+                onMouseMove={e => handleImageMouseMove(e, 'original')}
+                onMouseLeave={() => setHoverInfo(null)}
+                onClick={handleImageClick}
+              />
             ) : (
               <button
                 onClick={() => fileInputRef.current?.click()}
@@ -1160,7 +1233,15 @@ const ImageProcessLab = () => {
           <div className="bg-gray-800 rounded-lg p-6">
             <h2 className="text-xl font-semibold mb-4">{t('imageProcessLab.processedImage')}</h2>
             {displaySrc ? (
-              <img src={displaySrc} alt="Processed" className="w-full border border-gray-700 rounded" style={{ imageRendering: pixelated ? 'pixelated' : 'auto' }} />
+              <img
+                ref={processedImgRef}
+                src={displaySrc}
+                alt="Processed"
+                className="w-full border border-gray-700 rounded"
+                style={{ imageRendering: pixelated ? 'pixelated' : 'auto' }}
+                onMouseMove={e => handleImageMouseMove(e, 'processed')}
+                onMouseLeave={() => setHoverInfo(null)}
+              />
             ) : (
               <div className="w-full h-64 border-2 border-dashed border-gray-600 rounded-lg flex items-center justify-center">
                 <span className="text-gray-500">{t('imageProcessLab.noImage')}</span>
@@ -1298,12 +1379,57 @@ const ImageProcessLab = () => {
                   ))}
                   <div>
                     <label className="block text-sm font-medium mb-1">{t('imageProcessLab.colorMask.preview')}</label>
-                    <div
-                      className="w-20 h-8 rounded border border-gray-600"
-                      style={{ backgroundColor: `rgb(${maskR},${maskG},${maskB})` }}
-                    />
+                    <div className="flex items-center gap-1.5">
+                      <div
+                        className="w-20 h-8 rounded border border-gray-600"
+                        style={{ backgroundColor: `rgb(${maskR},${maskG},${maskB})` }}
+                      />
+                      <button
+                        onClick={() => {
+                          const r = maskR, g = maskG, b = maskB
+                          setMaskColors(prev => {
+                            if (prev.some(c => c.r === r && c.g === g && c.b === b)) return prev
+                            return [...prev, { r, g, b }]
+                          })
+                        }}
+                        className="h-8 w-8 rounded border border-gray-600 bg-gray-700 hover:bg-gray-600 flex items-center justify-center transition-colors"
+                        title="Add color to list"
+                      >
+                        <Plus className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 </div>
+                {maskColors.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {maskColors.map((c, i) => (
+                      <span
+                        key={i}
+                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-gray-700 border border-gray-600 text-xs"
+                      >
+                        <span
+                          className="w-3 h-3 rounded-sm border border-gray-500 inline-block"
+                          style={{ backgroundColor: `rgb(${c.r},${c.g},${c.b})` }}
+                        />
+                        {c.r},{c.g},{c.b}
+                        <button
+                          onClick={() => setMaskColors(prev => prev.filter((_, j) => j !== i))}
+                          className="hover:text-red-400 transition-colors"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    ))}
+                    {maskColors.length > 1 && (
+                      <button
+                        onClick={() => setMaskColors([])}
+                        className="text-xs text-gray-400 hover:text-red-400 transition-colors px-1"
+                      >
+                        Clear all
+                      </button>
+                    )}
+                  </div>
+                )}
                 <label className="flex items-center gap-2">
                   <input
                     type="checkbox"
@@ -1590,6 +1716,19 @@ const ImageProcessLab = () => {
         {/* Hidden work canvas */}
         <canvas ref={canvasRef} className="hidden" />
       </div>
+
+      {/* Floating color info tooltip near cursor */}
+      {hoverInfo && (
+        <div
+          className="fixed z-50 pointer-events-none flex items-center gap-1.5 px-2 py-1 rounded bg-gray-900/90 border border-gray-600 text-xs text-gray-200 font-mono shadow-lg"
+          style={{ left: hoverInfo.clientX + 16, top: hoverInfo.clientY + 16 }}
+        >
+          <span>({hoverInfo.x}, {hoverInfo.y})</span>
+          <div className="w-3 h-3 rounded-sm border border-gray-500"
+            style={{ backgroundColor: `rgb(${hoverInfo.r},${hoverInfo.g},${hoverInfo.b})` }} />
+          <span>RGB({hoverInfo.r}, {hoverInfo.g}, {hoverInfo.b})</span>
+        </div>
+      )}
     </div>
   )
 }
