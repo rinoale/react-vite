@@ -117,6 +117,22 @@ Train per-segment models for each font (mabinogi_classic + nanum_gothic):
 - Font decision is already wired: pre_header detects font → single reader passed to content OCR
 - Enchant and reforge currently use DualReader — may switch to font-matched once models are ready
 
+### Digit Confusion in OCR (6↔8, 8↔9)
+
+#### Problem
+
+OCR frequently confuses digits with similar stroke structures: `6↔8` (open vs closed top loop) and `8↔9` (bottom loop vs tail). This is a universal OCR problem — not Korean-specific — caused by 1-2 pixel differences at small font sizes.
+
+#### Approaches (ordered by effort)
+
+1. **Game knowledge constraints (no retraining):** Each enchant in `enchant.yaml` has known effect value ranges. After FM matches the effect template (e.g. `최대대미지 N 증가`), validate the OCR'd number against the expected range. If the value is out of range, try swapping confusing digits (6↔8, 8↔9) and check again.
+
+2. **Training data weighting (retraining):** Oversample synthetic lines containing confusing digit pairs (6/8/9). Current templates generate numbers uniformly — biasing toward hard pairs gives the model more signal on the distinguishing pixels.
+
+3. **Template matching for mabinogi_classic (no retraining):** Since mabinogi_classic has no anti-aliasing, each digit at game font size is an exact pixel pattern. A pixel template lookup on the binary crop would be 100% reliable for that font. Does not help nanum_gothic.
+
+4. **Higher effective resolution (retraining):** Current `imgH=32` downscale may compress the 1-2 pixel difference between 6/8 into nothing. Increasing `imgH` gives the model more pixels but increases training/inference cost.
+
 ### Enchant Effect FM: Condition Mismatch Problem
 
 Enchant effects with conditions (e.g. `탐험 레벨이 15 이상일때 최대대미지 15 증가`) are rejected by FM because:

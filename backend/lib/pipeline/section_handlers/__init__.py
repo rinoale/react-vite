@@ -12,12 +12,14 @@ from .pre_header import PreHeaderHandler
 from .enchant import EnchantHandler
 from .reforge import ReforgeHandler
 from .color import ColorHandler
+from .item_attrs import ItemAttrsHandler
 from .default import DefaultHandler
 
 _HANDLER_MAP = {
     'enchant': EnchantHandler(),
     'reforge': ReforgeHandler(),
     'item_color': ColorHandler(),
+    'item_attrs': ItemAttrsHandler(),
 }
 _DEFAULT_HANDLER = DefaultHandler()
 

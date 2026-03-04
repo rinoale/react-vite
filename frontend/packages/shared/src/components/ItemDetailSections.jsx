@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Plus, RotateCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import SectionCard from './SectionCard';
-import { ColorPartsSection, EnchantSection, ReforgeSection, DefaultSection } from './sections';
+import { ColorPartsSection, EnchantSection, ItemAttrsSection, ReforgeSection, DefaultSection } from './sections';
 
 const ADDABLE_SECTIONS = [
   'item_attrs', 'enchant', 'reforge', 'item_mod',
@@ -66,6 +66,10 @@ const ItemDetailSections = ({ sections, onSectionsChange, abbreviated = true }) 
       return <ColorPartsSection parts={sectionData.parts} />;
     if (key === 'enchant')
       return <EnchantSection prefix={sectionData.prefix} suffix={sectionData.suffix} lines={sectionData.lines} onLineChange={onLineChange} abbreviated={abbreviated} />;
+    if (key === 'item_attrs' && sectionData.attrs)
+      return <ItemAttrsSection attrs={sectionData.attrs} onAttrsChange={(newAttrs) => {
+        onSectionsChange({ ...sections, [key]: { ...sectionData, attrs: newAttrs } });
+      }} />;
     if (key === 'reforge')
       return <ReforgeSection options={sectionData.options} lines={sectionData.lines} onLineChange={onLineChange} />;
     return <DefaultSection lines={sectionData.lines} onLineChange={onLineChange} />;

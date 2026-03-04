@@ -81,6 +81,8 @@ class OcrSectionResponse(BaseModel):
     resolution: Optional[EnchantResolutionResponse] = None
     # reforge
     options: Optional[List[ReforgeOptionResponse]] = None
+    # item_attrs
+    attrs: Optional[Dict[str, str]] = None
     # item_color
     parts: Optional[List[ColorPartResponse]] = None
     # pre_header

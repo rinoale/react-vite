@@ -75,6 +75,17 @@
     "marketplace": "Marketplace",
     "sellItem": "Sell Item"
   },
+  "attrs": {
+    "damage": "공격",
+    "magic_damage": "마법 공격력",
+    "additional_damage": "추가 대미지",
+    "balance": "밸런스",
+    "defense": "방어력",
+    "protection": "보호",
+    "magic_defense": "마법 방어력",
+    "magic_protection": "마법 보호",
+    "durability": "내구력"
+  },
   "sections": {
     "lowConfidence": "Low Confidence: {{pct}}%",
     "enchant": {

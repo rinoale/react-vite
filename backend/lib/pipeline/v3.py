@@ -61,6 +61,7 @@ def init_pipeline():
         recog_network='custom_mabinogi_classic',
     )
     patch_reader_imgw(classic_reader, MODELS_DIR, recog_network='custom_mabinogi_classic')
+    classic_reader.font_name = 'mabinogi_classic'
 
     nanum_reader = easyocr.Reader(
         ['ko'],
@@ -69,6 +70,7 @@ def init_pipeline():
         recog_network='custom_nanum_gothic_bold',
     )
     patch_reader_imgw(nanum_reader, MODELS_DIR, recog_network='custom_nanum_gothic_bold')
+    nanum_reader.font_name = 'nanum_gothic'
 
     # Dedicated preheader reader for mabinogi_classic font
     preheader_mc_reader = easyocr.Reader(
