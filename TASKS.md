@@ -2,6 +2,15 @@
 
 ## Backend
 
+### Unify header models into a single `header_model` (nanum gothic)
+
+Headers in the tooltip (category headers, enchant slot headers, item_mod special upgrade line) are always rendered in NanumGothic font regardless of the item's font config. Currently we have separate models (`category_header_model`, `enchant_header_model`) trained on nanum gothic. These should be consolidated into a single `header_model` trained with nanum gothic font covering all header types. The item_mod handler already hardcodes `content_ng_reader`; a unified header model would make the pipeline simpler — just find the header line and OCR it with the one header model.
+Or at least two models, category header model and subheader model.
+
+### Merge prefix detection + filtering into a single decorator
+
+Currently handlers chain `@detect_prefix('bullet')` + `@filter_prefix('bullet')` or `@plain_lines_only` as separate decorators. These could be a single decorator like `@select_lines('bullet')` / `@select_lines(None)` that detects and filters in one pass.
+
 ### Replace `sys.path` hacks with `PROJECT_ROOT` env var
 **Context:** Scripts under `scripts/ocr/` currently use `sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))` to reach the project root for imports (e.g. `from scripts.ocr.lib.model_version import ...`). Going up 3 directory levels is fragile and will break if scripts move again.
 
@@ -18,13 +27,9 @@ sys.path.insert(0, PROJECT_ROOT)
 
 **Affected files:** All 9 Python scripts under `scripts/ocr/` and `scripts/ocr/lib/model_version.py`.
 
-### Deferred: Enchant Effect Line Continuation Merge
+### Resolved: Enchant Effect Line Continuation Merge
 
-Enchant effects can wrap across two lines. The idea is to detect continuation lines (no `-` bullet prefix) and merge them into the previous effect:
-- `text_corrector.py`: tag lines with `_has_bullet` when stripping `-` prefix
-- `mabinogi_tooltip_parser.py`: in `build_enchant_structured()`, merge lines without `_has_bullet` into previous effect
-
-**Why deferred:** OCR accuracy is not yet reliable enough to distinguish whether a `-` prefix was present. Mis-detected bullets cause incorrect merges. Revisit once content OCR accuracy improves significantly (e.g. after real-crop mixed training for content models).
+Implemented in attempt 22. Continuation lines (no bullet prefix) are merged into the preceding bullet-prefixed anchor by `merge_continuations()` in `line_processing.py`. Both `text` and `raw_text` are merged; `_is_stitched=True` flags the anchor. Runs BEFORE FM so merged text has all rolled numbers available for matching. The `_is_stitched` flag propagates through `ocr_results.json` → `OcrCorrection.is_stitched` → admin badge.
 
 ### Blue Mask: Color-Based Effect Line Detection
 
@@ -121,6 +126,22 @@ Train per-segment models for each font (mabinogi_classic + nanum_gothic):
 - Font decision is already wired: pre_header detects font → single reader passed to content OCR
 - Enchant and reforge currently use DualReader — may switch to font-matched once models are ready
 
+### Digit Confusion in OCR (6↔8, 8↔9)
+
+#### Problem
+
+OCR frequently confuses digits with similar stroke structures: `6↔8` (open vs closed top loop) and `8↔9` (bottom loop vs tail). This is a universal OCR problem — not Korean-specific — caused by 1-2 pixel differences at small font sizes.
+
+#### Approaches (ordered by effort)
+
+1. **Game knowledge constraints (no retraining):** Each enchant in `enchant.yaml` has known effect value ranges. After FM matches the effect template (e.g. `최대대미지 N 증가`), validate the OCR'd number against the expected range. If the value is out of range, try swapping confusing digits (6↔8, 8↔9) and check again.
+
+2. **Training data weighting (retraining):** Oversample synthetic lines containing confusing digit pairs (6/8/9). Current templates generate numbers uniformly — biasing toward hard pairs gives the model more signal on the distinguishing pixels.
+
+3. **Template matching for mabinogi_classic (no retraining):** Since mabinogi_classic has no anti-aliasing, each digit at game font size is an exact pixel pattern. A pixel template lookup on the binary crop would be 100% reliable for that font. Does not help nanum_gothic.
+
+4. **Higher effective resolution (retraining):** Current `imgH=32` downscale may compress the 1-2 pixel difference between 6/8 into nothing. Increasing `imgH` gives the model more pixels but increases training/inference cost.
+
 ### Enchant Effect FM: Condition Mismatch Problem
 
 Enchant effects with conditions (e.g. `탐험 레벨이 15 이상일때 최대대미지 15 증가`) are rejected by FM because:
@@ -186,7 +207,8 @@ Both font-specific models (mabinogi_classic, nanum_gothic_bold) training with ne
 - [x] `pyproject.toml` with `pythonpath = ["backend"]` — run via `python -m pytest tests/ -v`
 - [x] `tests/conftest.py` — shared fixtures: `make_line_dict`, `make_bounds`, `make_classification`, `mini_text_corrector`
 
-**Unit tests (done — 58 tests passing):**
+**Unit tests (done — 287 tests passing):**
+- [x] `tests/test_data_structures.py` — pipeline data structure examples, HTTP response schema validation, ocr_results.json shape, stitch flag contracts (14 tests)
 - [x] `tests/test_line_processing.py` — `merge_group_bounds`, `trim_outlier_tail`, `determine_enchant_slots`, `merge_continuations`, `count_effects_per_header` (13 tests)
 - [x] `tests/test_line_merge.py` — `detect_gap_outlier` (5 tests)
 - [x] `tests/test_parse_effect_number.py` — `_parse_effect_number` (6 tests)

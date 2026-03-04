@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from 'react'
-import { Upload, Download, RotateCcw, FlipHorizontal, SlidersHorizontal, Droplets, Grid3X3, Scan, Pipette, HelpCircle, Grid2X2, Palette, Search } from 'lucide-react'
+import { Upload, Download, RotateCcw, FlipHorizontal, SlidersHorizontal, Droplets, Grid3X3, Scan, Pipette, HelpCircle, Grid2X2, Palette, Search, Scissors, Plus, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 // --- Image processing kernels (pure functions on ImageData) ---
@@ -37,13 +37,13 @@ function applyThreshold(imageData, value, mode) {
   return imageData
 }
 
-function applyColorMask(imageData, targetR, targetG, targetB, tolR, tolG, tolB, outputBinary) {
+function applyColorMask(imageData, colors, tolR, tolG, tolB, outputBinary) {
   const d = imageData.data
   for (let i = 0; i < d.length; i += 4) {
-    const matchR = Math.abs(d[i] - targetR) <= tolR
-    const matchG = Math.abs(d[i+1] - targetG) <= tolG
-    const matchB = Math.abs(d[i+2] - targetB) <= tolB
-    const match = matchR && matchG && matchB
+    const pr = d[i], pg = d[i+1], pb = d[i+2]
+    const match = colors.some(c =>
+      Math.abs(pr - c.r) <= tolR && Math.abs(pg - c.g) <= tolG && Math.abs(pb - c.b) <= tolB
+    )
     if (outputBinary) {
       const val = match ? 255 : 0
       d[i] = d[i+1] = d[i+2] = val
@@ -215,6 +215,63 @@ function applyHueRejection(imageData, hueMin, hueMax, mode, satMin) {
   return imageData
 }
 
+function imageDataToCanvas(imageData) {
+  const c = document.createElement('canvas')
+  c.width = imageData.width
+  c.height = imageData.height
+  c.getContext('2d').putImageData(imageData, 0, 0)
+  return c
+}
+
+function cropImageData(src, x, y, w, h) {
+  const c = imageDataToCanvas(src)
+  const c2 = document.createElement('canvas')
+  c2.width = w; c2.height = h
+  c2.getContext('2d').drawImage(c, x, y, w, h, 0, 0, w, h)
+  return c2.getContext('2d').getImageData(0, 0, w, h)
+}
+
+function detectBorders(imageData) {
+  const { data, width: w, height: h } = imageData
+  const lo = 127, hi = 137 // 132 ± 5
+  const minDensity = 0.3
+
+  const isBorder = new Uint8Array(w * h)
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4
+      if (data[i] >= lo && data[i] <= hi &&
+          data[i+1] >= lo && data[i+1] <= hi &&
+          data[i+2] >= lo && data[i+2] <= hi) {
+        isBorder[y * w + x] = 1
+      }
+    }
+  }
+
+  let bottomY = null
+  const rowThresh = Math.floor(w * minDensity)
+  for (let y = h - 1; y >= 0; y--) {
+    let count = 0
+    for (let x = 0; x < w; x++) if (isBorder[y * w + x]) count++
+    if (count >= rowThresh) { bottomY = y; break }
+  }
+
+  const colThresh = Math.floor(h * minDensity)
+  let leftX = null, rightX = null
+  for (let x = 0; x < w; x++) {
+    let count = 0
+    for (let y = 0; y < h; y++) if (isBorder[y * w + x]) count++
+    if (count >= colThresh) { leftX = x; break }
+  }
+  for (let x = w - 1; x >= 0; x--) {
+    let count = 0
+    for (let y = 0; y < h; y++) if (isBorder[y * w + x]) count++
+    if (count >= colThresh) { rightX = x; break }
+  }
+
+  return { bottomY, leftX, rightX }
+}
+
 function applyEdge(imageData, width, height, type, direction) {
   const src = new Uint8ClampedArray(imageData.data)
   const d = imageData.data
@@ -256,6 +313,7 @@ function applyEdge(imageData, width, height, type, direction) {
 const EFFECT_BLUE = { r: 74, g: 149, b: 238 }
 const EFFECT_RED = { r: 255, g: 103, b: 103 }
 const EFFECT_GREY = { r: 128, g: 128, b: 128 }
+const EFFECT_LIGHT_GREY = { r: 167, g: 167, b: 167 }
 const TEXT_WHITE = { r: 255, g: 255, b: 255 }
 function _buildColorMask(data, w, h, color, tolerance) {
   const mask = new Uint8Array(w * h)
@@ -344,12 +402,270 @@ function _detectLines(mask, w, h) {
   return lines
 }
 
+// --- Per-line prefix detection (mirrors backend detect_prefix_per_color) ---
+
+function _buildBt601Binary(data, w, h, threshold) {
+  const mask = new Uint8Array(w * h)
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4
+      const gray = 0.299 * data[i] + 0.587 * data[i+1] + 0.114 * data[i+2]
+      if (gray > threshold) mask[y * w + x] = 1
+    }
+  }
+  return mask
+}
+
+function _buildLineMask(data, imgW, color, tolerance, x0, y0, regionW, lineH) {
+  const mask = new Uint8Array(regionW * lineH)
+  for (let ly = 0; ly < lineH; ly++) {
+    for (let lx = 0; lx < regionW; lx++) {
+      const i = ((y0 + ly) * imgW + (x0 + lx)) * 4
+      if (Math.abs(data[i] - color.r) <= tolerance &&
+          Math.abs(data[i+1] - color.g) <= tolerance &&
+          Math.abs(data[i+2] - color.b) <= tolerance) {
+        mask[ly * regionW + lx] = 1
+      }
+    }
+  }
+  return mask
+}
+
+function _colProj(mask, w, h) {
+  const proj = new Uint32Array(w)
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) proj[x] += mask[y * w + x]
+  }
+  return proj
+}
+
+function _findClusterGapMain(colProj, w) {
+  let firstStart = -1, firstEnd = -1, mainStart = -1
+  for (let x = 0; x < w; x++) {
+    const hasInk = colProj[x] > 0
+    if (firstStart < 0) { if (hasInk) firstStart = x }
+    else if (firstEnd < 0) { if (!hasInk) firstEnd = x }
+    else if (mainStart < 0) { if (hasInk) { mainStart = x; break } }
+  }
+  if (firstStart < 0 || firstEnd < 0 || mainStart < 0) return null
+  return { firstStart, firstEnd, mainStart }
+}
+
+function _countInkRows(mask, w, h, xStart, xEnd) {
+  let count = 0
+  for (let r = 0; r < h; r++) {
+    for (let c = xStart; c < xEnd; c++) {
+      if (mask[r * w + c] > 0) { count++; break }
+    }
+  }
+  return count
+}
+
+function _countTotalInk(mask, w, h, xStart, xEnd) {
+  let count = 0
+  for (let r = 0; r < h; r++) {
+    for (let c = xStart; c < xEnd; c++) {
+      if (mask[r * w + c] > 0) count++
+    }
+  }
+  return count
+}
+
+// Port of _detect_prefix_on_mask + _classify_combined
+function _detectPrefixOnLineMask(lineMask, lineW, lineH, config) {
+  if (lineW < 10 || lineH < 3) return null
+  const proj = _colProj(lineMask, lineW, lineH)
+  const r = _findClusterGapMain(proj, lineW)
+  if (!r) return null
+  const { firstStart, firstEnd, mainStart } = r
+  const firstW = firstEnd - firstStart
+  const gapW = mainStart - firstEnd
+  const maxPrefixW = Math.max(8, Math.floor(lineH * 0.7))
+  const minGap = Math.max(2, Math.floor(lineH * 0.2))
+  if (firstW > maxPrefixW || gapW < minGap) return null
+
+  // Extract cluster mask
+  const clW = firstW, clH = lineH
+  const clMask = new Uint8Array(clW * clH)
+  for (let ry = 0; ry < clH; ry++) {
+    for (let cx = 0; cx < clW; cx++) {
+      clMask[ry * clW + cx] = lineMask[ry * lineW + firstStart + cx]
+    }
+  }
+
+  // Shape walker
+  const match = _swClassifyCluster(clMask, clW, clH, config.shapes)
+  if (!match) return null
+
+  // _classify_combined validation
+  const inkRows = _countInkRows(clMask, clW, clH, 0, clW)
+  if (config.name === 'bullet') {
+    if (firstW > Math.max(3, Math.floor(lineH * 0.25))) return null
+    if (inkRows > Math.max(4, Math.floor(lineH * 0.5))) return null
+    // Uniform column check
+    const colSlice = proj.slice(firstStart, firstEnd)
+    if (colSlice.length > 1) {
+      let mn = Infinity, mx = 0
+      for (let i = 0; i < colSlice.length; i++) {
+        if (colSlice[i] < mn) mn = colSlice[i]
+        if (colSlice[i] > mx) mx = colSlice[i]
+      }
+      if (mn > 0 && mx > mn * 2) return null
+    }
+  } else if (config.name === 'subbullet') {
+    if (firstW > Math.max(6, Math.floor(lineH * 0.45))) return null
+    if (inkRows > Math.max(8, Math.floor(lineH * 0.75))) return null
+  }
+
+  return { x: firstStart, w: firstW, gap: gapW, mainX: mainStart }
+}
+
+// Port of _is_dot_isolated — checks on BT.601 binary (full image flat array)
+function _isDotIsolated(binaryMask, imgW, x0, y0, firstStart, firstEnd, lineH) {
+  const absXS = x0 + firstStart, absXE = x0 + firstEnd
+  let inkTop = -1, inkBot = -1
+  for (let r = 0; r < lineH; r++) {
+    for (let c = absXS; c < absXE; c++) {
+      if (binaryMask[(y0 + r) * imgW + c] > 0) {
+        if (inkTop < 0) inkTop = r
+        inkBot = r
+        break
+      }
+    }
+  }
+  if (inkTop < 0) return false
+  const inkSpan = inkBot - inkTop + 1
+  if (inkSpan > Math.max(4, Math.floor(lineH * 0.4))) return false
+  const pad = Math.max(2, inkSpan)
+  // Check above
+  for (let r = Math.max(0, inkTop - pad); r < inkTop; r++) {
+    for (let c = absXS; c < absXE; c++) {
+      if (binaryMask[(y0 + r) * imgW + c] > 0) return false
+    }
+  }
+  // Check below
+  for (let r = inkBot + 1; r < Math.min(lineH, inkBot + pad + 1); r++) {
+    for (let c = absXS; c < absXE; c++) {
+      if (binaryMask[(y0 + r) * imgW + c] > 0) return false
+    }
+  }
+  return true
+}
+
+// Port of _detect_subbullet_fallback
+function _detectSubbulletFallback(data, imgW, binaryMask, config, tolerance, x0, y0, regionW, lineH) {
+  // Step 1: find narrow cluster position from any config color
+  let clusterX = null
+  for (const color of config.colors) {
+    const mask = _buildLineMask(data, imgW, color, tolerance, x0, y0, regionW, lineH)
+    if (regionW < 10 || lineH < 3) continue
+    const proj = _colProj(mask, regionW, lineH)
+    const r = _findClusterGapMain(proj, regionW)
+    if (!r) continue
+    if (r.firstStart > Math.max(10, Math.floor(regionW * 0.15))) continue
+    const firstW = r.firstEnd - r.firstStart
+    if (firstW <= Math.max(6, Math.floor(lineH * 0.5))) { clusterX = r.firstStart; break }
+  }
+  if (clusterX === null) return null
+
+  // Step 2: binary column projection for line region
+  const binProj = new Uint32Array(regionW)
+  for (let y = 0; y < lineH; y++) {
+    for (let x = 0; x < regionW; x++) binProj[x] += binaryMask[(y0 + y) * imgW + (x0 + x)]
+  }
+
+  // Step 3: find ink block near clusterX
+  const searchStart = Math.max(0, clusterX - 2)
+  let binInkStart = -1
+  for (let x = searchStart; x < Math.min(regionW, clusterX + 3); x++) {
+    if (binProj[x] > 0) { binInkStart = x; break }
+  }
+  if (binInkStart < 0) return null
+
+  let binInkEnd = -1
+  for (let x = binInkStart + 1; x < Math.min(regionW, binInkStart + 10); x++) {
+    if (binProj[x] === 0) { binInkEnd = x; break }
+  }
+  if (binInkEnd < 0) return null
+
+  let binMainStart = -1
+  for (let x = binInkEnd + 1; x < Math.min(regionW, binInkEnd + 10); x++) {
+    if (binProj[x] > 0) { binMainStart = x; break }
+  }
+  if (binMainStart < 0) return null
+
+  // Step 4: validate
+  const nieunW = binInkEnd - binInkStart
+  const gapW = binMainStart - binInkEnd
+  if (nieunW > 6) return null
+  if (gapW < Math.max(3, Math.floor(lineH * 0.2))) return null
+  let inkRows = 0
+  for (let r = 0; r < lineH; r++) {
+    for (let c = binInkStart; c < binInkEnd; c++) {
+      if (binaryMask[(y0 + r) * imgW + (x0 + c)] > 0) { inkRows++; break }
+    }
+  }
+  if (inkRows < Math.max(6, Math.floor(lineH * 0.5))) return null
+
+  return { x: binInkStart, w: nieunW, gap: gapW, mainX: binMainStart }
+}
+
 function detectPrefixesWithConfig(imageData, config, tolerance) {
   const { data, width: w, height: h } = imageData
-  const mask = _buildConfigMask(data, w, h, config, tolerance)
-  const lines = _detectLines(mask, w, h)
-  return _detectPrefixesShapeWalker(lines, mask, w, h, config.shapes, config.name)
-    .filter(r => r.prefix?.type === config.name)
+
+  // BT.601 binary for robust line detection (backend: line splitter on binary)
+  const binaryMask = _buildBt601Binary(data, w, h, 80)
+  const lines = _detectLines(binaryMask, w, h)
+
+  const results = []
+  for (const line of lines) {
+    const padX = Math.max(2, Math.floor(line.h / 3))
+    const padY = Math.max(1, Math.floor(line.h / 5))
+    const y0 = Math.max(0, line.y - padY)
+    const y1 = Math.min(h, line.y + line.h + padY)
+    const x0 = Math.max(0, line.x - padX)
+    const x1 = Math.min(w, line.x + line.w + padX)
+    const regionW = x1 - x0
+    const lineH = y1 - y0
+    let detected = null
+
+    // Per-color detection (backend: detect_prefix_per_color)
+    for (const color of config.colors) {
+      const lineMask = _buildLineMask(data, w, color, tolerance, x0, y0, regionW, lineH)
+      const result = _detectPrefixOnLineMask(lineMask, regionW, lineH, config)
+      if (!result) continue
+
+      // Per-color validation (backend lines 317-352)
+      const totalInk = _countTotalInk(lineMask, regionW, lineH, result.x, result.x + result.w)
+      if (config.name === 'bullet') {
+        if (totalInk < 2) continue
+        const perColorInkRows = _countInkRows(lineMask, regionW, lineH, result.x, result.x + result.w)
+        if (perColorInkRows > 1) continue
+        if (!_isDotIsolated(binaryMask, w, x0, y0, result.x, result.x + result.w, lineH)) continue
+      } else if (config.name === 'subbullet') {
+        if (totalInk < 6) continue
+        if (result.gap < 3) continue
+        if (lineH < 10) continue
+      }
+      detected = result
+      break
+    }
+
+    // Subbullet fallback: fragmented ㄴ in color mask
+    if (!detected && config.name === 'subbullet') {
+      detected = _detectSubbulletFallback(data, w, binaryMask, config, tolerance, x0, y0, regionW, lineH)
+    }
+
+    if (detected) {
+      results.push({
+        color: config.name,
+        line: { x: x0, y: y0, w: regionW, h: lineH },
+        prefix: { type: config.name, x: x0 + detected.x, y: y0, w: detected.w, h: lineH },
+        mainX: x0 + detected.mainX,
+      })
+    }
+  }
+  return results
 }
 
 function drawPrefixVisualization(imageData, detections) {
@@ -404,17 +720,9 @@ const SW_NIEUN = { name: 'ㄴ', segments: [{ dir: 'down', min: 3 }, { dir: 'righ
 const SW_DOT = { name: '·', segments: [{ dir: 'dot', min: 1, max: 4 }] }
 
 // Config-driven detector definitions — mirrors backend PrefixDetectorConfig
-const BULLET_DETECTOR = { name: 'bullet', colors: [EFFECT_BLUE, EFFECT_RED, EFFECT_GREY], shapes: [SW_DOT] }
-const SUBBULLET_DETECTOR = { name: 'subbullet', colors: [TEXT_WHITE, EFFECT_RED], shapes: [SW_NIEUN] }
+const BULLET_DETECTOR = { name: 'bullet', colors: [EFFECT_BLUE, EFFECT_RED, EFFECT_GREY, EFFECT_LIGHT_GREY], shapes: [SW_DOT] }
+const SUBBULLET_DETECTOR = { name: 'subbullet', colors: [TEXT_WHITE, EFFECT_RED, EFFECT_GREY], shapes: [SW_NIEUN] }
 
-function _buildConfigMask(data, w, h, config, tolerance) {
-  const mask = new Uint8Array(w * h)
-  for (const color of config.colors) {
-    const m = _buildColorMask(data, w, h, color, tolerance)
-    for (let i = 0; i < mask.length; i++) if (m[i]) mask[i] = 1
-  }
-  return mask
-}
 
 function _swFindSeeds(mask, w, h) {
   let leftCol = -1
@@ -531,58 +839,6 @@ function _swClassifyCluster(mask, w, h, shapes) {
   return null
 }
 
-function _detectPrefixesShapeWalker(lines, prefixMask, w, h, shapes = [SW_NIEUN, SW_DOT], configName = null) {
-  const results = []
-  for (const line of lines) {
-    const padX = Math.max(2, Math.floor(line.h / 3))
-    const padY = Math.max(1, Math.floor(line.h / 5))
-    const y0 = Math.max(0, line.y - padY)
-    const y1 = Math.min(h, line.y + line.h + padY)
-    const x0 = Math.max(0, line.x - padX)
-    const x1 = Math.min(w, line.x + line.w + padX)
-    const regionW = x1 - x0
-    const lineH = y1 - y0
-
-    const colProj = new Uint32Array(regionW)
-    for (let ly = y0; ly < y1; ly++) {
-      for (let lx = 0; lx < regionW; lx++) colProj[lx] += prefixMask[ly * w + (x0 + lx)]
-    }
-    let firstStart = -1, firstEnd = -1, mainStart = -1
-    for (let x = 0; x < regionW; x++) {
-      const hasInk = colProj[x] > 0
-      if (firstStart < 0) { if (hasInk) firstStart = x }
-      else if (firstEnd < 0) { if (!hasInk) firstEnd = x }
-      else if (mainStart < 0) { if (hasInk) { mainStart = x; break } }
-    }
-
-    if (firstStart >= 0 && firstEnd >= 0 && mainStart >= 0) {
-      const firstW = firstEnd - firstStart
-      const gapW = mainStart - firstEnd
-      const maxPrefixW = Math.max(8, Math.floor(lineH * 0.7))
-      const minGap = Math.max(2, Math.floor(lineH * 0.2))
-      if (firstW <= maxPrefixW && gapW >= minGap) {
-        const clW = firstW, clH = lineH
-        const clMask = new Uint8Array(clW * clH)
-        for (let r = 0; r < clH; r++) {
-          for (let c = 0; c < clW; c++) clMask[r * clW + c] = prefixMask[(y0 + r) * w + (x0 + firstStart + c)]
-        }
-        const match = _swClassifyCluster(clMask, clW, clH, shapes)
-        if (match) {
-          const prefixType = configName || (match.name === 'ㄴ' ? 'subbullet' : 'bullet')
-          results.push({
-            color: prefixType,
-            line: { x: x0, y: y0, w: regionW, h: lineH },
-            prefix: { type: prefixType, x: x0 + firstStart, y: y0, w: firstW, h: lineH },
-            mainX: x0 + mainStart,
-          })
-          continue
-        }
-      }
-    }
-    results.push({ color: 'none', line: { x: x0, y: y0, w: regionW, h: lineH }, prefix: null, mainX: x0 })
-  }
-  return results
-}
 
 // --- Tabs ---
 const TABS = [
@@ -616,6 +872,7 @@ const ImageProcessLab = () => {
   const [maskTolB, setMaskTolB] = useState(2)
   const [maskPerChannel, setMaskPerChannel] = useState(false)
   const [maskBinary, setMaskBinary] = useState(false)
+  const [maskColors, setMaskColors] = useState([])
   const [morphOp, setMorphOp] = useState('erode')
   const [morphKernel, setMorphKernel] = useState(3)
   const [filterType, setFilterType] = useState('gaussian')
@@ -633,12 +890,16 @@ const ImageProcessLab = () => {
   const [bulletResults, setBulletResults] = useState(null)
   const [subbulletResults, setSubbulletResults] = useState(null)
 
-  // Shape walker detection
-  const [shapeWalkerTol, setShapeWalkerTol] = useState(15)
-  const [shapeWalkerResults, setShapeWalkerResults] = useState(null)
+  // Border removal
+  const [borderResults, setBorderResults] = useState(null)
+
+  const [hoverInfo, setHoverInfo] = useState(null)
 
   const canvasRef = useRef(null)
   const fileInputRef = useRef(null)
+  const originalImgRef = useRef(null)
+  const processedImgRef = useRef(null)
+  const cachedPixelsRef = useRef({ original: null, processed: null })
 
   const getProcessedImageData = useCallback(() => {
     const canvas = canvasRef.current
@@ -704,7 +965,11 @@ const ImageProcessLab = () => {
     switch (activeTab) {
       case 'grayscale':  applyGrayscale(data, grayscaleMethod); break
       case 'threshold':  applyThreshold(data, thresholdValue, thresholdMode); break
-      case 'colorMask':  applyColorMask(data, maskR, maskG, maskB, maskTolR, maskTolG, maskTolB, maskBinary); break
+      case 'colorMask': {
+        const colors = maskColors.length > 0 ? maskColors : [{ r: maskR, g: maskG, b: maskB }]
+        applyColorMask(data, colors, maskTolR, maskTolG, maskTolB, maskBinary)
+        break
+      }
       case 'invert':     applyInvert(data); break
       case 'morphology': applyMorphology(data, width, height, morphOp, morphKernel); break
       case 'filter':     applyFilter(data, width, height, filterType, filterKernel); break
@@ -714,10 +979,31 @@ const ImageProcessLab = () => {
     commitImageData(data)
   }
 
-  const handleReset = () => { setProcessedDataURL(null); setBulletResults(null); setSubbulletResults(null); setShapeWalkerResults(null) }
+  const handleReset = () => {
+    setProcessedDataURL(null)
+    setBulletResults(null)
+    setSubbulletResults(null)
+    setBorderResults(null)
+    cachedPixelsRef.current.processed = null
+  }
+
+  const handleRemoveBoundary = async () => {
+    const data = await getProcessedImageData()
+    if (!data) return
+    const borders = detectBorders(data)
+    setBorderResults(borders)
+    const x = (borders.leftX ?? -1) + 1
+    const y = 0
+    const w = (borders.rightX ?? data.width) - x
+    const h = (borders.bottomY ?? data.height)
+    if (w > 0 && h > 0) {
+      const cropped = cropImageData(data, x, y, w, h)
+      commitImageData(cropped)
+    }
+  }
 
   const handleDetectBullet = async () => {
-    const data = await getOriginalImageData()
+    const data = await getProcessedImageData()
     if (!data) return
     const results = detectPrefixesWithConfig(data, BULLET_DETECTOR, bulletTol)
     setBulletResults(results)
@@ -727,24 +1013,12 @@ const ImageProcessLab = () => {
   }
 
   const handleDetectSubbullet = async () => {
-    const data = await getOriginalImageData()
+    const data = await getProcessedImageData()
     if (!data) return
     const results = detectPrefixesWithConfig(data, SUBBULLET_DETECTOR, subbulletTol)
     setSubbulletResults(results)
     const vizData = await getProcessedImageData()
     drawPrefixVisualization(vizData, results)
-    commitImageData(vizData)
-  }
-
-  const handleShapeWalker = async () => {
-    const data = await getOriginalImageData()
-    if (!data) return
-    const bulletResults = detectPrefixesWithConfig(data, BULLET_DETECTOR, shapeWalkerTol)
-    const subbulletResults = detectPrefixesWithConfig(data, SUBBULLET_DETECTOR, shapeWalkerTol)
-    const prefixResults = [...bulletResults, ...subbulletResults]
-    setShapeWalkerResults(prefixResults)
-    const vizData = await getProcessedImageData()
-    drawPrefixVisualization(vizData, prefixResults)
     commitImageData(vizData)
   }
 
@@ -756,6 +1030,54 @@ const ImageProcessLab = () => {
     a.download = 'processed.png'
     a.click()
   }
+
+  const getPixelFromCache = useCallback((imgEl, panel) => {
+    const cache = cachedPixelsRef.current
+    if (cache[panel]?.src === imgEl.src) return cache[panel].data
+    const c = document.createElement('canvas')
+    c.width = imgEl.naturalWidth
+    c.height = imgEl.naturalHeight
+    const ctx = c.getContext('2d')
+    ctx.drawImage(imgEl, 0, 0)
+    const data = ctx.getImageData(0, 0, c.width, c.height)
+    cache[panel] = { src: imgEl.src, data }
+    return data
+  }, [])
+
+  const handleImageMouseMove = useCallback((e, panel) => {
+    const img = e.currentTarget
+    const rect = img.getBoundingClientRect()
+    const scaleX = img.naturalWidth / rect.width
+    const scaleY = img.naturalHeight / rect.height
+    const x = Math.floor((e.clientX - rect.left) * scaleX)
+    const y = Math.floor((e.clientY - rect.top) * scaleY)
+    if (x < 0 || x >= img.naturalWidth || y < 0 || y >= img.naturalHeight) {
+      setHoverInfo(null)
+      return
+    }
+    const imageData = getPixelFromCache(img, panel)
+    const idx = (y * img.naturalWidth + x) * 4
+    setHoverInfo({ x, y, r: imageData.data[idx], g: imageData.data[idx + 1], b: imageData.data[idx + 2], panel, clientX: e.clientX, clientY: e.clientY })
+  }, [getPixelFromCache])
+
+  const handleImageClick = useCallback((e) => {
+    if (activeTab !== 'colorMask') return
+    const img = e.currentTarget
+    const rect = img.getBoundingClientRect()
+    const scaleX = img.naturalWidth / rect.width
+    const scaleY = img.naturalHeight / rect.height
+    const x = Math.floor((e.clientX - rect.left) * scaleX)
+    const y = Math.floor((e.clientY - rect.top) * scaleY)
+    if (x < 0 || x >= img.naturalWidth || y < 0 || y >= img.naturalHeight) return
+    const imageData = getPixelFromCache(img, 'original')
+    const idx = (y * img.naturalWidth + x) * 4
+    const r = imageData.data[idx], g = imageData.data[idx + 1], b = imageData.data[idx + 2]
+    setMaskColors(prev => {
+      if (prev.some(c => c.r === r && c.g === g && c.b === b)) return prev
+      return [...prev, { r, g, b }]
+    })
+    setMaskR(r); setMaskG(g); setMaskB(b)
+  }, [activeTab, getPixelFromCache])
 
   const displaySrc = processedDataURL || image?.src
 
@@ -770,6 +1092,25 @@ const ImageProcessLab = () => {
           <div className="w-56 shrink-0">
             <div className="sticky top-6 bg-gray-800/60 rounded-lg p-4 border border-indigo-900/40 space-y-4">
               <h3 className="text-sm font-semibold text-indigo-300">Mabinogi Tools</h3>
+
+              {/* Remove Boundary */}
+              <div className="space-y-2">
+                <button
+                  onClick={handleRemoveBoundary}
+                  disabled={!image}
+                  className="w-full px-3 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-medium flex items-center gap-2 transition-colors"
+                >
+                  <Scissors className="w-3.5 h-3.5" />
+                  Remove Boundary
+                </button>
+                {borderResults && (
+                  <div className="text-xs text-amber-400">
+                    L:{borderResults.leftX ?? '—'} R:{borderResults.rightX ?? '—'} B:{borderResults.bottomY ?? '—'}
+                  </div>
+                )}
+              </div>
+
+              <div className="border-t border-indigo-900/40" />
 
               {/* Bullet (·) Detector */}
               <div className="space-y-2">
@@ -823,36 +1164,6 @@ const ImageProcessLab = () => {
                 )}
               </div>
 
-              <div className="border-t border-indigo-900/40" />
-
-              {/* Shape Walker (combined · + ㄴ via directional walk) */}
-              <div className="space-y-2">
-                <button
-                  onClick={handleShapeWalker}
-                  disabled={!image}
-                  className="w-full px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-medium flex items-center gap-2 transition-colors"
-                >
-                  <Search className="w-3.5 h-3.5" />
-                  Shape Walker
-                </button>
-                <div className="space-y-1">
-                  <label className="text-xs text-gray-400">Tol: {shapeWalkerTol}</label>
-                  <input
-                    type="range" min="5" max="40" step="1"
-                    value={shapeWalkerTol}
-                    onChange={e => setShapeWalkerTol(parseInt(e.target.value))}
-                    className="w-full"
-                  />
-                  <div className="text-xs text-gray-500">all colors</div>
-                </div>
-                {shapeWalkerResults && (
-                  <div className="text-xs space-y-0.5">
-                    <div className="text-emerald-400">{shapeWalkerResults.length} found</div>
-                    <div className="text-blue-400 pl-2">· {shapeWalkerResults.filter(r => r.prefix?.type === 'bullet').length}</div>
-                    <div className="text-orange-400 pl-2">ㄴ {shapeWalkerResults.filter(r => r.prefix?.type === 'subbullet').length}</div>
-                  </div>
-                )}
-              </div>
             </div>
           </div>
 
@@ -888,7 +1199,16 @@ const ImageProcessLab = () => {
               className="hidden"
             />
             {image ? (
-              <img src={image.src} alt="Original" className="w-full border border-gray-700 rounded" style={{ imageRendering: pixelated ? 'pixelated' : 'auto' }} />
+              <img
+                ref={originalImgRef}
+                src={image.src}
+                alt="Original"
+                className="w-full border border-gray-700 rounded"
+                style={{ imageRendering: pixelated ? 'pixelated' : 'auto', cursor: activeTab === 'colorMask' ? 'crosshair' : 'default' }}
+                onMouseMove={e => handleImageMouseMove(e, 'original')}
+                onMouseLeave={() => setHoverInfo(null)}
+                onClick={handleImageClick}
+              />
             ) : (
               <button
                 onClick={() => fileInputRef.current?.click()}
@@ -913,7 +1233,15 @@ const ImageProcessLab = () => {
           <div className="bg-gray-800 rounded-lg p-6">
             <h2 className="text-xl font-semibold mb-4">{t('imageProcessLab.processedImage')}</h2>
             {displaySrc ? (
-              <img src={displaySrc} alt="Processed" className="w-full border border-gray-700 rounded" style={{ imageRendering: pixelated ? 'pixelated' : 'auto' }} />
+              <img
+                ref={processedImgRef}
+                src={displaySrc}
+                alt="Processed"
+                className="w-full border border-gray-700 rounded"
+                style={{ imageRendering: pixelated ? 'pixelated' : 'auto' }}
+                onMouseMove={e => handleImageMouseMove(e, 'processed')}
+                onMouseLeave={() => setHoverInfo(null)}
+              />
             ) : (
               <div className="w-full h-64 border-2 border-dashed border-gray-600 rounded-lg flex items-center justify-center">
                 <span className="text-gray-500">{t('imageProcessLab.noImage')}</span>
@@ -1051,12 +1379,57 @@ const ImageProcessLab = () => {
                   ))}
                   <div>
                     <label className="block text-sm font-medium mb-1">{t('imageProcessLab.colorMask.preview')}</label>
-                    <div
-                      className="w-20 h-8 rounded border border-gray-600"
-                      style={{ backgroundColor: `rgb(${maskR},${maskG},${maskB})` }}
-                    />
+                    <div className="flex items-center gap-1.5">
+                      <div
+                        className="w-20 h-8 rounded border border-gray-600"
+                        style={{ backgroundColor: `rgb(${maskR},${maskG},${maskB})` }}
+                      />
+                      <button
+                        onClick={() => {
+                          const r = maskR, g = maskG, b = maskB
+                          setMaskColors(prev => {
+                            if (prev.some(c => c.r === r && c.g === g && c.b === b)) return prev
+                            return [...prev, { r, g, b }]
+                          })
+                        }}
+                        className="h-8 w-8 rounded border border-gray-600 bg-gray-700 hover:bg-gray-600 flex items-center justify-center transition-colors"
+                        title="Add color to list"
+                      >
+                        <Plus className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 </div>
+                {maskColors.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {maskColors.map((c, i) => (
+                      <span
+                        key={i}
+                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-gray-700 border border-gray-600 text-xs"
+                      >
+                        <span
+                          className="w-3 h-3 rounded-sm border border-gray-500 inline-block"
+                          style={{ backgroundColor: `rgb(${c.r},${c.g},${c.b})` }}
+                        />
+                        {c.r},{c.g},{c.b}
+                        <button
+                          onClick={() => setMaskColors(prev => prev.filter((_, j) => j !== i))}
+                          className="hover:text-red-400 transition-colors"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    ))}
+                    {maskColors.length > 1 && (
+                      <button
+                        onClick={() => setMaskColors([])}
+                        className="text-xs text-gray-400 hover:text-red-400 transition-colors px-1"
+                      >
+                        Clear all
+                      </button>
+                    )}
+                  </div>
+                )}
                 <label className="flex items-center gap-2">
                   <input
                     type="checkbox"
@@ -1343,6 +1716,19 @@ const ImageProcessLab = () => {
         {/* Hidden work canvas */}
         <canvas ref={canvasRef} className="hidden" />
       </div>
+
+      {/* Floating color info tooltip near cursor */}
+      {hoverInfo && (
+        <div
+          className="fixed z-50 pointer-events-none flex items-center gap-1.5 px-2 py-1 rounded bg-gray-900/90 border border-gray-600 text-xs text-gray-200 font-mono shadow-lg"
+          style={{ left: hoverInfo.clientX + 16, top: hoverInfo.clientY + 16 }}
+        >
+          <span>({hoverInfo.x}, {hoverInfo.y})</span>
+          <div className="w-3 h-3 rounded-sm border border-gray-500"
+            style={{ backgroundColor: `rgb(${hoverInfo.r},${hoverInfo.g},${hoverInfo.b})` }} />
+          <span>RGB({hoverInfo.r}, {hoverInfo.g}, {hoverInfo.b})</span>
+        </div>
+      )}
     </div>
   )
 }

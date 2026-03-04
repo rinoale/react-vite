@@ -18,7 +18,7 @@ Legend: **[USED]** = actively used in this project, **[—]** = not used
 | Desaturation | [—] | `(max(R,G,B) + min(R,G,B)) / 2` — midpoint of channel extremes. |
 | Single channel | [—] | Use only one channel (e.g., green for best text contrast). |
 
-**Project usage**: `cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)` in `tooltip_line_splitter.py`, `mabinogi_tooltip_parser.py`, `tooltip_segmenter.py`
+**Project usage**: `cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)` in `pipeline/line_split/line_splitter.py`, `pipeline/tooltip_parsers/mabinogi.py`, `pipeline/segmenter.py`
 
 ---
 
@@ -252,7 +252,7 @@ In the pipeline, we reject everything from 210° to 330° (blue through purple).
 | Local projection | **[USED]** | Projection within a sub-region for splitting merged blocks. |
 | Density thresholding | **[USED]** | Filter by pixel density per row/column to separate text from borders. |
 
-**Project usage**: Core technique for line splitting in `tooltip_line_splitter.py`. Also used for orange band detection in `tooltip_segmenter.py`, white-pixel band detection in enchant header processing, and prefix detection column projection in `prefix_detector.py`.
+**Project usage**: Core technique for line splitting in `pipeline/line_split/line_splitter.py`. Also used for orange band detection in `pipeline/segmenter.py`, white-pixel band detection in enchant header processing, and prefix detection column projection in `image_processors/prefix_detector.py`.
 
 ---
 

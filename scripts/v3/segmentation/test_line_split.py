@@ -1,27 +1,29 @@
 #!/usr/bin/env python3
 """Validate line splitting on each content segment of the v3 pipeline.
 
-For each content segment:
-  1. Save the original color crop
-  2. Save the preprocessed binary image (BT.601 + threshold=80)
-  3. Run detect_text_lines() on the binary
-  4. Draw detected line bounding boxes on both the original and binary crops
-  5. Save the annotated visualizations
+Reproduces the exact V3 pipeline path up to line detection:
+  1. Border detection (bottom, left, right) → crop to tooltip
+  2. Orange header detection → black-square expansion
+  3. build_segments with border coordinates
+  4. Header classification via header OCR model + fuzzy match
+  5. BT.601 + threshold=80 → ocr_binary (same as BaseHandler.process())
+  6. detect_text_lines() on ocr_binary
+  7. group_by_y() on detected lines
 
 Output directory structure:
   <output>/
     <image_name>/
-      seg_00_cnt_original.png         — raw color content crop
-      seg_00_cnt_binary.png           — preprocessed binary (black text on white)
-      seg_00_cnt_lines_original.png   — color crop with detected line boxes drawn
-      seg_00_cnt_lines_binary.png     — binary crop with detected line boxes drawn
-      seg_01_hdr.png                  — header crop (tight black-square)
-      seg_01_cnt_original.png
-      seg_01_cnt_binary.png
-      seg_01_cnt_lines_original.png
-      seg_01_cnt_lines_binary.png
+      seg_00_pre_header_cnt_original.png
+      seg_00_pre_header_cnt_binary.png
+      seg_00_pre_header_cnt_detect.png
+      seg_00_pre_header_cnt_lines.png
+      seg_01_item_attrs_hdr.png
+      seg_01_item_attrs_cnt_original.png
+      seg_01_item_attrs_cnt_binary.png
+      seg_01_item_attrs_cnt_detect.png
+      seg_01_item_attrs_cnt_lines.png
       ...
-      overview.png                    — full image with all segments and lines drawn
+      overview.png
 
 Usage:
     python3 scripts/v3/segmentation/test_line_split.py data/sample_images/captain_suit_original.png split_result/
@@ -34,15 +36,22 @@ import sys
 
 import cv2
 import numpy as np
+import yaml
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 sys.path.insert(0, PROJECT_ROOT)
 sys.path.insert(0, os.path.join(PROJECT_ROOT, 'backend'))
 
 CONFIG_PATH = os.path.join(PROJECT_ROOT, 'configs', 'mabinogi_tooltip.yaml')
+LINE_SPLIT_CONFIG_PATH = os.path.join(PROJECT_ROOT, 'configs', 'line_split.yaml')
+MODELS_DIR = os.path.join(PROJECT_ROOT, 'backend', 'ocr', 'models')
 
-from lib.tooltip_segmenter import load_config, detect_headers, build_segments
-from lib.tooltip_line_splitter import TooltipLineSplitter
+from lib.pipeline.segmenter import (
+    load_config, load_section_patterns, init_header_reader,
+    segment_and_tag,
+)
+from lib.pipeline.section_handlers._helpers import bt601_binary
+from lib.pipeline.line_split import MabinogiTooltipSplitter, group_by_y
 
 
 SEGMENT_COLORS = [
@@ -52,24 +61,6 @@ SEGMENT_COLORS = [
 HEADER_COLOR = (0, 127, 255)
 LINE_COLOR = (0, 255, 0)
 LINE_COLOR_BINARY = (0, 0, 255)
-
-
-def preprocess_content(content_bgr):
-    """BT.601 grayscale → threshold=80 → binary (black text on white)."""
-    gray = cv2.cvtColor(content_bgr, cv2.COLOR_BGR2GRAY)
-    _, binary = cv2.threshold(gray, 80, 255, cv2.THRESH_BINARY_INV)
-    return binary
-
-
-def detect_lines_on_content(binary, splitter):
-    """Run line detection on a binary content crop.
-
-    binary: black text on white (from preprocess_content)
-    Returns list of {'x', 'y', 'width', 'height'} dicts.
-    """
-    # detect_text_lines expects white-on-black (foreground = white)
-    binary_detect = cv2.bitwise_not(binary)
-    return splitter.detect_text_lines(binary_detect)
 
 
 def draw_lines_on_image(img, lines, color, thickness=1):
@@ -85,8 +76,8 @@ def draw_lines_on_image(img, lines, color, thickness=1):
     return vis
 
 
-def process_image(image_path, output_root, config):
-    """Process a single image: segment → line split → save visualizations."""
+def process_image(image_path, output_root, header_reader, patterns, config):
+    """Process a single image: segment_and_tag → line split → save visualizations."""
     img = cv2.imread(image_path)
     if img is None:
         print(f"  ERROR: cannot read {image_path}")
@@ -96,91 +87,74 @@ def process_image(image_path, output_root, config):
     out_dir = os.path.join(output_root, base)
     os.makedirs(out_dir, exist_ok=True)
 
-    headers = detect_headers(img, config)
-    segments = build_segments(img, headers)
-    splitter = TooltipLineSplitter()
+    # Exact V3 pipeline: segment_and_tag does border detection + header
+    # detection + build_segments + header classification in one call.
+    tagged = segment_and_tag(img, header_reader, patterns, config)
 
-    h_img, w_img = img.shape[:2]
-    overview = img.copy()
+    with open(LINE_SPLIT_CONFIG_PATH, 'r') as f:
+        line_split_cfg = yaml.safe_load(f) or {}
+    game_split = config.get('horizontal_split_factor')
+    if game_split is not None:
+        line_split_cfg.setdefault('horizontal', {})['split_factor'] = game_split
+    splitter = MabinogiTooltipSplitter(config=line_split_cfg)
 
     print(f"\n{'='*60}")
     print(f"  {os.path.basename(image_path)}")
-    print(f"  {len(headers)} headers → {len(segments)} segments")
+    sections = [s['section'] or '???' for s in tagged]
+    print(f"  {len(tagged)} segments: {sections}")
     print(f"{'='*60}")
 
     total_lines = 0
 
-    for seg in segments:
+    for seg in tagged:
         idx = seg['index']
+        section = seg['section'] or 'unknown'
+        prefix = f"seg_{idx:02d}_{section}"
         seg_color = SEGMENT_COLORS[idx % len(SEGMENT_COLORS)]
 
         # --- Header crop ---
-        if seg['header'] is not None:
-            hdr = seg['header']
-            hdr_crop = img[hdr['y']:hdr['y'] + hdr['h'],
-                           hdr['x']:hdr['x'] + hdr['w']]
-            cv2.imwrite(os.path.join(out_dir, f"seg_{idx:02d}_hdr.png"), hdr_crop)
-
-            # Draw header on overview
-            cv2.rectangle(overview, (0, hdr['y']),
-                          (w_img - 1, hdr['y'] + hdr['h'] - 1), HEADER_COLOR, 2)
-            cv2.putText(overview, f"HDR {idx}",
-                        (hdr['x'] + hdr['w'] + 4, hdr['y'] + hdr['h'] - 2),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.35, HEADER_COLOR, 1)
+        if seg['header_crop'] is not None:
+            cv2.imwrite(os.path.join(out_dir, f"{prefix}_hdr.png"),
+                        seg['header_crop'])
 
         # --- Content crop ---
-        cnt = seg['content']
-        if cnt['h'] <= 0:
-            print(f"  Seg {idx:02d}  content: (empty)")
+        content_crop = seg['content_crop']
+        if content_crop is None or content_crop.shape[0] == 0:
+            print(f"  Seg {idx:02d} [{section:16s}]  content: (empty)")
             continue
 
-        content_crop = img[cnt['y']:cnt['y'] + cnt['h'], :]
+        # BT.601 binary — same as BaseHandler.process()
+        ocr_binary = bt601_binary(content_crop)
 
-        # Preprocess
-        binary = preprocess_content(content_crop)
+        # Line detection — same as BaseHandler.process()
+        detected = splitter.detect_text_lines(ocr_binary)
+        grouped = group_by_y(detected)
+        total_lines += len(grouped)
 
-        # Detect lines
-        lines = detect_lines_on_content(binary, splitter)
-        total_lines += len(lines)
-
-        # Draw on content crops
-        vis_original = draw_lines_on_image(content_crop, lines, LINE_COLOR)
-        vis_binary = draw_lines_on_image(binary, lines, LINE_COLOR_BINARY)
-
-        # Save all content images
-        cv2.imwrite(os.path.join(out_dir, f"seg_{idx:02d}_cnt_original.png"),
+        # Save content images
+        cv2.imwrite(os.path.join(out_dir, f"{prefix}_cnt_original.png"),
                     content_crop)
-        cv2.imwrite(os.path.join(out_dir, f"seg_{idx:02d}_cnt_binary.png"),
-                    binary)
-        cv2.imwrite(os.path.join(out_dir, f"seg_{idx:02d}_cnt_lines_original.png"),
-                    vis_original)
-        cv2.imwrite(os.path.join(out_dir, f"seg_{idx:02d}_cnt_lines_binary.png"),
-                    vis_binary)
+        cv2.imwrite(os.path.join(out_dir, f"{prefix}_cnt_binary.png"),
+                    ocr_binary)
+        cv2.imwrite(os.path.join(out_dir, f"{prefix}_cnt_detect.png"),
+                    ocr_binary)
 
-        # Draw content region + lines on overview
-        cv2.rectangle(overview, (0, cnt['y']),
-                      (w_img - 1, cnt['y'] + cnt['h'] - 1), seg_color, 1)
-        for line in lines:
-            abs_y = cnt['y'] + line['y']
-            cv2.rectangle(overview,
-                          (line['x'], abs_y),
-                          (line['x'] + line['width'] - 1, abs_y + line['height'] - 1),
-                          LINE_COLOR, 1)
+        # Draw lines on content crop
+        vis = draw_lines_on_image(content_crop, detected, LINE_COLOR)
+        cv2.imwrite(os.path.join(out_dir, f"{prefix}_cnt_lines.png"), vis)
 
         # Print summary
-        hdr_label = "(pre-header)" if seg['header'] is None else ""
-        print(f"  Seg {idx:02d}  content y={cnt['y']:4d} h={cnt['h']:3d}  "
-              f"→ {len(lines):2d} lines detected  {hdr_label}")
-        for i, line in enumerate(lines):
+        hdr_text = seg.get('header_ocr_text', '')
+        hdr_info = f"  hdr='{hdr_text}'" if hdr_text else ""
+        print(f"  Seg {idx:02d} [{section:16s}]  "
+              f"h={content_crop.shape[0]:3d}  "
+              f"→ {len(detected):2d} lines ({len(grouped):2d} grouped){hdr_info}")
+        for i, line in enumerate(detected):
             print(f"           line {i:2d}: y={line['y']:3d} x={line['x']:3d} "
                   f"w={line['width']:3d} h={line['height']:2d}")
 
-    # Save overview
-    overview_path = os.path.join(out_dir, "overview.png")
-    cv2.imwrite(overview_path, overview)
-
-    print(f"\n  Total lines detected: {total_lines}")
-    print(f"  Output saved to: {out_dir}/")
+    print(f"\n  Total: {total_lines} grouped lines")
+    print(f"  Output: {out_dir}/")
 
 
 def main():
@@ -191,6 +165,8 @@ def main():
     args = parser.parse_args()
 
     config = load_config(CONFIG_PATH)
+    patterns = load_section_patterns(CONFIG_PATH)
+    header_reader = init_header_reader(models_dir=MODELS_DIR)
 
     if os.path.isdir(args.path):
         images = sorted(
@@ -210,7 +186,7 @@ def main():
     os.makedirs(args.output, exist_ok=True)
 
     for image_path in images:
-        process_image(image_path, args.output, config)
+        process_image(image_path, args.output, header_reader, patterns, config)
 
 
 if __name__ == '__main__':

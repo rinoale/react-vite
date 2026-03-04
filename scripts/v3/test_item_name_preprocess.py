@@ -12,9 +12,9 @@ import cv2
 import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'backend'))
-from lib.tooltip_segmenter import segment_and_tag
-from lib.tooltip_line_splitter import TooltipLineSplitter
-from lib.v3_pipeline import init_pipeline
+from lib.pipeline.segmenter import segment_and_tag
+from lib.pipeline.line_split import MabinogiTooltipSplitter
+from lib.pipeline.v3 import init_pipeline
 
 # Expected item name text (line 1 of pre_header)
 EXPECTED = '각인된 회오리 퓨리 정령 나이트브링어 뱅퀴셔'
@@ -41,7 +41,7 @@ def preprocess_color_mask(content_bgr, target_rgb=(255, 252, 157), tolerance=40)
 def detect_lines(binary):
     """Run line splitter on binary (black-on-white) and return line dicts."""
     binary_detect = cv2.bitwise_not(binary)  # white-on-black for detection
-    splitter = TooltipLineSplitter()
+    splitter = MabinogiTooltipSplitter()
     return splitter.detect_text_lines(binary_detect)
 
 

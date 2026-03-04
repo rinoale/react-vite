@@ -22,10 +22,10 @@ describe('EnchantSection', () => {
       effects: [{ text: '방어 5 증가', option_name: '방어', option_level: 5 }],
     };
     const lines = [
-      { text: '[접두] 충격을 (랭크 F)', global_index: 0 },
-      { text: '최대대미지 15 증가', global_index: 1 },
-      { text: '[접미] 관리자 (랭크 6)', global_index: 2 },
-      { text: '방어 5 증가', global_index: 3 },
+      { text: '[접두] 충격을 (랭크 F)', line_index: 0 },
+      { text: '최대대미지 15 증가', line_index: 1 },
+      { text: '[접미] 관리자 (랭크 6)', line_index: 2 },
+      { text: '방어 5 증가', line_index: 3 },
     ];
 
     render(
@@ -65,9 +65,9 @@ describe('EnchantSection', () => {
       ],
     };
     const lines = [
-      { text: '[접두] 충격을 (랭크 F)', global_index: 0 },
-      { text: '최대대미지 15 증가', global_index: 1 },
-      { text: '밸런스 3 % 증가', global_index: 2 },
+      { text: '[접두] 충격을 (랭크 F)', line_index: 0 },
+      { text: '최대대미지 15 증가', line_index: 1 },
+      { text: '밸런스 3 % 증가', line_index: 2 },
     ];
 
     render(

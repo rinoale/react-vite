@@ -1,8 +1,21 @@
 import React, { useState, useMemo } from 'react';
-import { Pencil, Plus, AlertTriangle } from 'lucide-react';
+import { Pencil, Plus, AlertTriangle, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import ConfigSearchInput from '../ConfigSearchInput';
-import { LINE_BULLET } from '../../lib/constants';
+
+/**
+ * Craft enchant header text matching what the crop image shows.
+ *
+ * "Oreo flip" (white-mask preprocessing for enchant headers) captures only
+ * white text from the tooltip. In-game, numeric-ranked (1-9) enchants don't
+ * display rank in the tooltip, while letter-ranked (A-F) enchants do.
+ *
+ * If oreo flip is improved to capture rank for all enchants, update this rule.
+ */
+function craftEnchantHeaderText(slotKor, name, rankLabel) {
+  const base = `[${slotKor}] ${name}`;
+  return /^\d+$/.test(rankLabel) ? base : `${base} (랭크 ${rankLabel})`;
+}
 
 /** Find enchant config entry matching name + slot */
 function findEnchantConfig(name, slotInt) {
@@ -34,7 +47,7 @@ function buildEffectText(ce, level, abbreviated) {
 }
 
 /** Rebuild effects from new config, pulling rolled values from OCR lines.
- *  Each effect owns its line reference via global_index. */
+ *  Each effect owns its line reference via line_index. */
 function rebuildEffects(newConfig, sectionLines, abbreviated) {
   if (!newConfig?.effects) return [];
   // Collect non-header OCR lines
@@ -43,7 +56,7 @@ function rebuildEffects(newConfig, sectionLines, abbreviated) {
   );
   const usedOcr = new Set();
   return newConfig.effects.map(ce => {
-    const eff = { text: ce.text, option_name: ce.option_name || null, option_level: null, global_index: null };
+    const eff = { text: ce.text, option_name: ce.option_name || null, option_level: null, line_index: null };
     if (!ce.option_name) return eff;
     // Find OCR line containing this option_name to extract rolled value
     const ocrIdx = ocrLines.findIndex(
@@ -52,7 +65,7 @@ function rebuildEffects(newConfig, sectionLines, abbreviated) {
     if (ocrIdx >= 0) {
       usedOcr.add(ocrIdx);
       const line = ocrLines[ocrIdx];
-      eff.global_index = line.global_index;
+      eff.line_index = line.line_index;
       const after = line.text.slice(line.text.indexOf(ce.option_name) + ce.option_name.length);
       const rolled = extractNumber(after);
       if (rolled != null) {
@@ -97,19 +110,18 @@ const EffectRow = ({ eff, lineIdx, onLineChange, configEffects, abbreviated }) =
     const numLevel = value.includes('.') ? parseFloat(value) : parseInt(value, 10);
     if (isNaN(numLevel)) return;
     const newEffText = buildEffectText(matchingConfig, numLevel, abbreviated);
-    onLineChange(lineIdx, LINE_BULLET + newEffText, null, { option_name: matchingConfig.option_name, option_level: numLevel });
+    onLineChange(lineIdx, newEffText, null, { option_name: matchingConfig.option_name, option_level: numLevel });
   };
 
   if (editingName && configEffects && configEffects.length > 0) {
     return (
       <div className="flex items-center gap-1">
-        <span className="text-gray-600 mr-1">.</span>
         <ConfigSearchInput
           items={configEffects}
           getLabel={(item) => item.text}
           onSelect={(selected) => {
             const newEffText = buildEffectText(selected, eff.option_level, abbreviated);
-            onLineChange(lineIdx, LINE_BULLET + newEffText, null, { option_name: selected.option_name });
+            onLineChange(lineIdx, newEffText, null, { option_name: selected.option_name });
             setEditingName(false);
           }}
           onCancel={() => setEditingName(false)}
@@ -130,7 +142,6 @@ const EffectRow = ({ eff, lineIdx, onLineChange, configEffects, abbreviated }) =
 
   return (
     <div className="group flex items-center gap-1 text-xs text-gray-400">
-      <span className="text-gray-600 mr-1">.</span>
       {eff.option_name != null ? (
         <>
           <span>{eff.option_name} </span>
@@ -181,7 +192,7 @@ const EffectRow = ({ eff, lineIdx, onLineChange, configEffects, abbreviated }) =
   );
 };
 
-const EnchantSlot = ({ slot, slotLabel, headerLineIdx, lines, onLineChange, abbreviated }) => {
+const EnchantSlot = ({ slot, slotLabel, headerLineIdx, lines, slotLines, onLineChange, onRemove, abbreviated }) => {
   const { t } = useTranslation();
   const [editingHeader, setEditingHeader] = useState(false);
 
@@ -211,9 +222,9 @@ const EnchantSlot = ({ slot, slotLabel, headerLineIdx, lines, onLineChange, abbr
             onSelect={(item) => {
               const slotKor = item.slot === 0 ? '접두' : '접미';
               const slotKey = slotLabel === 'Prefix' ? 'prefix' : 'suffix';
-              const newText = `[${slotKor}] ${item.name} (랭크 ${item.rank_label})`;
+              const newText = craftEnchantHeaderText(slotKor, item.name, item.rank_label);
               onLineChange(headerLineIdx, newText, (sec) => {
-                const newEffects = rebuildEffects(item, sec.lines, abbreviated);
+                const newEffects = rebuildEffects(item, slotLines, abbreviated);
                 sec[slotKey] = { ...sec[slotKey], name: item.name, rank: item.rank_label, text: newText, effects: newEffects };
               });
               setEditingHeader(false);
@@ -231,6 +242,13 @@ const EnchantSlot = ({ slot, slotLabel, headerLineIdx, lines, onLineChange, abbr
             >
               <Pencil className="w-3 h-3" />
             </button>
+            <button
+              onClick={onRemove}
+              className="p-0.5 text-gray-600 opacity-0 group-hover:opacity-100 hover:text-red-400 transition-opacity"
+              title={t('sections.enchant.remove')}
+            >
+              <X className="w-3 h-3" />
+            </button>
           </div>
         )}
         <span className="text-xs bg-purple-900/50 text-purple-300 px-2 py-0.5 rounded border border-purple-700/50 shrink-0 ml-2">
@@ -239,17 +257,16 @@ const EnchantSlot = ({ slot, slotLabel, headerLineIdx, lines, onLineChange, abbr
       </div>
       <div className="space-y-1.5 pl-3 border-l border-purple-900/30">
         {slot.effects.map((eff, i) => {
-          // Resolve section-local line index from effect's global_index
-          const lineIdx = eff.global_index != null
-            ? lines?.findIndex(l => l.global_index === eff.global_index) ?? -1
+          // Resolve section-local line index from effect's line_index
+          const lineIdx = eff.line_index != null
+            ? lines?.findIndex(l => l.line_index === eff.line_index) ?? -1
             : -1;
           const handleEffectChange = (li, newText, extraUpdate, effectMeta) => {
             const sk = slotLabel === 'Prefix' ? 'prefix' : 'suffix';
-            const effText = newText.startsWith(LINE_BULLET) ? newText.slice(LINE_BULLET.length) : newText;
             onLineChange(li, newText, (sec) => {
               if (sec[sk]) {
                 const effs = [...sec[sk].effects];
-                effs[i] = { ...effs[i], text: effText, ...effectMeta };
+                effs[i] = { ...effs[i], text: newText, ...effectMeta };
                 sec[sk] = { ...sec[sk], effects: effs };
               }
               if (extraUpdate) extraUpdate(sec);
@@ -304,12 +321,12 @@ const AddEnchantSlot = ({ slotLabel, onLineChange }) => {
           getLabel={(item) => `${item.name} (랭크 ${item.rank_label})`}
           onSelect={(item) => {
             const slotKor = item.slot === 0 ? '접두' : '접미';
-            const headerText = `[${slotKor}] ${item.name} (랭크 ${item.rank_label})`;
+            const headerText = craftEnchantHeaderText(slotKor, item.name, item.rank_label);
             const effects = (item.effects || []).map(e => ({
               text: e.text,
               option_name: e.option_name || null,
               option_level: null,
-              global_index: null,
+              line_index: null,
             }));
             onLineChange(-1, '', (sec) => {
               sec[slotKey] = { name: item.name, rank: item.rank_label, text: headerText, effects };
@@ -370,7 +387,15 @@ const EnchantSection = ({ prefix, suffix, lines, onLineChange, abbreviated = tru
           slotLabel="Prefix"
           headerLineIdx={headerIndices.prefix}
           lines={lines}
+          slotLines={groups.prefix}
           onLineChange={onLineChange}
+          onRemove={() => {
+            const drop = new Set(groups.prefix.map(g => g.lineIdx));
+            onLineChange(-1, '', (sec) => {
+              sec.prefix = null;
+              if (sec.lines) sec.lines = sec.lines.filter((_, i) => !drop.has(i));
+            });
+          }}
           abbreviated={abbreviated}
         />
       ) : groups.prefix.length > 0 ? (
@@ -384,7 +409,15 @@ const EnchantSection = ({ prefix, suffix, lines, onLineChange, abbreviated = tru
           slotLabel="Suffix"
           headerLineIdx={headerIndices.suffix}
           lines={lines}
+          slotLines={groups.suffix}
           onLineChange={onLineChange}
+          onRemove={() => {
+            const drop = new Set(groups.suffix.map(g => g.lineIdx));
+            onLineChange(-1, '', (sec) => {
+              sec.suffix = null;
+              if (sec.lines) sec.lines = sec.lines.filter((_, i) => !drop.has(i));
+            });
+          }}
           abbreviated={abbreviated}
         />
       ) : groups.suffix.length > 0 ? (

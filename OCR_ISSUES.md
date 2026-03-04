@@ -17,7 +17,7 @@ For training attempt results, see [OCR_TRAINING_HISTORY.md](OCR_TRAINING_HISTORY
 - **Short Text Filtered** — Reduced `min_width` from 30 to 10 for short text like "천옷".
 - **CRAFT Detection** — Replaced with `TooltipLineSplitter` in v2 pipeline. CRAFT fragmented lines, merged adjacent text, and missed entire sections on structured tooltip layouts.
 - **Splitter Horizontal Border Inflation** — `_add_line()` now filters thin vertical borders (1-2px clusters far from text) and wide horizontal bars (ㅡㅡㅡ with density < 2.0). "보호 1" crop: 248→35px. "아이템 속성" crop: 256→69px.
-- **Training/Inference imgW Mismatch** — `ocr_utils.py` monkey-patches EasyOCR to use fixed imgW from yaml instead of dynamic per-image `max_width`. Squash factors now match exactly.
+- **Training/Inference imgW Mismatch** — `patches/easyocr_imgw.py` monkey-patches EasyOCR to use fixed imgW from yaml instead of dynamic per-image `max_width`. Squash factors now match exactly.
 - **Illegible Training Images** — Removed font sizes 6-7 (produced unreadable tiny text). Quality gates enforce ink ratio ≥2%, width ≥10px, height ≥8px on every generated image.
 - **Faint Training Images** — Removed augmentation (blur, erode/dilate) that produced 25% unreadable images. Clean binary only.
 - **Full-Canvas Whitespace** — Training images now tight-cropped to ink bounds, matching real splitter output. Eliminates hallucination from whitespace.
@@ -83,7 +83,7 @@ Ink ratio gap: real padded crops 0.201 vs synthetic 0.144 (strokes ~1.4× thicke
 
 ## V3 Pipeline — Current Status
 
-**Latest v3 result:** 179/309 exact, 86.7% char acc, FM=60 (18 images, 7 with GT)
+**Latest v3 result:** 184/311 exact, 90.4% char acc, FM=60 (18 images, 7 with GT)
 
 ### Resolved (V3)
 
@@ -108,6 +108,12 @@ Ink ratio gap: real padded crops 0.201 vs synthetic 0.144 (strokes ~1.4× thicke
 9b. ~~**Subbullet `ㄴ` not sliced before OCR**~~ — Prefix detection flagged subbullets but didn't slice them from line crops. The `ㄴ` glyph polluted OCR input across item_mod, set_item, reforge, and item_attrs. Fixed by extending the slice condition from `== 'bullet'` to `in ('bullet', 'subbullet')`. +33 exact matches.
 
 9c. ~~**Non-ranged enchant FM dropped numbers**~~ — `match_enchant_effect()` normalized ALL numbers to `N` and tried to re-extract from garbled OCR. For non-ranged effects (e.g., `이면을 보는 눈 특성 사용 1회 당 경계흔 최대 획득 갯수 3 증가`), the `1` and `3` are fixed DB constants, not rolled values. The number extraction fallback picked only one number, leaving the second `N` slot empty. Fixed by short-circuiting: non-ranged effects return DB text directly.
+
+10. ~~**Continuation stitch tracking**~~ — `merge_continuations()` now sets `_is_stitched=True` on anchor lines when continuation lines are merged. The flag propagates through `ocr_results.json` → `OcrCorrection.is_stitched` → admin badge. Both `text` and `raw_text` are merged so FM sees complete text.
+
+11. ~~**Batch effect assignment**~~ — `_assign_effects_batch()` uses `find_best_pairs()` for greedy 1:1 effect-to-DB matching via a pre-computed score matrix, replacing sequential per-line matching when the enchant entry is known.
+
+12. ~~**Circular import from module restructure**~~ — Resolved during attempt 23 module restructure (`text_processors` ↔ `pipeline` dependency cycle fixed by separating `common.py` and `mabinogi.py`).
 
 ### Open issues
 

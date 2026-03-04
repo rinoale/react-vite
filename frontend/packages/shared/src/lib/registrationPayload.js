@@ -13,24 +13,14 @@
  * @param {Object} params.sections - form sections data
  * @returns {Object} payload ready for POST /register-listing
  */
-/** Strip (랭크 ...) from enchant header text.
- *  Rank is DB metadata injected by FM — not visible in the crop image,
- *  so it must not appear in correction training data. */
-const _RANK_SUFFIX_RE = /\s*\(랭크\s*[A-F0-9]+\)\s*$/;
-const _ENCHANT_HDR_RE = /^\[접[두미]\]/;
-
 export function buildRegistrationPayload({ sessionId, name, price, category, gameItem, sections }) {
-  // Collect all lines with global_index + current text
+  // Collect all lines with (section, line_index) + current text
   const lines = [];
-  for (const secData of Object.values(sections)) {
+  for (const [secKey, secData] of Object.entries(sections)) {
     if (!secData.lines) continue;
     for (const line of secData.lines) {
-      if (line.global_index != null) {
-        // Strip rank suffix from enchant headers — rank is not in the crop image
-        const text = _ENCHANT_HDR_RE.test(line.text)
-          ? line.text.replace(_RANK_SUFFIX_RE, '')
-          : line.text;
-        lines.push({ global_index: line.global_index, text });
+      if (line.line_index != null) {
+        lines.push({ section: secKey, line_index: line.line_index, text: line.text });
       }
     }
   }
@@ -49,6 +39,8 @@ export function buildRegistrationPayload({ sessionId, name, price, category, gam
     item_grade: itemGrade,
     erg_grade: ergGrade,
     erg_level: ergLevel,
+    special_upgrade_type: sections?.item_mod?.special_upgrade_type || null,
+    special_upgrade_level: sections?.item_mod?.special_upgrade_level || null,
     lines,
     enchants,
     reforge_options,
@@ -127,16 +119,8 @@ function extractAttributes(sections) {
   const itemType = sections?.item_type?.text || null;
   const itemGrade = sections?.item_grade?.text || null;
 
-  let ergGrade = null;
-  let ergLevel = null;
-  const ergSection = sections?.erg;
-  if (ergSection?.lines?.length) {
-    const ergText = ergSection.lines.map(l => l.text).join(' ');
-    const gradeMatch = ergText.match(/\b([SABCDEF])\b/);
-    if (gradeMatch) ergGrade = gradeMatch[1];
-    const levelMatch = ergText.match(/(\d+)/);
-    if (levelMatch) ergLevel = parseInt(levelMatch[1], 10);
-  }
+  const ergGrade = sections?.erg?.erg_grade || null;
+  const ergLevel = sections?.erg?.erg_level || null;
 
   return { itemType, itemGrade, ergGrade, ergLevel };
 }

@@ -98,6 +98,25 @@
       "searchReforgeOption": "Search reforge option...",
       "levelDisplay": "Lv. {{level}} / {{maxLevel}}"
     },
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "erg": {
+      "unrecognized": "Erg grade detected but OCR failed to recognize it",
+      "gradeLabel": "Grade",
+      "levelLabel": "Level"
+    },
+    "item_mod": {
+      "label": "Special Upgrade",
+      "unrecognized": "Special upgrade detected but OCR failed to recognize it",
+      "typeLabel": "Type",
+      "levelLabel": "Level",
+      "levelSuffix": "Level"
+    },
+    "set_item": {
+      "searchSetName": "Search set effect",
+      "correct": "Correct name",
+      "remove": "Remove",
+      "clickToEditLevel": "Click to edit level",
+      "addEffect": "Add set effect"
+    }
   }
 }

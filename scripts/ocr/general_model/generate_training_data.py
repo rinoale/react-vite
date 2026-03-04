@@ -43,7 +43,6 @@ FONT_PATHS = [
 ]
 DICT_PATHS = [
     "data/dictionary/reforge.txt",
-    "data/dictionary/enchant_effect.txt",
     # item_name.txt excluded — its 20K entries add 452 chars that dilute training for
     # critical sections (enchant/reforge). Item names are FM-corrected at runtime instead.
     "data/dictionary/tooltip_general.txt",

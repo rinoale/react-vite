@@ -16,14 +16,14 @@ All models use `TPS-ResNet-BiLSTM-CTC` architecture (`imgH=32`, `hidden_size=256
 
 ## Current Performance
 
-128/303 exact (42.2%), 70.2% char accuracy, FM=56 across 7 GT images.
+184/311 exact, 90.4% char accuracy, FM=60 across 18 images (7 with GT).
 
 **Key wins:**
 - Double-dip resize fix (+37 exact, no retraining)
 - Enchant v3 real-sample mixing (46.3% → 100% on enchant headers)
-- Dual-form FM matching (FM 49 → 56)
-
-**Known issues:** `등급` → `개조` header misread (~5%), leading `-` misread as `소`/`#`, ink ratio gap (real 0.201 vs synthetic 0.144).
+- Dual-form FM matching (FM 49 → 56 → 60)
+- Subbullet `ㄴ` slicing + non-ranged FM fix (+33 exact, attempt 22)
+- Prefix detection wired to all V3 segments (attempt 22)
 
 ---
 
@@ -36,7 +36,7 @@ All models use `TPS-ResNet-BiLSTM-CTC` architecture (`imgH=32`, `hidden_size=256
 | Path | `backend/ocr/general_mabinogi_classic_model/a19/` |
 | Symlink | `backend/ocr/models/custom_mabinogi_classic.*` |
 | Charset | 554 chars (`unique_chars.txt`) |
-| imgW | 200 (fixed via `ocr_utils.py` patch) |
+| imgW | 200 (fixed via `patches/easyocr_imgw.py` patch) |
 | Font | `data/fonts/mabinogi_classic.ttf` |
 | Training | 10,000 iterations, batch 64, lr default (Adadelta) |
 | Training data | Synthetic (game-like rendering pipeline) |
@@ -52,7 +52,7 @@ Mabinogi uses two fonts for tooltip text. This model handles lines rendered in t
 | Path | `backend/ocr/general_nanum_gothic_bold_model/a19/` |
 | Symlink | `backend/ocr/models/custom_nanum_gothic_bold.*` |
 | Charset | 554 chars (`unique_chars.txt`) |
-| imgW | 200 (fixed via `ocr_utils.py` patch) |
+| imgW | 200 (fixed via `patches/easyocr_imgw.py` patch) |
 | Font | `data/fonts/NanumGothicBold.ttf` |
 | Training | 10,000 iterations, batch 64, lr default (Adadelta) |
 | Training data | Synthetic (game-like rendering pipeline) |
@@ -108,7 +108,7 @@ Reads enchant slot headers like `[접두] 창백한 (랭크 A)`. These appear in
 | Path | `backend/ocr/preheader_mabinogi_classic_model/v1/` |
 | Symlink | `backend/ocr/models/custom_preheader_mabinogi_classic.*` |
 | Charset | 1,181 chars (`unique_chars.txt`) |
-| imgW | 200 (fixed via `ocr_utils.py` patch) |
+| imgW | 200 (fixed via `patches/easyocr_imgw.py` patch) |
 | Font | `data/fonts/mabinogi_classic.ttf` |
 | Training | 10,000 iterations, batch 64 |
 | Training data | Synthetic (game-like rendering pipeline) |
@@ -124,7 +124,7 @@ Dedicated to the pre-header region (above the first orange header band) which co
 | Path | `backend/ocr/preheader_nanum_gothic_model/v1/` |
 | Symlink | `backend/ocr/models/custom_preheader_nanum_gothic.*` |
 | Charset | 1,181 chars (`unique_chars.txt`) |
-| imgW | 200 (fixed via `ocr_utils.py` patch) |
+| imgW | 200 (fixed via `patches/easyocr_imgw.py` patch) |
 | Font | `data/fonts/NanumGothicBold.ttf` |
 | Training | 10,000 iterations, batch 64 |
 | Training data | Synthetic (game-like rendering pipeline) |
@@ -140,7 +140,7 @@ NanumGothicBold counterpart of the preheader mabinogi_classic model. Same charse
 | Path | `backend/ocr/general_model/a18/` |
 | Symlink | None (previously `custom_mabinogi.*`, now replaced by font-specific models) |
 | Charset | 554 chars (`unique_chars.txt`) |
-| imgW | 200 (fixed via `ocr_utils.py` patch) |
+| imgW | 200 (fixed via `patches/easyocr_imgw.py` patch) |
 | Font | Both fonts mixed in training data |
 | Training | 20,000 iterations, batch 64 |
 | Training data | Synthetic (both fonts combined) |
@@ -153,7 +153,7 @@ The original single-model approach — trained on both fonts mixed together. Sup
 
 ## Inference Architecture
 
-### DualReader (`backend/lib/dual_reader.py`)
+### DualReader (`backend/lib/legacy/dual_reader.py`)
 
 Wraps two EasyOCR readers. Both run `recognize()` on the same line crop image. Per-line, the result with higher confidence wins. Transparent to the parser — it sees a single "reader" object.
 
@@ -162,7 +162,7 @@ Wraps two EasyOCR readers. Both run `recognize()` on the same line crop image. P
 
 Falls back to the legacy single model (`custom_mabinogi`) if font-specific models aren't deployed.
 
-### Inference Patch (`backend/lib/ocr_utils.py`)
+### Inference Patch (`backend/lib/patches/easyocr_imgw.py`)
 
 `patch_reader_imgw()` fixes two EasyOCR issues:
 

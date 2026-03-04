@@ -10,12 +10,12 @@ describe('ReforgeSection', () => {
 
   it('renders option list', () => {
     const options = [
-      { name: '스매시 대미지', level: 15, max_level: 20, global_index: 0 },
-      { name: '크리티컬 대미지', level: 10, max_level: 20, global_index: 1 },
+      { name: '스매시 대미지', level: 15, max_level: 20, line_index: 0 },
+      { name: '크리티컬 대미지', level: 10, max_level: 20, line_index: 1 },
     ];
     const lines = [
-      { text: '스매시 대미지 (15/20 레벨)', global_index: 0 },
-      { text: '크리티컬 대미지 (10/20 레벨)', global_index: 1 },
+      { text: '스매시 대미지 (15/20 레벨)', line_index: 0 },
+      { text: '크리티컬 대미지 (10/20 레벨)', line_index: 1 },
     ];
 
     render(
@@ -28,10 +28,10 @@ describe('ReforgeSection', () => {
 
   it('shows level and max_level', () => {
     const options = [
-      { name: '스매시 대미지', level: 15, max_level: 20, global_index: 0 },
+      { name: '스매시 대미지', level: 15, max_level: 20, line_index: 0 },
     ];
     const lines = [
-      { text: '스매시 대미지 (15/20 레벨)', global_index: 0 },
+      { text: '스매시 대미지 (15/20 레벨)', line_index: 0 },
     ];
 
     render(

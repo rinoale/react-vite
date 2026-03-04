@@ -14,7 +14,7 @@ describe('parseExamineResult', () => {
       abbreviated: false,
       sections: {
         pre_header: {
-          parsed_item_name: { item_name: '다이아몬드 롱소드' },
+          item_name: '다이아몬드 롱소드',
           lines: [{ text: '축복받은 다이아몬드 롱소드' }],
         },
         item_attrs: {
@@ -55,7 +55,7 @@ describe('parseExamineResult', () => {
     expect(result.abbreviated).toBe(true);
   });
 
-  it('falls back to item_name.text when no parsed_item_name', () => {
+  it('falls back to item_name.text when no pre_header.item_name', () => {
     const data = {
       sections: {
         item_name: { text: '가시 니들' },

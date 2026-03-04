@@ -6,9 +6,9 @@ Detailed descriptions of individual algorithms and correction strategies in the 
 
 ## 1. Dullahan — Effect-Guided Enchant Header Correction
 
-**File:** `backend/lib/text_corrector.py`
+**File:** `backend/lib/text_processors/mabinogi.py`
 **Methods:** `do_dullahan()`, `_dullahan_score_body()`
-**Called from:** `apply_fm()` → `has_slot_hdrs` branch
+**Called from:** `EnchantHandler._apply_enchant_fm()` → `has_slot_hdrs` branch
 
 *Named after the headless horseman (and Mabinogi boss monster) who searches for its head. The algorithm's "body" (effect lines) finds the correct "head" (header name) when OCR can't tell them apart.*
 
@@ -145,7 +145,7 @@ Return: sum of matched scores (0 if no matches above 50)
 
 ## 2. Number-Normalized Fuzzy Matching
 
-**File:** `backend/lib/text_corrector.py`
+**File:** `backend/lib/text_processors/mabinogi.py`
 **Method:** `correct_normalized()`
 
 ### Problem
@@ -189,7 +189,7 @@ Output: ("내구력 11/12", 100)
 
 ## 3. Two-Phase Enchant Matching
 
-**File:** `backend/lib/text_corrector.py`
+**File:** `backend/lib/text_processors/mabinogi.py`
 **Methods:** `match_enchant_header()`, `match_enchant_effect()`
 **Used in:** Both `has_slot_hdrs` branch (effect FM after Dullahan header match) and linear fallback (`has_slot_hdrs = False`)
 
@@ -272,7 +272,7 @@ DB effect (wrong):      "지력 N 증가"              → ratio=56 ✗  (loses)
 
 ## 4. Effect-Only Enchant Identification
 
-**File:** `backend/lib/text_corrector.py`
+**File:** `backend/lib/text_processors/mabinogi.py`
 **Method:** `identify_enchant_from_effects()`
 
 ### Problem
@@ -299,7 +299,7 @@ Note: This method uses `total / n_eff` (average), unlike `_dullahan_score_body` 
 
 ## 5. Dual-Model Inference
 
-**File:** `backend/lib/dual_reader.py`
+**File:** `backend/lib/legacy/dual_reader.py`
 **Class:** `DualReader`
 
 ### Problem
@@ -326,7 +326,7 @@ Falls back to single legacy model (`custom_mabinogi.pth`) if font-specific model
 
 ## 6. Double-Dip Resize Fix
 
-**File:** `backend/lib/ocr_utils.py`
+**File:** `backend/lib/patches/easyocr_imgw.py`
 **Function:** `patch_reader_imgw()`
 
 ### Problem
@@ -351,7 +351,7 @@ OCR on training images must give ~100% accuracy. If not, there's a preprocessing
 
 ## 7. Orange-Anchored Header Detection
 
-**File:** `backend/tooltip_segmenter.py`
+**File:** `backend/lib/pipeline/segmenter.py`
 **Method:** `detect_headers()`
 
 ### Problem
@@ -417,7 +417,7 @@ This closes both the ink ratio gap and the height distribution gap between synth
 
 ## 9. Oreo-Flip Enchant Header Preprocessing
 
-**File:** `backend/lib/mabinogi_tooltip_parser.py`
+**File:** `backend/lib/pipeline/tooltip_parsers/mabinogi.py`
 **Functions:** `_oreo_flip()`, `_strip_border_cols()`, `detect_enchant_slot_headers()`
 **Training counterpart:** `scripts/ocr/lib/render_utils.py` → `render_enchant_header()`
 
@@ -522,7 +522,7 @@ Standard grayscale + threshold=80 (used for general content) fails on enchant he
 
 ## 10. Item Name Parsing (`parse_item_name`)
 
-**File:** `backend/lib/text_corrector.py`
+**File:** `backend/lib/text_processors/mabinogi.py`
 **Method:** `TextCorrector.parse_item_name()`
 **Constants:** `_HOLYWATER`, `_EGO_KEYWORD`
 
@@ -639,7 +639,7 @@ Holywater and ego detection use `fuzz.ratio ≥ 70` on individual words.
 
 ## 11. Distanced Line Finder — Gap-Based Outlier Detection
 
-**File:** `backend/lib/line_merge.py`
+**File:** `backend/lib/pipeline/line_split/line_merge.py`
 **Function:** `detect_gap_outlier()`
 
 ### Problem
@@ -700,9 +700,9 @@ The `max(2×, +4)` formula adapts to different resolutions without resolution-sp
 
 ## 12. Excess Effect Line Merging
 
-**File:** `backend/lib/line_merge.py`
+**File:** `backend/lib/pipeline/line_split/line_merge.py`
 **Orchestrator:** `merge_excess_lines()`
-**Called from:** `text_corrector.py` → `apply_fm()` → after Dullahan header match, before effect FM
+**Called from:** `section_handlers/enchant.py` → `_apply_enchant_fm()` → after Dullahan header match, before effect FM
 
 ### Problem
 
@@ -780,20 +780,19 @@ Detection functions return positions/indices only — no side effects. Mutation 
 
 ### Post-Merge Filtering
 
-After `merge_excess_lines` runs, absorbed lines have `_merged=True`. The pipeline (`v3_pipeline.py`) removes these from both section data and `all_lines`:
+After `merge_excess_lines` runs, absorbed lines have `_merged=True`. The handler removes these from section data:
 
 ```python
-sections['enchant']['lines'] = [l for l in ... if not l.get('_merged')]
-all_lines = [l for l in all_lines if not l.get('_merged')]
+section_data['lines'] = [l for l in lines if not l.get('_merged') and not l.get('_cont_merged')]
 ```
 
-This filtering is a pipeline-level concern, not part of the merge algorithm itself.
+This filtering is a handler-level concern, not part of the merge algorithm itself.
 
 ---
 
 ## 13. Prefix Detection — Combined Classifier
 
-**Files:** `backend/lib/prefix_detector.py`, `backend/lib/shape_walker.py`
+**Files:** `backend/lib/image_processors/prefix_detector.py`, `backend/lib/image_processors/shape_walker.py`
 **Tests:** `tests/test_finding_bullet_images.py`, `tests/test_prefix_detector.py`
 **Ground truth:** `tests/sample_images/*_original.meta.json`
 
@@ -1024,7 +1023,7 @@ Each fix targeted a specific false positive class:
 
 ### Per-Color Detection
 
-`detect_prefix_per_color(img_bgr_line, config)` iterates over each color in the config independently. Used in the production pipeline (`mabinogi_tooltip_parser.py`, `line_processing.py`) where BGR images are available.
+`detect_prefix_per_color(img_bgr_line, config)` iterates over each color in the config independently. Used in the production pipeline (`tooltip_parsers/mabinogi.py`, `line_split/line_processing.py`) where BGR images are available.
 
 `detect_prefix(mask_line, config)` operates on a pre-built binary mask. Used in tests and the visualization script where masks are already constructed.
 
@@ -1177,7 +1176,7 @@ Two images per input:
 
 ## 14. Shape Walker — General-Purpose Shape Detection
 
-**File:** `backend/lib/shape_walker.py`
+**File:** `backend/lib/image_processors/shape_walker.py`
 
 The shape walker is a general-purpose shape detection library used by prefix detection (Section 13) but designed for reuse across other detection tasks.
 
@@ -1223,3 +1222,283 @@ if match:
 Column projection (`col_proj[x] = sum of ink pixels in column x`) is a lossy 1D reduction — it discards row positions. Two pixels at rows 2 and 12 in the same column produce the same count (2) as two adjacent pixels at rows 5 and 6. This is why shape walker (2D) is necessary for shape verification.
 
 A bitmask encoding (`col_proj[x] = sum of 2^y for each ink pixel at row y`) would preserve exact row positions in a single integer. For example, ink at rows 1,2,3 → `2+4+8 = 14 = 0b1110` (contiguous bits), while ink at rows 2,12 → `4+4096 = 4100 = 0b1000000000100` (gap in bits, clearly scattered). Contiguity can be checked with bit operations. This approach could replace shape walker for dot detection but would be more complex for multi-segment shapes like ㄴ.
+
+---
+
+## 15. Greedy 1:1 Best-Match Assignment (`find_best_pairs`)
+
+**File:** `backend/lib/text_processors/common.py`
+**Function:** `find_best_pairs(queries, candidates, scorer=None)`
+**Used by:** `EnchantHandler._assign_effects_batch()` (effect-to-DB matching)
+
+### Problem
+
+When an enchant entry is known (via Dullahan or P1), we need to assign each OCR effect line to exactly one DB effect. Multiple OCR lines may partially match the same DB effect (especially with garbled OCR), and vice versa. A naive per-line `argmax` can assign two OCR lines to the same DB effect, leaving one DB effect unmatched.
+
+### Algorithm
+
+```
+Input: queries   = [0, 1, 2, ...]   (OCR line indices)
+       candidates = [0, 1, 2, ...]   (DB effect indices)
+       scorer(qi, ci) → numeric score (e.g. fuzz.ratio via pre-computed matrix)
+
+Step 1: Score ALL (query, candidate) pairs
+        → [(score, qi, ci), ...] for all qi × ci
+
+Step 2: Sort by score descending
+
+Step 3: Greedy assign — iterate sorted list:
+        If qi already used OR ci already used → skip
+        If score ≤ 0 → stop (no useful matches remain)
+        Assign: result[qi] = (ci, score)
+        Mark qi and ci as used
+
+Output: list parallel to queries: [(candidate_index, score), ...]
+        Unmatched queries get (-1, 0)
+```
+
+### Properties
+
+- **Greedy-optimal for top matches:** The highest-confidence assignments are made first, preventing weaker matches from stealing candidates.
+- **1:1 guarantee:** Each query matches at most one candidate and vice versa. No duplicate assignments.
+- **O(n×m) scoring + O(n×m log(n×m)) sort:** Practical for small sets (typically 3-8 effects per enchant).
+
+### Usage in Batch Effect Assignment
+
+```python
+# In _assign_effects_batch():
+scores = score_enchant_effects(valid_texts, entry)  # pre-compute matrix
+scorer = lambda qi, ci: scores[qi][ci]               # matrix lookup
+pairs = find_best_pairs(range(len(valid)), range(len(effects)), scorer=scorer)
+
+for qi, (ci, score) in enumerate(pairs):
+    if ci >= 0:
+        match_enchant_effect(text, entry, force_idx=ci)  # correct with known DB effect
+```
+
+The `force_idx` parameter bypasses the per-line matching loop — instead of trying all DB effects, it goes directly to the assigned one.
+
+---
+
+## 16. Continuation Merge Ordering
+
+**File:** `backend/lib/pipeline/section_handlers/enchant.py`
+**Function:** `merge_continuations()` from `line_processing.py`
+
+### Problem
+
+Long enchant effects wrap across multiple visual lines. The continuation line has no bullet prefix and contains part of the effect text (often including rolled numbers). If FM runs before merging, it sees incomplete text and can't extract numbers correctly.
+
+### Ordering Constraint
+
+```
+snapshot_and_strip()     — save raw_text (pre-FM snapshot)
+    ↓
+merge_continuations()    — merge both text AND raw_text; set _is_stitched=True
+    ↓
+_apply_enchant_fm()      — FM sees complete merged text with all numbers
+    ↓
+build_enchant_structured() — structured rebuild from FM-corrected lines
+```
+
+### Why Before FM
+
+```
+Example: "엘리멘탈 웨이브 랭크 1 이상일 때" (line 1)
+         "모든 속성 연금술 대미지 10 증가"    (line 2, continuation)
+
+DB template: "엘리멘탈 웨이브 랭크 N 이상일 때 모든 속성 연금술 대미지 N ~ N 증가"
+
+If FM runs FIRST (before merge):
+  Line 1 alone: "...랭크 1 이상일 때" → matches partial template → extracts "1"
+  Line 2 alone: "...대미지 10 증가"   → matches partial template → extracts "10"
+  But the 1:1 assignment can't see both numbers in context.
+
+If merge runs FIRST:
+  Merged: "엘리멘탈 웨이브 랭크 1 이상일 때 모든 속성 연금술 대미지 10 증가"
+  FM matches full template → correctly extracts rolled value "10"
+```
+
+### Stitch Tracking Flow
+
+```
+merge_continuations() sets anchor['_is_stitched'] = True
+  → v3._save_crops_by_section() writes to ocr_results.json
+    → router.py reads ocr_results.json on correction submit
+      → OcrCorrection(is_stitched=True) saved to DB
+        → Admin dashboard shows stitched badge
+```
+
+This flow enables reviewers to identify corrections where the original OCR text came from merged lines (potentially lower confidence due to continuation joining).
+
+## 17. Line Splitting — Horizontal Projection Profiling
+
+**File:** `backend/lib/pipeline/line_split/line_splitter.py` (base), `mabinogi_tooltip_splitter.py` (subclass)
+**Called from:** Section handlers via `detect_text_lines(binary_img)`
+
+Replaces CRAFT for line detection. CRAFT fragments lines, merges adjacent text, and misses entire sections on structured tooltip layouts. This splitter achieves perfect detection (244 total lines across 5 test images, 0 misses).
+
+### Input
+
+A binary image (black background=0, white text=255) of a section content area, produced by BT.601 grayscale + threshold 80 + `THRESH_BINARY_INV`.
+
+### Step 1: Border Removal (Mabinogi override)
+
+Mabinogi tooltips have thin vertical UI border columns that span the full image height, bridging gaps between lines and fooling the detector.
+
+```
+Before:                    After _remove_borders():
+█░░░░░░░░░░░░░░█          ░░░░░░░░░░░░░░░░
+█░░공격 10 증가░█    →     ░░공격 10 증가░░
+█░░░░░░░░░░░░░░█          ░░░░░░░░░░░░░░░░
+█░░마법 5 증가░░█          ░░마법 5 증가░░░
+█░░░░░░░░░░░░░░█          ░░░░░░░░░░░░░░░░
+(█ = border column)
+```
+
+Per-column density = `(white pixels in column) / image_height`. Columns with >60% density in contiguous runs ≤3px wide are masked to black. Wider runs are kept (real text like aligned `ㄴ` prefixes).
+
+### Step 2: Horizontal Projection
+
+Sum white pixels per row → 1D projection array:
+
+```
+Row   Image (░=black, █=white ink)       Projection
+  0   ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░     0
+  1   ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░     0
+  2   ░░██░██░█░██░██░░░░░░░░░░░░░░░░    42  ← text
+  3   ░░██░██░█░██░██░░░░░░░░░░░░░░░░    38  ← text
+  4   ░░██████░██░███░░░░░░░░░░░░░░░░    55  ← text
+  5   ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░     0
+  6   ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░     0
+  7   ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░     0
+  8   ░░████░█░██░████░░░░░░░░░░░░░░░    48  ← text
+  9   ░░████░█░██░████░░░░░░░░░░░░░░░    45  ← text
+ 10   ░░████░████░████░░░░░░░░░░░░░░░    52  ← text
+ 11   ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░     0
+```
+
+A row is text if: `projection[y] > max(3, width × 0.015)`
+
+### Step 3: Gap Closing (tolerance = 2 rows)
+
+In a full line of text, the projection rarely dips below threshold because many characters contribute ink at every row. But very short lines (2-3 characters like `적용)`) can have sparse rows where the total ink briefly drops below `max(3, w × 0.015)`. The gap tolerance closes these 1-2 row dips to prevent splitting a single line in two:
+
+```
+Example A: 1-row gap → closed       Example B: 3-row gap → kept
+
+Row  has_text  After close          Row  has_text  After close
+  0  True      True                   0  True      True
+  1  True      True                   1  True      True
+  2  True      True                   2  False     False  ← real
+  3  False     True  ← closed         3  False     False  ← line
+  4  True      True                   4  False     False  ← break
+  5  True      True                   5  True      True
+  6  True      True                   6  True      True
+→ one block (rows 0-6)              → two blocks (0-1) and (5-6)
+```
+
+### Step 4: Contiguous Run Detection
+
+Each contiguous run of True rows = a candidate line block:
+
+```
+Row   has_text    Block
+  2   True  ─┐
+  3   True   ├── Block A (h=3, rows 2-4)
+  4   True  ─┘
+  5   False       ← gap (3 rows)
+  8   True  ─┐
+  9   True   ├── Block B (h=3, rows 8-10)
+ 10   True  ─┘
+```
+
+Routing by block height:
+
+| Condition | Action |
+|---|---|
+| `h < min_height (6)` | Discard (noise) |
+| `min_height ≤ h ≤ max_height (25)`, no internal gap | Accept as single line |
+| `min_height ≤ h ≤ max_height`, has internal gap | `_split_tall_block()` |
+| `h > max_height` | `_split_tall_block()` |
+
+**Internal gap** = any row with projection=0 inside the block. This means two lines were merged by gap tolerance but have a fully empty row between them.
+
+**`_split_tall_block()`**: Re-projects the block region with a lower local threshold (`max(1, median(non-zero) × 0.1)`) and re-detects sub-lines without gap tolerance.
+
+### Step 5: Rescue Pass
+
+Lines with very sparse text (e.g., `적용)`, `(6~7)`) get missed by the main threshold. The rescue pass re-scans large inter-block gaps with a lower threshold:
+
+```
+Main threshold:    max(3, width × 0.015)
+Rescue threshold:  max(2, width × 0.01)
+```
+
+Only gaps larger than `avg_line_height × 1.5` are re-scanned. This prevents false rescues in normal line gaps while catching isolated short text.
+
+### Step 6: Horizontal Analysis (`_add_line`)
+
+For each detected y-range, compute a vertical projection (per-column ink count):
+
+```
+Line band rows 2-4:  ░░██░██░█░██░░░░░░░░░░░░░░██░██░
+Column projection:    0 0 3 3 0 3 3 0 3 0 3 3 0 0 0 0 0 0 0 0 0 0 0 0 3 0 3 3 0 3 3 0
+                      ├── cluster A ──────────────┤                     ├─ cluster B ──┤
+                                               gap = 12px
+```
+
+If `gap > line_h × horizontal_split_factor (default 3)`, the line splits into separate segments. This handles color values like `R: 0    G: 0    B: 0` (factor=1.5 for color sections).
+
+**Mabinogi artifact filtering** (`_filter_clusters`):
+
+| Artifact | Detection | Action |
+|---|---|---|
+| Horizontal bar (`ㅡㅡㅡ`) | `width > line_h × 3` AND `avg_density < 2.0` | Drop |
+| Corner bracket (`「`) | First cluster, `avg_density < 2.0`, gap ≥ 4px to next | Drop |
+| Thin border stripe | Width ≤ 2px, `density ≥ line_h × 0.85` | Drop |
+
+### Step 7: Padding
+
+Final crops get proportional padding before OCR:
+
+```
+pad_x = max(2, h // 3)    # horizontal: ~1/3 of line height
+pad_y = max(1, h // 5)    # vertical: ~1/5 of line height
+```
+
+For a typical 14px line: `pad_x = 4`, `pad_y = 2`. Padding is clamped to image boundaries.
+
+### Post-Detection Processing
+
+After splitting, the pipeline applies (in `line_processing.py` and `line_merge.py`):
+
+| Step | Function | Purpose |
+|---|---|---|
+| Group | `group_by_y()` | Re-group horizontal sub-segments by y coordinate |
+| Merge bounds | `merge_group_bounds()` | Single bounding box per line group |
+| Trim leaked lines | `trim_outlier_tail()` | Remove lines from adjacent sections (gap > `max(median×2, median+4)`) |
+| Promote grey | `promote_grey_by_prefix()` | Grey lines with bullet prefixes → reclassified as effects |
+| Merge continuations | `merge_continuations()` | Lines without prefix merge into preceding bullet-prefixed line |
+| Slot assignment | `determine_enchant_slots()` | Determine enchant slot order from header structure |
+| Effect counting | `count_effects_per_header()` | Count non-grey, non-merged lines per header |
+
+### Parameters Summary
+
+| Parameter | Value | Purpose |
+|---|---|---|
+| Binarization threshold | 80 | Grayscale → binary cutoff |
+| Background polarity | mean ≥ 128 → `BINARY_INV`, else `BINARY` | Auto-detect dark/light background |
+| Row text threshold | `max(3, w × 0.015)` | Min ink pixels for a row to count as text |
+| Gap tolerance | 2 rows | Max gap to close between text rows |
+| min_height | 6 | Minimum line height to accept |
+| max_height | 25 | Maximum single-line height before splitting |
+| min_width | 10 | Minimum line width to accept |
+| horizontal_split_factor | 3 (1.5 for color) | `gap > h × factor` triggers horizontal split |
+| Rescue threshold | `max(2, w × 0.01)` | Lower threshold for second pass |
+| Min gap for rescue | `avg_h × 1.5` | Gap must be this large to attempt rescue |
+| Border column density | 60% | Column density threshold for border removal |
+| Border run max width | 3px | Only mask narrow dense column runs |
+| pad_x | `max(2, h // 3)` | Horizontal crop padding |
+| pad_y | `max(1, h // 5)` | Vertical crop padding |
+| Gap outlier threshold | `max(median×2, median+4)` | Detect section-boundary gaps |

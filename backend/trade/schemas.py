@@ -5,7 +5,7 @@ from pydantic import BaseModel, field_validator
 class OcrLineResponse(BaseModel):
     text: str = ''
     confidence: float = 0.0
-    global_index: int
+    line_index: int
 
     @field_validator('confidence', mode='before')
     @classmethod
@@ -23,7 +23,7 @@ class EnchantEffectResponse(BaseModel):
     rolled_value: Optional[Union[int, float]] = None
     min_value: Optional[Union[int, float]] = None
     max_value: Optional[Union[int, float]] = None
-    global_index: Optional[int] = None
+    line_index: Optional[int] = None
 
 
 class EnchantSlotResponse(BaseModel):
@@ -57,7 +57,8 @@ class ReforgeOptionResponse(BaseModel):
     level: Optional[int] = None
     max_level: Optional[int] = None
     effect: Optional[str] = None
-    global_index: Optional[int] = None
+    text: Optional[str] = None
+    line_index: Optional[int] = None
 
 
 class ColorPartResponse(BaseModel):
@@ -65,13 +66,6 @@ class ColorPartResponse(BaseModel):
     r: Optional[int] = None
     g: Optional[int] = None
     b: Optional[int] = None
-
-
-class ParsedItemNameResponse(BaseModel):
-    item_name: Optional[str] = None
-    enchant_prefix: Optional[str] = None
-    enchant_suffix: Optional[str] = None
-    raw_text: Optional[str] = None
 
 
 class OcrSectionResponse(BaseModel):
@@ -87,10 +81,24 @@ class OcrSectionResponse(BaseModel):
     resolution: Optional[EnchantResolutionResponse] = None
     # reforge
     options: Optional[List[ReforgeOptionResponse]] = None
+    # item_attrs
+    attrs: Optional[Dict[str, str]] = None
+    # set_item
+    set_effects: Optional[List[Dict[str, Any]]] = None
+    # erg
+    erg_grade: Optional[str] = None
+    erg_level: Optional[int] = None
+    erg_max_level: Optional[int] = None
+    # item_mod
+    has_special_upgrade: Optional[bool] = None
+    special_upgrade_type: Optional[str] = None
+    special_upgrade_level: Optional[int] = None
     # item_color
     parts: Optional[List[ColorPartResponse]] = None
     # pre_header
-    parsed_item_name: Optional[ParsedItemNameResponse] = None
+    item_name: Optional[str] = None
+    enchant_prefix: Optional[str] = None
+    enchant_suffix: Optional[str] = None
 
 
 class ExamineItemResponse(BaseModel):

@@ -81,6 +81,31 @@ sections:
       - "세트아이템"
     required: false
     ocr: true
+    set_names:
+      - 골드 스트라이크 강화
+      - 낚시 강화
+      - 다운 어택 강화
+      - 돌진 강화
+      - 라이프 드레인 강화
+      - 매그넘 샷 강화
+      - 반신화 강화
+      - 배쉬 강화
+      - 블랙 스미스 강화
+      - 서포트 샷 강화
+      - 스매시 강화
+      - 아이스 볼트 강화
+      - 야금술 강화
+      - 워터 캐논 강화
+      - 윈드밀 강화
+      - 제련 강화
+      - 충격 흡수 강화
+      - 파이어 볼트 강화
+      - 플레이머 강화
+      - 힐링 강화
+      - 공격 속도 증가
+      - 최대 대미지 증가
+      - 크리티컬 대미지 증가
+      - 라데카 이동 속도 증가
 
   item_color:
     order: 70
@@ -97,7 +122,7 @@ sections:
     header_patterns:
       - "정령"
     required: false
-    ocr: true
+    skip: true
 
   flavor_text:
     order: 80
@@ -144,6 +169,15 @@ header_detection:
     ref_columns: 10      # number of columns to check right of orange x_max
     density_threshold: 0.2  # fraction of ref columns that must be pure-black to continue expanding
     max_expansion: 40    # max rows to search in each direction from orange band
+
+  # Step 3: Grey-line cap — structural bound for black-square expansion
+  # Each header has a grey separator line (RGB 132,132,132) running through it.
+  # The expanded header is capped at grey_y - cap_above to grey_y + cap_below.
+  grey:
+    val: 132               # exact grey border pixel value (all channels)
+    min_density: 0.5       # fraction of row width that must be grey
+    cap_above: 7           # max pixels above grey line (header top)
+    cap_below: 8           # max pixels below grey line (header bottom)
 
   # Header OCR preprocessing and section label matching
   ocr:

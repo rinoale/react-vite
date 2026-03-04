@@ -21,7 +21,7 @@ from PIL import Image
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 from scripts.ocr.lib.model_version import resolve_version, load_training_config
 from scripts.ocr.lib.training_templates import (
-    generate_template_lines, load_dictionaries, collect_all_chars, HEADER_BOOSTS,
+    generate_template_lines, load_dictionaries, collect_all_chars,
 )
 from scripts.ocr.lib.render_utils import (
     render_line_gamelike, split_all_labels,
@@ -68,17 +68,9 @@ def generate_data():
     max_text_width = CANVAS_WIDTH - 2 * max(2, 11 // 3)
     all_labels = split_all_labels(all_labels, FONT_PATH, max_font, max_text_width)
     all_labels = list(set(all_labels))
-    print(f"Unique labels (pre-boost): {len(all_labels)}")
-
-    # Post-dedup boost for critical section headers
-    boost_count = 0
-    for header, extra in HEADER_BOOSTS:
-        all_labels.extend([header] * extra)
-        boost_count += extra
-    print(f"Post-dedup boost: +{boost_count} header copies → {len(all_labels)} total labels")
+    print(f"Unique labels: {len(all_labels)}")
 
     random.shuffle(all_labels)
-    print(f"Total labels (with boost): {len(all_labels)}")
 
     count = 0
     skipped = 0

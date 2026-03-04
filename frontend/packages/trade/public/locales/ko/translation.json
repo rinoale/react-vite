@@ -75,6 +75,17 @@
     "marketplace": "Marketplace",
     "sellItem": "Sell Item"
   },
+  "attrs": {
+    "damage": "공격",
+    "magic_damage": "마법 공격력",
+    "additional_damage": "추가 대미지",
+    "balance": "밸런스",
+    "defense": "방어력",
+    "protection": "보호",
+    "magic_defense": "마법 방어력",
+    "magic_protection": "마법 보호",
+    "durability": "내구력"
+  },
   "sections": {
     "lowConfidence": "Low Confidence: {{pct}}%",
     "enchant": {
@@ -98,6 +109,25 @@
       "searchReforgeOption": "Search reforge option...",
       "levelDisplay": "Lv. {{level}} / {{maxLevel}}"
     },
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "erg": {
+      "unrecognized": "에르그 등급이 감지되었으나 인식에 실패했습니다",
+      "gradeLabel": "등급",
+      "levelLabel": "레벨"
+    },
+    "item_mod": {
+      "label": "특별 개조",
+      "unrecognized": "특별개조가 감지되었으나 인식에 실패했습니다",
+      "typeLabel": "타입",
+      "levelLabel": "단계",
+      "levelSuffix": "단계"
+    },
+    "set_item": {
+      "searchSetName": "세트 효과 검색",
+      "correct": "이름 수정",
+      "remove": "삭제",
+      "clickToEditLevel": "클릭하여 강화 수치 수정",
+      "addEffect": "세트 효과 추가"
+    }
   }
 }

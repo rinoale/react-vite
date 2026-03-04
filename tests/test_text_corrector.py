@@ -1,5 +1,44 @@
 """Tests for backend/lib/text_corrector.py — uses mini_text_corrector fixture."""
 
+from lib.text_processors.common import find_best_pairs
+
+
+class TestFindBestPairs:
+    def test_basic_1_to_1(self):
+        pairs = find_best_pairs(['abc', 'xyz'], ['xyzz', 'abcd'])
+        # 'abc' → 'abcd' (idx 1), 'xyz' → 'xyzz' (idx 0)
+        assert pairs[0] == (1, pairs[0][1])
+        assert pairs[1] == (0, pairs[1][1])
+
+    def test_no_duplicates(self):
+        # Both queries are close to the same candidate 'abcd',
+        # but greedy 1:1 forces the second to match 'abcf'
+        pairs = find_best_pairs(['abc', 'abd'], ['abcd', 'abcf'])
+        indices = {pairs[0][0], pairs[1][0]}
+        assert indices == {0, 1}  # Both candidates used, no duplicates
+
+    def test_empty_queries(self):
+        assert find_best_pairs([], ['a', 'b']) == []
+
+    def test_empty_candidates(self):
+        pairs = find_best_pairs(['a', 'b'], [])
+        assert pairs == [(-1, 0), (-1, 0)]
+
+    def test_more_queries_than_candidates(self):
+        pairs = find_best_pairs(['a', 'b', 'c'], ['aa'])
+        assigned = [i for i, s in pairs if i >= 0]
+        assert len(assigned) == 1  # Only one can match
+
+    def test_custom_scorer(self):
+        # Scorer returns 100 for matching indices, 0 otherwise
+        def scorer(q, c):
+            return 100 if q == c else 0
+
+        pairs = find_best_pairs([0, 1, 2], [2, 1, 0], scorer=scorer)
+        for qi, (ci, score) in enumerate(pairs):
+            assert score == 100
+            assert [2, 1, 0][ci] == qi  # Each query matched to its equal
+
 
 class TestCorrectNormalized:
     def test_exact_match_high_score(self, mini_text_corrector):
@@ -80,3 +119,39 @@ class TestMatchEnchantEffect:
             '최대대미지 15 증가', None)
         assert score == 0
         assert text == '최대대미지 15 증가'
+
+    def test_force_idx_bypasses_scoring_and_cutoff(self, mini_text_corrector):
+        """force_idx skips the scoring loop and always returns positive score."""
+        entry = mini_text_corrector._enchant_db[0]
+        # Force match to effect index 1 ('밸런스 3 % 증가') even though
+        # the text is closer to index 0 ('최대대미지 15 증가')
+        text, score = mini_text_corrector.match_enchant_effect(
+            '최대대미지 15 증가', entry, force_idx=1)
+        assert score > 0  # Always positive when force_idx is set
+        assert '밸런스' in text
+
+    def test_force_idx_low_score_still_positive(self, mini_text_corrector):
+        """Even a poor match returns positive score when force_idx is set."""
+        entry = mini_text_corrector._enchant_db[0]
+        text, score = mini_text_corrector.match_enchant_effect(
+            '완전히 다른 텍스트', entry, force_idx=0)
+        assert score > 0  # Positive despite low similarity
+
+
+class TestScoreEnchantEffects:
+    def test_returns_scores_for_all_effects(self, mini_text_corrector):
+        entry = mini_text_corrector._enchant_db[0]
+        scores = mini_text_corrector.score_enchant_effects(
+            '최대대미지 15 증가', entry)
+        assert len(scores) == 2  # Entry has 2 effects
+        # First effect ('최대대미지 N 증가') should score highest
+        assert scores[0] > scores[1]
+
+    def test_empty_text_returns_zeros(self, mini_text_corrector):
+        entry = mini_text_corrector._enchant_db[0]
+        scores = mini_text_corrector.score_enchant_effects('', entry)
+        assert scores == []
+
+    def test_no_entry_returns_empty(self, mini_text_corrector):
+        scores = mini_text_corrector.score_enchant_effects('anything', None)
+        assert scores == []

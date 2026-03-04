@@ -1,0 +1,141 @@
+# Line splitter configuration — tunable thresholds for text line detection.
+#
+# Base class (TooltipLineSplitter) uses: detection, rescue, tall_block,
+# horizontal, padding.
+# Mabinogi subclass adds: border_removal, cluster_filter.
+# Line processing functions use: outlier, stitch.
+
+# Step 2-4: Horizontal projection profiling and contiguous run detection.
+# Sums white pixels per row to build a 1D projection, then finds text rows
+# where projection exceeds the density threshold.
+detection:
+  # BT.601 grayscale threshold for binarization (preprocess_image).
+  binarization_threshold: 80
+
+  # Mean pixel value cutoff to auto-detect light vs dark background.
+  # >= cutoff → light background (THRESH_BINARY_INV);
+  # <  cutoff → dark background (THRESH_BINARY).
+  background_polarity_cutoff: 128
+
+  # A row is "text" if projection[y] > max(row_density_minimum, width × row_density_ratio).
+  # The ratio scales with image width; the minimum prevents false positives on narrow images.
+  row_density_ratio: 0.015
+  row_density_minimum: 3
+
+  # Close gaps of up to this many rows between text runs.
+  # Thin character strokes can cause 1-2 row dips below threshold,
+  # but real inter-line gaps are typically 4+ rows.
+  gap_tolerance: 2
+
+  # Contiguous run height routing:
+  #   h < minimum_height        → discard (noise)
+  #   minimum_height ≤ h ≤ maximum_height, no internal gap → accept as line
+  #   minimum_height ≤ h ≤ maximum_height, has internal gap → _split_tall_block()
+  #   h > maximum_height        → _split_tall_block()
+  minimum_height: 6
+  maximum_height: 25
+
+  # Minimum horizontal extent to accept a line segment.
+  minimum_width: 10
+
+# Step 5: Rescue pass — re-scan large gaps with a lower density threshold.
+# Catches isolated short continuation text (적용), (6~7), 제외)) whose sparse
+# ink falls below the main threshold after border removal.
+rescue:
+  # Rescue row threshold: max(density_minimum, width × density_ratio).
+  # Lower than the main detection threshold to catch sparse lines.
+  density_ratio: 0.01
+  density_minimum: 2
+
+  # Only re-scan gaps larger than avg_line_height × minimum_gap_factor.
+  # Smaller gaps can't fit another line, so no point re-scanning.
+  minimum_gap_factor: 1.5
+
+# _split_tall_block(): Re-projects an oversized block with a lower local
+# threshold to find individual lines merged by gap tolerance.
+tall_block:
+  # Local threshold = max(1, median(non-zero projection) × threshold_factor).
+  # 0.1 catches the thin zero-rows between merged lines while ignoring
+  # low-level noise in the projection.
+  threshold_factor: 0.1
+
+# Step 6: Horizontal analysis in _add_line().
+# After finding a text row band, computes per-column ink counts and splits
+# into separate segments when wide horizontal gaps appear.
+horizontal:
+  # Split when gap between ink clusters > line_height × split_factor.
+  # Normal inter-character gaps are 1-6px; large gaps indicate separate
+  # text segments (e.g. "파트 A    R:0    G:0    B:0").
+  # Default 3 for most sections; mabinogi_tooltip.yaml overrides to 1.5
+  # for color sections where R/G/B values need separate extraction.
+  split_factor: 3
+
+# Step 7: Proportional padding added around each detected line crop.
+# Sized relative to line height so padding scales with resolution.
+# Typical 14px line → pad_x=4, pad_y=2.
+padding:
+  # pad_x = max(horizontal_minimum, line_height // horizontal_divisor)
+  horizontal_divisor: 3
+  horizontal_minimum: 2
+
+  # pad_y = max(vertical_minimum, line_height // vertical_divisor)
+  vertical_divisor: 5
+  vertical_minimum: 1
+
+# Step 1: _remove_borders() — mask narrow vertical UI border columns (│)
+# that bridge gaps between text lines in the horizontal projection.
+# Only the Mabinogi subclass uses this section.
+border_removal:
+  # Per-column density = (white pixels in column) / image_height.
+  # Columns exceeding this ratio are UI border candidates.
+  column_density: 0.6
+
+  # Only mask contiguous runs of dense columns up to this width.
+  # Wider runs (≥4px) are real text content (e.g. aligned ㄴ prefixes).
+  maximum_run_width: 3
+
+# _filter_clusters() — remove Mabinogi tooltip UI border artifacts
+# from ink clusters before horizontal splitting.
+# Only the Mabinogi subclass uses this section.
+cluster_filter:
+  # Clusters narrower than this are "thin" — checked for border artifacts.
+  # Wider clusters are treated as text content.
+  thin_width: 2
+
+  # Horizontal bar border (ㅡㅡㅡ): drop if width > line_h × bar_width_factor
+  # AND avg column density < bar_maximum_density.
+  bar_width_factor: 3
+  bar_maximum_density: 2.0
+
+  # Corner bracket artifact (「 before section headers): drop if first cluster,
+  # avg_density < bracket_maximum_density, and gap to next cluster ≥ bracket_minimum_gap.
+  # Real text characters have avg_density ≥ 3.5; the 「 bracket is ~1.8.
+  bracket_maximum_density: 2.0
+  bracket_minimum_gap: 4
+
+  # Full-height border stripe (│): thin cluster whose avg_density
+  # ≥ line_h × border_stripe_density → spans nearly all rows → remove.
+  border_stripe_density: 0.85
+
+  # Distance threshold for thin cluster proximity check:
+  # gap_threshold = line_h × gap_factor.
+  # Thin clusters farther than this from any text cluster are dropped.
+  gap_factor: 2
+
+# detect_gap_outlier() — find where a vertical gap outlier starts.
+# Used by trim_outlier_tail() to remove spatially leaked lines
+# from adjacent sections at segment boundaries.
+outlier:
+  # Threshold = max(median_gap × gap_multiplier, median_gap + gap_offset).
+  # gap_multiplier scales with line spacing (tolerates denser/sparser layouts).
+  # gap_offset is an absolute floor (prevents false positives when median=0
+  # or 1 due to tightly packed lines where 2× would trigger on normal variation).
+  gap_multiplier: 2
+  gap_offset: 4
+
+# _stitch_crop() — append continuation crop to the right of anchor crop
+# when merge_continuations() joins wrapped lines.
+stitch:
+  # Vertical pixel offset applied to the right (continuation) crop.
+  # Compensates for sub-pixel baseline misalignment between split line crops.
+  baseline_offset: 1

@@ -1,6 +1,6 @@
 """Tests for backend/lib/line_processing.py — pure functions, no I/O."""
 
-from lib.line_processing import (
+from lib.pipeline.line_split.line_processing import (
     merge_group_bounds,
     trim_outlier_tail,
     determine_enchant_slots,

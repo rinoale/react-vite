@@ -4,9 +4,8 @@ Test the v3 OCR pipeline: segment-first (header detection → section label → 
 
 Runs the same logic as the /upload-item-v3 endpoint:
   1. detect_headers() → segment_and_tag() using header OCR model
-  2. parse_from_segments() → content OCR per segment (3 models)
-  3. FM applied exactly as business logic does (mutates line['text'])
-  4. Compare final text against GT if available
+  2. per-section handlers: image process → OCR → FM → structured rebuild
+  3. Compare final text against GT if available
 
 Usage:
     python3 scripts/v3/test_v3_pipeline.py data/sample_images/titan_blade_original.png
@@ -26,8 +25,22 @@ PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..
 sys.path.insert(0, PROJECT_ROOT)
 sys.path.insert(0, os.path.join(PROJECT_ROOT, 'backend'))
 
-from lib.v3_pipeline import init_pipeline, run_v3_pipeline
-from lib.text_corrector import _PREFIX_PAT
+from lib.pipeline.v3 import init_pipeline, run_v3_pipeline, get_pipeline
+from lib.text_processors import _PREFIX_PAT
+
+
+def _flatten_sections(sections):
+    """Reconstruct a flat ocr_lines list from sections dict.
+
+    Iterates sections in insertion order.  Within each section,
+    lines are already in line_index order.
+    """
+    flat = []
+    for sec_key, sec_data in sections.items():
+        for line in (sec_data.get('lines') or []):
+            line['section'] = sec_key
+            flat.append(line)
+    return flat
 
 
 def load_ground_truth(txt_path):
@@ -53,7 +66,7 @@ def find_gt_file(image_path, gt_dir, gt_suffix):
     return None
 
 
-def test_image(pipeline, image_path, gt_path=None, verbose=True):
+def test_image(image_path, gt_path=None, verbose=True):
     """Run v3 pipeline on a single image and optionally compare against GT."""
     basename = os.path.basename(image_path)
 
@@ -63,11 +76,13 @@ def test_image(pipeline, image_path, gt_path=None, verbose=True):
         return None
 
     save_crops_dir = os.environ.get('SAVE_OCR_CROPS')
-    result = run_v3_pipeline(img_bgr, **pipeline, save_crops=bool(save_crops_dir),
+    result = run_v3_pipeline(img_bgr, save_crops=bool(save_crops_dir),
                              save_crops_dir=save_crops_dir)
-    ocr_lines = result['all_lines']
     sections  = result['sections']
     tagged    = result['tagged_segments']
+
+    # Reconstruct flat line list from sections
+    ocr_lines = _flatten_sections(sections)
 
     gt_lines_raw = load_ground_truth(gt_path) if gt_path else None
     # Strip structural prefixes from GT too (- or ㄴ) — output no longer has them
@@ -95,14 +110,12 @@ def test_image(pipeline, image_path, gt_path=None, verbose=True):
                       f"ocr='{seg['header_ocr_text']}'  "
                       f"conf={seg['header_ocr_conf']:.2f}  "
                       f"score={seg['header_match_score']}")
-        parsed = sections.get('pre_header', {}).get('parsed_item_name')
-        if parsed:
+        ph = sections.get('pre_header', {})
+        if ph.get('item_name'):
             parts = []
-            if parsed.get('_holywater'):    parts.append(f"holy={parsed['_holywater']}")
-            if parsed.get('_ego'):          parts.append('ego')
-            if parsed.get('enchant_prefix'):parts.append(f"prefix={parsed['enchant_prefix']}")
-            if parsed.get('enchant_suffix'):parts.append(f"suffix={parsed['enchant_suffix']}")
-            parts.append(f"item={parsed['item_name']}")
+            if ph.get('enchant_prefix'): parts.append(f"prefix={ph['enchant_prefix']}")
+            if ph.get('enchant_suffix'): parts.append(f"suffix={ph['enchant_suffix']}")
+            parts.append(f"item={ph['item_name']}")
             print(f"  Item Name: {', '.join(parts)}")
 
         if has_gt:
@@ -331,7 +344,8 @@ def main():
                       help='Print machine-parseable JSON summary (last line)')
     args = argp.parse_args()
 
-    pipeline = init_pipeline()
+    init_pipeline()
+    pipeline = get_pipeline()
     print(f"Loaded {len(pipeline['section_patterns'])} section patterns")
 
     images = collect_images(args.path)
@@ -345,7 +359,7 @@ def main():
     for image_path in images:
         gt_path = find_gt_file(image_path, args.gt_dir, args.gt_suffix)
         summary = test_image(
-            pipeline, image_path, gt_path=gt_path,
+            image_path, gt_path=gt_path,
             verbose=not args.quiet,
         )
         if summary:

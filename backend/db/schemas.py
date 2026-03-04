@@ -143,7 +143,8 @@ class RegisterReforgeOption(BaseModel):
     max_level: Optional[int] = None
 
 class RegisterListingLine(BaseModel):
-    global_index: int
+    section: str
+    line_index: int
     text: str
 
 class RegisterListingRequest(BaseModel):
@@ -173,6 +174,7 @@ class CorrectionOut(BaseModel):
     status: str
     charset_mismatch: Optional[str] = None
     image_filename: str
+    is_stitched: bool = False  # continuation stitch: crop is merged from multiple lines
     created_at: datetime
     trained_version: Optional[str] = None
 

@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
-import { ShoppingBag, Upload } from 'lucide-react'
+import { Search, ShoppingBag, Upload } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 function NavLink({ to, icon: Icon, children }) {
@@ -28,7 +28,8 @@ const Sidebar = () => {
         <img src="/favicon.svg" alt="Home" className="w-8 h-8" />
         <span className="text-white font-black text-lg tracking-tight">{t('sidebar.home')}</span>
       </Link>
-      <NavLink to="/" icon={ShoppingBag}>{t('sidebar.marketplace')}</NavLink>
+      <NavLink to="/" icon={Search}>{t('sidebar.search', 'Search')}</NavLink>
+      <NavLink to="/market" icon={ShoppingBag}>{t('sidebar.marketplace')}</NavLink>
       <NavLink to="/sell" icon={Upload}>{t('sidebar.sellItem')}</NavLink>
     </nav>
   )

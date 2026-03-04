@@ -14,6 +14,7 @@
     "./components/ToastProvider": "./src/components/ToastProvider.jsx",
     "./components/useToast": "./src/components/useToast.js",
     "./components/InlineBanner": "./src/components/InlineBanner.jsx",
+    "./components/ItemDetailSections": "./src/components/ItemDetailSections.jsx",
     "./components/sections": "./src/components/sections/index.js",
     "./i18n": "./src/i18n.js",
     "./lib/constants": "./src/lib/constants.js",

@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Generate enchant dictionary text files from enchant.yaml (source of truth).
+"""Generate enchant_slot_header.txt from enchant.yaml (source of truth).
 
 Outputs:
   enchant_slot_header.txt — one OCR-visible header line per enchant
-  enchant_effect.txt      — deduplicated, sorted effect lines
 
 Rank visibility rule for slot headers:
   Rank A-F: white text in-game → visible in white-mask crop → include rank
@@ -17,10 +16,10 @@ import os
 
 import yaml
 
-DICT_DIR = os.path.join(os.path.dirname(__file__), '..', 'data', 'dictionary')
-ENCHANT_YAML = os.path.join(os.path.dirname(__file__), '..', 'data', 'source_of_truth', 'enchant.yaml')
-SLOT_HEADER_TXT = os.path.join(DICT_DIR, 'enchant_slot_header.txt')
-EFFECT_TXT = os.path.join(DICT_DIR, 'enchant_effect.txt')
+_PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+TRAIN_WORDS_DIR = os.path.join(_PROJECT_ROOT, 'data', 'train_words')
+ENCHANT_YAML = os.path.join(_PROJECT_ROOT, 'data', 'source_of_truth', 'enchant.yaml')
+SLOT_HEADER_TXT = os.path.join(TRAIN_WORDS_DIR, 'enchant_slot_header.txt')
 
 
 def main():
@@ -43,20 +42,6 @@ def main():
     with open(SLOT_HEADER_TXT, 'w', encoding='utf-8') as f:
         f.write('\n'.join(headers) + '\n')
     print(f"Wrote {len(headers)} unique lines → {os.path.basename(SLOT_HEADER_TXT)}")
-
-    # Effects (deduplicated, sorted)
-    effects = set()
-    for e in data:
-        for eff in e.get('effects', []):
-            if isinstance(eff, dict):
-                effects.add(eff['effect'])
-            else:
-                effects.add(eff)
-    sorted_effects = sorted(effects)
-
-    with open(EFFECT_TXT, 'w', encoding='utf-8') as f:
-        f.write('\n'.join(sorted_effects) + '\n')
-    print(f"Wrote {len(sorted_effects)} unique effects → {os.path.basename(EFFECT_TXT)}")
 
 
 if __name__ == '__main__':

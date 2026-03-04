@@ -49,7 +49,7 @@ VARIATIONS_PER_LABEL = 3
 
 # Dictionary paths for pre_header content
 ITEM_NAME_PATH = "data/dictionary/item_name.txt"
-SPECIAL_ITEM_NAME_PATH = "data/dictionary/special_weight_item_name.txt"
+SPECIAL_ITEM_NAME_PATH = "data/train_words/special_weight_item_name.txt"
 ENCHANT_PREFIX_PATH = "data/dictionary/enchant_prefix.txt"
 ENCHANT_SUFFIX_PATH = "data/dictionary/enchant_suffix.txt"
 

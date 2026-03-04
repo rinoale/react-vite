@@ -1,23 +1,24 @@
 import React, { useState, useMemo } from 'react';
-import { Pencil, Plus } from 'lucide-react';
+import { Pencil, Plus, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import ConfigSearchInput from '../ConfigSearchInput';
-import { LINE_BULLET } from '../../lib/constants';
 
-const ReforgeOption = ({ opt, optIdx, lineIdx, onLineChange }) => {
+const ReforgeOption = ({ opt, optIdx, lineIdx, onLineChange, onRemove }) => {
   const { t } = useTranslation();
   const [editingName, setEditingName] = useState(false);
   const [editingLevel, setEditingLevel] = useState(false);
   const [levelDraft, setLevelDraft] = useState('');
 
   const reforgeItems = useMemo(() => window.REFORGES_CONFIG || [], []);
+  const cfgEntry = useMemo(() => reforgeItems.find(r => r.option_name === opt.name), [reforgeItems, opt.name]);
+  const isTranscend = opt.level != null && cfgEntry?.max_level != null && opt.level > cfgEntry.max_level;
 
   const commitLevel = (value) => {
     setEditingLevel(false);
     if (value === '' || value === String(opt.level)) return;
     const numLevel = parseInt(value, 10);
     if (isNaN(numLevel)) return;
-    const newText = `${LINE_BULLET}${opt.name} (${numLevel}/${opt.max_level} 레벨)`;
+    const newText = `${opt.name} (${numLevel}/${opt.max_level} 레벨)`;
     onLineChange(lineIdx, newText, (sec) => {
       if (sec.options) {
         const opts = [...sec.options];
@@ -36,13 +37,16 @@ const ReforgeOption = ({ opt, optIdx, lineIdx, onLineChange }) => {
           onSelect={(item) => {
             const name = typeof item === 'string' ? item : item.option_name;
             const reforgeOptionId = typeof item === 'string' ? null : item.id;
-            const newText = opt.level != null
-              ? `${LINE_BULLET}${name} (${opt.level}/${opt.max_level} 레벨)`
-              : `${LINE_BULLET}${name}`;
+            const hasLevel = !NO_LEVEL_OPTIONS.includes(name);
+            const newLevel = hasLevel ? 1 : null;
+            const newMaxLevel = hasLevel ? (typeof item === 'string' ? 20 : (item.max_level || 20)) : null;
+            const newText = hasLevel
+              ? `${name} (${newLevel}/${newMaxLevel} 레벨)`
+              : name;
             onLineChange(lineIdx, newText, (sec) => {
               if (sec.options) {
                 const opts = [...sec.options];
-                opts[optIdx] = { ...opts[optIdx], name, option_name: name, reforge_option_id: reforgeOptionId };
+                opts[optIdx] = { ...opts[optIdx], name, option_name: name, reforge_option_id: reforgeOptionId, level: newLevel, max_level: newMaxLevel, option_level: newLevel };
                 sec.options = opts;
               }
             });
@@ -62,6 +66,13 @@ const ReforgeOption = ({ opt, optIdx, lineIdx, onLineChange }) => {
             >
               <Pencil className="w-3 h-3" />
             </button>
+            <button
+              onClick={() => onRemove(optIdx)}
+              className="p-0.5 text-gray-600 opacity-0 group-hover:opacity-100 hover:text-red-400 transition-opacity"
+              title={t('sections.reforge.remove')}
+            >
+              <X className="w-3 h-3" />
+            </button>
           </div>
           {opt.level != null && (
             editingLevel ? (
@@ -79,7 +90,7 @@ const ReforgeOption = ({ opt, optIdx, lineIdx, onLineChange }) => {
               />
             ) : (
               <span
-                className="text-xs bg-cyan-900/50 text-cyan-300 px-2 py-0.5 rounded border border-cyan-700/50 cursor-pointer hover:border-cyan-500"
+                className={`text-xs px-2 py-0.5 rounded border cursor-pointer ${isTranscend ? 'bg-orange-900/50 text-orange-300 border-orange-700/50 hover:border-orange-500' : 'bg-cyan-900/50 text-cyan-300 border-cyan-700/50 hover:border-cyan-500'}`}
                 onClick={() => { setLevelDraft(String(opt.level)); setEditingLevel(true); }}
                 title={t('sections.reforge.clickToEditLevel')}
               >
@@ -95,6 +106,7 @@ const ReforgeOption = ({ opt, optIdx, lineIdx, onLineChange }) => {
 };
 
 const MAX_REFORGE_OPTIONS = 3;
+const NO_LEVEL_OPTIONS = ['돌진 인간 및 엘프일 때 방패 없이 사용 가능'];
 
 const AddReforgeOption = ({ onLineChange, existingCount }) => {
   const { t } = useTranslation();
@@ -112,15 +124,15 @@ const AddReforgeOption = ({ onLineChange, existingCount }) => {
           onSelect={(item) => {
             const name = typeof item === 'string' ? item : item.option_name;
             const reforgeOptionId = typeof item === 'string' ? null : item.id;
-            const maxLevel = typeof item === 'string' ? null : (item.max_level || 20);
+            const hasLevel = !NO_LEVEL_OPTIONS.includes(name);
             const newOpt = {
               name,
               option_name: name,
               reforge_option_id: reforgeOptionId,
-              level: null,
-              max_level: maxLevel,
+              level: hasLevel ? 1 : null,
+              max_level: hasLevel ? 20 : null,
               effect: null,
-              global_index: null,
+              line_index: null,
             };
             onLineChange(-1, '', (sec) => {
               sec.options = [...(sec.options || []), newOpt];
@@ -147,13 +159,21 @@ const AddReforgeOption = ({ onLineChange, existingCount }) => {
 };
 
 const ReforgeSection = ({ options, lines, onLineChange }) => {
+  const handleRemove = (optIdx) => {
+    onLineChange(-1, '', (sec) => {
+      if (sec.options) {
+        sec.options = sec.options.filter((_, i) => i !== optIdx);
+      }
+    });
+  };
+
   if (options?.length > 0) {
     return (
       <div className="space-y-3">
         {options.map((opt, idx) => {
-          // Resolve section-local line index from option's global_index
-          const lineIdx = opt.global_index != null
-            ? lines?.findIndex(l => l.global_index === opt.global_index) ?? -1
+          // Resolve section-local line index from option's line_index
+          const lineIdx = opt.line_index != null
+            ? lines?.findIndex(l => l.line_index === opt.line_index) ?? -1
             : -1;
           return (
             <ReforgeOption
@@ -162,6 +182,7 @@ const ReforgeSection = ({ options, lines, onLineChange }) => {
               optIdx={idx}
               lineIdx={lineIdx}
               onLineChange={onLineChange}
+              onRemove={handleRemove}
             />
           );
         })}

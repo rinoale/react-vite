@@ -28,11 +28,13 @@ PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..
 sys.path.insert(0, PROJECT_ROOT)
 sys.path.insert(0, os.path.join(PROJECT_ROOT, 'backend'))
 
-from lib.mabinogi_tooltip_parser import (
-    MabinogiTooltipParser, detect_enchant_slot_headers, classify_enchant_line,
+from lib.pipeline.tooltip_parsers import MabinogiTooltipParser
+from lib.image_processors.mabinogi_processor import (
+    detect_enchant_slot_headers, classify_enchant_line,
 )
-from lib.tooltip_line_splitter import TooltipLineSplitter
-from lib.tooltip_segmenter import (
+from lib.pipeline.line_split import MabinogiTooltipSplitter, group_by_y
+from lib.pipeline.section_handlers._ocr import ocr_grouped_lines
+from lib.pipeline.segmenter import (
     init_header_reader,
     load_config,
     load_section_patterns,
@@ -185,8 +187,8 @@ def init_content_reader():
 
 
 def init_corrector():
-    from lib.text_corrector import TextCorrector
-    return TextCorrector(dict_dir=DICT_DIR)
+    from lib.text_processors import MabinogiTextCorrector
+    return MabinogiTextCorrector(dict_dir=DICT_DIR)
 
 
 # ---------------------------------------------------------------------------
@@ -212,7 +214,7 @@ def main():
     content_reader = init_content_reader()
     corrector = init_corrector()
     tooltip_parser = MabinogiTooltipParser(CONFIG_PATH)
-    splitter = TooltipLineSplitter()
+    splitter = MabinogiTooltipSplitter()
 
     img_bgr = cv2.imread(args.image)
     if img_bgr is None:
@@ -359,7 +361,7 @@ def main():
     print(f"\n--- Step 6: Line detection + classification ---")
     binary_detect = cv2.bitwise_not(binary)
     detected = splitter.detect_text_lines(binary_detect)
-    grouped = tooltip_parser._group_by_y(detected)
+    grouped = group_by_y(detected)
     print(f"  Detected {len(detected)} raw lines → {len(grouped)} groups")
 
     # Classify each group
@@ -407,7 +409,7 @@ def main():
 
     # Batch OCR only effect groups
     effect_groups = [g for g, _, lt in classifications if lt == 'effect']
-    effect_ocr = (tooltip_parser._ocr_grouped_lines(binary, effect_groups, content_reader)
+    effect_ocr = (ocr_grouped_lines(binary, effect_groups, content_reader)
                   if effect_groups else [])
     effect_iter = iter(effect_ocr)
 
