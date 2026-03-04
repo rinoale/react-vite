@@ -45,7 +45,22 @@ Original color screenshot (BGR, any resolution)
     │     ├── ColorHandler:
     │     │     Regex parse RGB from sub-segments (no OCR)
     │     │
-    │     └── DefaultHandler (item_attrs, item_mod, erg, set_item, ego, item_grade):
+    │     ├── ItemModHandler:
+    │     │     Color mask (pink) → detect special upgrade line → content_ng_reader OCR
+    │     │     Regex: ([RS])\s*[\(\[]?\s*(\d+)\s*단계 → type + level (1-8)
+    │     │     Always emits has_special_upgrade flag for frontend correction UI
+    │     │
+    │     ├── ErgHandler:
+    │     │     @plain_lines_only (only unprefixed lines OCR'd)
+    │     │     Regex: 등급\s+([SAB])\s*[\(\[]?\s*(\d{1,2})\s*/\s*(\d{1,2})\s*레벨
+    │     │     → erg_grade, erg_level, erg_max_level; first match wins
+    │     │
+    │     ├── SetItemHandler:
+    │     │     @detect_prefix('bullet') + @filter_prefix('bullet')
+    │     │     Regex: (.+(?:강화|증가))\s*\+\s*(\d+) → FM vs set_name.txt (cutoff=90)
+    │     │     → set_effects: [{set_name, set_level}, ...]
+    │     │
+    │     └── DefaultHandler (item_attrs, ego, item_grade):
     │           BT.601 binary → OCR with prefix detection (bullet + subbullet)
     │           FM: correct_normalized(cutoff=80) on bullet lines
     │

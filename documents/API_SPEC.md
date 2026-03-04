@@ -72,6 +72,32 @@ The frontend should always read `text` directly — it is the best available val
         { "text": "스매시 대미지 15 (Max 20)", "confidence": 0.90, "line_index": 15 }
       ]
     },
+    "item_mod": {
+      "has_special_upgrade": true,
+      "special_upgrade_type": "R",
+      "special_upgrade_level": 7,
+      "lines": [
+        { "text": "특별 개조 R (7단계)", "confidence": 0.85, "line_index": 0 }
+      ]
+    },
+    "erg": {
+      "erg_grade": "S",
+      "erg_level": 50,
+      "erg_max_level": 50,
+      "lines": [
+        { "text": "등급 S (50/50 레벨)", "confidence": 0.90, "line_index": 0 }
+      ]
+    },
+    "set_item": {
+      "set_effects": [
+        { "set_name": "스매시 강화", "set_level": 7 },
+        { "set_name": "윈드밀 강화", "set_level": 6 }
+      ],
+      "lines": [
+        { "text": "스매시 강화 +7", "confidence": 0.89, "line_index": 0 },
+        { "text": "윈드밀 강화 +6", "confidence": 0.73, "line_index": 1 }
+      ]
+    },
     "item_color": {
       "parts": [
         { "part": "A", "r": 255, "g": 255, "b": 255 }
@@ -106,6 +132,13 @@ All sections contain `lines` (array of Line objects) unless `skipped: true`.
 | `prefix` | `object\|null` | `enchant` | Structured prefix enchant (`name`, `rank`, `effects[]`). |
 | `suffix` | `object\|null` | `enchant` | Structured suffix enchant (`name`, `rank`, `effects[]`). |
 | `options` | `object[]` | `reforge` | Structured reforge options (`name`, `level`, `max_level`, `effect`). |
+| `has_special_upgrade` | `boolean` | `item_mod` | `true` when a pink special upgrade line is detected. |
+| `special_upgrade_type` | `string\|null` | `item_mod` | `R` or `S`. `null` when detected but OCR failed. |
+| `special_upgrade_level` | `int\|null` | `item_mod` | Level 1-8. `null` when detected but OCR failed. |
+| `erg_grade` | `string\|null` | `erg` | `S`, `A`, or `B`. |
+| `erg_level` | `int\|null` | `erg` | Current erg level (1-50). |
+| `erg_max_level` | `int\|null` | `erg` | Maximum erg level (1-50). |
+| `set_effects` | `object[]` | `set_item` | Set effects (`set_name`, `set_level`). |
 | `parts` | `object[]` | `item_color` | Color parts (`part`, `r`, `g`, `b`). |
 | `skipped` | `boolean` | `flavor_text`, `shop_price` | `true` when the section is intentionally omitted. |
 

@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Mabinogi (MMORPG) item trading marketplace with OCR-powered item registration. Users upload a screenshot of an in-game item tooltip, and the system automatically extracts item details using a custom-trained EasyOCR model.
 
-**Current performance:** 184/311 exact, 90.4% char accuracy, FM=60 (18 images, 7 with GT).
+**Current performance:** 398/557 exact, 94.5% char accuracy, FM=242 (18 images).
 
 **Eval command:** `python3 scripts/v3/test_v3_pipeline.py -q 'data/sample_images/*_original.png'`
 
@@ -63,6 +63,9 @@ Original color screenshot (BGR, any resolution)
     |     |     Headers -> custom_enchant_header model; Effects -> DualReader; Grey -> skipped
     |     +-- Reforge: BT.601 + threshold=80 -> DualReader; sub-line detection by x-offset indent
     |     +-- Color: regex parse RGB from sub-segments (no OCR)
+    |     +-- ItemMod: color mask (pink) -> content_ng_reader -> regex R/S + level 1-8
+    |     +-- Erg: @plain_lines_only -> regex 등급 S/A/B + level/max_level
+    |     +-- SetItem: @filter_prefix('bullet') -> regex {name}(강화|증가) +N -> FM(cutoff=90)
     |     +-- All others: BT.601 + threshold=80 -> DualReader
     +-- Stage 6a: Item Name Parsing -- parse pre_header into enchant prefix/suffix/item_name
     |     -> P1 enchant entries available for effect dictionary selection
@@ -99,8 +102,13 @@ backend/lib/
 |       +-- enchant.py           # EnchantHandler: white-mask bands, Dullahan FM
 |       +-- reforge.py           # ReforgeHandler: prefix detection, level parsing
 |       +-- color.py             # ColorHandler: regex RGB parse (no OCR)
+|       +-- item_attrs.py        # ItemAttrsHandler: structured key-value extraction
+|       +-- item_mod.py          # ItemModHandler: pink mask → content_ng_reader → R/S + level
+|       +-- erg.py               # ErgHandler: @plain_lines_only → regex grade/level
+|       +-- set_item.py          # SetItemHandler: @filter_prefix('bullet') → FM set names
 |       +-- default.py           # DefaultHandler: generic sections
-|       +-- _helpers.py          # Shared: BT.601 binary, header prepend, snapshot
+|       +-- _base.py             # BaseHandler: template pattern base class
+|       +-- _helpers.py          # Shared: BT.601 binary, header prepend, decorators
 |       +-- _ocr.py              # Shared: OCR grouped lines, enchant headers
 +-- text_processors/
 |   +-- common.py                # TextCorrector base: dictionary loading, correct()
@@ -119,7 +127,7 @@ backend/lib/
 
 **Section Handlers** (`backend/lib/pipeline/section_handlers/`):
 - Each section processed end-to-end by its handler (image process -> OCR -> FM -> structured rebuild)
-- `get_handler(section_key)` dispatches to: `EnchantHandler`, `ReforgeHandler`, `ColorHandler`, `DefaultHandler`
+- `get_handler(section_key)` dispatches to: `EnchantHandler`, `ReforgeHandler`, `ColorHandler`, `ItemAttrsHandler`, `ItemModHandler`, `ErgHandler`, `SetItemHandler`, `DefaultHandler`
 - `PreHeaderHandler` runs first (produces `parsed_item_name` for enchant P1)
 - No `all_lines` flat list -- lines identified by `(section, line_index)` instead of `global_index`
 

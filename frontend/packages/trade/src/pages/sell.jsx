@@ -254,22 +254,6 @@ const Sell = () => {
               )}
             </div>
 
-            {/* Confidence Stats */}
-            {ocrResult && (
-                <div className="bg-gray-800 rounded-2xl p-6 border border-gray-700 shadow-xl">
-                    <h3 className="text-xs font-black text-gray-500 uppercase tracking-widest mb-4">{t('sell.ocrMetrics')}</h3>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="bg-gray-900/50 p-3 rounded-xl border border-gray-700/50">
-                            <span className="text-[10px] text-gray-500 font-bold uppercase block mb-1">{t('sell.totalLines')}</span>
-                            <span className="text-2xl font-black text-white">{detectedLines.length}</span>
-                        </div>
-                        <div className="bg-gray-900/50 p-3 rounded-xl border border-gray-700/50">
-                            <span className="text-[10px] text-gray-500 font-bold uppercase block mb-1">{t('sell.sections')}</span>
-                            <span className="text-2xl font-black text-orange-500">{Object.keys(ocrResult.sections).length}</span>
-                        </div>
-                    </div>
-                </div>
-            )}
           </div>
 
           {/* Right Column: Structured Form (8 cols) */}
@@ -283,7 +267,6 @@ const Sell = () => {
                    {t('sell.itemDetails')}
                    {ocrResult && <span className="bg-green-500/10 text-green-500 text-[10px] px-2 py-1 rounded border border-green-500/20">{t('sell.scanned')}</span>}
                 </h2>
-                <div className="text-xs text-gray-500 font-bold">{t('sell.appVersion')}</div>
               </div>
 
               <form className="space-y-6" onSubmit={(e) => { e.preventDefault(); handleRegister(); }}>
