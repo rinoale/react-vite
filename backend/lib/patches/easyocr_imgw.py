@@ -16,6 +16,11 @@ import yaml
 import numpy as np
 from easyocr.recognition import get_text
 
+# Default fallback values when yaml doesn't specify dimensions.
+# Normally set by each model's yaml; these are last-resort safety nets.
+_DEFAULT_IMG_WIDTH = 600
+_DEFAULT_IMG_HEIGHT = 32
+
 
 def _crop_boxes(horizontal_list, free_list, img_cv_grey):
     """Crop bounding boxes from image WITHOUT resizing.
@@ -66,8 +71,8 @@ def patch_reader_imgw(reader, models_dir, recog_network):
     yaml_path = os.path.join(models_dir, f'{recog_network}.yaml')
     config = yaml.safe_load(Path(yaml_path).read_text())
 
-    fixed_imgW = config.get('imgW', config.get('network_params', {}).get('imgW', 600))
-    imgH = config.get('imgH', 32)
+    fixed_imgW = config.get('imgW', config.get('network_params', {}).get('imgW', _DEFAULT_IMG_WIDTH))
+    imgH = config.get('imgH', _DEFAULT_IMG_HEIGHT)
 
     def patched_recognize(img_cv_grey, horizontal_list=None, free_list=None,
                           decoder='greedy', beamWidth=5, batch_size=1,

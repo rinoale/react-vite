@@ -73,6 +73,10 @@ class ShapeMatch:
 SHAPE_NIEUN = ShapeDef('ㄴ', (Segment(Direction.DOWN, min_px=3), Segment(Direction.RIGHT, min_px=2)))
 SHAPE_DOT = ShapeDef('·', (Segment(Direction.DOT, min_px=1, max_px=4),))
 
+# Divisor for corner tolerance when transitioning between segments.
+# tolerance = max(1, stroke_width // _CORNER_TOLERANCE_DIVISOR)
+_CORNER_TOLERANCE_DIVISOR = 2
+
 
 def find_seeds(mask, region=None):
     """Find seed pixels by scanning the leftmost ink column.
@@ -286,7 +290,7 @@ def _try_shape(mask, seed, shape_def):
 
             next_dr, next_dc = _DELTAS[next_dir]
             stroke_w = _measure_stroke_width(mask, seed[0], seed[1], seg.direction)
-            tolerance = max(1, stroke_w // 2)
+            tolerance = max(1, stroke_w // _CORNER_TOLERANCE_DIVISOR)
 
             # Search within tolerance radius for the next segment's start
             best = None

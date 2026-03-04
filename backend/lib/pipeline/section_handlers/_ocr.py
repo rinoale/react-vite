@@ -18,6 +18,18 @@ from lib.image_processors.mabinogi_processor import oreo_flip
 # so main_x can overshoot actual text start by this many pixels.
 _PREFIX_ANTIALIAS_MARGIN = 2
 
+# Proportional padding — same formula as TooltipLineSplitter.extract_lines().
+# pad_x = max(_PAD_HORIZONTAL_MINIMUM, h // _PAD_HORIZONTAL_DIVISOR)
+# pad_y = max(_PAD_VERTICAL_MINIMUM, h // _PAD_VERTICAL_DIVISOR)
+_PAD_HORIZONTAL_DIVISOR = 3
+_PAD_HORIZONTAL_MINIMUM = 2
+_PAD_VERTICAL_DIVISOR = 5
+_PAD_VERTICAL_MINIMUM = 1
+
+# Minimum white pixels per column in enchant header band to count as text.
+# Filters stray border pixels when finding the x-extent of white text.
+_ENCHANT_HEADER_MIN_COL_WHITE = 3
+
 
 def ocr_grouped_lines(img, grouped_lines, reader,
                       save_crops_dir=None, save_label='content',
@@ -46,8 +58,8 @@ def ocr_grouped_lines(img, grouped_lines, reader,
             x, y, w, h = line_info['x'], line_info['y'], line_info['width'], line_info['height']
 
             # Apply proportional padding
-            pad_x = max(2, h // 3)
-            pad_y = max(1, h // 5)
+            pad_x = max(_PAD_HORIZONTAL_MINIMUM, h // _PAD_HORIZONTAL_DIVISOR)
+            pad_y = max(_PAD_VERTICAL_MINIMUM, h // _PAD_VERTICAL_DIVISOR)
             x_pad = max(0, x - pad_x)
             y_pad = max(0, y - pad_y)
             w_pad = min(img.shape[1] - x_pad, w + 2 * pad_x)
@@ -150,8 +162,8 @@ def ocr_grouped_lines(img, grouped_lines, reader,
         # Attach line crop for correction training.
         if attach_crops:
             mb = merged_bounds
-            pad_y = max(1, mb['height'] // 5)
-            pad_x = max(2, mb['height'] // 3)
+            pad_y = max(_PAD_VERTICAL_MINIMUM, mb['height'] // _PAD_VERTICAL_DIVISOR)
+            pad_x = max(_PAD_HORIZONTAL_MINIMUM, mb['height'] // _PAD_HORIZONTAL_DIVISOR)
             y0 = max(0, mb['y'] - pad_y)
             y1 = min(img.shape[0], mb['y'] + mb['height'] + pad_y)
             x0 = max(0, mb['x'] - pad_x)
@@ -222,7 +234,7 @@ def ocr_enchant_headers(content_bgr, binary,
         # Require >= 3 white pixels per column to filter stray border pixels.
         band_mask = white_mask[bs:be, :]
         col_counts = band_mask.sum(axis=0)
-        white_cols = np.where(col_counts >= 3)[0]
+        white_cols = np.where(col_counts >= _ENCHANT_HEADER_MIN_COL_WHITE)[0]
         if len(white_cols) == 0:
             # No white pixels found — fallback
             batch = ocr_grouped_lines(binary, [group], reader,
@@ -235,8 +247,8 @@ def ocr_enchant_headers(content_bgr, binary,
 
         # Apply proportional padding (matching ocr_grouped_lines formula)
         text_h = be - bs
-        pad_x = max(2, text_h // 3)
-        pad_y = max(1, text_h // 5)
+        pad_x = max(_PAD_HORIZONTAL_MINIMUM, text_h // _PAD_HORIZONTAL_DIVISOR)
+        pad_y = max(_PAD_VERTICAL_MINIMUM, text_h // _PAD_VERTICAL_DIVISOR)
         x_pad = max(0, x_start - pad_x)
         y_pad = max(0, bs - pad_y)
         w_pad = min(img_w - x_pad, (x_end - x_start) + 2 * pad_x)

@@ -6,6 +6,15 @@ import cv2
 import numpy as np
 
 from lib.utils.log import logger
+from lib.image_processors.mabinogi_processor import (
+    _HSV_SATURATION_THRESHOLD,
+    _YELLOW_BINARY_THRESHOLD,
+)
+
+# Pre-header uses a wider yellow hue range than mabinogi_processor (25-40)
+# to capture the full range of nanum_gothic tooltip text colors.
+_PREHEADER_YELLOW_HUE_MIN = 15
+_PREHEADER_YELLOW_HUE_MAX = 45
 from lib.pipeline.line_split import group_by_y
 from ._ocr import ocr_grouped_lines
 
@@ -47,15 +56,15 @@ def _preprocess_nanum_gothic(content_bgr):
     h = hsv[:, :, 0]
     s = hsv[:, :, 1]
 
-    sat_mask = s >= 38
-    not_yellow = ~((h >= 15) & (h <= 45))
+    sat_mask = s >= _HSV_SATURATION_THRESHOLD
+    not_yellow = ~((h >= _PREHEADER_YELLOW_HUE_MIN) & (h <= _PREHEADER_YELLOW_HUE_MAX))
     reject_mask = sat_mask & not_yellow
 
     masked = content_bgr.copy()
     masked[reject_mask] = 0
 
     gray = cv2.cvtColor(masked, cv2.COLOR_BGR2GRAY)
-    _, ocr_binary = cv2.threshold(gray, 120, 255, cv2.THRESH_BINARY_INV)
+    _, ocr_binary = cv2.threshold(gray, _YELLOW_BINARY_THRESHOLD, 255, cv2.THRESH_BINARY_INV)
     detect_binary = cv2.bitwise_not(ocr_binary)
     return detect_binary, ocr_binary
 
