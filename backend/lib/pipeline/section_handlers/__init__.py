@@ -14,6 +14,7 @@ from .reforge import ReforgeHandler
 from .color import ColorHandler
 from .item_attrs import ItemAttrsHandler
 from .item_mod import ItemModHandler
+from .erg import ErgHandler
 from .default import DefaultHandler
 
 _HANDLER_MAP = {
@@ -22,6 +23,7 @@ _HANDLER_MAP = {
     'item_color': ColorHandler(),
     'item_attrs': ItemAttrsHandler(),
     'item_mod': ItemModHandler(),
+    'erg': ErgHandler(),
 }
 _DEFAULT_HANDLER = DefaultHandler()
 

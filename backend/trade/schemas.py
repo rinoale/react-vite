@@ -83,6 +83,10 @@ class OcrSectionResponse(BaseModel):
     options: Optional[List[ReforgeOptionResponse]] = None
     # item_attrs
     attrs: Optional[Dict[str, str]] = None
+    # erg
+    erg_grade: Optional[str] = None
+    erg_level: Optional[int] = None
+    erg_max_level: Optional[int] = None
     # item_mod
     has_special_upgrade: Optional[bool] = None
     special_upgrade_type: Optional[str] = None
