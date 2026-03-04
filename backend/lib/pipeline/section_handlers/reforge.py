@@ -1,31 +1,25 @@
 """ReforgeHandler: standard OCR, FM cutoff=0, structured rebuild."""
 
+from ._base import BaseHandler
 from ._helpers import (
-    filter_prefix, bt601_preprocessed, ocr_lines, apply_line_fm,
+    detect_prefix, filter_prefix, ocr_lines, apply_line_fm,
     prepend_header, snapshot_and_strip,
 )
 
 
-class ReforgeHandler:
+class ReforgeHandler(BaseHandler):
     """Standard OCR, FM cutoff=0, drop non-prefixed, build_reforge_structured."""
 
+    @detect_prefix('bullet', 'subbullet')
     @filter_prefix('bullet', 'subbullet')
-    @bt601_preprocessed
-    def process(self, seg, *, font_reader, attach_crops=False, **ctx):
+    def _process(self, seg, grouped_lines, *, pipeline, font_reader,
+                 attach_crops=False, **ctx):
         """Full reforge lifecycle: OCR → FM → filter → structured rebuild."""
-        from lib.pipeline.v3 import get_pipeline
-
-        pipeline = get_pipeline()
         parser = pipeline['parser']
-        splitter = pipeline['splitter']
         corrector = pipeline['corrector']
-
-        content_bgr = seg['content_crop']
         section = seg['section']
-        ocr_binary = seg['ocr_binary']
 
-        ocr_results = ocr_lines(parser, splitter, ocr_binary,
-                                font_reader, section, content_bgr=content_bgr,
+        ocr_results = ocr_lines(seg, grouped_lines, font_reader, section,
                                 attach_crops=attach_crops)
 
         section_data = parser._parse_reforge_section(ocr_results)

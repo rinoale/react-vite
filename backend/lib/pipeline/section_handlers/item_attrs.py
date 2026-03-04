@@ -8,8 +8,9 @@ from rapidfuzz import fuzz
 # Korean in the value means it's a description line, not an attribute.
 _KOREAN_PAT = re.compile(r'[가-힣]')
 
+from ._base import BaseHandler
 from ._helpers import (
-    bt601_preprocessed, ocr_lines,
+    detect_prefix, ocr_lines,
     prepend_header, snapshot_and_strip,
 )
 
@@ -29,25 +30,18 @@ _ATTR_KEY_MAP = {
 _FM_CUTOFF = 70
 
 
-class ItemAttrsHandler:
+class ItemAttrsHandler(BaseHandler):
     """Item attributes section handler with dictionary-prefix FM."""
 
-    @bt601_preprocessed
-    def process(self, seg, *, font_reader, attach_crops=False, **ctx):
+    @detect_prefix('bullet', 'subbullet')
+    def _process(self, seg, grouped_lines, *, pipeline, font_reader,
+                 attach_crops=False, **ctx):
         """OCR → dictionary-prefix match → extract value."""
-        from lib.pipeline.v3 import get_pipeline
-
-        pipeline = get_pipeline()
         parser = pipeline['parser']
-        splitter = pipeline['splitter']
         corrector = pipeline['corrector']
-
-        content_bgr = seg['content_crop']
         section = seg['section']
-        ocr_binary = seg['ocr_binary']
 
-        ocr_results = ocr_lines(parser, splitter, ocr_binary,
-                                font_reader, section, content_bgr=content_bgr,
+        ocr_results = ocr_lines(seg, grouped_lines, font_reader, section,
                                 attach_crops=attach_crops)
 
         section_data = {

@@ -1,30 +1,24 @@
 """DefaultHandler: standard OCR, FM cutoff=80."""
 
+from ._base import BaseHandler
 from ._helpers import (
-    bt601_preprocessed, ocr_lines, apply_line_fm,
+    detect_prefix, ocr_lines, apply_line_fm,
     prepend_header, snapshot_and_strip,
 )
 
 
-class DefaultHandler:
+class DefaultHandler(BaseHandler):
     """Standard OCR, FM cutoff=80.  Used for item_attrs, item_grade, etc."""
 
-    @bt601_preprocessed
-    def process(self, seg, *, font_reader, attach_crops=False, **ctx):
+    @detect_prefix('bullet', 'subbullet')
+    def _process(self, seg, grouped_lines, *, pipeline, font_reader,
+                 attach_crops=False, **ctx):
         """Full default lifecycle: OCR → FM → filter."""
-        from lib.pipeline.v3 import get_pipeline
-
-        pipeline = get_pipeline()
         parser = pipeline['parser']
-        splitter = pipeline['splitter']
         corrector = pipeline['corrector']
-
-        content_bgr = seg['content_crop']
         section = seg['section']
-        ocr_binary = seg['ocr_binary']
 
-        ocr_results = ocr_lines(parser, splitter, ocr_binary,
-                                font_reader, section, content_bgr=content_bgr,
+        ocr_results = ocr_lines(seg, grouped_lines, font_reader, section,
                                 attach_crops=attach_crops)
 
         section_data = {

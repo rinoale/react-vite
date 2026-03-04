@@ -6,8 +6,8 @@ Reproduces the exact V3 pipeline path up to line detection:
   2. Orange header detection → black-square expansion
   3. build_segments with border coordinates
   4. Header classification via header OCR model + fuzzy match
-  5. BT.601 + threshold=80 → detect_binary / ocr_binary (same as @bt601_preprocessed)
-  6. detect_text_lines() on detect_binary
+  5. BT.601 + threshold=80 → ocr_binary (same as BaseHandler.process())
+  6. detect_text_lines() on ocr_binary
   7. group_by_y() on detected lines
 
 Output directory structure:
@@ -123,11 +123,11 @@ def process_image(image_path, output_root, header_reader, patterns, config):
             print(f"  Seg {idx:02d} [{section:16s}]  content: (empty)")
             continue
 
-        # BT.601 binary — same as @bt601_preprocessed decorator
-        detect_binary, ocr_binary = bt601_binary(content_crop)
+        # BT.601 binary — same as BaseHandler.process()
+        ocr_binary = bt601_binary(content_crop)
 
-        # Line detection — same as ocr_lines() in handlers
-        detected = splitter.detect_text_lines(detect_binary)
+        # Line detection — same as BaseHandler.process()
+        detected = splitter.detect_text_lines(ocr_binary)
         grouped = group_by_y(detected)
         total_lines += len(grouped)
 
@@ -137,7 +137,7 @@ def process_image(image_path, output_root, header_reader, patterns, config):
         cv2.imwrite(os.path.join(out_dir, f"{prefix}_cnt_binary.png"),
                     ocr_binary)
         cv2.imwrite(os.path.join(out_dir, f"{prefix}_cnt_detect.png"),
-                    detect_binary)
+                    ocr_binary)
 
         # Draw lines on content crop
         vis = draw_lines_on_image(content_crop, detected, LINE_COLOR)

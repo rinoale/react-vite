@@ -5,9 +5,14 @@ from functools import wraps
 
 import cv2
 
-from lib.pipeline.line_split import group_by_y
-from lib.image_processors.prefix_detector import BULLET_DETECTOR, SUBBULLET_DETECTOR
-from ._ocr import ocr_grouped_lines
+from lib.image_processors.prefix_detector import (
+    BULLET_DETECTOR, SUBBULLET_DETECTOR, detect_prefix_per_color,
+)
+from ._ocr import (
+    ocr_grouped_lines,
+    _PAD_HORIZONTAL_DIVISOR, _PAD_HORIZONTAL_MINIMUM,
+    _PAD_VERTICAL_DIVISOR, _PAD_VERTICAL_MINIMUM,
+)
 
 
 def bt601_binary(content_bgr, threshold=80):
@@ -17,54 +22,128 @@ def bt601_binary(content_bgr, threshold=80):
     return ocr_binary
 
 
-def filter_prefix(*allowed_types):
-    """Decorator: keep only header lines and lines whose _prefix_type is in *allowed_types*."""
-    allowed = set(allowed_types)
+# Pixels to back off from color-mask main_x when slicing bullet prefixes.
+# Anti-aliased text edges pass brightness threshold but not color match,
+# so main_x can overshoot actual text start by this many pixels.
+_PREFIX_ANTIALIAS_MARGIN = 2
+
+
+def detect_prefix(*prefix_types):
+    """Decorator: detect bullet/subbullet prefixes and compute slice offsets.
+
+    Annotates each line_info in grouped with:
+      '_prefix_info': detection result dict (type, x, w, main_x, ...)
+      '_prefix_cut_x': column offset to slice prefix from padded crop
+    ocr_grouped_lines() reads '_prefix_cut_x' to slice prefix pixels before OCR.
+    """
+    _TYPE_MAP = {'bullet': BULLET_DETECTOR, 'subbullet': SUBBULLET_DETECTOR}
+    configs = [_TYPE_MAP[t] for t in prefix_types if t in _TYPE_MAP]
 
     def decorator(fn):
         @wraps(fn)
-        def wrapper(self, seg, **kw):
-            section_data = fn(self, seg, **kw)
-            section_data['lines'] = [
-                l for l in section_data.get('lines', [])
-                if l.get('is_header') or l.get('_prefix_type') in allowed
-            ]
-            return section_data
+        def wrapper(self, seg, grouped_lines, *args, **kw):
+            content_bgr = seg['content_crop']
+            img_h, img_w = content_bgr.shape[:2]
+            for group in grouped_lines:
+                for line_info in group:
+                    x = line_info['x']
+                    y = line_info['y']
+                    w = line_info['width']
+                    h = line_info['height']
+                    pad_x = max(_PAD_HORIZONTAL_MINIMUM, h // _PAD_HORIZONTAL_DIVISOR)
+                    pad_y = max(_PAD_VERTICAL_MINIMUM, h // _PAD_VERTICAL_DIVISOR)
+                    x_pad = max(0, x - pad_x)
+                    y_pad = max(0, y - pad_y)
+                    w_pad = min(img_w - x_pad, w + 2 * pad_x)
+                    h_pad = min(img_h - y_pad, h + 2 * pad_y)
+                    bgr_crop = content_bgr[y_pad:y_pad + h_pad, x_pad:x_pad + w_pad]
+                    prefix_info = {'type': None}
+                    for cfg in configs:
+                        prefix_info = detect_prefix_per_color(bgr_crop, config=cfg)
+                        if prefix_info['type'] is not None:
+                            break
+                    line_info['_prefix_info'] = prefix_info
+                    # Pre-compute slice offset for ocr_grouped_lines
+                    if (prefix_info['type'] in ('bullet', 'subbullet')
+                            and prefix_info.get('main_x', w_pad) < w_pad):
+                        prefix_end = prefix_info['x'] + prefix_info['w']
+                        cut_x = max(prefix_end,
+                                    prefix_info['main_x'] - _PREFIX_ANTIALIAS_MARGIN)
+                        line_info['_prefix_cut_x'] = cut_x
+            return fn(self, seg, grouped_lines, *args, **kw)
         return wrapper
     return decorator
 
 
-def bt601_preprocessed(fn):
-    """Decorator: run BT.601 binarization on seg['content_crop'] before handler.
+def filter_prefix(*allowed_types):
+    """Decorator: keep only grouped lines whose first sub-line has a matching prefix.
 
-    Enriches seg with 'ocr_binary' (ink=0, background=255).
-    Original 'content_crop' (BGR) is preserved.
+    Filters grouped_lines before _process runs, so lines without matching
+    prefix are never OCR'd.  Must be applied after @detect_prefix (which
+    annotates '_prefix_info' on each line_info).
+    """
+    allowed = set(allowed_types)
+
+    def decorator(fn):
+        @wraps(fn)
+        def wrapper(self, seg, grouped_lines, *args, **kw):
+            filtered = [
+                group for group in grouped_lines
+                if (group[0].get('_prefix_info') or {}).get('type') in allowed
+            ]
+            return fn(self, seg, filtered, *args, **kw)
+        return wrapper
+    return decorator
+
+
+def reject_prefix(*rejected_types):
+    """Decorator: remove grouped lines whose first sub-line has a rejected prefix.
+
+    Filters grouped_lines before _process runs.  Must be applied after
+    @detect_prefix (which annotates '_prefix_info' on each line_info).
+    """
+    rejected = set(rejected_types)
+
+    def decorator(fn):
+        @wraps(fn)
+        def wrapper(self, seg, grouped_lines, *args, **kw):
+            filtered = [
+                group for group in grouped_lines
+                if (group[0].get('_prefix_info') or {}).get('type') not in rejected
+            ]
+            return fn(self, seg, filtered, *args, **kw)
+        return wrapper
+    return decorator
+
+
+def plain_lines_only(fn):
+    """Decorator: keep only unprefixed lines (no bullet, no subbullet).
+
+    Must be applied after @detect_prefix.
     """
     @wraps(fn)
-    def wrapper(self, seg, **kw):
-        seg['ocr_binary'] = bt601_binary(seg['content_crop'])
-        return fn(self, seg, **kw)
+    def wrapper(self, seg, grouped_lines, *args, **kw):
+        filtered = [
+            group for group in grouped_lines
+            if (group[0].get('_prefix_info') or {}).get('type') is None
+        ]
+        return fn(self, seg, filtered, *args, **kw)
     return wrapper
 
 
-def ocr_lines(parser, splitter, ocr_binary, reader, section,
-              content_bgr=None, attach_crops=False):
-    """Line detect → group → prefix detect → OCR.  Returns list of line dicts."""
-    detected = splitter.detect_text_lines(ocr_binary)
-    grouped = group_by_y(detected)
+def ocr_lines(seg, grouped_lines, reader, section, attach_crops=False):
+    """OCR on pre-grouped lines.  Returns list of line dicts.
 
+    Prefix detection should be done beforehand via @detect_prefix decorator,
+    which annotates line_info dicts with '_prefix_info'.  ocr_grouped_lines()
+    reads those annotations for prefix slicing.
+    """
     _save = os.environ.get('SAVE_OCR_CROPS')
-    sec_config = parser.sections_config.get(section, {})
-    prefix_kw = {}
-    if not sec_config.get('skip', False) and content_bgr is not None:
-        prefix_kw = {'prefix_bgr': content_bgr,
-                     'prefix_configs': [BULLET_DETECTOR, SUBBULLET_DETECTOR]}
     ocr_results = ocr_grouped_lines(
-        ocr_binary, grouped, reader,
+        seg['ocr_binary'], grouped_lines, reader,
         save_crops_dir=_save,
         save_label=f'content_{section}',
-        attach_crops=attach_crops,
-        **prefix_kw)
+        attach_crops=attach_crops)
 
     for line in ocr_results:
         line['section'] = section

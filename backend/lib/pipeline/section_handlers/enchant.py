@@ -3,55 +3,47 @@
 import os
 
 from lib.pipeline.line_split import (
-    group_by_y, merge_group_bounds, merge_continuations, trim_outlier_tail,
+    merge_group_bounds, merge_continuations, trim_outlier_tail,
     promote_grey_by_prefix, determine_enchant_slots, count_effects_per_header,
 )
-from lib.image_processors.prefix_detector import BULLET_DETECTOR, SUBBULLET_DETECTOR
 from lib.image_processors.mabinogi_processor import (
     classify_enchant_line, detect_enchant_slot_headers,
 )
 
-from ._helpers import bt601_preprocessed, prepend_header, snapshot_and_strip
+from ._base import BaseHandler
+from ._helpers import detect_prefix, prepend_header, snapshot_and_strip
 from ._ocr import ocr_grouped_lines, ocr_enchant_headers
 
 
-class EnchantHandler:
+class EnchantHandler(BaseHandler):
     """White-mask bands, line classification, enchant OCR, Dullahan FM."""
 
-    @bt601_preprocessed
-    def process(self, seg, *, font_reader, attach_crops=False, parsed_item_name=None, **ctx):
+    @detect_prefix('bullet', 'subbullet')
+    def _process(self, seg, grouped_lines, *, pipeline, font_reader,
+                 attach_crops=False, parsed_item_name=None, **ctx):
         """Full enchant lifecycle: image process → OCR → FM → structured rebuild."""
-        from lib.pipeline.v3 import get_pipeline
-
-        pipeline = get_pipeline()
         parser = pipeline['parser']
-        splitter = pipeline['splitter']
         corrector = pipeline['corrector']
 
         content_bgr = seg['content_crop']
         section = seg['section']
         ocr_binary = seg['ocr_binary']
 
-        detected = splitter.detect_text_lines(ocr_binary)
-        grouped = group_by_y(detected)
-
         slot_bands = detect_enchant_slot_headers(content_bgr)
 
         if slot_bands:
             section_data = _parse_enchant_with_bands(
-                parser, content_bgr, ocr_binary, grouped, slot_bands,
+                parser, content_bgr, ocr_binary, grouped_lines, slot_bands,
                 section, font_reader,
                 enchant_header_reader=pipeline['enchant_header_reader'],
                 attach_crops=attach_crops)
         else:
             _save = os.environ.get('SAVE_OCR_CROPS')
             ocr_results = ocr_grouped_lines(
-                ocr_binary, grouped, font_reader,
+                ocr_binary, grouped_lines, font_reader,
                 save_crops_dir=_save,
                 save_label='content_enchant',
-                attach_crops=attach_crops,
-                prefix_bgr=content_bgr,
-                prefix_configs=[BULLET_DETECTOR, SUBBULLET_DETECTOR])
+                attach_crops=attach_crops)
             for line in ocr_results:
                 line['section'] = section
             section_data = parser._parse_enchant_section(ocr_results)
@@ -83,7 +75,7 @@ class EnchantHandler:
         return section_data
 
 
-def _parse_enchant_with_bands(parser, content_bgr, binary, grouped,
+def _parse_enchant_with_bands(parser, content_bgr, binary, grouped_lines,
                               bands, section, reader,
                               enchant_header_reader=None,
                               attach_crops=False):
@@ -94,7 +86,7 @@ def _parse_enchant_with_bands(parser, content_bgr, binary, grouped,
     """
     # 1. Classify each group
     classifications = []
-    for group in grouped:
+    for group in grouped_lines:
         bounds = merge_group_bounds(group)
         line_type = classify_enchant_line(content_bgr, bounds, bands)
         classifications.append((group, bounds, line_type))
@@ -120,9 +112,7 @@ def _parse_enchant_with_bands(parser, content_bgr, binary, grouped,
     effect_batch = (ocr_grouped_lines(binary, effect_groups, reader,
                                       save_crops_dir=_save,
                                       save_label='content_enchant',
-                                      attach_crops=attach_crops,
-                                      prefix_bgr=content_bgr,
-                                      prefix_config=BULLET_DETECTOR)
+                                      attach_crops=attach_crops)
                     if effect_groups else [])
 
     header_iter = iter(header_batch)
