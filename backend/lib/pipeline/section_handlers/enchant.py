@@ -11,7 +11,7 @@ from lib.image_processors.mabinogi_processor import (
 )
 
 from ._base import BaseHandler
-from ._helpers import detect_prefix, prepend_header, snapshot_and_strip
+from ._helpers import detect_prefix, reject_prefix, prepend_header, snapshot_and_strip
 from ._ocr import ocr_grouped_lines, ocr_enchant_headers
 
 

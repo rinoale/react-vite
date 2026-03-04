@@ -109,6 +109,11 @@
       "searchReforgeOption": "Search reforge option...",
       "levelDisplay": "Lv. {{level}} / {{maxLevel}}"
     },
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "item_mod": {
+      "unrecognized": "특별개조가 감지되었으나 인식에 실패했습니다",
+      "typeLabel": "타입",
+      "levelLabel": "단계"
+    }
   }
 }

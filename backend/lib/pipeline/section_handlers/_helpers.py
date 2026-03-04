@@ -31,10 +31,11 @@ _PREFIX_ANTIALIAS_MARGIN = 2
 def detect_prefix(*prefix_types):
     """Decorator: detect bullet/subbullet prefixes and compute slice offsets.
 
-    Annotates each line_info in grouped with:
-      '_prefix_info': detection result dict (type, x, w, main_x, ...)
-      '_prefix_cut_x': column offset to slice prefix from padded crop
-    ocr_grouped_lines() reads '_prefix_cut_x' to slice prefix pixels before OCR.
+    Annotates each line_info with '_prefix_info' dict containing:
+      type: 'bullet' | 'subbullet' | None
+      x, w, main_x: detection geometry
+      cut_x: column offset to slice prefix from padded crop (if prefix found)
+    ocr_grouped_lines() reads '_prefix_info' for prefix slicing before OCR.
     """
     _TYPE_MAP = {'bullet': BULLET_DETECTOR, 'subbullet': SUBBULLET_DETECTOR}
     configs = [_TYPE_MAP[t] for t in prefix_types if t in _TYPE_MAP]
@@ -62,14 +63,14 @@ def detect_prefix(*prefix_types):
                         prefix_info = detect_prefix_per_color(bgr_crop, config=cfg)
                         if prefix_info['type'] is not None:
                             break
-                    line_info['_prefix_info'] = prefix_info
-                    # Pre-compute slice offset for ocr_grouped_lines
+                    # Pre-compute slice offset
                     if (prefix_info['type'] in ('bullet', 'subbullet')
                             and prefix_info.get('main_x', w_pad) < w_pad):
                         prefix_end = prefix_info['x'] + prefix_info['w']
                         cut_x = max(prefix_end,
                                     prefix_info['main_x'] - _PREFIX_ANTIALIAS_MARGIN)
-                        line_info['_prefix_cut_x'] = cut_x
+                        prefix_info['cut_x'] = cut_x
+                    line_info['_prefix_info'] = prefix_info
             return fn(self, seg, grouped_lines, *args, **kw)
         return wrapper
     return decorator
@@ -107,6 +108,7 @@ def reject_prefix(*rejected_types):
     def decorator(fn):
         @wraps(fn)
         def wrapper(self, seg, grouped_lines, *args, **kw):
+            breakpoint()
             filtered = [
                 group for group in grouped_lines
                 if (group[0].get('_prefix_info') or {}).get('type') not in rejected

@@ -13,6 +13,7 @@ from .enchant import EnchantHandler
 from .reforge import ReforgeHandler
 from .color import ColorHandler
 from .item_attrs import ItemAttrsHandler
+from .item_mod import ItemModHandler
 from .default import DefaultHandler
 
 _HANDLER_MAP = {
@@ -20,6 +21,7 @@ _HANDLER_MAP = {
     'reforge': ReforgeHandler(),
     'item_color': ColorHandler(),
     'item_attrs': ItemAttrsHandler(),
+    'item_mod': ItemModHandler(),
 }
 _DEFAULT_HANDLER = DefaultHandler()
 

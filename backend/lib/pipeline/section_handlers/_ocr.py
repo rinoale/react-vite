@@ -79,7 +79,8 @@ def ocr_grouped_lines(img, grouped_lines, reader,
                 continue
 
             # Prefix slicing: use pre-computed offsets from @detect_prefix decorator
-            cut_x = line_info.get('_prefix_cut_x')
+            prefix_info = line_info.get('_prefix_info') or {}
+            cut_x = prefix_info.get('cut_x')
             if cut_x is not None and cut_x < cw:
                 gray = gray[:, cut_x:]
                 cw = gray.shape[1]
@@ -116,7 +117,6 @@ def ocr_grouped_lines(img, grouped_lines, reader,
                 'confidence': float(confidence),
                 'bounds': line_info,
                 'ocr_model': model_name,
-                'prefix_type': (line_info.get('_prefix_info') or {}).get('type'),
             })
 
         # Merge sub-line results
@@ -128,9 +128,9 @@ def ocr_grouped_lines(img, grouped_lines, reader,
         # Use the model from the first sub-line (or most common if multiple)
         ocr_model = sub_details[0].get('ocr_model', '') if sub_details else ''
 
-        # Check if first sub-line had a prefix that was sliced
-        first_prefix = sub_details[0].get('prefix_type') if sub_details else None
-        has_prefix = first_prefix in ('bullet', 'subbullet')
+        # Prefix type from first sub-line (set by @detect_prefix decorator)
+        first_prefix_info = group[0].get('_prefix_info') or {}
+        first_prefix = first_prefix_info.get('type')
 
         entry = {
             'text': merged_text,
@@ -139,7 +139,6 @@ def ocr_grouped_lines(img, grouped_lines, reader,
             'bounds': merged_bounds,
             'sub_lines': sub_details,
             'ocr_model': ocr_model,
-            '_has_bullet': has_prefix,
             '_prefix_type': first_prefix,
         }
 

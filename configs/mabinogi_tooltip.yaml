@@ -97,7 +97,7 @@ sections:
     header_patterns:
       - "정령"
     required: false
-    ocr: true
+    skip: true
 
   flavor_text:
     order: 80

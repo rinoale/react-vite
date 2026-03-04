@@ -11,7 +11,7 @@ class ReforgeHandler(BaseHandler):
     """Standard OCR, FM cutoff=0, drop non-prefixed, build_reforge_structured."""
 
     @detect_prefix('bullet', 'subbullet')
-    @filter_prefix('bullet', 'subbullet')
+    @filter_prefix('bullet')
     def _process(self, seg, grouped_lines, *, pipeline, font_reader,
                  attach_crops=False, **ctx):
         """Full reforge lifecycle: OCR → FM → filter → structured rebuild."""
