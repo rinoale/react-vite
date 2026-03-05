@@ -55,15 +55,13 @@ def ocr_grouped_lines(img, grouped_lines, reader,
         for line_info in group:
             x, y, w, h = line_info['x'], line_info['y'], line_info['width'], line_info['height']
 
-            # Apply proportional padding
+            # Horizontal padding only — the centered line window already
+            # provides vertical margin around the text.
             pad_x = max(_PAD_HORIZONTAL_MINIMUM, h // _PAD_HORIZONTAL_DIVISOR)
-            pad_y = max(_PAD_VERTICAL_MINIMUM, h // _PAD_VERTICAL_DIVISOR)
             x_pad = max(0, x - pad_x)
-            y_pad = max(0, y - pad_y)
             w_pad = min(img.shape[1] - x_pad, w + 2 * pad_x)
-            h_pad = min(img.shape[0] - y_pad, h + 2 * pad_y)
 
-            line_crop = img[y_pad:y_pad + h_pad, x_pad:x_pad + w_pad]
+            line_crop = img[y:y + h, x_pad:x_pad + w_pad]
 
             # Convert to grayscale
             if len(line_crop.shape) == 3:

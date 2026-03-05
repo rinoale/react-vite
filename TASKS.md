@@ -7,6 +7,58 @@
 Headers in the tooltip (category headers, enchant slot headers, item_mod special upgrade line) are always rendered in NanumGothic font regardless of the item's font config. Currently we have separate models (`category_header_model`, `enchant_header_model`) trained on nanum gothic. These should be consolidated into a single `header_model` trained with nanum gothic font covering all header types. The item_mod handler already hardcodes `content_ng_reader`; a unified header model would make the pipeline simpler — just find the header line and OCR it with the one header model.
 Or at least two models, category header model and subheader model.
 
+### Structural line grouping and subheader detection within segments
+
+#### Background
+
+Our tooltip parsing has evolved through increasingly deeper structural understanding:
+1. **Line split + OCR** — flat list of lines, no structure
+2. **Category header segmentation** — orange headers divide tooltip into labeled segments
+3. **Prefix detection** — bullet/subbullet filtering decides what to OCR per segment
+4. **Subheader models** — enchant_header_model recognizes slot headers inside enchant segment
+
+The next step is to detect structure *within* a segment without relying on OCR or color masks — purely from spatial geometry of the line crops.
+
+#### Line grouping by inter-group gaps
+
+Lines within a segment naturally cluster into groups separated by larger gaps. The gap between groups is noticeably wider than the gap between lines within a group.
+
+```
+---- ← group A
+----
+
+---- ← group B
+---
+----
+
+--- ← group C
+--
+```
+
+Measure the vertical distance (gap) between consecutive lines. Gaps above a threshold (e.g. median gap × 1.5) indicate group boundaries. This gives us semantic clusters without OCR — each group likely represents a distinct sub-section (e.g. a subheader followed by its content lines).
+
+#### Subheader detection by line height clustering
+
+Subheaders and plain content lines are rendered at different font sizes, producing measurably different line heights in the binary crops:
+
+```
+|||| ← subheader (taller)
+lll  ← plain lines (shorter)
+lllll
+lllll
+```
+
+Rather than comparing against a fixed pixel threshold, cluster all line heights within a segment into 2-3 groups (e.g. k-means or simple gap detection on sorted heights). The tallest cluster = subheaders, the shorter cluster(s) = content lines.
+
+**Prerequisites:**
+- Accurate line split logic — line crops must have consistent, tight bounding boxes for height measurements to be reliable
+- Border removal and padding must not inflate heights inconsistently
+
+**What this enables:**
+- Generic subheader detection that works across all segments (not just enchant)
+- Eliminates need for per-segment subheader OCR models — detect first, then route to appropriate model
+- Combined with line grouping: automatically identify `[subheader] + [content lines]` blocks within any segment
+
 ### Merge prefix detection + filtering into a single decorator
 
 Currently handlers chain `@detect_prefix('bullet')` + `@filter_prefix('bullet')` or `@plain_lines_only` as separate decorators. These could be a single decorator like `@select_lines('bullet')` / `@select_lines(None)` that detects and filters in one pass.

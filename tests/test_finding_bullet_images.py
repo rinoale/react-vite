@@ -14,13 +14,11 @@ import json
 import os
 
 import cv2
-import numpy as np
 import pytest
 
 from lib.image_processors.prefix_detector import (
     bullet_text_mask,
     white_text_mask,
-    detect_prefix,
     detect_prefix_per_color,
     BULLET_DETECTOR,
     SUBBULLET_DETECTOR,
@@ -113,33 +111,6 @@ def _load_image(name):
     return img, config
 
 
-def _combined_mask(img):
-    """Build combined mask (all prefix colors) matching visualization script."""
-    b_mask = BULLET_DETECTOR.build_mask(img)
-    s_mask = SUBBULLET_DETECTOR.build_mask(img)
-    return np.minimum(b_mask, s_mask)
-
-
-def _count_prefixes(mask, img_h, img_w, target_type):
-    """Count prefixes of target_type using detect_prefix on each detected line."""
-    splitter = MabinogiTooltipSplitter()
-    lines = splitter.detect_text_lines(mask)
-    count = 0
-    for line in lines:
-        x, y, lw, lh = line['x'], line['y'], line['width'], line['height']
-        pad_x = max(2, lh // 3)
-        pad_y = max(1, lh // 5)
-        y0 = max(0, y - pad_y)
-        y1 = min(img_h, y + lh + pad_y)
-        x0 = max(0, x - pad_x)
-        x1 = min(img_w, x + lw + pad_x)
-        line_mask = mask[y0:y1, x0:x1]
-        info = detect_prefix(line_mask)
-        if info['type'] == target_type:
-            count += 1
-    return count
-
-
 # ---------------------------------------------------------------------------
 # Tests — parametrized over all images with expected counts
 # ---------------------------------------------------------------------------
@@ -165,7 +136,7 @@ class TestLineDetection:
         meta = _load_meta(name)
         img, _ = _load_image(name)
         b_mask = bullet_text_mask(img)
-        lines = MabinogiTooltipSplitter().detect_text_lines(b_mask)
+        lines = MabinogiTooltipSplitter().detect_centered_lines(b_mask)
         assert len(lines) == meta['lines']['bullet_lines']
 
     @pytest.mark.parametrize('name', IMAGE_NAMES)
@@ -173,38 +144,16 @@ class TestLineDetection:
         meta = _load_meta(name)
         img, _ = _load_image(name)
         w_mask = white_text_mask(img)
-        lines = MabinogiTooltipSplitter().detect_text_lines(w_mask)
+        lines = MabinogiTooltipSplitter().detect_centered_lines(w_mask)
         assert len(lines) == meta['lines']['white_lines']
 
 
 @skip_no_images
-class TestPrefixDetection:
-    """Verify bullet/subbullet prefix counts using shape walker."""
-
-    @pytest.mark.parametrize('name', IMAGE_NAMES)
-    def test_bullet_count(self, name):
-        meta = _load_meta(name)
-        img, _ = _load_image(name)
-        h, w = img.shape[:2]
-        mask = _combined_mask(img)
-        bullets = _count_prefixes(mask, h, w, 'bullet')
-        assert bullets == meta['prefix']['bullets']
-
-    @pytest.mark.parametrize('name', IMAGE_NAMES)
-    def test_subbullet_count(self, name):
-        meta = _load_meta(name)
-        img, _ = _load_image(name)
-        h, w = img.shape[:2]
-        mask = _combined_mask(img)
-        subs = _count_prefixes(mask, h, w, 'subbullet')
-        assert subs == meta['prefix']['subbullets']
-
-
-@skip_no_images
 class TestShapeWalkerConsistency:
-    """Verify classify_cluster gives same result as detect_prefix on real data.
+    """Verify classify_cluster gives same result as detect_prefix_per_color.
 
     Both use shape walker internally, so results must always agree.
+    Uses per-color detection on BGR crops (production path).
     """
 
     @pytest.mark.parametrize('name', [
@@ -213,61 +162,41 @@ class TestShapeWalkerConsistency:
     ])
     def test_direct_classify_matches_detect_prefix(self, name):
         """classify_cluster called directly on extracted cluster gives same
-        result as detect_prefix."""
+        result as detect_prefix_per_color."""
         img, _ = _load_image(name)
         h, w = img.shape[:2]
-        mask = _combined_mask(img)
-        splitter = MabinogiTooltipSplitter()
-        lines = splitter.detect_text_lines(mask)
 
-        for line in lines:
-            x, y, lw, lh = line['x'], line['y'], line['width'], line['height']
-            pad_x = max(2, lh // 3)
-            pad_y = max(1, lh // 5)
-            y0 = max(0, y - pad_y)
-            y1 = min(h, y + lh + pad_y)
-            x0 = max(0, x - pad_x)
-            x1 = min(w, x + lw + pad_x)
-            line_mask = mask[y0:y1, x0:x1]
+        for config in (BULLET_DETECTOR, SUBBULLET_DETECTOR):
+            mask = config.build_mask(img)
+            splitter = MabinogiTooltipSplitter()
+            lines = splitter.detect_centered_lines(mask)
 
-            info = detect_prefix(line_mask)
-            if info['type'] is None:
-                continue
+            for line in lines:
+                x, y, lw, lh = line['x'], line['y'], line['width'], line['height']
+                pad_x = max(2, lh // 3)
+                x0 = max(0, x - pad_x)
+                x1 = min(w, x + lw + pad_x)
+                bgr_crop = img[y:y + lh, x0:x1]
 
-            # Extract the same cluster region detect_prefix uses
-            cluster_region = line_mask[:, info['x']:info['x'] + info['w']]
-            match = classify_cluster(cluster_region, [SHAPE_NIEUN, SHAPE_DOT])
+                info = detect_prefix_per_color(bgr_crop, config=config)
+                if info['type'] is None:
+                    continue
 
-            assert match is not None, (
-                f'{name}: detect_prefix found {info["type"]} at y={y} but '
-                f'classify_cluster returned None on the cluster region'
-            )
+                # Extract cluster from the config mask crop
+                mask_crop = mask[y:y + lh, x0:x1]
+                cluster_region = mask_crop[:, info['x']:info['x'] + info['w']]
+                match = classify_cluster(cluster_region, [SHAPE_NIEUN, SHAPE_DOT])
 
-            expected_type = 'subbullet' if match.shape.name == 'ㄴ' else 'bullet'
-            assert expected_type == info['type'], (
-                f'{name}: mismatch at y={y}: '
-                f'detect_prefix={info["type"]}, classify_cluster={match.shape.name}'
-            )
+                assert match is not None, (
+                    f'{name}: detect_prefix_per_color found {info["type"]} at y={y} but '
+                    f'classify_cluster returned None on the cluster region'
+                )
 
-
-def _count_prefixes_with_config(mask, img_h, img_w, config):
-    """Count prefixes using a PrefixDetectorConfig on each detected line."""
-    splitter = MabinogiTooltipSplitter()
-    lines = splitter.detect_text_lines(mask)
-    count = 0
-    for line in lines:
-        x, y, lw, lh = line['x'], line['y'], line['width'], line['height']
-        pad_x = max(2, lh // 3)
-        pad_y = max(1, lh // 5)
-        y0 = max(0, y - pad_y)
-        y1 = min(img_h, y + lh + pad_y)
-        x0 = max(0, x - pad_x)
-        x1 = min(img_w, x + lw + pad_x)
-        line_mask = mask[y0:y1, x0:x1]
-        info = detect_prefix(line_mask, config=config)
-        if info['type'] is not None:
-            count += 1
-    return count
+                expected_type = 'subbullet' if match.shape.name == 'ㄴ' else 'bullet'
+                assert expected_type == info['type'], (
+                    f'{name}: mismatch at y={y}: '
+                    f'detect_prefix_per_color={info["type"]}, classify_cluster={match.shape.name}'
+                )
 
 
 def _count_prefixes_per_color(img_bgr, img_h, img_w, config):
@@ -280,17 +209,14 @@ def _count_prefixes_per_color(img_bgr, img_h, img_w, config):
     """
     mask = config.build_mask(img_bgr)
     splitter = MabinogiTooltipSplitter()
-    lines = splitter.detect_text_lines(mask)
+    lines = splitter.detect_centered_lines(mask)
     count = 0
     for line in lines:
         x, y, lw, lh = line['x'], line['y'], line['width'], line['height']
         pad_x = max(2, lh // 3)
-        pad_y = max(1, lh // 5)
-        y0 = max(0, y - pad_y)
-        y1 = min(img_h, y + lh + pad_y)
         x0 = max(0, x - pad_x)
         x1 = min(img_w, x + lw + pad_x)
-        bgr_crop = img_bgr[y0:y1, x0:x1]
+        bgr_crop = img_bgr[y:y + lh, x0:x1]
         info = detect_prefix_per_color(bgr_crop, config=config)
         if info['type'] is not None:
             count += 1
@@ -301,9 +227,8 @@ def _count_prefixes_per_color(img_bgr, img_h, img_w, config):
 class TestPerColorDetection:
     """Verify per-color prefix detection on BGR crops — the production path.
 
-    Unlike TestPrefixDetection (combined binary mask) and TestConfigBasedDetection
-    (config on combined mask), this class exercises detect_prefix_per_color()
-    on BGR image crops, which is what the actual production code calls.
+    Exercises detect_prefix_per_color() on BGR image crops, which is what
+    the actual production code calls via the @detect_prefix decorator.
     """
 
     @pytest.mark.parametrize('name', IMAGE_NAMES)
@@ -323,30 +248,3 @@ class TestPerColorDetection:
         assert subs == meta['prefix']['subbullets']
 
 
-@skip_no_images
-class TestConfigBasedDetection:
-    """Verify config-based classification matches backward-compat counts.
-
-    Uses the same masks as existing tests (bullet_text_mask / white_text_mask)
-    so line detection is identical. Only the classification path differs:
-    config restricts which shapes are tried (DOT-only for bullet, NIEUN-only
-    for subbullet) vs backward-compat which tries both.
-    """
-
-    @pytest.mark.parametrize('name', IMAGE_NAMES)
-    def test_bullet_config_count(self, name):
-        meta = _load_meta(name)
-        img, _ = _load_image(name)
-        h, w = img.shape[:2]
-        mask = _combined_mask(img)
-        bullets = _count_prefixes_with_config(mask, h, w, BULLET_DETECTOR)
-        assert bullets == meta['prefix']['bullets']
-
-    @pytest.mark.parametrize('name', IMAGE_NAMES)
-    def test_subbullet_config_count(self, name):
-        meta = _load_meta(name)
-        img, _ = _load_image(name)
-        h, w = img.shape[:2]
-        mask = _combined_mask(img)
-        subs = _count_prefixes_with_config(mask, h, w, SUBBULLET_DETECTOR)
-        assert subs == meta['prefix']['subbullets']

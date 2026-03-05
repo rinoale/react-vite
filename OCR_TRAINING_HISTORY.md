@@ -29,8 +29,9 @@ Each attempt has identified and fixed a specific bottleneck, steadily raising re
 | 21 | — | **84.7%** | — | general_mabinogi_classic v1 retrain, prefix detection refactor (config-driven + ink classification), `·` prefix re-attachment removed. **151/309 exact (48.9%), FM=60.** Test set expanded 18→19 images. |
 | 22 | — | **90.4%** | — | No retraining — wired prefix detection into all V3 segments + subbullet slicing. `ㄴ` prefix now sliced before OCR (was only flagged). Non-ranged enchant FM uses DB text directly (no number regex). **184/311 exact (59.2%), FM=60.** +33 exact matches from pipeline changes alone. |
 | 23 | — | **94.5%** | — | No retraining — dedicated section handlers for item_mod, erg, set_item with structured extraction. Decorator-driven handler architecture (`@detect_prefix`, `@filter_prefix`, `@plain_lines_only`). Erg `@plain_lines_only` filters noise lines before OCR → 100%. Item_mod hardcodes `content_ng_reader` (headers always NanumGothic) → 100%. Set_item regex `(.+(?:강화\|증가))\s*\+\s*(\d+)` + FM(cutoff=90) → 95.8%. Frontend structured correction UI (inline selects + inputs). **398/557 exact (71.5%), FM=242.** Test set expanded with more GT lines. |
+| 24 | — | **94.6%** | — | No retraining — **Greedy Group Merging** line detection replaces gap-tolerance + `_has_internal_gap` + `_split_tall_block`. Eliminates false h=6 fragments from Korean characters with horizontal vowel ㅡ (증, 스, 승). Vertical padding removed from prefix detection and OCR crops (centered windows already provide margin). **429/597 exact, FM=268.** +3 exact from baseline 426/597. |
 
-Real-world char accuracy: **0% → 19.5% → 35.8% → 27.0% (regression) → 36.2% → 38.1% → 52.4% → 75.5% → 77.0% → 87.5% → 88.6% → 86.7% → 86.9% → 88.5% → 84.7% → 90.4% → 94.5%**. Note: Attempt 18 shows lower char_acc than 17b (86.7% vs 88.6%) because the test set expanded from 5→8 images (3 new images without GT reduce the measured total). On the same 5 GT images, exact matches jumped 67→104. Attempts 1-15 improved the OCR model. Attempt 16 regressed (charset expansion). Attempts 17/17b redesigned the pipeline without retraining. Attempt 18 fixed a fundamental EasyOCR inference bug ("double-dip resize") that affected all models since the beginning. Enchant Header v2 retrained with more variation but was essentially flat — header model was not the bottleneck. Attempt 19 proved that mixing real user crops into training data dramatically improves accuracy — validating the user correction feedback pipeline as a strategy. Attempt 20 added three-strategy enchant resolution — no retraining, pipeline-only improvement that uses DB effects as templates with OCR rolled values. Attempt 21 retrained general_mabinogi_classic content model (v1) and refactored prefix detection to config-driven architecture; char_acc appears lower (84.7% vs 88.5%) because the test set expanded to 19 images — on the same images, exact matches improved significantly (151 vs 128). Attempt 22 wired prefix detection to all content segments and extended subbullet slicing — the `ㄴ` glyph polluted OCR input across item_mod (+22), set_item (+4), reforge (+3), and item_attrs (+3). Also fixed enchant FM to use DB text directly for non-ranged effects instead of fragile number extraction/injection. Attempt 23 added dedicated section handlers (item_mod, erg, set_item) with structured extraction — each handler uses decorators to filter relevant lines before OCR, reducing noise and compute. Erg and item_mod reached 100% accuracy. The decorator-based handler architecture makes adding new sections trivial (regex + FM, ~80 lines each).
+Real-world char accuracy: **0% → 19.5% → 35.8% → 27.0% (regression) → 36.2% → 38.1% → 52.4% → 75.5% → 77.0% → 87.5% → 88.6% → 86.7% → 86.9% → 88.5% → 84.7% → 90.4% → 94.5% → 94.6%**. Note: Attempt 18 shows lower char_acc than 17b (86.7% vs 88.6%) because the test set expanded from 5→8 images (3 new images without GT reduce the measured total). On the same 5 GT images, exact matches jumped 67→104. Attempts 1-15 improved the OCR model. Attempt 16 regressed (charset expansion). Attempts 17/17b redesigned the pipeline without retraining. Attempt 18 fixed a fundamental EasyOCR inference bug ("double-dip resize") that affected all models since the beginning. Enchant Header v2 retrained with more variation but was essentially flat — header model was not the bottleneck. Attempt 19 proved that mixing real user crops into training data dramatically improves accuracy — validating the user correction feedback pipeline as a strategy. Attempt 20 added three-strategy enchant resolution — no retraining, pipeline-only improvement that uses DB effects as templates with OCR rolled values. Attempt 21 retrained general_mabinogi_classic content model (v1) and refactored prefix detection to config-driven architecture; char_acc appears lower (84.7% vs 88.5%) because the test set expanded to 19 images — on the same images, exact matches improved significantly (151 vs 128). Attempt 22 wired prefix detection to all content segments and extended subbullet slicing — the `ㄴ` glyph polluted OCR input across item_mod (+22), set_item (+4), reforge (+3), and item_attrs (+3). Also fixed enchant FM to use DB text directly for non-ranged effects instead of fragile number extraction/injection. Attempt 23 added dedicated section handlers (item_mod, erg, set_item) with structured extraction — each handler uses decorators to filter relevant lines before OCR, reducing noise and compute. Erg and item_mod reached 100% accuracy. The decorator-based handler architecture makes adding new sections trivial (regex + FM, ~80 lines each). Attempt 24 replaced the line detection algorithm: Greedy Group Merging eliminates false splits on Korean characters with internal gaps, and removing vertical padding from crops tightened both prefix detection and OCR input.
 
 ---
 
@@ -1647,3 +1648,332 @@ Improvement: **+23 exact matches, +4 FM.** The char_acc drop (88.5% → 84.7%) i
 ### Key Insight
 
 **Model retraining was the primary driver.** The general_mabinogi_classic v1 model produced significantly better content OCR. The prefix refactor and `·` removal were structural improvements that didn't directly affect eval scores (FM was already stripping prefix characters).
+
+---
+
+## Attempt 24: Greedy Group Merging Line Detection
+
+No retraining. Replaced the line detection algorithm and removed unnecessary vertical padding from crops.
+
+### Problem Statement
+
+The `TooltipLineSplitter` falsely splits Korean characters that have horizontal gaps between syllable components (consonant / vowel / batchim). Characters like 증, 흫, 를, 스 have 1-2 pixel zero-projection rows between their vertical layers, which the splitter mistakes for inter-line boundaries.
+
+**Example:** "증가" in shoes_original set_item segment — line 4 (y=66, h=11) is the main text, but line 5 (y=79, h=6) is a false fragment from the bottom strokes of 증 (ㅡ and ㅇ) being split off.
+
+### Previous Business Logic Flow
+
+```
+1. Horizontal projection: projection[y] = count of ink pixels per row
+2. Text detection: has_text[y] = projection[y] > threshold
+     threshold = max(3, width * 0.015)
+3. Gap closing: close gaps <= gap_tolerance (2) rows in has_text[]
+4. Find contiguous blocks from has_text[]
+5. For each block:
+   - h < minimum_height (6) → discard
+   - minimum_height <= h <= maximum_height:
+     - _has_internal_gap() finds any single zero-projection row → True
+       → _split_tall_block() re-splits at zero rows
+     - else → _add_line()
+   - h > maximum_height → _split_tall_block()
+```
+
+**The contradiction:** `gap_tolerance=2` says "gaps of 1-2 rows are noise, close them." But `_has_internal_gap()` triggers on a single zero-projection row (`consecutive_zeros >= 1`). So Step 3 merges blocks, then Step 5 immediately re-splits them.
+
+### Key Findings
+
+#### Height Distribution (3,043 lines across 46 images)
+
+| Height | Count | Notes |
+|--------|-------|-------|
+| h=6    | 3     | ALL false fragments |
+| h=7    | 255   | Smallest legitimate (item_color R/G/B) |
+| h=8    | 1     | |
+| h=9    | 378   | |
+| h=10   | 2,027 | Dominant (66.6%) |
+| h=11   | 378   | |
+| h=13   | 1     | |
+
+Clear gap between h=6 (false) and h=7 (legitimate). 99.9% of lines are h=7..11.
+
+#### The 3 False h=6 Detections
+
+| Image | Segment | Cause |
+|---|---|---|
+| captain_suit | pre_header | Bottom strokes of character leaked |
+| predator_ng | item_attrs | Fragment at end of section |
+| shoes | set_item | Bottom of "증가" (ㅡ/ㅇ strokes) |
+
+All are narrow (w=18-23), all at bottom of character groups.
+
+#### Disabling _has_internal_gap — Massive Regression
+
+**Result: 426 → 324 exact (81.1% char acc).** Without the split recovery, gap_tolerance=2 merges adjacent lines into huge blocks. The splitter depends on the merge-then-split pattern: gap_tolerance merges → _has_internal_gap detects → _split_tall_block separates.
+
+Most affected images: predator_ng (31→11), shoes (24→5), spellbook (25→5).
+
+#### Raising _has_internal_gap Threshold to > gap_tolerance
+
+Changed `consecutive_zeros >= 1` to `consecutive_zeros > gap_tolerance (2)`. Same massive regression — 324/586 exact. The 1-2 row zero gaps between real lines are the SAME width as character-internal gaps, so both get treated the same.
+
+#### Synthetic Character Tests
+
+Rendered Korean text lines and ran the splitter:
+
+| Text | Structure | Lines Detected | Split? |
+|---|---|---|---|
+| 흫흫흫... | ㅎ+ㅡ+ㅎ | 2 (h=7 + h=8) | Split at 1px gap |
+| 흘흘흘... | ㅎ+ㅡ+ㄹ | 1 (h=7, lost bottom) | Split, bottom lost |
+| 를를를... | ㄹ+ㅡ+ㄹ | 1 (h=6, lost bottom) | Split, bottom lost |
+| 릏릏릏... | ㄹ+ㅣ+ㅎ | 2 (h=6 + h=8) | Split at 1px gap |
+
+Confirms: even long lines of these characters get split. The problem is structural — the horizontal gap between syllable layers produces zero-projection rows regardless of text length.
+
+### Failed Approaches
+
+#### Centered Detection with gap_tolerance=2
+
+Adjacent text lines merge into huge blocks. Only 1 centered window per block.
+
+| Segment | Current | Centered |
+|---|---|---|
+| shoes reforge | 6 | 1 |
+| shoes set_item | 8 | 2 |
+| predator_ng item_attrs | 17 | 4 |
+| predator_ng item_mod | 21 | 4 |
+
+#### Centered Detection with gap_tolerance=1
+
+Much better — most segments match. But 스 has ㅅ + ㅡ with a **2-pixel gap**. gap_tolerance=1 won't close it → character splits into two blocks, both below min_block_height → both discarded.
+
+Projection for 스스스스스스스스스스스스 (12 chars):
+```
+ 0
+12  ← ㅅ strokes
+24
+24
+24
+ 0  ← 2px gap
+ 0
+96  ← ㅡ stroke (very dense)
+ 0
+```
+
+**gap_tolerance=1 doesn't generalize.** Any fixed tolerance will either fail on characters with wider internal gaps or merge adjacent lines.
+
+### The Insight: Use the Physical Constraint, Not Gap Classification
+
+The debate revealed a fundamental issue: **character-internal gaps and inter-line gaps can be the same pixel width.** No fixed tolerance works:
+
+- `gap_tolerance=2`: Closes character gaps ✓, but also merges adjacent lines ✗ → needs `_has_internal_gap` recovery → produces false h=6 fragments
+- `gap_tolerance=1`: Fails on characters like 스 where the ㅅ-to-ㅡ gap is 2px → character lost
+- `gap_tolerance=0`: Splits every character with any internal gap
+
+Consider 승 (ㅅ + ㅡ + ㅇ) — projection for 7 characters:
+```
+ 0
+ 6  ← ㅅ strokes
+12
+12
+12
+ 0  ← gap between ㅅ and ㅡ (1px)
+48  ← ㅡ stroke (dense)
+ 0  ← gap between ㅡ and ㅇ (1px)
+ 6  ← ㅇ strokes
+12
+12
+12
+ 6
+ 0
+```
+
+And 스 (ㅅ + ㅡ) — projection for 7 characters:
+```
+ 0
+ 6  ← ㅅ strokes
+12
+12
+12
+ 0  ← 2px gap
+ 0
+48  ← ㅡ stroke
+ 0
+```
+
+Stitching rows with a fixed tolerance while searching top-to-bottom is brutal. We have `min_height` which tells us the total height of a text line. Instead of deciding gap-by-gap whether to close, **use min_height as the stopping criterion.**
+
+### Algorithm: Greedy Group Merging
+
+**Step 1:** Find raw text groups — contiguous runs of `has_text=True` rows with **NO gap tolerance at all.** Each group is a pure ink cluster.
+
+**Step 2:** For each unassigned group (scanning top → bottom):
+1. Start a candidate line with this group (+ 1-row head padding)
+2. Track `total_span` = first row to last row of accumulated groups
+3. While `total_span < min_height` AND more groups exist:
+   - If `total_span + gap + next_group_span <= min_height` → **absorb**
+   - Else → **reject** (next group starts a new line)
+4. Trim trailing zero-projection rows
+5. Center a min_height window on the content extent (upper-biased)
+
+**Step 3:** Conflict resolution — if a centered window overlaps the previous line's bottom, trim the top. Don't expand downward.
+
+#### Trace: 승승승승승승승 (Single Line)
+
+Raw text groups (no tolerance): G1[4 rows], G2[1 row], G3[5 rows]
+
+```
+Start with G1: span=4. < 13, need more.
+  Gap=1, G2 span=1. 4+1+1=6 ≤ 13 → absorb. span=6.
+  Gap=1, G3 span=5. 6+1+5=12 ≤ 13 → absorb. span=12.
+  No more groups.
+Content: rows 1-12 (trim trailing zeros). Center = row 6.
+Line: 13px window centered on row 6. ✓
+```
+
+#### Trace: 스스스스스스스 (Single Line, 2px Gap)
+
+Raw text groups: G1[4 rows], G2[1 row]
+
+```
+Start with G1: span=4. < 13, need more.
+  Gap=2, G2 span=1. 4+2+1=7 ≤ 13 → absorb. span=7.
+  No more groups.
+Content: rows 1-7 (trim trailing zeros). Center = row 4.
+Line: 13px window centered on row 4. ✓
+```
+
+The 2px gap is absorbed naturally — no tolerance parameter needed.
+
+#### Trace: 승승승 / 승승승 (Two Lines, 1px Apart)
+
+Raw text groups: G1[4], G2[1], G3[5], G4[4], G5[1], G6[5]
+
+```
+Line 1:
+  Start G1: span=4. < 13.
+  Gap=1, G2=1. 4+1+1=6 ≤ 13 → absorb. span=6.
+  Gap=1, G3=5. 6+1+5=12 ≤ 13 → absorb. span=12.
+  Gap=1, G4=4. 12+1+4=17 > 13 → REJECT.
+Content: rows 1-12. Center = row 6. ✓
+
+Line 2:
+  Start G4: span=4. < 13.
+  Gap=1, G5=1. 4+1+1=6 ≤ 13 → absorb. span=6.
+  Gap=1, G6=5. 6+1+5=12 ≤ 13 → absorb. span=12.
+  No more groups.
+Content: rows 14-25. Center = row 19. ✓
+```
+
+Two lines detected, zero false splits. The **min_height constraint itself** acts as the line boundary detector.
+
+### Wiring to Production
+
+Replaced `detect_text_lines` with `detect_centered_lines` in:
+- `backend/lib/pipeline/section_handlers/_base.py` (all content handlers)
+- `backend/lib/pipeline/section_handlers/pre_header.py` (item name region)
+
+#### Initial Result: Massive Regression
+
+**346/593 exact, 87.6% char acc** — down from baseline 426/597. The shoes image dropped from ~24 to 13 exact. Enchant continuation lines weren't being merged.
+
+#### Root Cause: Prefix Detection Failure
+
+The `@detect_prefix` decorator added vertical padding to the BGR crop:
+
+```python
+pad_y = max(1, h // 5)
+bgr_crop = content_bgr[y - pad_y:y + h + pad_y, x_pad:x_pad + w_pad]
+```
+
+The prefix detector's gap threshold is ratio-based:
+
+```python
+min_gap = max(2, int(h * 0.2))  # h = crop height
+```
+
+With old detect_text_lines (h=10 typical):
+```
+crop h = 10 + pad_y(2) + pad_y(2) = 14
+min_gap = max(2, int(14 * 0.2)) = max(2, 2) = 2
+Actual gap between · and text = 2px → 2 ≥ 2 → PASS ✓
+```
+
+With new detect_centered_lines (h=13):
+```
+crop h = 13 + pad_y(2) + pad_y(2) = 17
+min_gap = max(2, int(17 * 0.2)) = max(2, 3) = 3
+Actual gap between · and text = 2px → 2 < 3 → FAIL ✗
+```
+
+The 1-pixel difference in min_gap (2 → 3) broke every bullet detection.
+
+#### Fix 1: Remove Vertical Padding from Prefix Detection
+
+The centered h=13 window already provides vertical margin. Text occupies ~9-10 rows in the center, with 2-3 empty rows above and below.
+
+```
+Old (padded):                        New (no padding):
+row  0: ░░░░░░░░░  ← pad_y          row  0: ░░░░░░░░░  ← centering margin
+row  1: ░░░░░░░░░  ← pad_y          row  1: ░░░░░░░░░  ← centering margin
+row  2: ░░░░░░░░░  ← centering      row  2: ·░░text░░  ← ink starts
+row  3: ·░░text░░  ← ink starts     row  3: ·░░text░░
+row  4: ·░░text░░                    row  4: ·░░text░░
+...                                  ...
+row 12: ·░░text░░                    row 10: ·░░text░░
+row 13: ░░░░░░░░░  ← centering      row 11: ░░░░░░░░░  ← centering margin
+row 14: ░░░░░░░░░  ← pad_y          row 12: ░░░░░░░░░  ← centering margin
+row 15: ░░░░░░░░░  ← pad_y
+row 16: ░░░░░░░░░  ← pad_y
+
+h=17 → min_gap=3 ✗                  h=13 → min_gap=2 ✓
+```
+
+**Result: 378/594 exact, 92.2% char acc.** Prefix detection works again, but OCR quality still down.
+
+#### Fix 2: Remove Vertical Padding from OCR Crops
+
+The OCR crop in `_ocr.py` also added vertical padding. With centered windows, the extra rows are blank space the model was not trained on.
+
+```
+Old (padded, h=17):                  New (centered only, h=13):
+░░░░░░░░░░░░░░░░░░░  ← empty        ░░░░░░░░░░░░░░░░░░░  ← margin from centering
+░░░░░░░░░░░░░░░░░░░  ← empty        ░░░░░░░░░░░░░░░░░░░  ← margin from centering
+░░░░░░░░░░░░░░░░░░░  ← centering    ░█░██░█░██░██░░░░░░░  ← text row 1
+░█░██░█░██░██░░░░░░░  ← text         ░█░██░█░██░██░░░░░░░  ← text row 2
+ ...8 more text rows...              ...8 more text rows...
+░█░██████░██░███░░░░  ← text         ░█░██████░██░███░░░░  ← text row 10
+░░░░░░░░░░░░░░░░░░░  ← centering    ░░░░░░░░░░░░░░░░░░░  ← margin from centering
+░░░░░░░░░░░░░░░░░░░  ← empty        ░░░░░░░░░░░░░░░░░░░  ← margin from centering
+░░░░░░░░░░░░░░░░░░░  ← empty
+░░░░░░░░░░░░░░░░░░░  ← empty
+░░░░░░░░░░░░░░░░░░░  ← empty
+```
+
+**Result: 429/597 exact, 94.6% char acc, FM=268.** +3 exact from baseline (426/597).
+
+### Files Modified
+
+| File | Changes |
+|---|---|
+| `backend/lib/pipeline/line_split/line_splitter.py` | Rewrote `detect_centered_lines()` with Greedy Group Merging |
+| `backend/lib/pipeline/section_handlers/_base.py` | `detect_text_lines` → `detect_centered_lines` |
+| `backend/lib/pipeline/section_handlers/pre_header.py` | `detect_text_lines` → `detect_centered_lines` |
+| `backend/lib/pipeline/section_handlers/_helpers.py` | Removed vertical padding from prefix detection crop |
+| `backend/lib/pipeline/section_handlers/_ocr.py` | Removed vertical padding from OCR crops |
+| `backend/lib/pipeline/segmenter.py` | Added `_detect_segment_bottom_border()` |
+| `tests/test_finding_bullet_images.py` | Removed redundant combined-mask tests, updated to `detect_centered_lines` |
+| `tests/sample_images/*.meta.json` | Updated expected line/prefix counts |
+
+### Results
+
+```
+TOTAL: 429/597 exact, char_acc=94.6%, FM=268
+```
+
+Previous: 426/597 exact, 94.5% char acc. **+3 exact matches, +26 FM.**
+
+### Key Insight
+
+**Don't fight the gap — use the physical constraint.** The old approach tried to classify gaps as "character-internal" vs "inter-line" using thresholds, but both types can be 1-2 pixels wide. Greedy Group Merging sidesteps the classification problem entirely: it doesn't care why a gap exists, only whether the total span of accumulated groups fits within the known height of a text line. The min_height parameter (13px) encodes a physical fact about the game's rendering, not a tuned threshold.
+
+The centered windows also made vertical padding unnecessary — and harmful. Padding inflated crop heights, which inflated ratio-based thresholds in prefix detection and fed oversized images to OCR. Removing padding from both prefix detection and OCR crops was essential to realize the full benefit.

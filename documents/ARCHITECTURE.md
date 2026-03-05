@@ -196,17 +196,16 @@ Step 3: Fuzzy match against section patterns
 
 ### 4.0 Common preprocessing (all sections except pre_header and enchant-with-bands)
 
-**Methods:** `cv2.cvtColor()`, `cv2.threshold()`, `detect_text_lines()`, `_group_by_y()`
+**Methods:** `cv2.cvtColor()`, `cv2.threshold()`, `detect_centered_lines()`, `_group_by_y()`
 
 ```
 Step 1: cv2.cvtColor(content_bgr, COLOR_BGR2GRAY)
 Step 2: cv2.threshold(gray, 80, 255, THRESH_BINARY_INV) → binary (black text on white)
 Step 3: cv2.bitwise_not(binary) → binary_detect (white text on black, for line detection)
-Step 4: TooltipLineSplitter.detect_text_lines(binary_detect)
+Step 4: TooltipLineSplitter.detect_centered_lines(binary_detect)
   → horizontal projection profiling
-  → gap detection (tolerance=2 rows)
-  → _rescue_gaps() — second pass at lower threshold for sparse lines
-  → _split_tall_block() / _has_internal_gap() — split merged blocks
+  → greedy group merging (no gap tolerance, min_height=13)
+  → centered window placement with conflict resolution
   → _add_line() — filter border artifacts, compute tight x bounds
 Step 5: _group_by_y(detected_lines) → list of line groups (sub-segments sorted by x)
 ```

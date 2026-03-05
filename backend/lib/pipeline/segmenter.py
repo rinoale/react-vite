@@ -343,6 +343,36 @@ def detect_vertical_borders(img, border_val=132, tolerance=5, min_density=0.5):
 # 2. Segmentation
 # ---------------------------------------------------------------------------
 
+def _detect_segment_bottom_border(img, y_start, y_end, x_start, x_end,
+                                   border_val=132, tolerance=5, min_density=0.8):
+    """Detect a bottom border row within a segment's content region.
+
+    Same color-matching logic as detect_bottom_border() but scoped to
+    a specific region.  Scans rows from bottom upward within the region.
+
+    Returns:
+        y-coordinate (in full-image coords) of the border row, or None.
+    """
+    region = img[y_start:y_end, x_start:x_end]
+    if region.size == 0:
+        return None
+    h_region, w_region = region.shape[:2]
+    lo = border_val - tolerance
+    hi = border_val + tolerance
+
+    border_mask = (
+        (region[:, :, 0] >= lo) & (region[:, :, 0] <= hi) &
+        (region[:, :, 1] >= lo) & (region[:, :, 1] <= hi) &
+        (region[:, :, 2] >= lo) & (region[:, :, 2] <= hi)
+    )
+
+    threshold = int(w_region * min_density)
+    for y in range(h_region - 1, -1, -1):
+        if border_mask[y].sum() >= threshold:
+            return y_start + y
+    return None
+
+
 def build_segments(img, headers, bottom_y=None, left_x=None, right_x=None):
     """Pair each header with its content region below it.
 
@@ -376,11 +406,19 @@ def build_segments(img, headers, bottom_y=None, left_x=None, right_x=None):
 
     for i, hdr in enumerate(headers):
         next_y = headers[i + 1]['y'] if i + 1 < len(headers) else effective_bottom
-        content_h = next_y - hdr['content_y']
+        content_y = hdr['content_y']
+
+        # Detect bottom border within this segment's content region
+        seg_bottom = _detect_segment_bottom_border(
+            img, content_y, next_y, content_x, content_x_end)
+        if seg_bottom is not None:
+            next_y = seg_bottom  # trim to border
+
+        content_h = next_y - content_y
         segments.append({
             'index': i + 1,
             'header': hdr,
-            'content': {'y': hdr['content_y'], 'h': content_h, 'x': content_x, 'w': content_w},
+            'content': {'y': content_y, 'h': content_h, 'x': content_x, 'w': content_w},
         })
 
     return segments
