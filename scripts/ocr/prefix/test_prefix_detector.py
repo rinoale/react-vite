@@ -34,7 +34,7 @@ def _detect_on_mask(mask, img_h, img_w, label, splitter, config=None,
     (each color tested independently) to prevent mixed-color FPs.
     """
     ink_pct = 100.0 * np.sum(mask > 0) / mask.size
-    lines = splitter.detect_text_lines(mask)
+    lines = splitter.detect_centered_lines(mask)
 
     if not lines:
         return [], ink_pct

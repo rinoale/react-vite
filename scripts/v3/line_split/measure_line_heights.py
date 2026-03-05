@@ -114,7 +114,7 @@ def main():
             if content_crop is None or content_crop.shape[0] == 0:
                 continue
             ocr_binary = bt601_binary(content_crop)
-            detected = splitter.detect_text_lines(ocr_binary)
+            detected = splitter.detect_centered_lines(ocr_binary)
             for i, line in enumerate(detected):
                 h = line['height']
                 all_heights.append((h, base, section, i))

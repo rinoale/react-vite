@@ -7,7 +7,7 @@ Reproduces the exact V3 pipeline path up to line detection:
   3. build_segments with border coordinates
   4. Header classification via header OCR model + fuzzy match
   5. BT.601 + threshold=80 → ocr_binary (same as BaseHandler.process())
-  6. detect_text_lines() on ocr_binary
+  6. detect_centered_lines() on ocr_binary
   7. group_by_y() on detected lines
 
 Output directory structure:
@@ -111,8 +111,7 @@ def draw_distance_groups(img, grouped_lines):
     return vis
 
 
-def process_image(image_path, output_root, header_reader, patterns, config,
-                  use_centered=False):
+def process_image(image_path, output_root, header_reader, patterns, config):
     """Process a single image: segment_and_tag → line split → save visualizations."""
     img = cv2.imread(image_path)
     if img is None:
@@ -163,10 +162,7 @@ def process_image(image_path, output_root, header_reader, patterns, config,
         ocr_binary = bt601_binary(content_crop)
 
         # Line detection
-        if use_centered:
-            detected = splitter.detect_centered_lines(ocr_binary)
-        else:
-            detected = splitter.detect_text_lines(ocr_binary)
+        detected = splitter.detect_centered_lines(ocr_binary)
         grouped = group_by_y(detected)
         group_by_distance(grouped)
         total_lines += len(grouped)
@@ -208,8 +204,6 @@ def main():
         description='Validate v3 line splitting with visual output')
     parser.add_argument('path', help='Image file or directory of images')
     parser.add_argument('output', help='Output directory for results')
-    parser.add_argument('--centered', action='store_true',
-                        help='Use experimental detect_centered_lines (min_height=13)')
     args = parser.parse_args()
 
     config = load_config(CONFIG_PATH)
@@ -235,12 +229,8 @@ def main():
 
     os.makedirs(args.output, exist_ok=True)
 
-    if args.centered:
-        print("  [MODE: detect_centered_lines (min_height=13)]")
-
     for image_path in images:
-        process_image(image_path, args.output, header_reader, patterns, config,
-                      use_centered=args.centered)
+        process_image(image_path, args.output, header_reader, patterns, config)
 
 
 if __name__ == '__main__':

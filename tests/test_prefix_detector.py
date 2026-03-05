@@ -1,12 +1,17 @@
-"""Tests for backend/lib/prefix_detector.py — uses synthetic numpy arrays."""
+"""Tests for backend/lib/prefix_detector.py — synthetic and real-image tests."""
 
 import numpy as np
+import pytest
 
 from lib.image_processors.prefix_detector import (
-    detect_prefix, PrefixDetectorConfig, BULLET_DETECTOR, SUBBULLET_DETECTOR,
+    detect_prefix, detect_prefix_per_color,
+    PrefixDetectorConfig, BULLET_DETECTOR, SUBBULLET_DETECTOR,
     EFFECT_BLUE_RGB, EFFECT_RED_RGB,
 )
 from lib.image_processors.shape_walker import SHAPE_DOT, SHAPE_NIEUN
+from lib.pipeline.line_split import MabinogiTooltipSplitter
+
+from sample_image_helpers import IMAGE_NAMES, skip_no_images, load_sample_image, load_sample_meta
 
 
 class TestDetectPrefix:
@@ -136,3 +141,45 @@ class TestPrefixDetectorConfig:
         assert mask[1, 1] == 0  # blue matched
         assert mask[2, 2] == 0  # red matched
         assert mask[0, 0] == 255   # black not matched
+
+
+def _count_prefixes_per_color(img_bgr, config):
+    """Count prefixes using detect_prefix_per_color on BGR crops.
+
+    Mirrors the production path: build color mask for line detection,
+    then call detect_prefix_per_color(bgr_crop, config) per line.
+    """
+    h, w = img_bgr.shape[:2]
+    mask = config.build_mask(img_bgr)
+    splitter = MabinogiTooltipSplitter()
+    lines = splitter.detect_centered_lines(mask)
+    count = 0
+    for line in lines:
+        x, y, lw, lh = line['x'], line['y'], line['width'], line['height']
+        pad_x = max(2, lh // 3)
+        x0 = max(0, x - pad_x)
+        x1 = min(w, x + lw + pad_x)
+        bgr_crop = img_bgr[y:y + lh, x0:x1]
+        info = detect_prefix_per_color(bgr_crop, config=config)
+        if info['type'] is not None:
+            count += 1
+    return count
+
+
+@skip_no_images
+class TestPrefixDetectionOnImages:
+    """Verify prefix detection counts on real tooltip images."""
+
+    @pytest.mark.parametrize('name', IMAGE_NAMES)
+    def test_bullet_count(self, name):
+        meta = load_sample_meta(name)
+        img, _ = load_sample_image(name)
+        bullets = _count_prefixes_per_color(img, BULLET_DETECTOR)
+        assert bullets == meta['prefix']['bullets']
+
+    @pytest.mark.parametrize('name', IMAGE_NAMES)
+    def test_subbullet_count(self, name):
+        meta = load_sample_meta(name)
+        img, _ = load_sample_image(name)
+        subs = _count_prefixes_per_color(img, SUBBULLET_DETECTOR)
+        assert subs == meta['prefix']['subbullets']

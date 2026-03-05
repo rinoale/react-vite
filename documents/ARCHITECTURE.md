@@ -371,7 +371,7 @@ Step 1: Preprocessing — two variants, both run:
 
 Step 2: OCR both variants
   _ocr_pre_header_image(detect_binary, ocr_binary, parser, reader)
-    parser.detect_text_lines(detect_binary)
+    parser.detect_centered_lines(detect_binary)
     parser._group_by_y(detected)
     parser._ocr_grouped_lines(ocr_binary, grouped, reader)
   No prefix detection (pre_header has no bullets)
