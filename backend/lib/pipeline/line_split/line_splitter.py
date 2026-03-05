@@ -95,12 +95,13 @@ def _get_line_split_config(config=None):
 
 
 class TooltipLineSplitter:
-    def __init__(self, output_dir="split_output", config=None):
+    def __init__(self, output_dir=None, config=None):
         self.output_dir = output_dir
         self.cfg = _get_line_split_config(config)
-        os.makedirs(output_dir, exist_ok=True)
-        os.makedirs(os.path.join(output_dir, "images"), exist_ok=True)
-        os.makedirs(os.path.join(output_dir, "labels"), exist_ok=True)
+        if output_dir is not None:
+            os.makedirs(output_dir, exist_ok=True)
+            os.makedirs(os.path.join(output_dir, "images"), exist_ok=True)
+            os.makedirs(os.path.join(output_dir, "labels"), exist_ok=True)
         
     def preprocess_image(self, image_path):
         """Preprocess image for better line detection"""

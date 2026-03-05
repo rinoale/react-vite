@@ -26,8 +26,9 @@ Output directory structure:
       overview.png
 
 Usage:
-    python3 scripts/v3/segmentation/test_line_split.py data/sample_images/captain_suit_original.png split_result/
-    python3 scripts/v3/segmentation/test_line_split.py data/sample_images/ split_result/
+    python3 scripts/v3/line_split/test_line_split.py
+    python3 scripts/v3/line_split/test_line_split.py data/sample_images/captain_suit_original.png
+    python3 scripts/v3/line_split/test_line_split.py data/sample_images/ tmp/custom_output/
 """
 
 import argparse
@@ -200,10 +201,15 @@ def process_image(image_path, output_root, header_reader, patterns, config):
 
 
 def main():
+    default_output = os.path.join(PROJECT_ROOT, 'tmp', 'test_line_split')
+    default_input = os.path.join(PROJECT_ROOT, 'data', 'sample_images')
+
     parser = argparse.ArgumentParser(
         description='Validate v3 line splitting with visual output')
-    parser.add_argument('path', help='Image file or directory of images')
-    parser.add_argument('output', help='Output directory for results')
+    parser.add_argument('path', nargs='?', default=default_input,
+                        help='Image file or directory of images (default: data/sample_images/)')
+    parser.add_argument('output', nargs='?', default=default_output,
+                        help='Output directory for results (default: tmp/test_line_split/)')
     args = parser.parse_args()
 
     config = load_config(CONFIG_PATH)

@@ -239,7 +239,7 @@ def run_on_image(path, out_dir):
     print(f"{'='*60}")
 
     _project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
-    splitter = MabinogiTooltipSplitter(output_dir=os.path.join(_project_root, 'tmp', 'prefix_test'))
+    splitter = MabinogiTooltipSplitter()
     os.makedirs(out_dir, exist_ok=True)
 
     # --- 1. Subbullet: per-color detection ---

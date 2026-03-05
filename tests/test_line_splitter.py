@@ -10,8 +10,8 @@ from sample_image_helpers import IMAGE_NAMES, skip_no_images, load_sample_image,
 
 
 class TestDetectCenteredLines:
-    def _make_splitter(self, tmp_path):
-        return TooltipLineSplitter(output_dir=str(tmp_path))
+    def _make_splitter(self):
+        return TooltipLineSplitter()
 
     def _make_binary_image(self, height, width, bands):
         """Create a binary image with horizontal text bands (ocr_binary convention).
@@ -30,8 +30,8 @@ class TestDetectCenteredLines:
             img[y_start:y_end, 10:width - 10] = 0
         return img
 
-    def test_three_line_bands(self, tmp_path):
-        splitter = self._make_splitter(tmp_path)
+    def test_three_line_bands(self):
+        splitter = self._make_splitter()
         # 3 text bands of height ~12, separated by gaps of ~6
         bands = [(10, 22), (28, 40), (46, 58)]
         img = self._make_binary_image(80, 200, bands)
@@ -41,14 +41,14 @@ class TestDetectCenteredLines:
         ys = [l['y'] for l in lines]
         assert ys == sorted(ys)
 
-    def test_empty_image(self, tmp_path):
-        splitter = self._make_splitter(tmp_path)
+    def test_empty_image(self):
+        splitter = self._make_splitter()
         img = np.full((80, 200), 255, dtype=np.uint8)
         lines = splitter.detect_centered_lines(img)
         assert len(lines) == 0
 
-    def test_single_line(self, tmp_path):
-        splitter = self._make_splitter(tmp_path)
+    def test_single_line(self):
+        splitter = self._make_splitter()
         bands = [(20, 34)]
         img = self._make_binary_image(60, 200, bands)
         lines = splitter.detect_centered_lines(img)
@@ -56,8 +56,8 @@ class TestDetectCenteredLines:
         # 14px ink band → centered 13px window
         assert lines[0]['height'] == 13
 
-    def test_line_dimensions(self, tmp_path):
-        splitter = self._make_splitter(tmp_path)
+    def test_line_dimensions(self):
+        splitter = self._make_splitter()
         bands = [(10, 22)]
         img = self._make_binary_image(40, 200, bands)
         lines = splitter.detect_centered_lines(img)
