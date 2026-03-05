@@ -7,11 +7,46 @@ const TYPES = ['R', 'S'];
 const MAX_LEVEL = 8;
 
 const inlineSelect = 'appearance-none bg-transparent border-none outline-none cursor-pointer text-center';
-const inlineInput = 'bg-transparent border-none outline-none text-center text-orange-400 font-medium w-5';
+const editInput = 'w-12 text-orange-400 font-bold bg-gray-900 border border-orange-500 rounded px-1 text-xs text-center outline-none';
+
+const NumberField = ({ value, onCommit, placeholder }) => {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+
+  const commit = (raw) => {
+    setEditing(false);
+    onCommit(raw);
+  };
+
+  if (editing) {
+    return (
+      <input
+        type="text"
+        autoFocus
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => commit(draft)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') commit(draft);
+          if (e.key === 'Escape') setEditing(false);
+        }}
+        className={editInput}
+      />
+    );
+  }
+
+  return (
+    <span
+      className="text-orange-400 font-bold cursor-pointer hover:underline"
+      onClick={() => { setDraft(value != null ? String(value) : ''); setEditing(true); }}
+    >
+      {value ?? placeholder ?? '?'}
+    </span>
+  );
+};
 
 const SpecialUpgradeRow = ({ type, level, onLineChange }) => {
   const { t } = useTranslation();
-  const [levelDraft, setLevelDraft] = useState(null);
   const needsCorrection = type === null || level === null;
 
   const update = (newType, newLevel) => {
@@ -21,15 +56,8 @@ const SpecialUpgradeRow = ({ type, level, onLineChange }) => {
     });
   };
 
-  const commitLevel = (raw) => {
-    setLevelDraft(null);
-    const n = parseInt(raw, 10);
-    if (!isNaN(n)) update(type, Math.max(1, Math.min(MAX_LEVEL, n)));
-  };
-
   const typeColor = needsCorrection ? 'text-amber-300' : (type === 'S' ? 'text-cyan-300' : 'text-pink-300');
   const textColor = needsCorrection ? 'text-amber-200' : 'text-gray-300';
-  const inputColor = needsCorrection ? `${inlineInput} text-amber-300` : inlineInput;
 
   return (
     <div className="p-2">
@@ -50,13 +78,12 @@ const SpecialUpgradeRow = ({ type, level, onLineChange }) => {
           {TYPES.map(tp => <option key={tp} value={tp} className="text-gray-300 bg-gray-900">{tp}</option>)}
         </select>
         {' ('}
-        <input
-          type="text"
-          value={levelDraft ?? level ?? ''}
-          onChange={(e) => setLevelDraft(e.target.value)}
-          onBlur={(e) => commitLevel(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') commitLevel(e.target.value); }}
-          className={inputColor}
+        <NumberField
+          value={level}
+          onCommit={(raw) => {
+            const n = parseInt(raw, 10);
+            if (!isNaN(n)) update(type, Math.max(1, Math.min(MAX_LEVEL, n)));
+          }}
           placeholder="—"
         />
         {t('sections.item_mod.levelSuffix') + ')'}
@@ -66,8 +93,6 @@ const SpecialUpgradeRow = ({ type, level, onLineChange }) => {
 };
 
 const ItemModSection = ({ lines, has_special_upgrade, special_upgrade_type, special_upgrade_level, onLineChange }) => {
-  // When special upgrade fields exist, the first line is the pink OCR text — replace with structured UI
-  // When special upgrade detected, the first line is the pink OCR text — replace with structured UI
   const remainingLines = has_special_upgrade ? (lines || []).slice(1) : lines;
 
   return (

@@ -4,10 +4,6 @@ import re
 
 from rapidfuzz import fuzz
 
-# Attribute values are purely numeric: digits, ~, /, %, +, ., spaces.
-# Korean in the value means it's a description line, not an attribute.
-_KOREAN_PAT = re.compile(r'[가-힣]')
-
 from ._base import BaseHandler
 from ._helpers import (
     detect_prefix, ocr_lines,
@@ -26,6 +22,31 @@ _ATTR_KEY_MAP = {
     '마법 보호': 'magic_protection',
     '내구력': 'durability',
 }
+
+# Per-key value parsers: extract the meaningful number from the remainder.
+_DAMAGE_RE = re.compile(r'(\d+)\s*[~\/]\s*(\d+)')         # "45~123 +5" → max=123
+_NUMBER_RE = re.compile(r'(\d+(?:\.\d+)?)')                 # first number
+_DURABILITY_RE = re.compile(r'(\d+)\s*/\s*(\d+)')           # "11/12"
+_PERCENT_RE = re.compile(r'(\d+(?:\.\d+)?)\s*%')            # "26%" → 26
+
+
+def _parse_value(attr_key, remainder):
+    """Extract the meaningful numeric value from the remainder string."""
+    if attr_key == 'damage':
+        m = _DAMAGE_RE.search(remainder)
+        return m.group(2) if m else None
+    if attr_key == 'balance':
+        m = _PERCENT_RE.search(remainder)
+        return m.group(1) if m else None
+    if attr_key == 'durability':
+        m = _DURABILITY_RE.search(remainder)
+        return m.group(2) if m else None
+    if attr_key in ('magic_damage', 'additional_damage'):
+        m = _NUMBER_RE.search(remainder)
+        return m.group(1) if m else None
+    # defense, protection, magic_defense, magic_protection
+    m = _NUMBER_RE.search(remainder)
+    return m.group(1) if m else None
 
 _FM_CUTOFF = 70
 
@@ -107,14 +128,17 @@ def _match_attr_prefix(line, attr_dict, cutoff=_FM_CUTOFF):
             best_remainder = text[entry_len:].strip()
 
     if best_score >= cutoff and best_entry and best_remainder:
-        # Reject if value contains Korean (description line, not attribute)
-        if _KOREAN_PAT.search(best_remainder):
+        attr_key = _ATTR_KEY_MAP.get(best_entry)
+        if not attr_key:
+            line['fm_applied'] = False
+            return None, None
+        value = _parse_value(attr_key, best_remainder)
+        if not value:
             line['fm_applied'] = False
             return None, None
         line['text'] = f'{best_entry} {best_remainder}'
         line['fm_applied'] = True
-        attr_key = _ATTR_KEY_MAP.get(best_entry)
-        return attr_key, best_remainder
+        return attr_key, value
 
     line['fm_applied'] = False
     return None, None

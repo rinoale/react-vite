@@ -81,7 +81,19 @@ const ItemDetailSections = ({ sections, onSectionsChange, abbreviated = true }) 
     return <DefaultSection lines={sectionData.lines} onLineChange={onLineChange} />;
   };
 
-  const visibleKeys = Object.keys(sections).filter(k => !HIDDEN_SECTIONS.includes(k));
+  const hasContent = (key, data) => {
+    if (data.skipped) return false;
+    if (key === 'item_color') return data.parts?.length > 0;
+    if (key === 'enchant') return data.prefix || data.suffix || data.lines?.length > 0;
+    if (key === 'item_attrs') return data.attrs && Object.keys(data.attrs).length > 0;
+    if (key === 'reforge') return data.options?.length > 0 || data.lines?.length > 0;
+    if (key === 'item_mod') return data.has_special_upgrade || data.lines?.length > 0;
+    if (key === 'erg') return data.erg_grade != null || data.lines?.length > 0;
+    if (key === 'set_item') return data.set_effects?.length > 0 || data.lines?.length > 0;
+    return data.lines?.length > 0;
+  };
+
+  const visibleKeys = Object.keys(sections).filter(k => !HIDDEN_SECTIONS.includes(k) && hasContent(k, sections[k]));
   const availableSections = ADDABLE_SECTIONS.filter(s => !sections[s]);
 
   return (
