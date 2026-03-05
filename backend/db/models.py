@@ -14,6 +14,11 @@ class Enchant(Base):
     header_text = Column(Text, nullable=False, unique=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    restriction = Column(Text, nullable=True)
+    binding = Column(Boolean, nullable=False, default=False, server_default='false')
+    guaranteed_success = Column(Boolean, nullable=False, default=False, server_default='false')
+    activation = Column(Text, nullable=True)
+    credit = Column(Text, nullable=True)
 
     effects = relationship("EnchantEffect", back_populates="enchant", cascade="all, delete-orphan")
 
@@ -77,7 +82,6 @@ class OcrCorrection(Base):
     charset_mismatch = Column(Text, nullable=True)
     image_filename = Column(Text, nullable=False)
     is_stitched = Column(Boolean, default=False)  # continuation stitch: crop is merged from multiple lines
-    # DB migration: ALTER TABLE ocr_corrections ADD COLUMN is_stitched BOOLEAN DEFAULT FALSE;
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     trained_version = Column(Text, nullable=True)
 
@@ -103,6 +107,18 @@ class Listing(Base):
     item_grade = Column(Text, nullable=True)
     erg_grade = Column(Text, nullable=True)
     erg_level = Column(Integer, nullable=True)
+    special_upgrade_type = Column(Text, nullable=True)
+    special_upgrade_level = Column(Integer, nullable=True)
+    damage = Column(Integer, nullable=True)
+    magic_damage = Column(Integer, nullable=True)
+    additional_damage = Column(Integer, nullable=True)
+    balance = Column(Integer, nullable=True)
+    defense = Column(Integer, nullable=True)
+    protection = Column(Integer, nullable=True)
+    magic_defense = Column(Integer, nullable=True)
+    magic_protection = Column(Integer, nullable=True)
+    durability = Column(Integer, nullable=True)
+    piercing_level = Column(Integer, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -118,7 +134,7 @@ class ListingEnchantEffect(Base):
     id = Column(Integer, primary_key=True, index=True)
     listing_id = Column(Integer, ForeignKey("listings.id", ondelete="CASCADE"), nullable=False)
     enchant_effect_id = Column(Integer, ForeignKey("enchant_effects.id", ondelete="RESTRICT"), nullable=False)
-    value = Column(Numeric, nullable=True)
+    value = Column(Numeric, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     listing = relationship("Listing", back_populates="enchant_effects")

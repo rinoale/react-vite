@@ -136,6 +136,31 @@ def capture_corrections(session_id, lines, db):
     return corrections_saved
 
 
+_ATTR_COLUMNS = {
+    'damage', 'magic_damage', 'additional_damage', 'balance',
+    'defense', 'protection', 'magic_defense', 'magic_protection',
+    'durability', 'piercing_level',
+}
+
+
+def _parse_attrs(attrs_dict):
+    """Convert attrs dict (string values) to int kwargs for known Listing columns.
+
+    Ignores unknown keys and non-numeric values.
+    """
+    if not attrs_dict:
+        return {}
+    result = {}
+    for key, val in attrs_dict.items():
+        if key not in _ATTR_COLUMNS:
+            continue
+        try:
+            result[key] = int(val)
+        except (ValueError, TypeError):
+            continue
+    return result
+
+
 def create_listing(payload, db):
     """Resolve FKs and persist a Listing with enchant effects and reforge options.
 
@@ -184,6 +209,9 @@ def create_listing(payload, db):
         item_grade=payload.item_grade,
         erg_grade=payload.erg_grade,
         erg_level=payload.erg_level,
+        special_upgrade_type=payload.special_upgrade_type,
+        special_upgrade_level=payload.special_upgrade_level,
+        **_parse_attrs(payload.attrs),
     )
     db.add(listing)
     try:
@@ -269,6 +297,18 @@ def get_listings(db, game_item_id=None):
             l.item_grade,
             l.erg_grade,
             l.erg_level,
+            l.special_upgrade_type,
+            l.special_upgrade_level,
+            l.damage,
+            l.magic_damage,
+            l.additional_damage,
+            l.balance,
+            l.defense,
+            l.protection,
+            l.magic_defense,
+            l.magic_protection,
+            l.durability,
+            l.piercing_level,
             l.created_at,
             COUNT(DISTINCT lro.id) AS reforge_count
         FROM listings l

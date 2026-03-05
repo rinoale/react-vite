@@ -8,4 +8,5 @@ Pillow
 scikit-learn
 rapidfuzz
 SQLAlchemy
+alembic
 psycopg2-binary

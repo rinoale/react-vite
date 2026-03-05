@@ -57,6 +57,13 @@ const getEffectToneClass = (effect) => {
   return probe < 0 ? 'text-red-400' : 'text-blue-300';
 };
 
+const ATTR_LABELS = {
+  damage: '공격력', magic_damage: '마법공격력', additional_damage: '추가대미지',
+  balance: '밸런스', defense: '방어', protection: '보호',
+  magic_defense: '마법방어', magic_protection: '마법보호',
+  durability: '내구력', piercing_level: '관통 레벨',
+};
+
 const API_BASE = import.meta.env.MABINOGI_TRADE_API_URL || 'http://localhost:8000';
 
 const CorrectionsPanel = () => {
@@ -480,13 +487,40 @@ const ListingsPanel = () => {
                           </div>
                         )}
 
-                        {detail.erg_grade && (
-                          <div className="mb-3">
-                            <span className="text-xs px-2 py-1 bg-yellow-900/40 text-yellow-300 rounded">
-                              ERG {detail.erg_grade}{detail.erg_level != null ? ` Lv.${detail.erg_level}` : ''}
-                            </span>
+                        {(detail.erg_grade || detail.special_upgrade_type) && (
+                          <div className="mb-3 flex flex-wrap gap-2">
+                            {detail.erg_grade && (
+                              <span className="text-xs px-2 py-1 bg-yellow-900/40 text-yellow-300 rounded">
+                                ERG {detail.erg_grade}{detail.erg_level != null ? ` Lv.${detail.erg_level}` : ''}
+                              </span>
+                            )}
+                            {detail.special_upgrade_type && (
+                              <span className={`text-xs px-2 py-1 rounded ${detail.special_upgrade_type === 'R' ? 'bg-pink-900/40 text-pink-300' : 'bg-cyan-900/40 text-cyan-300'}`}>
+                                {detail.special_upgrade_type}강{detail.special_upgrade_level != null ? ` Lv.${detail.special_upgrade_level}` : ''}
+                              </span>
+                            )}
                           </div>
                         )}
+
+                        {(() => {
+                          const attrs = Object.entries(ATTR_LABELS).filter(([k]) => detail[k] != null);
+                          if (!attrs.length) return null;
+                          return (
+                            <div className="mb-3">
+                              <p className="text-[10px] font-black text-gray-600 uppercase tracking-widest border-b border-gray-800 pb-1 mb-2">
+                                아이템 속성
+                              </p>
+                              <div className="grid grid-cols-2 gap-x-6 gap-y-1">
+                                {attrs.map(([k, label]) => (
+                                  <div key={k} className="flex justify-between text-xs">
+                                    <span className="text-gray-500">{label}</span>
+                                    <span className="text-gray-300">{detail[k]}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })()}
 
                         {(detail.prefix_enchant || detail.suffix_enchant) && (
                           <div className="space-y-3">

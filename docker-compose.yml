@@ -12,7 +12,6 @@ services:
       - "5432:5432"
     volumes:
       - db_data:/var/lib/postgresql/data
-      - ./infra/database/init:/docker-entrypoint-initdb.d
     restart: unless-stopped
 
   backend:
@@ -32,6 +31,7 @@ services:
       DB_PASSWORD: mabinogi
     command: >
       sh -lc "pip install --user -r /app/backend/requirements.txt &&
+      alembic upgrade head &&
       uvicorn main:app --reload --port 8000 --host 0.0.0.0"
     ports:
       - "8000:8000"

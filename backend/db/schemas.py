@@ -1,4 +1,4 @@
-from typing import List, Optional, Union
+from typing import Dict, List, Optional, Union
 from pydantic import BaseModel, Field
 from decimal import Decimal
 from datetime import datetime
@@ -95,6 +95,18 @@ class ListingOut(BaseModel):
     item_grade: Optional[str] = None
     erg_grade: Optional[str] = None
     erg_level: Optional[int] = None
+    special_upgrade_type: Optional[str] = None
+    special_upgrade_level: Optional[int] = None
+    damage: Optional[int] = None
+    magic_damage: Optional[int] = None
+    additional_damage: Optional[int] = None
+    balance: Optional[int] = None
+    defense: Optional[int] = None
+    protection: Optional[int] = None
+    magic_defense: Optional[int] = None
+    magic_protection: Optional[int] = None
+    durability: Optional[int] = None
+    piercing_level: Optional[int] = None
     created_at: Optional[datetime] = None
     reforge_count: int = 0
 
@@ -157,6 +169,9 @@ class RegisterListingRequest(BaseModel):
     item_grade: Optional[str] = None
     erg_grade: Optional[str] = None
     erg_level: Optional[int] = None
+    special_upgrade_type: Optional[str] = None
+    special_upgrade_level: Optional[int] = None
+    attrs: Optional[Dict[str, str]] = None
     lines: List[RegisterListingLine] = []
     enchants: List[RegisterEnchantSlot] = []
     reforge_options: List[RegisterReforgeOption] = []
@@ -211,6 +226,18 @@ class ListingDetailOut(BaseModel):
     item_grade: Optional[str] = None
     erg_grade: Optional[str] = None
     erg_level: Optional[int] = None
+    special_upgrade_type: Optional[str] = None
+    special_upgrade_level: Optional[int] = None
+    damage: Optional[int] = None
+    magic_damage: Optional[int] = None
+    additional_damage: Optional[int] = None
+    balance: Optional[int] = None
+    defense: Optional[int] = None
+    protection: Optional[int] = None
+    magic_defense: Optional[int] = None
+    magic_protection: Optional[int] = None
+    durability: Optional[int] = None
+    piercing_level: Optional[int] = None
     prefix_enchant: Optional[ListingEnchantOut] = None
     suffix_enchant: Optional[ListingEnchantOut] = None
     reforge_options: List[ListingReforgeOptionOut] = []

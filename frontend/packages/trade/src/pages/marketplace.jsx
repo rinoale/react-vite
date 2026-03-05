@@ -6,6 +6,13 @@ import { getListings, getListingDetail, getListingsByGameItem, searchGameItems }
 
 const SLOT_LABELS = { 0: 'Prefix', 1: 'Suffix' };
 
+const ATTR_LABELS = {
+  damage: '공격력', magic_damage: '마법공격력', additional_damage: '추가대미지',
+  balance: '밸런스', defense: '방어', protection: '보호',
+  magic_defense: '마법방어', magic_protection: '마법보호',
+  durability: '내구력', piercing_level: '관통 레벨',
+};
+
 const Marketplace = () => {
   const { t } = useTranslation();
   const [listings, setListings] = useState([]);
@@ -236,6 +243,11 @@ const Marketplace = () => {
                         ERG {listing.erg_grade}{listing.erg_level != null ? ` Lv.${listing.erg_level}` : ''}
                       </span>
                     )}
+                    {listing.special_upgrade_type && (
+                      <span className={`text-xs px-2 py-1 rounded-full ${listing.special_upgrade_type === 'R' ? 'bg-pink-900/50 text-pink-300' : 'bg-cyan-900/50 text-cyan-300'}`}>
+                        {listing.special_upgrade_type}강{listing.special_upgrade_level != null ? ` Lv.${listing.special_upgrade_level}` : ''}
+                      </span>
+                    )}
                   </div>
                   <p className="text-xs text-gray-500">{formatDate(listing.created_at)}</p>
                 </div>
@@ -259,13 +271,39 @@ const Marketplace = () => {
                   </p>
                 )}
 
-                {listingDetail.erg_grade && (
-                  <div className="mb-4">
-                    <span className="text-xs px-2 py-1 bg-yellow-900/50 text-yellow-300 rounded-full">
-                      ERG {listingDetail.erg_grade}{listingDetail.erg_level != null ? ` Lv.${listingDetail.erg_level}` : ''}
-                    </span>
+                {(listingDetail.erg_grade || listingDetail.special_upgrade_type) && (
+                  <div className="mb-4 flex flex-wrap gap-2">
+                    {listingDetail.erg_grade && (
+                      <span className="text-xs px-2 py-1 bg-yellow-900/50 text-yellow-300 rounded-full">
+                        ERG {listingDetail.erg_grade}{listingDetail.erg_level != null ? ` Lv.${listingDetail.erg_level}` : ''}
+                      </span>
+                    )}
+                    {listingDetail.special_upgrade_type && (
+                      <span className={`text-xs px-2 py-1 rounded-full ${listingDetail.special_upgrade_type === 'R' ? 'bg-pink-900/50 text-pink-300' : 'bg-cyan-900/50 text-cyan-300'}`}>
+                        {listingDetail.special_upgrade_type}강{listingDetail.special_upgrade_level != null ? ` Lv.${listingDetail.special_upgrade_level}` : ''}
+                      </span>
+                    )}
                   </div>
                 )}
+
+                {/* Item Attrs */}
+                {(() => {
+                  const attrs = Object.entries(ATTR_LABELS).filter(([k]) => listingDetail[k] != null);
+                  if (!attrs.length) return null;
+                  return (
+                    <div className="mb-4">
+                      <h3 className="text-sm font-semibold text-gray-400 mb-2">아이템 속성</h3>
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                        {attrs.map(([k, label]) => (
+                          <div key={k} className="flex justify-between text-xs">
+                            <span className="text-gray-500">{label}</span>
+                            <span className="text-gray-200">{listingDetail[k]}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {/* Enchants */}
                 {(listingDetail.prefix_enchant || listingDetail.suffix_enchant) && (

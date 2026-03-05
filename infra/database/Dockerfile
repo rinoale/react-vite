@@ -1,6 +1,6 @@
 FROM postgres:16-alpine
 
-# Keep image minimal. Postgres official entrypoint will initialize
-# the database using env vars and any SQL scripts in /docker-entrypoint-initdb.d.
+# Keep image minimal. Schema is managed by Alembic (backend runs
+# `alembic upgrade head` on startup).
 
 EXPOSE 5432

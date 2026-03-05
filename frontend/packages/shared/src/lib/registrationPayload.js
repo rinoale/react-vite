@@ -41,6 +41,7 @@ export function buildRegistrationPayload({ sessionId, name, price, category, gam
     erg_level: ergLevel,
     special_upgrade_type: sections?.item_mod?.special_upgrade_type || null,
     special_upgrade_level: sections?.item_mod?.special_upgrade_level || null,
+    attrs: sections?.item_attrs?.attrs || null,
     lines,
     enchants,
     reforge_options,
