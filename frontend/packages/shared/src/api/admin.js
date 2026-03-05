@@ -28,3 +28,15 @@ export const getListings = ({ limit, offset }) =>
 
 export const getListingDetail = (listingId) =>
   client.get(`/admin/listings/${listingId}/detail`);
+
+export const getTags = ({ targetType, limit, offset }) =>
+  client.get('/admin/tags', { params: { target_type: targetType || '', limit, offset } });
+
+export const createTag = ({ target_type, target_id, name, weight }) =>
+  client.post('/admin/tags', { target_type, target_id, name, weight });
+
+export const deleteTag = (tagId) =>
+  client.delete(`/admin/tags/${tagId}`);
+
+export const searchTagEntities = (targetType, q) =>
+  client.get('/admin/tags/search-entities', { params: { target_type: targetType, q } });

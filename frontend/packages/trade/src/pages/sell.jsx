@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Upload, Loader2, Save, X, RotateCw, CheckCircle2, Search } from 'lucide-react';
+import { Upload, Loader2, Save, X, RotateCw, CheckCircle2, Search, Hash, Plus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useToast } from '@mabi/shared/components/useToast';
 import InlineBanner from '@mabi/shared/components/InlineBanner';
@@ -8,6 +8,7 @@ import { examineItem, registerListing } from '@mabi/shared/api/items';
 import { searchGameItemsLocal } from '@mabi/shared/lib/gameItems';
 import { parseExamineResult } from '@mabi/shared/lib/examineResult';
 import { buildRegistrationPayload } from '@mabi/shared/lib/registrationPayload';
+import { getTagColor } from '@mabi/shared/lib/tagColors';
 
 const Sell = () => {
   const { t } = useTranslation();
@@ -37,8 +38,12 @@ const Sell = () => {
     price: '',
     category: 'weapon',
     description: '',
+    tags: [],
     sections: {}
   });
+  const [tagInput, setTagInput] = useState('');
+  const [tagAdding, setTagAdding] = useState(false);
+  const tagInputRef = useRef(null);
 
   // Close game item suggestions on outside click
   useEffect(() => {
@@ -151,6 +156,18 @@ const Sell = () => {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
+  const addTag = () => {
+    const tag = tagInput.trim().slice(0, 5);
+    if (!tag || formData.tags.length >= 3 || formData.tags.includes(tag)) return;
+    setFormData(prev => ({ ...prev, tags: [...prev.tags, tag] }));
+    setTagInput('');
+    setTagAdding(false);
+  };
+
+  const removeTag = (idx) => {
+    setFormData(prev => ({ ...prev, tags: prev.tags.filter((_, i) => i !== idx) }));
+  };
+
   const handleSectionsChange = (newSections) => {
     setFormData(prev => ({ ...prev, sections: newSections }));
   };
@@ -170,10 +187,12 @@ const Sell = () => {
     const payload = buildRegistrationPayload({
       sessionId,
       name: formData.name,
+      description: formData.description,
       price: formData.price,
       category: formData.category,
       gameItem: selectedGameItem,
       sections: formData.sections,
+      tags: formData.tags,
     });
 
     try {
@@ -186,7 +205,8 @@ const Sell = () => {
       setPreviewUrl(null);
       setOcrResult(null);
       setDetectedLines([]);
-      setFormData({ name: '', price: '', category: 'weapon', description: '', sections: {} });
+      setFormData({ name: '', price: '', category: 'weapon', description: '', tags: [], sections: {} });
+      setTagInput('');
       clearGameItem();
     } catch (err) {
       console.error('Register item error:', err);
@@ -358,12 +378,73 @@ const Sell = () => {
                     </div>
                 </div>
 
+                {/* Tags */}
+                <div className="mt-4">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {formData.tags.map((tag, idx) => {
+                      const weight = [80, 60, 30][idx] || 0;
+                      const c = getTagColor(weight);
+                      return (
+                        <span key={idx} className={`inline-flex items-center gap-0.5 text-sm font-bold pl-1.5 pr-1 py-1 rounded-full ${c.bg} ${c.text}`}>
+                          <Hash className={`w-3.5 h-3.5 ${c.icon}`} />
+                          {tag}
+                          <button type="button" onClick={() => removeTag(idx)} className="ml-0.5 p-0.5 rounded-full hover:bg-red-900/40 hover:text-red-400 transition-colors">
+                            <X className="w-3 h-3" />
+                          </button>
+                        </span>
+                      );
+                    })}
+                    {formData.tags.length < 3 && (() => {
+                      const nextWeight = [80, 60, 30][formData.tags.length] || 0;
+                      const nc = getTagColor(nextWeight);
+                      return tagAdding ? (
+                        <span className="inline-flex items-center gap-0.5 text-sm py-1 pl-1.5 pr-1 rounded-full bg-gray-800">
+                          <Hash className={`w-3.5 h-3.5 ${nc.icon}`} />
+                          <input
+                            ref={tagInputRef}
+                            type="text"
+                            maxLength={5}
+                            value={tagInput}
+                            onChange={(e) => setTagInput(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') { e.preventDefault(); addTag(); }
+                              if (e.key === 'Escape') { setTagAdding(false); setTagInput(''); }
+                            }}
+                            onBlur={() => { if (!tagInput.trim()) { setTagAdding(false); setTagInput(''); } }}
+                            className="bg-transparent text-sm text-white outline-none w-16"
+                          />
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => { setTagAdding(true); setTimeout(() => tagInputRef.current?.focus(), 0); }}
+                          className="p-1.5 rounded-full transition-colors"
+                        >
+                          <Hash className={`w-4 h-4 ${nc.icon}`} />
+                        </button>
+                      );
+                    })()}
+                  </div>
+                </div>
+
                 {/* Structured Sections Grid */}
                 <div className="mt-8">
                   <ItemDetailSections
                     sections={formData.sections}
                     onSectionsChange={handleSectionsChange}
                     abbreviated={formData.abbreviated}
+                  />
+                </div>
+
+                {/* Description */}
+                <div className="mt-6">
+                  <textarea
+                    name="description"
+                    value={formData.description}
+                    onChange={handleInputChange}
+                    placeholder={t('sell.descriptionPlaceholder')}
+                    rows={3}
+                    className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all resize-y"
                   />
                 </div>
 
@@ -381,7 +462,8 @@ const Sell = () => {
                     title={t('sell.resetForm')}
                     onClick={() => {
                         setOcrResult(null);
-                        setFormData({ name: '', price: '', category: 'weapon', description: '', sections: {} });
+                        setFormData({ name: '', price: '', category: 'weapon', description: '', tags: [], sections: {} });
+                        setTagInput('');
                         clearGameItem();
                     }}
                   >

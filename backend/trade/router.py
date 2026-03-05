@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from db.connector import get_db
 from db.schemas import RegisterListingRequest
 from trade.schemas import ExamineItemResponse
-from trade.service import capture_corrections, create_listing, get_listings as svc_get_listings, search_game_items as svc_search_game_items
+from trade.service import capture_corrections, create_listing, get_listings as svc_get_listings, search_game_items as svc_search_game_items, search_listings as svc_search_listings
 from lib.utils.log import logger
 from lib.pipeline.v3 import init_pipeline, run_v3_pipeline, prepare_sections_for_response
 from crud.admin import get_listing_detail
@@ -18,6 +18,13 @@ init_pipeline()
 @router.get("/listings")
 def get_listings(game_item_id: int | None = Query(default=None), db: Session = Depends(get_db)):
     return svc_get_listings(db, game_item_id=game_item_id)
+
+
+@router.get("/listings/search")
+def search_listings(q: str = Query(default=""), db: Session = Depends(get_db)):
+    if not q.strip():
+        return svc_get_listings(db)
+    return svc_search_listings(db, q.strip())
 
 
 @router.get("/listings/{listing_id}")

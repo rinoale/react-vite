@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, SmallInteger, Boolean, Numeric, ForeignKey, Text, DateTime, UniqueConstraint
+from sqlalchemy import Column, Index, Integer, String, SmallInteger, Boolean, Numeric, ForeignKey, Text, DateTime, UniqueConstraint
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 
@@ -98,7 +98,8 @@ class Listing(Base):
     __tablename__ = "listings"
 
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(Text, nullable=False)
+    name = Column(Text, nullable=False, index=True)
+    description = Column(Text, nullable=True)
     price = Column(Integer, nullable=True)
     game_item_id = Column(Integer, ForeignKey("game_items.id", ondelete="SET NULL"), nullable=True)
     prefix_enchant_id = Column(Integer, ForeignKey("enchants.id", ondelete="SET NULL"), nullable=True)
@@ -153,3 +154,20 @@ class ListingReforgeOption(Base):
 
     listing = relationship("Listing", back_populates="reforge_options")
     reforge_option = relationship("ReforgeOption")
+
+
+class Tag(Base):
+    __tablename__ = "tags"
+
+    id = Column(Integer, primary_key=True, index=True)
+    target_type = Column(Text, nullable=False)
+    target_id = Column(Integer, nullable=False)
+    name = Column(Text, nullable=False)
+    weight = Column(Integer, nullable=False, server_default='0')
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint('target_type', 'target_id', 'name', name='_tag_type_id_name_uc'),
+        Index('ix_tags_target', 'target_type', 'target_id'),
+        Index('ix_tags_name', 'name'),
+    )

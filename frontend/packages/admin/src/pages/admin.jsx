@@ -1,8 +1,9 @@
-import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { Loader2, ChevronDown, ChevronRight, Info, List, RefreshCw, Check, Image, Pencil, X, Save, Package, Trash2 } from 'lucide-react';
+import { Loader2, ChevronDown, ChevronRight, Info, List, RefreshCw, Check, Image, Pencil, X, Save, Package, Trash2, Tag, Plus, Search } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { getSummary, getEnchantEntries, getEnchantEffects, getLinks, getCorrections, approveCorrection, editCorrection, truncateCorrections, getListings, getListingDetail } from '@mabi/shared/api/admin';
+import { getSummary, getEnchantEntries, getEnchantEffects, getLinks, getCorrections, approveCorrection, editCorrection, truncateCorrections, getListings, getListingDetail, getTags, createTag, deleteTag, searchTagEntities } from '@mabi/shared/api/admin';
+import { getTagColor } from '@mabi/shared/lib/tagColors';
 
 const toRankLabel = (rank) => {
   const n = Number(rank);
@@ -26,6 +27,7 @@ const normalizeSummary = (summary) => ({
   reforgeOptions: summary?.reforge_options ?? 0,
   listings: summary?.listings ?? 0,
   gameItems: summary?.game_items ?? 0,
+  tags: summary?.tags ?? 0,
 });
 
 const formatEffectText = (effect) => {
@@ -331,6 +333,274 @@ const CorrectionsPanel = () => {
   );
 };
 
+const ENTITY_TYPES = [
+  { value: 'reforge_option', label: 'Reforge Option' },
+  { value: 'game_item', label: 'Game Item' },
+  { value: 'listing', label: 'Listing' },
+  { value: 'enchant', label: 'Enchant' },
+];
+
+const TagsPanel = () => {
+  const { t } = useTranslation();
+  const [tags, setTags] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [pagination, setPagination] = useState({ limit: 50, offset: 0 });
+  const [filterType, setFilterType] = useState('');
+
+  // Create form state
+  const [newTargetType, setNewTargetType] = useState('reforge_option');
+  const [newEntityQuery, setNewEntityQuery] = useState('');
+  const [entitySuggestions, setEntitySuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [selectedEntity, setSelectedEntity] = useState(null);
+  const [newTagName, setNewTagName] = useState('');
+  const [newWeight, setNewWeight] = useState(0);
+  const [creating, setCreating] = useState(false);
+  const suggestionsRef = useRef(null);
+  const debounceRef = useRef(null);
+
+  const fetchTags = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const { data } = await getTags({ targetType: filterType, limit: pagination.limit, offset: pagination.offset });
+      setTags(data.rows || []);
+    } catch (error) {
+      console.error('Error fetching tags:', error);
+      setTags([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [filterType, pagination.offset, pagination.limit]);
+
+  useEffect(() => { fetchTags(); }, [fetchTags]);
+
+  // Close suggestions on outside click
+  useEffect(() => {
+    const handleClick = (e) => {
+      if (suggestionsRef.current && !suggestionsRef.current.contains(e.target)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  const handleEntitySearch = useCallback((q) => {
+    setNewEntityQuery(q);
+    setSelectedEntity(null);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (!q.trim()) {
+      setEntitySuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const { data } = await searchTagEntities(newTargetType, q.trim());
+        setEntitySuggestions(data);
+        setShowSuggestions(true);
+      } catch (error) {
+        console.error('Error searching entities:', error);
+      }
+    }, 300);
+  }, [newTargetType]);
+
+  const handleSelectEntity = (entity) => {
+    setSelectedEntity(entity);
+    setNewEntityQuery(entity.name);
+    setShowSuggestions(false);
+  };
+
+  const handleCreate = async () => {
+    if (!selectedEntity || !newTagName.trim()) return;
+    setCreating(true);
+    try {
+      await createTag({ target_type: newTargetType, target_id: selectedEntity.id, name: newTagName.trim(), weight: newWeight });
+      setNewTagName('');
+      setNewWeight(0);
+      setNewEntityQuery('');
+      setSelectedEntity(null);
+      fetchTags();
+    } catch (error) {
+      if (error.response?.status === 409) {
+        alert(t('tags.duplicateError'));
+      } else {
+        console.error('Error creating tag:', error);
+      }
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const handleDelete = async (tagId) => {
+    if (!window.confirm(t('tags.deleteConfirm'))) return;
+    try {
+      await deleteTag(tagId);
+      setTags((prev) => prev.filter((tg) => tg.id !== tagId));
+    } catch (error) {
+      console.error('Error deleting tag:', error);
+    }
+  };
+
+  // Reset entity search when target type changes
+  useEffect(() => {
+    setNewEntityQuery('');
+    setSelectedEntity(null);
+    setEntitySuggestions([]);
+  }, [newTargetType]);
+
+  return (
+    <div className="bg-gray-800 rounded-2xl border border-gray-700 shadow-2xl overflow-hidden">
+      <div className="bg-gray-700/50 px-6 py-4 flex justify-between items-center">
+        <h2 className="text-xl font-bold flex items-center gap-2">
+          <Tag className="w-5 h-5 text-emerald-500" />
+          {t('tags.title')}
+        </h2>
+        <div className="flex items-center gap-4">
+          <select
+            value={filterType}
+            onChange={(e) => { setFilterType(e.target.value); setPagination((p) => ({ ...p, offset: 0 })); }}
+            className="text-xs bg-gray-900 border border-gray-600 rounded px-2 py-1 outline-none focus:border-emerald-500"
+          >
+            <option value="">All Types</option>
+            {ENTITY_TYPES.map((et) => (
+              <option key={et.value} value={et.value}>{et.label}</option>
+            ))}
+          </select>
+          <button
+            onClick={() => setPagination((prev) => ({ ...prev, offset: Math.max(0, prev.offset - prev.limit) }))}
+            className="text-xs bg-gray-600 hover:bg-gray-500 px-3 py-1 rounded"
+            disabled={pagination.offset === 0}
+          >
+            {t('tags.prev')}
+          </button>
+          <span className="text-xs font-mono">
+            {pagination.offset + 1} - {pagination.offset + tags.length}
+          </span>
+          <button
+            onClick={() => setPagination((prev) => ({ ...prev, offset: prev.offset + prev.limit }))}
+            className="text-xs bg-gray-600 hover:bg-gray-500 px-3 py-1 rounded"
+            disabled={tags.length < pagination.limit}
+          >
+            {t('tags.next')}
+          </button>
+          <button onClick={fetchTags} className="p-1 hover:text-emerald-400" title={t('tags.refresh')}>
+            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
+      </div>
+
+      {/* Create form */}
+      <div className="px-6 py-4 bg-gray-900/50 border-b border-gray-700 flex items-center gap-3 flex-wrap">
+        <select
+          value={newTargetType}
+          onChange={(e) => setNewTargetType(e.target.value)}
+          className="text-xs bg-gray-800 border border-gray-600 rounded px-2 py-1.5 outline-none focus:border-emerald-500"
+        >
+          {ENTITY_TYPES.map((et) => (
+            <option key={et.value} value={et.value}>{et.label}</option>
+          ))}
+        </select>
+
+        <div className="relative" ref={suggestionsRef}>
+          <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-500 w-3 h-3" />
+          <input
+            type="text"
+            value={newEntityQuery}
+            onChange={(e) => handleEntitySearch(e.target.value)}
+            onFocus={() => { if (entitySuggestions.length > 0) setShowSuggestions(true); }}
+            placeholder={t('tags.entitySearch')}
+            className="text-xs bg-gray-800 border border-gray-600 rounded pl-7 pr-2 py-1.5 w-48 outline-none focus:border-emerald-500"
+          />
+          {showSuggestions && entitySuggestions.length > 0 && (
+            <div className="absolute z-10 mt-1 w-full bg-gray-800 border border-gray-700 rounded-lg shadow-xl max-h-48 overflow-auto">
+              {entitySuggestions.map((ent) => (
+                <button
+                  key={ent.id}
+                  onClick={() => handleSelectEntity(ent)}
+                  className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-700 transition-colors"
+                >
+                  <span className="text-gray-400 mr-1">#{ent.id}</span> {ent.name}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <input
+          type="text"
+          value={newTagName}
+          onChange={(e) => setNewTagName(e.target.value)}
+          placeholder={t('tags.tagName')}
+          onKeyDown={(e) => { if (e.key === 'Enter') handleCreate(); }}
+          className="text-xs bg-gray-800 border border-gray-600 rounded px-2 py-1.5 w-32 outline-none focus:border-emerald-500"
+        />
+
+        <input
+          type="number"
+          value={newWeight}
+          onChange={(e) => setNewWeight(Number(e.target.value) || 0)}
+          placeholder={t('tags.weight')}
+          className="text-xs bg-gray-800 border border-gray-600 rounded px-2 py-1.5 w-16 outline-none focus:border-emerald-500"
+        />
+
+        <button
+          onClick={handleCreate}
+          disabled={creating || !selectedEntity || !newTagName.trim()}
+          className="flex items-center gap-1 text-xs font-bold uppercase px-3 py-1.5 rounded bg-emerald-700 hover:bg-emerald-600 text-white disabled:opacity-50"
+        >
+          {creating ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
+          {t('tags.create')}
+        </button>
+      </div>
+
+      <div className="divide-y divide-gray-700">
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
+          </div>
+        ) : tags.length === 0 ? (
+          <div className="px-6 py-8 text-center text-xs text-gray-500 uppercase tracking-wide">
+            {t('tags.noTags')}
+          </div>
+        ) : (
+          tags.map((tg) => (
+            <div key={tg.id} className="px-6 py-3 flex items-center justify-between hover:bg-gray-700/30 transition-colors">
+              <div className="flex items-center gap-3 flex-wrap">
+                <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-gray-700 text-gray-400">
+                  {tg.target_type}
+                </span>
+                <span className="text-sm text-gray-300">
+                  {tg.target_display_name || `#${tg.target_id}`}
+                </span>
+                <span className="text-gray-600">&rarr;</span>
+                {(() => {
+                  const c = getTagColor(tg.weight);
+                  return (
+                    <span className={`text-sm font-bold px-2 py-0.5 rounded ${c.bg} ${c.text}`}>
+                      #{tg.name}
+                    </span>
+                  );
+                })()}
+                <span className="text-[10px] text-gray-500">w:{tg.weight}</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-[10px] font-mono text-gray-600">ID: {tg.id}</span>
+                <button
+                  onClick={() => handleDelete(tg.id)}
+                  className="p-1 text-gray-500 hover:text-red-400"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+};
+
 const ListingsPanel = () => {
   const { t } = useTranslation();
   const [listings, setListings] = useState([]);
@@ -588,6 +858,19 @@ const ListingsPanel = () => {
                           </div>
                         )}
 
+                        {detail.tags?.length > 0 && (
+                          <div className="mb-3 flex flex-wrap gap-2">
+                            {detail.tags.map((tag, idx) => {
+                              const c = getTagColor(tag.weight);
+                              return (
+                                <span key={idx} className={`text-xs font-bold px-2 py-0.5 rounded ${c.bg} ${c.text}`}>
+                                  #{tag.name}
+                                </span>
+                              );
+                            })}
+                          </div>
+                        )}
+
                         {(!detail.prefix_enchant && !detail.suffix_enchant && !detail.reforge_options?.length) && (
                           <p className="text-xs text-gray-600 uppercase">{t('listings.noEnchantReforge')}</p>
                         )}
@@ -604,7 +887,7 @@ const ListingsPanel = () => {
   );
 };
 
-const VALID_TABS = ['enchants', 'listings', 'corrections'];
+const VALID_TABS = ['enchants', 'listings', 'corrections', 'tags'];
 
 const Admin = () => {
   const { t } = useTranslation();
@@ -623,6 +906,7 @@ const Admin = () => {
     { key: 'enchants', label: t('tabs.enchants') },
     { key: 'listings', label: t('tabs.listings') },
     { key: 'corrections', label: t('tabs.corrections') },
+    { key: 'tags', label: t('tabs.tags') },
   ], [t]);
 
   useEffect(() => {
@@ -719,6 +1003,10 @@ const Admin = () => {
                 <span className="text-[10px] font-black text-gray-500 block uppercase">{t('stats.gameItems')}</span>
                 <span className="text-lg font-bold text-cyan-400">{stats.gameItems}</span>
               </div>
+              <div className="bg-gray-800 px-4 py-2 rounded-lg border border-gray-700">
+                <span className="text-[10px] font-black text-gray-500 block uppercase">{t('stats.tags')}</span>
+                <span className="text-lg font-bold text-emerald-400">{stats.tags}</span>
+              </div>
             </div>
           )}
         </header>
@@ -743,6 +1031,8 @@ const Admin = () => {
           <CorrectionsPanel />
         ) : activeTab === 'listings' ? (
           <ListingsPanel />
+        ) : activeTab === 'tags' ? (
+          <TagsPanel />
         ) : isLoading && !summary ? (
           <div className="flex flex-col items-center justify-center py-20">
             <Loader2 className="w-12 h-12 text-cyan-500 animate-spin mb-4" />

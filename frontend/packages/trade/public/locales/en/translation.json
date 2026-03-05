@@ -41,7 +41,11 @@
     "itemRegistered": "Item registered successfully.",
     "correctionsCapture": " ({{count}} correction(s) captured for training)",
     "registerFailed": "Failed to register item.",
-    "requiredFields": "Please fill in the required fields: {{fields}}"
+    "requiredFields": "Please fill in the required fields: {{fields}}",
+    "tags": "Tags",
+    "tagPlaceholder": "Add tag...",
+    "description": "Description",
+    "descriptionPlaceholder": "Describe your listing..."
   },
   "categoryLabels": {
     "item_name": "Item Name",

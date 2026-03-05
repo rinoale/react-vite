@@ -143,6 +143,58 @@ def admin_game_items(
     return {"limit": limit, "offset": offset, "rows": rows}
 
 
+@router.get("/tags")
+def admin_tags(
+    target_type: str = Query(default=""),
+    limit: int = Query(default=100, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+):
+    rows = crud_admin.get_tags(db, target_type=target_type or None, limit=limit, offset=offset)
+    return {"limit": limit, "offset": offset, "rows": rows}
+
+
+@router.post("/tags", response_model=schemas.TagOut)
+def admin_create_tag(
+    data: schemas.TagCreate,
+    db: Session = Depends(get_db),
+):
+    tag = crud_admin.create_tag(db, data)
+    if tag is None:
+        raise HTTPException(status_code=409, detail="Tag already exists")
+    # Re-fetch with display name
+    rows = crud_admin.get_tags(db, limit=1, offset=0)
+    return rows[0] if rows and rows[0]['id'] == tag.id else {
+        "id": tag.id,
+        "target_type": tag.target_type,
+        "target_id": tag.target_id,
+        "name": tag.name,
+        "weight": tag.weight,
+    }
+
+
+@router.delete("/tags/{tag_id}")
+def admin_delete_tag(
+    tag_id: int,
+    db: Session = Depends(get_db),
+):
+    if not crud_admin.delete_tag(db, tag_id):
+        raise HTTPException(status_code=404, detail="Tag not found")
+    return {"deleted": True}
+
+
+@router.get("/tags/search-entities")
+def admin_search_tag_entities(
+    target_type: str = Query(...),
+    q: str = Query(default=""),
+    limit: int = Query(default=20, ge=1, le=100),
+    db: Session = Depends(get_db),
+):
+    if not q.strip():
+        return []
+    return crud_admin.search_entities(db, target_type, q.strip(), limit=limit)
+
+
 @router.get("/validate", response_class=HTMLResponse)
 def admin_validate_page(
     tab: str = Query(default="enchants"),

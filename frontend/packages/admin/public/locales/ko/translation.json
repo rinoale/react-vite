@@ -13,12 +13,14 @@
     "effects": "Effects",
     "enchantEffects": "Enchant Effects",
     "listings": "Listings",
-    "gameItems": "Game Items"
+    "gameItems": "Game Items",
+    "tags": "Tags"
   },
   "tabs": {
     "enchants": "Enchants",
     "listings": "Listings",
-    "corrections": "Corrections"
+    "corrections": "Corrections",
+    "tags": "Tags"
   },
   "corrections": {
     "title": "OCR CORRECTIONS",
@@ -51,6 +53,20 @@
     "enchantCount": "{{count}} ENCHANT",
     "enchantCount_plural": "{{count}} ENCHANTS",
     "price": "{{price}}골드"
+  },
+  "tags": {
+    "title": "TAGS",
+    "entityType": "Entity Type",
+    "entitySearch": "Search entity...",
+    "tagName": "Tag name",
+    "weight": "Weight",
+    "create": "Create",
+    "prev": "PREV",
+    "next": "NEXT",
+    "noTags": "No tags found.",
+    "refresh": "Refresh",
+    "deleteConfirm": "Delete this tag?",
+    "duplicateError": "Tag already exists."
   },
   "enchants": {
     "title": "ENCHANT ENTRIES",

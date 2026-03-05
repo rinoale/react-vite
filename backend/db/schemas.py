@@ -1,5 +1,5 @@
 from typing import Dict, List, Optional, Union
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from decimal import Decimal
 from datetime import datetime
 
@@ -55,6 +55,34 @@ class ReforgeOption(ReforgeOptionBase):
     class Config:
         from_attributes = True
 
+class TagCreate(BaseModel):
+    target_type: str
+    target_id: int
+    name: str
+    weight: int = 0
+
+    @field_validator('name')
+    @classmethod
+    def name_max_length(cls, v):
+        if len(v) > 5:
+            raise ValueError('tag name must be 5 characters or fewer')
+        return v
+
+class TagBadge(BaseModel):
+    name: str
+    weight: int = 0
+
+class TagOut(BaseModel):
+    id: int
+    target_type: str
+    target_id: int
+    name: str
+    weight: int = 0
+    target_display_name: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
 class SummarySchema(BaseModel):
     enchants: int
     effects: int
@@ -62,6 +90,7 @@ class SummarySchema(BaseModel):
     reforge_options: int
     listings: int
     game_items: int
+    tags: int = 0
 
 class PaginatedEnchantResponse(BaseModel):
     limit: int
@@ -86,6 +115,7 @@ class PaginatedReforgeResponse(BaseModel):
 class ListingOut(BaseModel):
     id: int
     name: str
+    description: Optional[str] = None
     price: Optional[int] = None
     game_item_id: Optional[int] = None
     game_item_name: Optional[str] = None
@@ -109,6 +139,7 @@ class ListingOut(BaseModel):
     piercing_level: Optional[int] = None
     created_at: Optional[datetime] = None
     reforge_count: int = 0
+    tags: List[TagBadge] = []
 
     class Config:
         from_attributes = True
@@ -162,6 +193,7 @@ class RegisterListingLine(BaseModel):
 class RegisterListingRequest(BaseModel):
     session_id: Optional[str] = None
     name: str = ''
+    description: Optional[str] = None
     price: str = ''
     category: str = 'weapon'
     game_item_id: Optional[int] = None
@@ -175,6 +207,15 @@ class RegisterListingRequest(BaseModel):
     lines: List[RegisterListingLine] = []
     enchants: List[RegisterEnchantSlot] = []
     reforge_options: List[RegisterReforgeOption] = []
+    tags: List[str] = []
+
+    @field_validator('tags')
+    @classmethod
+    def tags_max_length(cls, v):
+        for tag in v:
+            if len(tag) > 5:
+                raise ValueError('each tag must be 5 characters or fewer')
+        return v
 
 class CorrectionOut(BaseModel):
     id: int
@@ -219,6 +260,7 @@ class ListingReforgeOptionOut(BaseModel):
 class ListingDetailOut(BaseModel):
     id: int
     name: str
+    description: Optional[str] = None
     price: Optional[int] = None
     game_item_id: Optional[int] = None
     game_item_name: Optional[str] = None
@@ -241,3 +283,4 @@ class ListingDetailOut(BaseModel):
     prefix_enchant: Optional[ListingEnchantOut] = None
     suffix_enchant: Optional[ListingEnchantOut] = None
     reforge_options: List[ListingReforgeOptionOut] = []
+    tags: List[TagBadge] = []

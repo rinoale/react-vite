@@ -99,8 +99,6 @@ const ItemDetailSections = ({ sections, onSectionsChange, abbreviated = true }) 
 
   return (
     <div className="space-y-2">
-      <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-4">{t('sell.detectedCategories')}</label>
-
       {visibleKeys.map((secKey) => (
         <SectionCard
           key={secKey}

@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from db.models import (
     OcrCorrection, Listing, ListingEnchantEffect, ListingReforgeOption,
-    Enchant, EnchantEffect, ReforgeOption, GameItem,
+    Enchant, EnchantEffect, ReforgeOption, GameItem, Tag,
 )
 from lib.utils.log import logger
 
@@ -201,6 +201,7 @@ def create_listing(payload, db):
 
     listing = Listing(
         name=payload.name,
+        description=payload.description,
         price=price_int,
         game_item_id=game_item_id,
         prefix_enchant_id=prefix_enchant_id,
@@ -268,10 +269,23 @@ def create_listing(payload, db):
                 max_level=opt.max_level,
             ))
 
+        # --- Tags (weights 9, 6, 3 for positions 0, 1, 2) ---
+        _TAG_WEIGHTS = [80, 60, 30]
+        for idx, tag_name in enumerate(payload.tags[:3]):
+            tag_name = tag_name.strip()
+            if not tag_name:
+                continue
+            db.add(Tag(
+                target_type='listing',
+                target_id=listing.id,
+                name=tag_name,
+                weight=_TAG_WEIGHTS[idx],
+            ))
+
         db.commit()
         db.refresh(listing)
-        logger.info("register-listing  persisted listing id=%d name=%r enchants=%d reforges=%d",
-                     listing.id, listing.name, len(payload.enchants), len(payload.reforge_options))
+        logger.info("register-listing  persisted listing id=%d name=%r enchants=%d reforges=%d tags=%d",
+                     listing.id, listing.name, len(payload.enchants), len(payload.reforge_options), min(len(payload.tags), 3))
     except HTTPException:
         raise
     except Exception:
@@ -282,12 +296,57 @@ def create_listing(payload, db):
     return listing
 
 
+def _batch_resolve_tags(db, listing_ids):
+    """Batch-resolve tags for multiple listings via a single query.
+
+    Returns dict: listing_id -> [tag_name, ...]
+    """
+    if not listing_ids:
+        return {}
+    placeholders = ', '.join(f':id{i}' for i in range(len(listing_ids)))
+    params = {f'id{i}': lid for i, lid in enumerate(listing_ids)}
+    rows = db.execute(
+        text(f"""
+            SELECT DISTINCT sub.l_id, t.name, t.weight
+            FROM (
+                SELECT l.id AS l_id, 'listing' AS ttype, l.id AS tid FROM listings l WHERE l.id IN ({placeholders})
+                UNION ALL
+                SELECT l.id, 'game_item', l.game_item_id FROM listings l WHERE l.id IN ({placeholders}) AND l.game_item_id IS NOT NULL
+                UNION ALL
+                SELECT lro.listing_id, 'reforge_option', lro.reforge_option_id FROM listing_reforge_options lro WHERE lro.listing_id IN ({placeholders}) AND lro.reforge_option_id IS NOT NULL
+                UNION ALL
+                SELECT l.id, 'enchant', l.prefix_enchant_id FROM listings l WHERE l.id IN ({placeholders}) AND l.prefix_enchant_id IS NOT NULL
+                UNION ALL
+                SELECT l.id, 'enchant', l.suffix_enchant_id FROM listings l WHERE l.id IN ({placeholders}) AND l.suffix_enchant_id IS NOT NULL
+            ) AS sub(l_id, ttype, tid)
+            JOIN tags t ON t.target_type = sub.ttype AND t.target_id = sub.tid
+            ORDER BY t.weight DESC, t.name
+        """),
+        params,
+    ).mappings()
+
+    tags_by_listing = {}
+    for r in rows:
+        tags_by_listing.setdefault(r['l_id'], []).append({'name': r['name'], 'weight': r['weight']})
+    # Deduplicate by name (DISTINCT in SQL covers (l_id, name, weight) triples)
+    for lid in tags_by_listing:
+        seen = set()
+        deduped = []
+        for tag in tags_by_listing[lid]:
+            if tag['name'] not in seen:
+                seen.add(tag['name'])
+                deduped.append(tag)
+        tags_by_listing[lid] = deduped
+    return tags_by_listing
+
+
 def get_listings(db, game_item_id=None):
     """Fetch listing summaries, optionally filtered by game_item_id."""
     base_sql = """
         SELECT
             l.id,
             l.name,
+            l.description,
             l.price,
             l.game_item_id,
             gi.name AS game_item_name,
@@ -333,7 +392,15 @@ def get_listings(db, game_item_id=None):
                 ORDER BY l.id DESC
             """)
         ).mappings()
-    return [dict(r) for r in rows]
+    listings = [dict(r) for r in rows]
+
+    # Batch-resolve tags
+    listing_ids = [l['id'] for l in listings]
+    tags_map = _batch_resolve_tags(db, listing_ids)
+    for l in listings:
+        l['tags'] = tags_map.get(l['id'], [])
+
+    return listings
 
 
 def search_game_items(db, q, limit=20):
@@ -349,3 +416,108 @@ def search_game_items(db, q, limit=20):
         {"q": f"%{q}%", "limit": limit},
     ).mappings()
     return [dict(r) for r in rows]
+
+
+def search_listings(db, q):
+    """Cascading search: tag name → game_item name → listing name.
+
+    Returns listings matching the first tier that produces results.
+    """
+    q = q.strip()
+    if not q:
+        return get_listings(db)
+
+    like_q = f"%{q}%"
+
+    # Tier 1: tag name → resolve to listing IDs via polymorphic tags
+    tag_listing_ids = db.execute(
+        text("""
+            SELECT DISTINCT l.id
+            FROM tags t
+            JOIN (
+                SELECT l.id, 'listing' AS ttype, l.id AS tid FROM listings l
+                UNION ALL
+                SELECT l.id, 'game_item', l.game_item_id FROM listings l WHERE l.game_item_id IS NOT NULL
+                UNION ALL
+                SELECT lro.listing_id, 'reforge_option', lro.reforge_option_id FROM listing_reforge_options lro WHERE lro.reforge_option_id IS NOT NULL
+                UNION ALL
+                SELECT l.id, 'enchant', l.prefix_enchant_id FROM listings l WHERE l.prefix_enchant_id IS NOT NULL
+                UNION ALL
+                SELECT l.id, 'enchant', l.suffix_enchant_id FROM listings l WHERE l.suffix_enchant_id IS NOT NULL
+            ) AS sub(id, ttype, tid) ON t.target_type = sub.ttype AND t.target_id = sub.tid
+            JOIN listings l ON l.id = sub.id
+            WHERE t.name ILIKE :q
+        """),
+        {"q": like_q},
+    ).scalars().all()
+
+    if tag_listing_ids:
+        return _fetch_listings_by_ids(db, tag_listing_ids)
+
+    # Tier 2: game_item name
+    gi_listing_ids = db.execute(
+        text("""
+            SELECT l.id
+            FROM listings l
+            JOIN game_items gi ON gi.id = l.game_item_id
+            WHERE gi.name ILIKE :q
+        """),
+        {"q": like_q},
+    ).scalars().all()
+
+    if gi_listing_ids:
+        return _fetch_listings_by_ids(db, gi_listing_ids)
+
+    # Tier 3: listing name
+    name_listing_ids = db.execute(
+        text("""
+            SELECT l.id FROM listings l WHERE l.name ILIKE :q
+        """),
+        {"q": like_q},
+    ).scalars().all()
+
+    if name_listing_ids:
+        return _fetch_listings_by_ids(db, name_listing_ids)
+
+    return []
+
+
+def _fetch_listings_by_ids(db, listing_ids):
+    """Fetch full listing summaries for a set of IDs."""
+    if not listing_ids:
+        return []
+    placeholders = ', '.join(f':id{i}' for i in range(len(listing_ids)))
+    params = {f'id{i}': lid for i, lid in enumerate(listing_ids)}
+    rows = db.execute(
+        text(f"""
+            SELECT
+                l.id, l.name, l.description, l.price, l.game_item_id,
+                gi.name AS game_item_name,
+                pe.name AS prefix_enchant_name,
+                se.name AS suffix_enchant_name,
+                l.item_type, l.item_grade,
+                l.erg_grade, l.erg_level,
+                l.special_upgrade_type, l.special_upgrade_level,
+                l.damage, l.magic_damage, l.additional_damage, l.balance,
+                l.defense, l.protection, l.magic_defense, l.magic_protection,
+                l.durability, l.piercing_level,
+                l.created_at,
+                COUNT(DISTINCT lro.id) AS reforge_count
+            FROM listings l
+            LEFT JOIN game_items gi ON gi.id = l.game_item_id
+            LEFT JOIN enchants pe ON pe.id = l.prefix_enchant_id
+            LEFT JOIN enchants se ON se.id = l.suffix_enchant_id
+            LEFT JOIN listing_reforge_options lro ON lro.listing_id = l.id
+            WHERE l.id IN ({placeholders})
+            GROUP BY l.id, gi.name, pe.name, se.name
+            ORDER BY l.id DESC
+        """),
+        params,
+    ).mappings()
+    listings = [dict(r) for r in rows]
+
+    tags_map = _batch_resolve_tags(db, [l['id'] for l in listings])
+    for l in listings:
+        l['tags'] = tags_map.get(l['id'], [])
+
+    return listings

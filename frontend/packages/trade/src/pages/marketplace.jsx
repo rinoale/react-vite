@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Search, ShoppingBag, Wand2, Hammer, X } from 'lucide-react';
+import { Search, ShoppingBag, Wand2, Hammer, X, Hash } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { getListings, getListingDetail, getListingsByGameItem, searchGameItems } from '@mabi/shared/api/recommend';
+import { getListings, getListingDetail, getListingsByGameItem, searchGameItems, searchListings } from '@mabi/shared/api/recommend';
+import { getTagColor } from '@mabi/shared/lib/tagColors';
 
 const SLOT_LABELS = { 0: 'Prefix', 1: 'Suffix' };
 
@@ -26,6 +27,7 @@ const Marketplace = () => {
   const [selectedGameItem, setSelectedGameItem] = useState(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const debounceRef = useRef(null);
+  const searchDebounceRef = useRef(null);
   const suggestionsRef = useRef(null);
 
   const fetchListings = async () => {
@@ -123,9 +125,29 @@ const Marketplace = () => {
     fetchListings();
   };
 
-  const filteredListings = listings.filter(listing =>
-    listing.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const handleSearch = useCallback((q) => {
+    setSearchQuery(q);
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    if (!q.trim()) {
+      // Clear search — reload all (or game-item-filtered) listings
+      if (selectedGameItem) {
+        getListingsByGameItem(selectedGameItem.id)
+          .then(({ data }) => setListings(data))
+          .catch(() => {});
+      } else {
+        fetchListings();
+      }
+      return;
+    }
+    searchDebounceRef.current = setTimeout(async () => {
+      try {
+        const { data } = await searchListings(q.trim());
+        setListings(data);
+      } catch (error) {
+        console.error("Failed to search listings:", error);
+      }
+    }, 300);
+  }, [selectedGameItem]);
 
   const formatDate = (dateStr) => {
     if (!dateStr) return '';
@@ -184,7 +206,7 @@ const Marketplace = () => {
                 type="text"
                 placeholder={t('marketplace.searchPlaceholder')}
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => handleSearch(e.target.value)}
                 className="w-full bg-gray-800 border border-gray-700 rounded-full py-2 pl-10 pr-4 text-gray-100 focus:ring-2 focus:ring-cyan-500 outline-none"
               />
             </div>
@@ -206,8 +228,8 @@ const Marketplace = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Listing Grid */}
           <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
-            {filteredListings.length > 0 ? (
-              filteredListings.map(listing => (
+            {listings.length > 0 ? (
+              listings.map(listing => (
                 <div
                   key={listing.id}
                   onClick={() => setSelectedListing(listing)}
@@ -232,12 +254,22 @@ const Marketplace = () => {
                         {listing.suffix_enchant_name}
                       </span>
                     )}
-                    {listing.reforge_count > 0 && (
+                    {listing.tags?.length > 0 ? (
+                      listing.tags.map((tag, idx) => {
+                        const c = getTagColor(tag.weight);
+                        return (
+                          <span key={idx} className={`text-xs px-2 py-1 rounded-full flex items-center gap-0.5 ${c.bg} ${c.text}`}>
+                            <Hash className={`w-3 h-3 ${c.icon}`} />
+                            {tag.name}
+                          </span>
+                        );
+                      })
+                    ) : listing.reforge_count > 0 ? (
                       <span className="text-xs px-2 py-1 bg-cyan-900/50 text-cyan-300 rounded-full flex items-center gap-1">
                         <Hammer className="w-3 h-3" />
                         {t('marketplace.reforges', { count: listing.reforge_count })}
                       </span>
-                    )}
+                    ) : null}
                     {listing.erg_grade && (
                       <span className="text-xs px-2 py-1 bg-yellow-900/50 text-yellow-300 rounded-full">
                         ERG {listing.erg_grade}{listing.erg_level != null ? ` Lv.${listing.erg_level}` : ''}
@@ -357,6 +389,26 @@ const Marketplace = () => {
                           )}
                         </div>
                       ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Tags */}
+                {listingDetail.tags?.length > 0 && (
+                  <div className="mb-4">
+                    <h3 className="text-sm font-semibold text-emerald-400 mb-2 flex items-center gap-1">
+                      <Hash className="w-4 h-4" />
+                      Tags
+                    </h3>
+                    <div className="flex flex-wrap gap-2">
+                      {listingDetail.tags.map((tag, idx) => {
+                        const c = getTagColor(tag.weight);
+                        return (
+                          <span key={idx} className={`text-xs font-bold pl-1.5 pr-2 py-1 rounded-full inline-flex items-center gap-0.5 ${c.bg} ${c.text}`}>
+                            <Hash className={`w-3 h-3 ${c.icon}`} />{tag.name}
+                          </span>
+                        );
+                      })}
                     </div>
                   </div>
                 )}

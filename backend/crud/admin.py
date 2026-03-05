@@ -1,6 +1,7 @@
 from typing import List, Optional, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import func, text
+from sqlalchemy.exc import IntegrityError
 from db import models, schemas
 
 def get_summary(db: Session):
@@ -11,6 +12,7 @@ def get_summary(db: Session):
         "reforge_options": db.query(models.ReforgeOption).count(),
         "listings": db.query(models.Listing).count(),
         "game_items": db.query(models.GameItem).count(),
+        "tags": db.query(models.Tag).count(),
     }
 
 def get_enchants(db: Session, limit: int = 100, offset: int = 0):
@@ -100,6 +102,7 @@ def get_listings(db: Session, limit: int = 100, offset: int = 0):
             SELECT
                 l.id,
                 l.name,
+                l.description,
                 l.price,
                 l.game_item_id,
                 gi.name AS game_item_name,
@@ -194,6 +197,7 @@ def get_listing_detail(db: Session, listing_id: int):
     return {
         "id": listing.id,
         "name": listing.name,
+        "description": listing.description,
         "price": listing.price,
         "game_item_id": listing.game_item_id,
         "game_item_name": game_item_name,
@@ -216,6 +220,7 @@ def get_listing_detail(db: Session, listing_id: int):
         "prefix_enchant": prefix_enchant,
         "suffix_enchant": suffix_enchant,
         "reforge_options": [dict(r) for r in reforge_rows],
+        "tags": resolve_listing_tags(db, listing_id),
     }
 
 def get_game_items(db: Session, q: Optional[str] = None, limit: int = 20, offset: int = 0):
@@ -248,3 +253,107 @@ def get_game_items(db: Session, q: Optional[str] = None, limit: int = 20, offset
 
 def get_game_item_count(db: Session):
     return db.query(models.GameItem).count()
+
+
+# --- Tags ---
+
+def get_tags(db: Session, target_type: Optional[str] = None, limit: int = 100, offset: int = 0):
+    where = "WHERE t.target_type = :target_type" if target_type else ""
+    params = {"limit": limit, "offset": offset}
+    if target_type:
+        params["target_type"] = target_type
+    rows = db.execute(
+        text(f"""
+            SELECT
+                t.id,
+                t.target_type,
+                t.target_id,
+                t.name,
+                t.weight,
+                CASE t.target_type
+                    WHEN 'reforge_option' THEN (SELECT ro.option_name FROM reforge_options ro WHERE ro.id = t.target_id)
+                    WHEN 'game_item'      THEN (SELECT gi.name FROM game_items gi WHERE gi.id = t.target_id)
+                    WHEN 'listing'        THEN (SELECT l.name FROM listings l WHERE l.id = t.target_id)
+                    WHEN 'enchant'        THEN (SELECT e.name FROM enchants e WHERE e.id = t.target_id)
+                END AS target_display_name
+            FROM tags t
+            {where}
+            ORDER BY t.id DESC
+            LIMIT :limit OFFSET :offset
+        """),
+        params,
+    ).mappings()
+    return [dict(r) for r in rows]
+
+
+def create_tag(db: Session, data: schemas.TagCreate):
+    tag = models.Tag(
+        target_type=data.target_type,
+        target_id=data.target_id,
+        name=data.name,
+        weight=data.weight,
+    )
+    db.add(tag)
+    try:
+        db.commit()
+        db.refresh(tag)
+    except IntegrityError:
+        db.rollback()
+        return None
+    return tag
+
+
+def delete_tag(db: Session, tag_id: int):
+    tag = db.query(models.Tag).filter(models.Tag.id == tag_id).first()
+    if not tag:
+        return False
+    db.delete(tag)
+    db.commit()
+    return True
+
+
+def search_entities(db: Session, target_type: str, q: str, limit: int = 20):
+    if target_type == 'reforge_option':
+        tbl, col = 'reforge_options', 'option_name'
+    elif target_type == 'game_item':
+        tbl, col = 'game_items', 'name'
+    elif target_type == 'listing':
+        tbl, col = 'listings', 'name'
+    elif target_type == 'enchant':
+        tbl, col = 'enchants', 'name'
+    else:
+        return []
+    rows = db.execute(
+        text(f"""
+            SELECT id, {col} AS name
+            FROM {tbl}
+            WHERE {col} ILIKE :q
+            ORDER BY {col}
+            LIMIT :limit
+        """),
+        {"q": f"%{q}%", "limit": limit},
+    ).mappings()
+    return [dict(r) for r in rows]
+
+
+def resolve_listing_tags(db: Session, listing_id: int):
+    rows = db.execute(
+        text("""
+            SELECT DISTINCT t.name, t.weight
+            FROM (
+                SELECT 'listing' AS ttype, :lid AS tid
+                UNION ALL
+                SELECT 'game_item', l.game_item_id FROM listings l WHERE l.id = :lid AND l.game_item_id IS NOT NULL
+                UNION ALL
+                SELECT 'reforge_option', lro.reforge_option_id FROM listing_reforge_options lro WHERE lro.listing_id = :lid AND lro.reforge_option_id IS NOT NULL
+                UNION ALL
+                SELECT 'enchant', l.prefix_enchant_id FROM listings l WHERE l.id = :lid AND l.prefix_enchant_id IS NOT NULL
+                UNION ALL
+                SELECT 'enchant', l.suffix_enchant_id FROM listings l WHERE l.id = :lid AND l.suffix_enchant_id IS NOT NULL
+            ) AS sub(ttype, tid)
+            JOIN tags t ON t.target_type = sub.ttype AND t.target_id = sub.tid
+            ORDER BY t.weight DESC, t.name
+        """),
+        {"lid": listing_id},
+    ).mappings()
+    return [{"name": r["name"], "weight": r["weight"]} for r in rows]
