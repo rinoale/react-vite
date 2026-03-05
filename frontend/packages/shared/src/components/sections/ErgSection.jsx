@@ -50,9 +50,9 @@ const NumberField = ({ value, onCommit, placeholder }) => {
   );
 };
 
-const ErgGradeRow = ({ grade, level, maxLevel, onLineChange }) => {
+const ErgGradeRow = ({ grade, level, maxLevel, hasLines, onLineChange }) => {
   const { t } = useTranslation();
-  const needsCorrection = grade === null || level === null;
+  const needsCorrection = hasLines && (grade === null || level === null);
 
   const update = (newGrade, newLevel, newMaxLevel) => {
     onLineChange(-1, '', (sec) => {
@@ -114,6 +114,7 @@ const ErgSection = ({ lines, erg_grade, erg_level, erg_max_level, onLineChange }
         grade={erg_grade ?? null}
         level={erg_level ?? null}
         maxLevel={erg_max_level ?? null}
+        hasLines={lines?.length > 0}
         onLineChange={onLineChange}
       />
     </div>

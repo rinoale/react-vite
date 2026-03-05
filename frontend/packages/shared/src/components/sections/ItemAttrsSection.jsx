@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 const ATTR_KEYS = [
   'damage', 'magic_damage', 'additional_damage', 'balance',
   'defense', 'protection', 'magic_defense', 'magic_protection',
-  'durability',
+  'durability', 'piercing_level',
 ];
 
 const AttrRow = ({ label, value, onChange }) => {

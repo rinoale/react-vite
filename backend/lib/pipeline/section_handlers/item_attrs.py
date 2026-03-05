@@ -6,7 +6,7 @@ from rapidfuzz import fuzz
 
 from ._base import BaseHandler
 from ._helpers import (
-    detect_prefix, ocr_lines,
+    detect_prefix, reject_prefix, ocr_lines,
     prepend_header, snapshot_and_strip,
 )
 
@@ -21,6 +21,7 @@ _ATTR_KEY_MAP = {
     '마법 방어력': 'magic_defense',
     '마법 보호': 'magic_protection',
     '내구력': 'durability',
+    '피어싱 레벨': 'piercing_level'
 }
 
 # Per-key value parsers: extract the meaningful number from the remainder.
@@ -28,10 +29,15 @@ _DAMAGE_RE = re.compile(r'(\d+)\s*[~\/]\s*(\d+)')         # "45~123 +5" → max=
 _NUMBER_RE = re.compile(r'(\d+(?:\.\d+)?)')                 # first number
 _DURABILITY_RE = re.compile(r'(\d+)\s*/\s*(\d+)')           # "11/12"
 _PERCENT_RE = re.compile(r'(\d+(?:\.\d+)?)\s*%')            # "26%" → 26
+_PIERCING_RE = re.compile(r'(\d+)\s*\+\s*(\d+)')            # "6+ 3" or "6+3" → 6, 3
 
 
 def _parse_value(attr_key, remainder):
-    """Extract the meaningful numeric value from the remainder string."""
+    """Extract the meaningful numeric value from the remainder string.
+
+    For piercing_level, returns a dict with both values: {'piercing_level': '6', 'additional_piercing': '3'}.
+    For all other keys, returns a single string value.
+    """
     if attr_key == 'damage':
         m = _DAMAGE_RE.search(remainder)
         return m.group(2) if m else None
@@ -41,6 +47,12 @@ def _parse_value(attr_key, remainder):
     if attr_key == 'durability':
         m = _DURABILITY_RE.search(remainder)
         return m.group(2) if m else None
+    if attr_key == 'piercing_level':
+        m = _PIERCING_RE.search(remainder)
+        if m:
+            return {'piercing_level': m.group(1), 'additional_piercing': m.group(2)}
+        m = _NUMBER_RE.search(remainder)
+        return {'piercing_level': m.group(1)} if m else None
     if attr_key in ('magic_damage', 'additional_damage'):
         m = _NUMBER_RE.search(remainder)
         return m.group(1) if m else None
@@ -55,6 +67,7 @@ class ItemAttrsHandler(BaseHandler):
     """Item attributes section handler with dictionary-prefix FM."""
 
     @detect_prefix('bullet', 'subbullet')
+    @reject_prefix('subbullet')
     def _process(self, seg, grouped_lines, *, pipeline, font_reader,
                  attach_crops=False, **ctx):
         """OCR → dictionary-prefix match → extract value."""
@@ -89,7 +102,10 @@ class ItemAttrsHandler(BaseHandler):
                 continue
             key, value = _match_attr_prefix(line, attr_dict)
             if key:
-                attrs[key] = value
+                if isinstance(value, dict):
+                    attrs.update(value)
+                else:
+                    attrs[key] = value
 
         section_data['attrs'] = attrs
         return section_data

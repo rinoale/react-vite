@@ -6,10 +6,10 @@ import { ColorPartsSection, EnchantSection, ErgSection, ItemAttrsSection, ItemMo
 
 const ADDABLE_SECTIONS = [
   'item_attrs', 'enchant', 'reforge', 'item_mod',
-  'erg', 'set_item', 'item_grade', 'item_color',
+  'erg', 'set_item', 'item_color',
 ];
 
-const HIDDEN_SECTIONS = ['item_name', 'item_type', 'flavor_text', 'shop_price', 'pre_header', 'ego'];
+const HIDDEN_SECTIONS = ['item_name', 'item_type', 'flavor_text', 'shop_price', 'pre_header', 'ego', 'item_grade'];
 
 function createEmptySection(secKey) {
   if (secKey === 'enchant') return { prefix: null, suffix: null, lines: [] };
@@ -48,7 +48,7 @@ const ItemDetailSections = ({ sections, onSectionsChange, abbreviated = true }) 
   };
 
   const handleAddSection = (secKey) => {
-    onSectionsChange({ ...sections, [secKey]: createEmptySection(secKey) });
+    onSectionsChange({ ...sections, [secKey]: { ...createEmptySection(secKey), _added: true } });
     setOpenSections(prev => ({ ...prev, [secKey]: true }));
   };
 
@@ -83,6 +83,7 @@ const ItemDetailSections = ({ sections, onSectionsChange, abbreviated = true }) 
 
   const hasContent = (key, data) => {
     if (data.skipped) return false;
+    if (data._added) return true;
     if (key === 'item_color') return data.parts?.length > 0;
     if (key === 'enchant') return data.prefix || data.suffix || data.lines?.length > 0;
     if (key === 'item_attrs') return data.attrs && Object.keys(data.attrs).length > 0;
@@ -94,7 +95,7 @@ const ItemDetailSections = ({ sections, onSectionsChange, abbreviated = true }) 
   };
 
   const visibleKeys = Object.keys(sections).filter(k => !HIDDEN_SECTIONS.includes(k) && hasContent(k, sections[k]));
-  const availableSections = ADDABLE_SECTIONS.filter(s => !sections[s]);
+  const availableSections = ADDABLE_SECTIONS.filter(s => !visibleKeys.includes(s));
 
   return (
     <div className="space-y-2">

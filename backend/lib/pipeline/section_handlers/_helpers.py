@@ -109,7 +109,6 @@ def reject_prefix(*rejected_types):
     def decorator(fn):
         @wraps(fn)
         def wrapper(self, seg, grouped_lines, *args, **kw):
-            breakpoint()
             filtered = [
                 group for group in grouped_lines
                 if (group[0].get('_prefix_info') or {}).get('type') not in rejected

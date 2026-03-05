@@ -398,8 +398,6 @@ const EnchantSection = ({ prefix, suffix, lines, onLineChange, abbreviated = tru
           }}
           abbreviated={abbreviated}
         />
-      ) : groups.prefix.length > 0 ? (
-        <FallbackLines slotLines={groups.prefix} onLineChange={onLineChange} />
       ) : (
         <AddEnchantSlot slotLabel="Prefix" onLineChange={onLineChange} />
       )}
@@ -420,13 +418,8 @@ const EnchantSection = ({ prefix, suffix, lines, onLineChange, abbreviated = tru
           }}
           abbreviated={abbreviated}
         />
-      ) : groups.suffix.length > 0 ? (
-        <FallbackLines slotLines={groups.suffix} onLineChange={onLineChange} />
       ) : (
         <AddEnchantSlot slotLabel="Suffix" onLineChange={onLineChange} />
-      )}
-      {groups.unassigned.length > 0 && (
-        <FallbackLines slotLines={groups.unassigned} onLineChange={onLineChange} />
       )}
     </div>
   );

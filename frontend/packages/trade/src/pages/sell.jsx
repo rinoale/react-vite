@@ -70,15 +70,33 @@ const Sell = () => {
     setGameItemQuery('');
   };
 
+  const loadFile = (f) => {
+    setFile(f);
+    setPreviewUrl(URL.createObjectURL(f));
+    setOcrResult(null);
+    setDetectedLines([]);
+  };
+
   const handleFileChange = (e) => {
     const selectedFile = e.target.files[0];
-    if (selectedFile) {
-      setFile(selectedFile);
-      setPreviewUrl(URL.createObjectURL(selectedFile));
-      setOcrResult(null);
-      setDetectedLines([]);
-    }
+    if (selectedFile) loadFile(selectedFile);
   };
+
+  useEffect(() => {
+    const handlePaste = (e) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (const item of items) {
+        if (item.type.startsWith('image/')) {
+          e.preventDefault();
+          loadFile(item.getAsFile());
+          return;
+        }
+      }
+    };
+    document.addEventListener('paste', handlePaste);
+    return () => document.removeEventListener('paste', handlePaste);
+  }, []);
 
   const handleScan = async () => {
     if (!file) return;

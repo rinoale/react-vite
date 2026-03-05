@@ -6,7 +6,6 @@ import { findGameItemByName } from './gameItems';
 function collectLinesFromSections(sections) {
   const lines = [];
   for (const sec of Object.values(sections)) {
-    if (sec.header_text) lines.push(sec.header_text);
     if (sec.lines) {
       for (const l of sec.lines) {
         if (l.text) lines.push(l.text);

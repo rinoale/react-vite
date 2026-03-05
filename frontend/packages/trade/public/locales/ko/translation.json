@@ -84,7 +84,8 @@
     "protection": "보호",
     "magic_defense": "마법 방어력",
     "magic_protection": "마법 보호",
-    "durability": "내구력"
+    "durability": "내구력",
+    "piercing_level": "피어싱 레벨"
   },
   "sections": {
     "lowConfidence": "Low Confidence: {{pct}}%",

@@ -18,7 +18,6 @@ describe('parseExamineResult', () => {
           lines: [{ text: '축복받은 다이아몬드 롱소드' }],
         },
         item_attrs: {
-          header_text: '아이템 속성',
           lines: [
             { text: '공격 10~20' },
             { text: '크리티컬 5' },
@@ -34,7 +33,7 @@ describe('parseExamineResult', () => {
     expect(result.abbreviated).toBe(false);
     expect(result.gameItemMatch).toEqual({ name: '다이아몬드 롱소드', category: '양손 검' });
     expect(result.description).toContain('축복받은 다이아몬드 롱소드');
-    expect(result.description).toContain('아이템 속성');
+    expect(result.description).toContain('공격 10~20');
   });
 
   it('handles empty sections', () => {
