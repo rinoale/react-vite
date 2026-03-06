@@ -1,11 +1,11 @@
 import client from './client';
 
-export function refresh(refreshToken) {
-  return client.post('/auth/refresh', { refresh_token: refreshToken });
-}
-
 export function getMe() {
   return client.get('/auth/me');
+}
+
+export function logout() {
+  return client.post('/auth/logout');
 }
 
 export function updateProfile(data) {

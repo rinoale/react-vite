@@ -16,14 +16,13 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
-  const { loginWithTokens } = useAuth();
+  const { loadUser } = useAuth();
   const { showToast } = useToast();
   const callbackHandled = useRef(false);
 
   useEffect(() => {
     if (callbackHandled.current) return;
-    const accessToken = searchParams.get('access_token');
-    const refreshToken = searchParams.get('refresh_token');
+    const auth = searchParams.get('auth');
     const error = searchParams.get('error');
 
     if (error) {
@@ -31,14 +30,18 @@ export default function LoginPage() {
       showToast({ type: 'error', message: t(`auth.discordError.${error}`, t('auth.error')) });
       return;
     }
-    if (accessToken && refreshToken) {
+    if (auth === 'success') {
       callbackHandled.current = true;
-      loginWithTokens(accessToken, refreshToken).then(() => {
-        showToast({ type: 'success', message: t('auth.loginSuccess') });
-        navigate(location.state?.from || '/', { replace: true });
+      loadUser().then((user) => {
+        if (user) {
+          showToast({ type: 'success', message: t('auth.loginSuccess') });
+          navigate(location.state?.from || '/', { replace: true });
+        } else {
+          showToast({ type: 'error', message: t('auth.error') });
+        }
       });
     }
-  }, [searchParams, loginWithTokens, navigate, location.state, showToast, t]);
+  }, [searchParams, loadUser, navigate, location.state, showToast, t]);
 
   const handleDiscord = useCallback(() => {
     window.location.href = `${client.defaults.baseURL}${getDiscordAuthUrl()}`;

@@ -70,7 +70,7 @@ const ATTR_LABELS = {
   durability: '내구력', piercing_level: '관통 레벨',
 };
 
-const API_BASE = import.meta.env.MABINOGI_TRADE_API_URL || 'http://localhost:8000';
+const API_BASE = import.meta.env.MABINOGI_TRADE_API_URL || 'https://dev.api.mabitra.com';
 
 const CorrectionsPanel = () => {
   const { t } = useTranslation();

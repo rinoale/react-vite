@@ -31,16 +31,21 @@ class Settings(BaseSettings):
     # --- Discord OAuth ---
     discord_client_id: str = ""
     discord_client_secret: str = ""
-    discord_redirect_uri: str = "http://localhost:8000/auth/discord/callback"
+    discord_redirect_uri: str = "https://dev.trade.mabitra.com/api/auth/discord/callback"
+
+    # --- Frontend ---
+    frontend_url: str = "https://dev.trade.mabitra.com"
+
+    # --- Cookie ---
+    cookie_domain: str = ".mabitra.com"
+    cookie_secure: bool = False
+    cookie_samesite: str = "lax"
 
     # --- CORS ---
     cors_origins: list[str] = [
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:5174",
-        "http://127.0.0.1:5174",
-        "http://localhost:5175",
-        "http://127.0.0.1:5175",
+        "https://dev.trade.mabitra.com",
+        "https://dev.admin.mabitra.com",
+        "https://dev.misc.mabitra.com",
     ]
 
     @property

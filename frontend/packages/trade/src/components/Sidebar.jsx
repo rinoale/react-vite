@@ -29,8 +29,8 @@ const Sidebar = () => {
   const { user, isAuthenticated, logout } = useAuth()
   const navigate = useNavigate()
 
-  const handleLogout = useCallback(() => {
-    logout()
+  const handleLogout = useCallback(async () => {
+    await logout()
     navigate('/')
   }, [logout, navigate])
 

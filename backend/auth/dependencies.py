@@ -1,4 +1,4 @@
-from fastapi import Depends, HTTPException, status
+from fastapi import Cookie, Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
@@ -11,17 +11,17 @@ _bearer = HTTPBearer(auto_error=False)
 
 
 def _extract_user(
-    creds: HTTPAuthorizationCredentials | None,
+    token: str | None,
     db: Session,
     *,
     required: bool,
 ) -> User | None:
-    if creds is None:
+    if not token:
         if required:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
         return None
 
-    payload = decode_token(creds.credentials)
+    payload = decode_token(token)
     if not payload or payload.get("type") != "access":
         if required:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token")
@@ -36,20 +36,33 @@ def _extract_user(
     return user
 
 
+def _resolve_token(
+    creds: HTTPAuthorizationCredentials | None,
+    cookie_token: str | None,
+) -> str | None:
+    if creds:
+        return creds.credentials
+    return cookie_token
+
+
 def get_current_user(
     creds: HTTPAuthorizationCredentials | None = Depends(_bearer),
+    access_token: str | None = Cookie(default=None),
     db: Session = Depends(get_db),
 ) -> User:
-    user = _extract_user(creds, db, required=True)
+    token = _resolve_token(creds, access_token)
+    user = _extract_user(token, db, required=True)
     assert user is not None
     return user
 
 
 def optional_user(
     creds: HTTPAuthorizationCredentials | None = Depends(_bearer),
+    access_token: str | None = Cookie(default=None),
     db: Session = Depends(get_db),
 ) -> User | None:
-    return _extract_user(creds, db, required=False)
+    token = _resolve_token(creds, access_token)
+    return _extract_user(token, db, required=False)
 
 
 def require_role(role_name: str):
