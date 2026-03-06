@@ -10,5 +10,8 @@ export const getListingsByGameItem = (gameItemId) =>
 export const searchGameItems = (q) =>
   client.get('/game-items', { params: { q } });
 
-export const searchListings = (q) =>
-  client.get('/listings/search', { params: { q } });
+export const searchListings = (q, tags) =>
+  client.get('/listings/search', { params: { q, tags } });
+
+export const searchTags = (q) =>
+  client.get('/tags/search', { params: { q } });

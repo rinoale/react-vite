@@ -23,6 +23,9 @@
     "./lib/examineResult": "./src/lib/examineResult.js",
     "./lib/registrationPayload": "./src/lib/registrationPayload.js",
     "./lib/tagColors": "./src/lib/tagColors.js",
+    "./hooks/useListingSearch": "./src/hooks/useListingSearch.js",
+    "./components/ListingSearchBar": "./src/components/ListingSearchBar.jsx",
+    "./components/TagBadge": "./src/components/TagBadge.jsx",
     "./styles": "./src/styles/index.js"
   }
 }

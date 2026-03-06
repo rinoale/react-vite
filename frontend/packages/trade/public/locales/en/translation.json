@@ -78,7 +78,8 @@
     "specialUpgradeS": "Blue Upgrade Stone",
     "specialUpgradeLevel": "Lv.{{level}}",
     "ergLabel": "Erg",
-    "ergGrade": "Grade {{grade}}"
+    "ergGrade": "Grade {{grade}}",
+    "addMoreTags": "Add more tags..."
   },
   "sidebar": {
     "home": "matrade",

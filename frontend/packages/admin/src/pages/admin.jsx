@@ -3,8 +3,9 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Loader2, ChevronDown, ChevronRight, Info, List, RefreshCw, Check, Image, Pencil, X, Save, Package, Trash2, Tag, Plus, Search } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { getSummary, getEnchantEntries, getEnchantEffects, getLinks, getCorrections, approveCorrection, editCorrection, truncateCorrections, getListings, getListingDetail, getTags, createTag, deleteTag, searchTagEntities, bulkCreateTags, getUniqueTags, deleteTagById, getTagDetail, updateTagWeight, updateTagTargetWeight } from '@mabi/shared/api/admin';
-import { getTagColor } from '@mabi/shared/lib/tagColors';
 import CustomSelect from '@mabi/shared/components/CustomSelect';
+import TagBadge from '@mabi/shared/components/TagBadge';
+import { getTagColor } from '@mabi/shared/lib/tagColors';
 
 const toRankLabel = (rank) => {
   const n = Number(rank);
@@ -341,47 +342,45 @@ const ENTITY_TYPES = [
   { value: 'enchant', label: 'Enchant' },
 ];
 
-const TagBadge = ({ name, weight }) => {
-  const c = getTagColor(weight);
+const AdminTagBadge = ({ name, weight }) => (
+  <TagBadge name={name} weight={weight} size="sm" className="group-hover:ring-1 ring-emerald-500/50" />
+);
+
+const TagTargetRow = ({ tgt, editingWeight, onStartEdit, onSaveWeight, onCancelEdit, onChangeWeight, onDelete, t }) => {
+  const weightColor = getTagColor(editingWeight != null ? (parseInt(editingWeight, 10) || 0) : tgt.weight);
   return (
-    <span className={`text-sm font-bold px-2 py-0.5 rounded ${c.bg} ${c.text} group-hover:ring-1 ring-emerald-500/50`}>
-      {name}
-    </span>
+    <div className="flex items-center gap-3 py-1 px-2 rounded hover:bg-gray-800/50">
+      <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-gray-700 text-gray-400 min-w-[80px] text-center">
+        {tgt.target_type}
+      </span>
+      <span className="text-xs text-gray-300 flex-1">
+        {tgt.target_display_name || `#${tgt.target_id}`}
+      </span>
+      <span className="text-[10px] text-gray-500 mr-1">{t('tags.targetWeight')}</span>
+      {editingWeight != null ? (
+        <span className="flex items-center gap-1">
+          <input
+            type="number"
+            value={editingWeight}
+            onChange={onChangeWeight}
+            onKeyDown={(e) => { if (e.key === 'Enter') onSaveWeight(); if (e.key === 'Escape') onCancelEdit(); }}
+            className={`text-xs font-bold bg-gray-800 border border-emerald-600 rounded px-1.5 py-0.5 w-14 outline-none ${weightColor.text}`}
+            autoFocus
+          />
+          <button onClick={onSaveWeight} className="p-0.5 text-emerald-400 hover:text-emerald-300"><Check className="w-3 h-3" /></button>
+          <button onClick={onCancelEdit} className="p-0.5 text-gray-500 hover:text-gray-300"><X className="w-3 h-3" /></button>
+        </span>
+      ) : (
+        <button onClick={onStartEdit} className={`text-xs font-mono font-bold px-1.5 py-0.5 rounded bg-gray-800 hover:bg-gray-700 ${weightColor.text}`}>
+          {tgt.weight}
+        </button>
+      )}
+      <button onClick={onDelete} className="p-0.5 text-gray-500 hover:text-red-400">
+        <X className="w-3 h-3" />
+      </button>
+    </div>
   );
 };
-
-const TagTargetRow = ({ tgt, editingWeight, onStartEdit, onSaveWeight, onCancelEdit, onChangeWeight, onDelete, t }) => (
-  <div className="flex items-center gap-3 py-1 px-2 rounded hover:bg-gray-800/50">
-    <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-gray-700 text-gray-400 min-w-[80px] text-center">
-      {tgt.target_type}
-    </span>
-    <span className="text-xs text-gray-300 flex-1">
-      {tgt.target_display_name || `#${tgt.target_id}`}
-    </span>
-    <span className="text-[10px] text-gray-500 mr-1">{t('tags.targetWeight')}</span>
-    {editingWeight != null ? (
-      <span className="flex items-center gap-1">
-        <input
-          type="number"
-          value={editingWeight}
-          onChange={onChangeWeight}
-          onKeyDown={(e) => { if (e.key === 'Enter') onSaveWeight(); if (e.key === 'Escape') onCancelEdit(); }}
-          className="text-xs bg-gray-800 border border-emerald-600 rounded px-1.5 py-0.5 w-14 outline-none"
-          autoFocus
-        />
-        <button onClick={onSaveWeight} className="p-0.5 text-emerald-400 hover:text-emerald-300"><Check className="w-3 h-3" /></button>
-        <button onClick={onCancelEdit} className="p-0.5 text-gray-500 hover:text-gray-300"><X className="w-3 h-3" /></button>
-      </span>
-    ) : (
-      <button onClick={onStartEdit} className="text-xs font-mono text-orange-400 hover:text-orange-300 px-1.5 py-0.5 rounded bg-gray-800 hover:bg-gray-700">
-        {tgt.weight}
-      </button>
-    )}
-    <button onClick={onDelete} className="p-0.5 text-gray-500 hover:text-red-400">
-      <X className="w-3 h-3" />
-    </button>
-  </div>
-);
 
 const TagsPanel = () => {
   const { t } = useTranslation();
@@ -394,7 +393,7 @@ const TagsPanel = () => {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedTargets, setSelectedTargets] = useState([]);
   const [tagName, setTagName] = useState('');
-  const [tagWeight, setTagWeight] = useState(0);
+  const [tagWeight, setTagWeight] = useState('');
   const [creating, setCreating] = useState(false);
   const [createResult, setCreateResult] = useState(null);
   const suggestionsRef = useRef(null);
@@ -490,7 +489,7 @@ const TagsPanel = () => {
   const handleSearchTypeChange = useCallback((e) => setSearchType(e.target.value), []);
   const handleLikeChange = useCallback((e) => setLikeSearch(e.target.checked), []);
   const handleTagNameChange = useCallback((e) => setTagName(e.target.value), []);
-  const handleTagWeightChange = useCallback((e) => setTagWeight(Number(e.target.value) || 0), []);
+  const handleTagWeightChange = useCallback((e) => setTagWeight(e.target.value), []);
 
   // Reset search when type changes
   useEffect(() => {
@@ -508,13 +507,13 @@ const TagsPanel = () => {
       const { data } = await bulkCreateTags({
         targets: selectedTargets.map(({ target_type, target_id }) => ({ target_type, target_id })),
         names: [name],
-        weight: tagWeight,
+        weight: parseInt(tagWeight, 10) || 0,
       });
       setCreateResult(data);
       if (data.created > 0) {
         setSelectedTargets([]);
         setTagName('');
-        setTagWeight(0);
+        setTagWeight('');
         fetchTags();
       }
     } catch (error) {
@@ -592,9 +591,10 @@ const TagsPanel = () => {
 
   const handleSaveTagWeight = useCallback(async () => {
     if (editingTagWeight == null || !tagDetail) return;
+    const w = parseInt(editingTagWeight, 10) || 0;
     try {
-      await updateTagWeight(tagDetail.id, editingTagWeight);
-      setTagDetail((prev) => ({ ...prev, weight: editingTagWeight }));
+      await updateTagWeight(tagDetail.id, w);
+      setTagDetail((prev) => ({ ...prev, weight: w }));
       setEditingTagWeight(null);
       fetchTags();
     } catch (error) {
@@ -603,8 +603,8 @@ const TagsPanel = () => {
   }, [editingTagWeight, tagDetail, fetchTags]);
 
   const handleCancelTagWeightEdit = useCallback(() => setEditingTagWeight(null), []);
-  const handleStartTagWeightEdit = useCallback(() => setEditingTagWeight(tagDetail?.weight ?? 0), [tagDetail]);
-  const handleTagWeightEditChange = useCallback((e) => setEditingTagWeight(Number(e.target.value) || 0), []);
+  const handleStartTagWeightEdit = useCallback(() => setEditingTagWeight(String(tagDetail?.weight ?? 0)), [tagDetail]);
+  const handleTagWeightEditChange = useCallback((e) => setEditingTagWeight(e.target.value), []);
 
   const handleTagWeightEditKeyDown = useCallback((e) => {
     if (e.key === 'Enter') handleSaveTagWeight();
@@ -612,8 +612,9 @@ const TagsPanel = () => {
   }, [handleSaveTagWeight, handleCancelTagWeightEdit]);
 
   const handleSaveTargetWeight = useCallback(async (ttId) => {
-    const w = editingTargetWeights[ttId];
-    if (w == null) return;
+    const raw = editingTargetWeights[ttId];
+    if (raw == null) return;
+    const w = parseInt(raw, 10) || 0;
     try {
       await updateTagTargetWeight(ttId, w);
       setTagDetail((prev) => ({
@@ -627,7 +628,7 @@ const TagsPanel = () => {
   }, [editingTargetWeights]);
 
   const startTargetWeightEdit = useCallback((tgt) => {
-    setEditingTargetWeights((prev) => ({ ...prev, [tgt.id]: tgt.weight }));
+    setEditingTargetWeights((prev) => ({ ...prev, [tgt.id]: String(tgt.weight) }));
   }, []);
 
   const cancelTargetWeightEdit = useCallback((ttId) => {
@@ -635,7 +636,7 @@ const TagsPanel = () => {
   }, []);
 
   const changeTargetWeight = useCallback((ttId, e) => {
-    setEditingTargetWeights((prev) => ({ ...prev, [ttId]: Number(e.target.value) || 0 }));
+    setEditingTargetWeights((prev) => ({ ...prev, [ttId]: e.target.value }));
   }, []);
 
   const canCreate = !creating && tagName.trim().length > 0;
@@ -733,7 +734,7 @@ const TagsPanel = () => {
             value={tagWeight}
             onChange={handleTagWeightChange}
             placeholder={t('bulkTag.weight')}
-            className="text-xs bg-gray-800 border border-gray-600 rounded px-2 py-1.5 w-16 outline-none focus:border-emerald-500"
+            className={`text-xs font-bold bg-gray-800 border border-gray-600 rounded px-2 py-1.5 w-16 outline-none focus:border-emerald-500 ${getTagColor(parseInt(tagWeight, 10) || 0).text}`}
           />
           <button onClick={handleCreate} disabled={!canCreate} className="flex items-center gap-1 text-xs font-bold uppercase px-3 py-1.5 rounded bg-emerald-700 hover:bg-emerald-600 text-white disabled:opacity-50">
             {creating ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
@@ -793,7 +794,7 @@ const TagsPanel = () => {
                         ? <ChevronDown className="w-3 h-3 text-gray-500" />
                         : <ChevronRight className="w-3 h-3 text-gray-500" />
                       }
-                      <TagBadge name={tg.name} weight={tg.weight} />
+                      <AdminTagBadge name={tg.name} weight={tg.weight} />
                     </button>
                     <span className="text-[10px] text-gray-500">w:{tg.weight}</span>
                     <span className="text-[10px] text-gray-500">
@@ -816,6 +817,9 @@ const TagsPanel = () => {
                     ) : tagDetail ? (
                       <div>
                         {/* Tag-level weight */}
+                        {(() => {
+                          const twc = getTagColor(editingTagWeight != null ? (parseInt(editingTagWeight, 10) || 0) : tagDetail.weight);
+                          return (
                         <div className="flex items-center gap-3 mb-3">
                           <span className="text-xs font-bold text-gray-400 uppercase">{t('tags.tagWeight')}</span>
                           {editingTagWeight != null ? (
@@ -825,18 +829,20 @@ const TagsPanel = () => {
                                 value={editingTagWeight}
                                 onChange={handleTagWeightEditChange}
                                 onKeyDown={handleTagWeightEditKeyDown}
-                                className="text-xs bg-gray-800 border border-emerald-600 rounded px-2 py-0.5 w-16 outline-none"
+                                className={`text-xs font-bold bg-gray-800 border border-emerald-600 rounded px-2 py-0.5 w-16 outline-none ${twc.text}`}
                                 autoFocus
                               />
                               <button onClick={handleSaveTagWeight} className="p-0.5 text-emerald-400 hover:text-emerald-300"><Check className="w-3 h-3" /></button>
                               <button onClick={handleCancelTagWeightEdit} className="p-0.5 text-gray-500 hover:text-gray-300"><X className="w-3 h-3" /></button>
                             </span>
                           ) : (
-                            <button onClick={handleStartTagWeightEdit} className="text-xs font-mono text-emerald-400 hover:text-emerald-300 px-1.5 py-0.5 rounded bg-gray-800 hover:bg-gray-700">
+                            <button onClick={handleStartTagWeightEdit} className={`text-xs font-mono font-bold px-1.5 py-0.5 rounded bg-gray-800 hover:bg-gray-700 ${twc.text}`}>
                               {tagDetail.weight}
                             </button>
                           )}
                         </div>
+                          );
+                        })()}
 
                         {/* Targets list */}
                         {(() => {
@@ -1163,14 +1169,9 @@ const ListingsPanel = () => {
 
                         {detail.tags?.length > 0 && (
                           <div className="mb-3 flex flex-wrap gap-2">
-                            {detail.tags.map((tag, idx) => {
-                              const c = getTagColor(tag.weight);
-                              return (
-                                <span key={idx} className={`text-xs font-bold px-2 py-0.5 rounded ${c.bg} ${c.text}`}>
-                                  {tag.name}
-                                </span>
-                              );
-                            })}
+                            {detail.tags.map((tag, idx) => (
+                              <TagBadge key={idx} name={tag.name} weight={tag.weight} />
+                            ))}
                           </div>
                         )}
 

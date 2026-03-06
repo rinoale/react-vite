@@ -1,10 +1,12 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { Search, ShoppingBag, Wand2, Hammer, X } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
+import { ShoppingBag, Wand2, Hammer } from 'lucide-react';
 import { badgeCyan, badgeYellow, badgePink, cardSlot } from '@mabi/shared/styles';
 import { useTranslation } from 'react-i18next';
 import { getListings, getListingDetail, searchListings } from '@mabi/shared/api/recommend';
-import { getTagColor } from '@mabi/shared/lib/tagColors';
+import { useListingSearch } from '@mabi/shared/hooks/useListingSearch';
+import ListingSearchBar from '@mabi/shared/components/ListingSearchBar';
+import TagBadge from '@mabi/shared/components/TagBadge';
 
 const SLOT_LABELS = { 0: 'Prefix', 1: 'Suffix' };
 
@@ -21,19 +23,17 @@ const Marketplace = () => {
   const [selectedListing, setSelectedListing] = useState(null);
   const [listingDetail, setListingDetail] = useState(null);
 
-  const [searchQuery, setSearchQuery] = useState('');
-  const debounceRef = useRef(null);
-
-  const fetchListings = async () => {
+  // --- Fetch helpers ---
+  const fetchListings = useCallback(async () => {
     try {
       const { data } = await getListings();
       setListings(data);
     } catch (error) {
       console.error("Failed to fetch listings:", error);
     }
-  };
+  }, []);
 
-  const fetchDetail = async (listingId) => {
+  const fetchDetail = useCallback(async (listingId) => {
     try {
       const { data } = await getListingDetail(listingId);
       setListingDetail(data);
@@ -41,21 +41,47 @@ const Marketplace = () => {
       console.error("Failed to fetch listing detail:", error);
       setListingDetail(null);
     }
-  };
+  }, []);
 
-  const [searchParams] = useSearchParams();
-  const initialIdRef = useRef(searchParams.get('id'));
+  const handleSearchResults = useCallback((data) => {
+    setListings(data);
+  }, []);
+
+  const handleSearchClear = useCallback(() => {
+    setSelectedListing(null);
+    fetchListings();
+  }, [fetchListings]);
+
+  const handleSelectListing = useCallback((listing) => {
+    setSelectedListing(listing);
+  }, []);
+
+  const search = useListingSearch({
+    onResults: handleSearchResults,
+    onSelectListing: handleSelectListing,
+    onClear: handleSearchClear,
+  });
+
+  // --- Init from router state ---
+  const location = useLocation();
 
   useEffect(() => {
-    const targetId = initialIdRef.current ? parseInt(initialIdRef.current, 10) : null;
-    const name = searchParams.get('name');
+    const st = location.state || {};
+    const name = st.text || '';
+    const tags = st.tags || [];
+    const targetId = st.listingId || null;
 
     const init = async () => {
+      if (name) search.setSearchText(name);
+      if (tags.length) {
+        search.setSelectedTags(tags);
+        if (st.tagWeights) search.setTagWeights(st.tagWeights);
+      }
+
       let data;
-      if (name) {
-        setSearchQuery(name);
+      if (name || tags.length) {
         try {
-          const res = await searchListings(name);
+          const res = await searchListings(name, tags.length ? tags : undefined);
           data = res.data;
         } catch {
           const res = await getListings();
@@ -85,30 +111,7 @@ const Marketplace = () => {
     } else {
       setListingDetail(null);
     }
-  }, [selectedListing]);
-
-  const handleSearch = useCallback((q) => {
-    setSearchQuery(q);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (!q.trim()) {
-      fetchListings();
-      return;
-    }
-    debounceRef.current = setTimeout(async () => {
-      try {
-        const { data } = await searchListings(q.trim());
-        setListings(data);
-      } catch (error) {
-        console.error("Failed to search:", error);
-      }
-    }, 300);
-  }, []);
-
-  const clearSearch = () => {
-    setSearchQuery('');
-    setSelectedListing(null);
-    fetchListings();
-  };
+  }, [selectedListing, fetchDetail]);
 
   const formatDate = (dateStr) => {
     if (!dateStr) return '';
@@ -125,24 +128,7 @@ const Marketplace = () => {
             {t('marketplace.title')}
           </h1>
 
-          <div className="relative w-full md:w-96">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-            <input
-              type="text"
-              placeholder={t('marketplace.searchPlaceholder')}
-              value={searchQuery}
-              onChange={(e) => handleSearch(e.target.value)}
-              className="w-full bg-gray-800 border border-gray-700 rounded-full py-2 pl-10 pr-8 text-gray-100 focus:ring-2 focus:ring-cyan-500 outline-none"
-            />
-            {searchQuery && (
-              <button
-                onClick={clearSearch}
-                className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            )}
-          </div>
+          <ListingSearchBar search={search} />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -152,7 +138,7 @@ const Marketplace = () => {
               listings.map(listing => (
                 <div
                   key={listing.id}
-                  onClick={() => setSelectedListing(listing)}
+                  onClick={() => handleSelectListing(listing)}
                   className={`bg-gray-800 p-4 rounded-xl border cursor-pointer transition-all hover:scale-[1.02] ${selectedListing?.id === listing.id ? 'border-cyan-500 shadow-[0_0_15px_rgba(6,182,212,0.3)]' : 'border-gray-700 hover:border-gray-600'}`}
                 >
                   <h3 className="font-bold text-lg mb-1">{listing.name}</h3>
@@ -161,14 +147,9 @@ const Marketplace = () => {
                   )}
                   {listing.tags?.length > 0 && (
                     <div className="flex flex-wrap gap-1.5 mb-3">
-                      {listing.tags.map((tag, idx) => {
-                        const c = getTagColor(tag.weight);
-                        return (
-                          <span key={idx} className={`text-xs px-2 py-0.5 rounded-full ${c.bg} ${c.text}`}>
-                            {tag.name}
-                          </span>
-                        );
-                      })}
+                      {listing.tags.map((tag, idx) => (
+                        <TagBadge key={idx} name={tag.name} weight={tag.weight} />
+                      ))}
                     </div>
                   )}
                   <p className="text-xs text-gray-500">{formatDate(listing.created_at)}</p>
@@ -192,14 +173,9 @@ const Marketplace = () => {
                 )}
                 {listingDetail.tags?.length > 0 && (
                   <div className="flex flex-wrap gap-1.5 mb-4">
-                    {listingDetail.tags.map((tag, idx) => {
-                      const c = getTagColor(tag.weight);
-                      return (
-                        <span key={idx} className={`text-xs px-2 py-0.5 rounded-full ${c.bg} ${c.text}`}>
-                          {tag.name}
-                        </span>
-                      );
-                    })}
+                    {listingDetail.tags.map((tag, idx) => (
+                      <TagBadge key={idx} name={tag.name} weight={tag.weight} />
+                    ))}
                   </div>
                 )}
 

@@ -46,6 +46,10 @@ export const dropdownOptionCompact = 'px-2 py-1 text-sm cursor-pointer';
 export const dropdownTrigger = 'flex items-center justify-between gap-1 cursor-pointer bg-gray-800 border border-gray-600 rounded px-2 py-1.5 text-sm focus:outline-none focus:border-emerald-500 transition-colors';
 export const dropdownTriggerInline = 'inline-flex items-center gap-0.5 cursor-pointer font-bold focus:outline-none';
 
+// --- Positioned buttons ---
+
+export const clearBtnAbsolute = 'absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white';
+
 // --- Layout ---
 
 export const groupRow = 'group flex justify-between items-center';

@@ -78,7 +78,8 @@
     "specialUpgradeS": "푸른 개조석",
     "specialUpgradeLevel": "{{level}}강",
     "ergLabel": "에르그",
-    "ergGrade": "{{grade}}등급"
+    "ergGrade": "{{grade}}등급",
+    "addMoreTags": "태그 추가..."
   },
   "sidebar": {
     "home": "마트레",
