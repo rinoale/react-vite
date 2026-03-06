@@ -27,22 +27,6 @@ export function AuthProvider({ children }) {
 
   useEffect(() => { loadUser(); }, [loadUser]);
 
-  const login = useCallback(async (email, password) => {
-    const { data } = await authApi.login(email, password);
-    localStorage.setItem('access_token', data.access_token);
-    localStorage.setItem('refresh_token', data.refresh_token);
-    await loadUser();
-    return data;
-  }, [loadUser]);
-
-  const register = useCallback(async (email, password) => {
-    const { data } = await authApi.register(email, password);
-    localStorage.setItem('access_token', data.access_token);
-    localStorage.setItem('refresh_token', data.refresh_token);
-    await loadUser();
-    return data;
-  }, [loadUser]);
-
   const loginWithTokens = useCallback(async (accessToken, refreshToken) => {
     localStorage.setItem('access_token', accessToken);
     localStorage.setItem('refresh_token', refreshToken);
@@ -58,7 +42,7 @@ export function AuthProvider({ children }) {
   const isAuthenticated = !!user;
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, loginWithTokens, register, logout, isAuthenticated }}>
+    <AuthContext.Provider value={{ user, loading, loginWithTokens, logout, isAuthenticated }}>
       {children}
     </AuthContext.Provider>
   );

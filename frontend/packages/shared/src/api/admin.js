@@ -58,3 +58,24 @@ export const updateTagWeight = (tagId, weight) =>
 
 export const updateTagTargetWeight = (tagTargetId, weight) =>
   client.patch(`/admin/tags/targets/${tagTargetId}`, { weight });
+
+export const getUsers = ({ limit, offset } = {}) =>
+  client.get('/admin/users', { params: { limit, offset } });
+
+export const getRoles = () =>
+  client.get('/admin/roles');
+
+export const getFeatureFlags = () =>
+  client.get('/admin/feature-flags');
+
+export const assignRole = (userId, roleName) =>
+  client.post(`/admin/users/${userId}/roles/${roleName}`);
+
+export const removeRole = (userId, roleName) =>
+  client.delete(`/admin/users/${userId}/roles/${roleName}`);
+
+export const assignFeatureToRole = (roleName, flagName) =>
+  client.post(`/admin/roles/${roleName}/features/${flagName}`);
+
+export const removeFeatureFromRole = (roleName, flagName) =>
+  client.delete(`/admin/roles/${roleName}/features/${flagName}`);

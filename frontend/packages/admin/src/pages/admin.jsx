@@ -6,6 +6,8 @@ import { getSummary, getEnchantEntries, getEnchantEffects, getLinks, getCorrecti
 import CustomSelect from '@mabi/shared/components/CustomSelect';
 import TagBadge from '@mabi/shared/components/TagBadge';
 import { getTagColor } from '@mabi/shared/lib/tagColors';
+import { useAuth } from '@mabi/shared/hooks/useAuth';
+import UsersPanel from '../components/UsersPanel';
 
 const toRankLabel = (rank) => {
   const n = Number(rank);
@@ -1191,12 +1193,15 @@ const ListingsPanel = () => {
   );
 };
 
-const VALID_TABS = ['enchants', 'listings', 'corrections', 'tags'];
+const BASE_TABS = ['enchants', 'listings', 'corrections', 'tags'];
 
 const Admin = () => {
   const { t } = useTranslation();
   const { tab } = useParams();
-  const activeTab = VALID_TABS.includes(tab) ? tab : null;
+  const { user } = useAuth();
+  const isMaster = user?.roles?.includes('master');
+  const validTabs = useMemo(() => isMaster ? [...BASE_TABS, 'users'] : BASE_TABS, [isMaster]);
+  const activeTab = validTabs.includes(tab) ? tab : null;
   const [summary, setSummary] = useState(null);
   const [entries, setEntries] = useState([]);
   const [effectsByEnchant, setEffectsByEnchant] = useState({});
@@ -1206,12 +1211,18 @@ const Admin = () => {
   const [nameQuery, setNameQuery] = useState('');
   const [pagination, setPagination] = useState({ limit: 100, offset: 0 });
 
-  const TABS = useMemo(() => [
-    { key: 'enchants', label: t('tabs.enchants') },
-    { key: 'listings', label: t('tabs.listings') },
-    { key: 'corrections', label: t('tabs.corrections') },
-    { key: 'tags', label: t('tabs.tags') },
-  ], [t]);
+  const TABS = useMemo(() => {
+    const tabs = [
+      { key: 'enchants', label: t('tabs.enchants') },
+      { key: 'listings', label: t('tabs.listings') },
+      { key: 'corrections', label: t('tabs.corrections') },
+      { key: 'tags', label: t('tabs.tags') },
+    ];
+    if (isMaster) {
+      tabs.push({ key: 'users', label: t('tabs.users') });
+    }
+    return tabs;
+  }, [t, isMaster]);
 
   useEffect(() => {
     fetchInitialData();
@@ -1337,6 +1348,8 @@ const Admin = () => {
           <ListingsPanel />
         ) : activeTab === 'tags' ? (
           <TagsPanel />
+        ) : activeTab === 'users' && isMaster ? (
+          <UsersPanel />
         ) : isLoading && !summary ? (
           <div className="flex flex-col items-center justify-center py-20">
             <Loader2 className="w-12 h-12 text-cyan-500 animate-spin mb-4" />

@@ -47,7 +47,7 @@ const Sidebar = () => {
       <div className={userInfoBox}>
         {isAuthenticated ? (
           <>
-            <p className={userEmail}>{user?.email}</p>
+            <p className={userEmail}>{user?.discord_username || user?.email}</p>
             <button type="button" className={logoutBtn} onClick={handleLogout}>
               <LogOut className="w-4 h-4" />
               {t('auth.logout')}

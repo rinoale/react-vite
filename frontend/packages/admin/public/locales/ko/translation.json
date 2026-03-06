@@ -20,7 +20,8 @@
     "enchants": "Enchants",
     "listings": "Listings",
     "corrections": "Corrections",
-    "tags": "Tags"
+    "tags": "Tags",
+    "users": "사용자"
   },
   "corrections": {
     "title": "OCR CORRECTIONS",
@@ -87,6 +88,24 @@
     "create": "생성",
     "resultCreated": "{{count}}개 생성",
     "resultDuplicates": "{{count}}개 중복"
+  },
+  "users": {
+    "title": "사용자 관리",
+    "loading": "사용자 로딩중...",
+    "rolesAndFeatures": "역할 및 기능 플래그",
+    "email": "이메일",
+    "discord": "디스코드",
+    "server": "서버",
+    "gameId": "게임 ID",
+    "status": "상태",
+    "roles": "역할",
+    "createdAt": "가입일",
+    "active": "활성",
+    "inactive": "비활성",
+    "noUsers": "사용자가 없습니다.",
+    "prev": "이전",
+    "next": "다음",
+    "refresh": "새로고침"
   },
   "enchants": {
     "title": "ENCHANT ENTRIES",

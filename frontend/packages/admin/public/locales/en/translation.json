@@ -20,7 +20,8 @@
     "enchants": "Enchants",
     "listings": "Listings",
     "corrections": "Corrections",
-    "tags": "Tags"
+    "tags": "Tags",
+    "users": "Users"
   },
   "corrections": {
     "title": "OCR CORRECTIONS",
@@ -87,6 +88,24 @@
     "create": "Create",
     "resultCreated": "{{count}} created",
     "resultDuplicates": "{{count}} duplicates"
+  },
+  "users": {
+    "title": "USERS",
+    "loading": "Loading users...",
+    "rolesAndFeatures": "Roles & Feature Flags",
+    "email": "Email",
+    "discord": "Discord",
+    "server": "Server",
+    "gameId": "Game ID",
+    "status": "Status",
+    "roles": "Roles",
+    "createdAt": "Created",
+    "active": "Active",
+    "inactive": "Inactive",
+    "noUsers": "No users found.",
+    "prev": "PREV",
+    "next": "NEXT",
+    "refresh": "Refresh"
   },
   "enchants": {
     "title": "ENCHANT ENTRIES",
