@@ -3,8 +3,10 @@ from fastapi.middleware.cors import CORSMiddleware
 import logging
 import os
 from admin import router as admin_router
+from auth import router as auth_router
 from corrections import router as corrections_router
 from trade.router import router as trade_router
+from core.config import get_settings
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -29,24 +31,17 @@ for name in ('uvicorn', 'uvicorn.access', 'uvicorn.error'):
     uv_logger.handlers = logging.getLogger().handlers
     uv_logger.propagate = False
 
+settings = get_settings()
+
 app = FastAPI()
+app.include_router(auth_router)
 app.include_router(admin_router)
 app.include_router(corrections_router)
 app.include_router(trade_router)
 
-# Allow CORS for local development
-origins = [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-    "http://localhost:5174",
-    "http://127.0.0.1:5174",
-    "http://localhost:5175",
-    "http://127.0.0.1:5175",
-]
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=settings.cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -2,12 +2,14 @@ from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from db.connector import get_db
+from db.models import User
 from db.schemas import RegisterListingRequest
 from trade.schemas import ExamineItemResponse
 from trade.service import capture_corrections, create_listing, create_listing_tags, get_listings as svc_get_listings, search_game_items as svc_search_game_items, search_listings as svc_search_listings, search_tags as svc_search_tags
 from lib.utils.log import logger
 from lib.pipeline.v3 import init_pipeline, run_v3_pipeline, prepare_sections_for_response
 from crud.admin import get_listing_detail
+from auth.dependencies import get_current_user
 
 router = APIRouter()
 
@@ -109,7 +111,7 @@ async def examine_item(file: UploadFile = File(...)):
 
 
 @router.post("/register-listing")
-def register_listing(payload: RegisterListingRequest, db: Session = Depends(get_db)):
+def register_listing(payload: RegisterListingRequest, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     """Register a listing and implicitly capture any OCR corrections."""
     logger.info(
         "register-listing  session=%s  name=%r  lines=%d",

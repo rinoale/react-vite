@@ -85,6 +85,25 @@
     "title": "Item Search",
     "placeholder": "Search items, tags..."
   },
+  "auth": {
+    "loginTitle": "Login",
+    "registerTitle": "Register",
+    "email": "Email",
+    "password": "Password",
+    "loginSubmit": "Login",
+    "registerSubmit": "Register",
+    "or": "or",
+    "hasAccount": "Already have an account?",
+    "noAccount": "Don't have an account?",
+    "loginSuccess": "Logged in successfully.",
+    "registerSuccess": "Account created successfully.",
+    "logout": "Logout",
+    "error": "Authentication failed.",
+    "discordError": {
+      "discord_failed": "Discord login failed. Please try again.",
+      "no_email": "Your Discord account has no email. Please use email registration."
+    }
+  },
   "sidebar": {
     "home": "matrade",
     "search": "Search",

@@ -85,6 +85,25 @@
     "title": "아이템 검색",
     "placeholder": ""
   },
+  "auth": {
+    "loginTitle": "로그인",
+    "registerTitle": "회원가입",
+    "email": "이메일",
+    "password": "비밀번호",
+    "loginSubmit": "로그인",
+    "registerSubmit": "회원가입",
+    "or": "또는",
+    "hasAccount": "계정이 있으신가요?",
+    "noAccount": "계정이 없으신가요?",
+    "loginSuccess": "로그인 성공",
+    "registerSuccess": "회원가입 성공",
+    "logout": "로그아웃",
+    "error": "인증에 실패했습니다.",
+    "discordError": {
+      "discord_failed": "디스코드 로그인에 실패했습니다. 다시 시도해주세요.",
+      "no_email": "디스코드 계정에 이메일이 없습니다. 이메일로 회원가입해주세요."
+    }
+  },
   "sidebar": {
     "home": "마트레",
     "search": "검색",

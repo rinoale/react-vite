@@ -620,3 +620,123 @@ All models: TPS-ResNet-BiLSTM-CTC architecture, imgH=32, `sensitive=true`, `PAD=
 V3 response: `{sections: {section_name: OcrSectionResponse}, tagged_segments, abbreviated, session_id?}`
 
 See `documents/API_SPEC.md` for full response schema.
+
+---
+
+## Authentication & Authorization
+
+### Overview
+
+Stateless JWT-based auth. No server-side sessions — the backend validates the JWT signature and expiry on each request.
+
+### Token Architecture
+
+| Token | Algorithm | Lifetime | Storage | Purpose |
+|-------|-----------|----------|---------|---------|
+| Access token | HS256 JWT | 30 minutes | `localStorage('access_token')` | Sent with every API request via `Authorization: Bearer` header |
+| Refresh token | HS256 JWT | 7 days | `localStorage('refresh_token')` | Used only to obtain a new token pair when access token expires |
+
+JWT payload: `{"sub": "<user_id>", "type": "access"|"refresh", "exp": <unix_ts>}`
+
+Secret: `JWT_SECRET_KEY` env var (falls back to dev default).
+
+### Authentication Flow
+
+```
+1. Login/Register
+   User submits email + password
+     → POST /auth/login (or /auth/register)
+     → Backend verifies credentials, returns {access_token, refresh_token}
+     → Frontend stores both in localStorage
+     → Frontend calls GET /auth/me → loads user profile
+     → AuthProvider sets user state → UI updates
+
+2. Authenticated Requests
+   Any API call
+     → Axios request interceptor reads localStorage('access_token')
+     → Attaches header: Authorization: Bearer <token>
+     → Backend get_current_user decodes JWT, loads user from DB
+     → If valid + user.status == 0 → request proceeds
+     → If invalid/expired → 401
+
+3. Automatic Token Refresh
+   API call returns 401
+     → Axios response interceptor catches it
+     → POST /auth/refresh with refresh_token
+     → Backend validates refresh token, issues NEW token pair
+     → Interceptor stores new tokens, retries original request
+     → User never sees the 401
+   Concurrent 401s: queued — only one refresh call, then all retry
+
+4. Discord OAuth
+   GET /auth/discord → redirect to Discord authorize URL
+   Discord callback → POST to Discord token endpoint → fetch user info
+   → Link to existing user (by discord_id or email) or create new user
+   → Return token pair
+```
+
+### Session Persistence
+
+| Scenario | Behavior |
+|----------|----------|
+| Access token expires (30min) | Auto-refreshed silently via interceptor |
+| Refresh token expires (7 days idle) | Refresh fails → tokens cleared → user logged out |
+| Active usage | Each refresh issues new 7-day refresh token → session extends indefinitely |
+| Tab closed, reopened | AuthProvider reads localStorage → GET /auth/me → restores session (or auto-refreshes) |
+| Logout clicked | Both tokens removed from localStorage, user state cleared |
+
+Effective session lifetime: **7 days from last activity**. Indefinite with continuous use.
+
+### Authorization Model
+
+```
+Files:
+  backend/auth/service.py        — password hashing (bcrypt), JWT encode/decode, Discord OAuth
+  backend/auth/dependencies.py   — FastAPI dependencies for auth guards
+  backend/auth/router.py         — /auth/* endpoints
+  backend/crud/user.py           — User/Role/Feature CRUD
+```
+
+**Database tables:** `users`, `roles`, `user_roles`, `feature_flags`, `role_feature_flags`
+
+**Seeded data:** roles=`{master, admin}`, feature_flags=`{manage_tags, manage_corrections}`
+
+**Dependency chain:**
+
+```
+get_current_user         → any valid JWT, active user (status=0)
+optional_user            → same but returns None if no token
+require_role("admin")    → user has "admin" role (master bypasses all)
+require_feature("X")     → user's roles have feature flag X (master bypasses all)
+```
+
+### Endpoint Authorization Map
+
+| Router | Endpoint Pattern | Guard |
+|--------|-----------------|-------|
+| `/auth/*` | register, login, refresh, discord | None (public) |
+| `/auth/me` | GET, PATCH | `get_current_user` |
+| `/admin/*` | All GET endpoints | `require_role("admin")` |
+| `/admin/tags` | POST, DELETE, PATCH (mutations) | `require_feature("manage_tags")` |
+| `/admin/users/*/roles/*` | POST, DELETE | `require_role("master")` |
+| `/admin/roles/*/features/*` | POST, DELETE | `require_role("master")` |
+| `/admin/corrections/*` | All except crop | `require_feature("manage_corrections")` |
+| `/admin/corrections/crop/*` | GET | None (public, serves static images) |
+| `/register-listing` | POST | `get_current_user` |
+| `/examine-item` | POST | None (public) |
+| `/listings`, `/tags/search`, `/game-items` | GET | None (public) |
+
+### Frontend Auth Infrastructure
+
+```
+Files:
+  shared/src/api/auth.js              — API functions (register, login, refresh, getMe)
+  shared/src/api/client.js            — Axios interceptors (attach token, auto-refresh on 401)
+  shared/src/hooks/useAuth.js         — AuthContext + useAuth() hook
+  shared/src/components/AuthProvider   — Context provider (token storage, user loading, login/register/logout)
+  trade/src/pages/login.jsx           — Login/Register page with Discord OAuth button
+```
+
+**AuthProvider** wraps the app at root level (`main.jsx`). On mount, reads localStorage tokens and calls `GET /auth/me`. Exposes `{user, loading, login, register, logout, isAuthenticated}` via context.
+
+**Sidebar** shows user email + logout button when authenticated, login link when not.

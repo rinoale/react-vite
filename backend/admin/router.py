@@ -7,9 +7,16 @@ from sqlalchemy.orm import Session
 
 from db.connector import get_db
 from db import schemas
+from db.models import User
 from crud import admin as crud_admin
+from crud import user as crud_user
+from auth.dependencies import require_role, require_feature
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+
+_admin_required = Depends(require_role("admin"))
+_manage_tags = Depends(require_feature("manage_tags"))
+_master_required = Depends(require_role("master"))
 
 _ALLOWED_TABS = {"enchants", "effects", "enchant_effects", "reforge"}
 
@@ -54,12 +61,12 @@ def _render_table(rows: list[Any]) -> str:
 
 
 @router.get("/health")
-def admin_health() -> dict[str, bool]:
+def admin_health(_: User = _admin_required) -> dict[str, bool]:
     return {"ok": True}
 
 
 @router.get("/summary", response_model=schemas.SummarySchema)
-def admin_summary(db: Session = Depends(get_db)):
+def admin_summary(db: Session = Depends(get_db), _: User = _admin_required):
     return crud_admin.get_summary(db)
 
 
@@ -68,6 +75,7 @@ def admin_enchant_entries(
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
+    _: User = _admin_required,
 ):
     rows = crud_admin.get_enchants(db, limit=limit, offset=offset)
     return {"limit": limit, "offset": offset, "rows": rows}
@@ -77,6 +85,7 @@ def admin_enchant_entries(
 def admin_enchant_effects_by_id(
     enchant_id: int,
     db: Session = Depends(get_db),
+    _: User = _admin_required,
 ):
     return crud_admin.get_enchant_effects_by_id(db, enchant_id)
 
@@ -86,6 +95,7 @@ def admin_effects(
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
+    _: User = _admin_required,
 ):
     rows = crud_admin.get_effects(db, limit=limit, offset=offset)
     return {"limit": limit, "offset": offset, "rows": rows}
@@ -96,6 +106,7 @@ def admin_links(
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
+    _: User = _admin_required,
 ):
     rows = crud_admin.get_enchant_effects(db, limit=limit, offset=offset)
     return {"limit": limit, "offset": offset, "rows": rows}
@@ -106,6 +117,7 @@ def admin_reforge_options(
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
+    _: User = _admin_required,
 ):
     rows = crud_admin.get_reforge_options(db, limit=limit, offset=offset)
     return {"limit": limit, "offset": offset, "rows": rows}
@@ -115,6 +127,7 @@ def admin_reforge_options(
 def admin_listing_detail(
     listing_id: int,
     db: Session = Depends(get_db),
+    _: User = _admin_required,
 ):
     result = crud_admin.get_listing_detail(db, listing_id)
     if result is None:
@@ -127,6 +140,7 @@ def admin_listings(
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
+    _: User = _admin_required,
 ):
     rows = crud_admin.get_listings(db, limit=limit, offset=offset)
     return {"limit": limit, "offset": offset, "rows": rows}
@@ -138,6 +152,7 @@ def admin_game_items(
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
+    _: User = _admin_required,
 ):
     rows = crud_admin.get_game_items(db, q=q or None, limit=limit, offset=offset)
     return {"limit": limit, "offset": offset, "rows": rows}
@@ -149,6 +164,7 @@ def admin_tags(
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
+    _: User = _admin_required,
 ):
     rows = crud_admin.get_tags(db, target_type=target_type or None, limit=limit, offset=offset)
     return {"limit": limit, "offset": offset, "rows": rows}
@@ -158,6 +174,7 @@ def admin_tags(
 def admin_create_tag(
     data: schemas.TagCreate,
     db: Session = Depends(get_db),
+    _: User = _manage_tags,
 ):
     tt = crud_admin.create_tag(db, data)
     if tt is None:
@@ -178,6 +195,7 @@ def admin_create_tag(
 def admin_delete_tag(
     tag_target_id: int,
     db: Session = Depends(get_db),
+    _: User = _manage_tags,
 ):
     if not crud_admin.delete_tag(db, tag_target_id):
         raise HTTPException(status_code=404, detail="Tag target not found")
@@ -189,6 +207,7 @@ def admin_unique_tags(
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
+    _: User = _admin_required,
 ):
     rows = crud_admin.get_unique_tags(db, limit=limit, offset=offset)
     return {"limit": limit, "offset": offset, "rows": rows}
@@ -198,6 +217,7 @@ def admin_unique_tags(
 def admin_delete_tag_by_id(
     tag_id: int,
     db: Session = Depends(get_db),
+    _: User = _manage_tags,
 ):
     if not crud_admin.delete_tag_by_id(db, tag_id):
         raise HTTPException(status_code=404, detail="Tag not found")
@@ -211,6 +231,7 @@ def admin_search_tag_entities(
     like: bool = Query(default=True),
     limit: int = Query(default=20, ge=1, le=100),
     db: Session = Depends(get_db),
+    _: User = _admin_required,
 ):
     if not q.strip():
         return []
@@ -221,6 +242,7 @@ def admin_search_tag_entities(
 def admin_bulk_create_tags(
     data: schemas.BulkTagCreate,
     db: Session = Depends(get_db),
+    _: User = _manage_tags,
 ):
     return crud_admin.bulk_create_tags(db, data)
 
@@ -230,6 +252,7 @@ def admin_update_tag_target_weight(
     tag_target_id: int,
     data: schemas.WeightUpdate,
     db: Session = Depends(get_db),
+    _: User = _manage_tags,
 ):
     if not crud_admin.update_tag_target_weight(db, tag_target_id, data.weight):
         raise HTTPException(status_code=404, detail="Tag target not found")
@@ -240,6 +263,7 @@ def admin_update_tag_target_weight(
 def admin_tag_detail(
     tag_id: int,
     db: Session = Depends(get_db),
+    _: User = _admin_required,
 ):
     result = crud_admin.get_tag_detail(db, tag_id)
     if result is None:
@@ -252,6 +276,7 @@ def admin_update_tag_weight(
     tag_id: int,
     data: schemas.WeightUpdate,
     db: Session = Depends(get_db),
+    _: User = _manage_tags,
 ):
     if not crud_admin.update_tag_weight(db, tag_id, data.weight):
         raise HTTPException(status_code=404, detail="Tag not found")
@@ -264,6 +289,7 @@ def admin_validate_page(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
+    _: User = _admin_required,
 ) -> HTMLResponse:
     tab = tab if tab in _ALLOWED_TABS else "enchants"
     summary = crud_admin.get_summary(db)
@@ -315,3 +341,49 @@ def admin_validate_page(
 </html>
 """
     return HTMLResponse(content=html)
+
+
+# --- Role & feature management (master only) ---
+
+@router.post("/users/{user_id}/roles/{role_name}")
+def admin_assign_role(
+    user_id: int, role_name: str,
+    db: Session = Depends(get_db),
+    _: User = _master_required,
+):
+    if not crud_user.assign_role(db, user_id, role_name):
+        raise HTTPException(status_code=404, detail="User or role not found")
+    return {"ok": True}
+
+
+@router.delete("/users/{user_id}/roles/{role_name}")
+def admin_remove_role(
+    user_id: int, role_name: str,
+    db: Session = Depends(get_db),
+    _: User = _master_required,
+):
+    if not crud_user.remove_role(db, user_id, role_name):
+        raise HTTPException(status_code=404, detail="User role not found")
+    return {"ok": True}
+
+
+@router.post("/roles/{role_name}/features/{flag_name}")
+def admin_assign_feature(
+    role_name: str, flag_name: str,
+    db: Session = Depends(get_db),
+    _: User = _master_required,
+):
+    if not crud_user.assign_feature_to_role(db, role_name, flag_name):
+        raise HTTPException(status_code=404, detail="Role or feature flag not found")
+    return {"ok": True}
+
+
+@router.delete("/roles/{role_name}/features/{flag_name}")
+def admin_remove_feature(
+    role_name: str, flag_name: str,
+    db: Session = Depends(get_db),
+    _: User = _master_required,
+):
+    if not crud_user.remove_feature_from_role(db, role_name, flag_name):
+        raise HTTPException(status_code=404, detail="Role feature flag not found")
+    return {"ok": True}

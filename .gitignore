@@ -23,6 +23,9 @@ dist-ssr
 *.sln
 *.sw?
 
+# Environment files (keep .env.example and .env.development committed)
+backend/.env.*
+
 # Project Specific
 data
 deep-text-recognition-benchmark/

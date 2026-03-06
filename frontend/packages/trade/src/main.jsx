@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import { initI18n } from '@mabi/shared/i18n'
 import { ToastProvider } from '@mabi/shared/components/ToastProvider'
+import { AuthProvider } from '@mabi/shared/components/AuthProvider'
 import './index.css'
 import App from './App.jsx'
 
@@ -13,7 +14,9 @@ createRoot(document.getElementById('root')).render(
     <Suspense fallback="">
       <BrowserRouter>
         <ToastProvider>
-          <App />
+          <AuthProvider>
+            <App />
+          </AuthProvider>
         </ToastProvider>
       </BrowserRouter>
     </Suspense>

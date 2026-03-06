@@ -1,10 +1,47 @@
 import re
 from typing import Dict, List, Optional, Union
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from decimal import Decimal
 from datetime import datetime
 
 _HTML_TAG_RE = re.compile(r'<[^>]*>?')
+
+
+# --- Auth ---
+
+class UserRegister(BaseModel):
+    email: EmailStr
+    password: str = Field(..., min_length=8)
+
+class UserLogin(BaseModel):
+    email: EmailStr
+    password: str
+
+class TokenResponse(BaseModel):
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+class UserUpdate(BaseModel):
+    server: Optional[str] = None
+    game_id: Optional[str] = None
+
+class UserOut(BaseModel):
+    id: int
+    email: str
+    discord_username: Optional[str] = None
+    server: Optional[str] = None
+    game_id: Optional[str] = None
+    status: int = 0
+    verified: bool = False
+    roles: List[str] = []
+    features: List[str] = []
+
+    class Config:
+        from_attributes = True
 
 class EnchantBase(BaseModel):
     slot: int
