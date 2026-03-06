@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Pencil, Plus, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import ConfigSearchInput from '../ConfigSearchInput';
+import { cardItem, groupRow, flexCenter, iconBtnEdit, iconBtnRemove, editLevelCyan, badgeCyan, badgeOrange, badgeClickable, addBtnCyan, inputCompact } from '../../styles';
 
 const ReforgeOption = ({ opt, optIdx, lineIdx, onLineChange, onRemove }) => {
   const { t } = useTranslation();
@@ -29,7 +30,7 @@ const ReforgeOption = ({ opt, optIdx, lineIdx, onLineChange, onRemove }) => {
   };
 
   return (
-    <div className="bg-gray-900/50 p-2 rounded border border-gray-700">
+    <div className={cardItem}>
       {editingName ? (
         <ConfigSearchInput
           items={reforgeItems}
@@ -56,19 +57,19 @@ const ReforgeOption = ({ opt, optIdx, lineIdx, onLineChange, onRemove }) => {
           placeholder={t('sections.reforge.searchReforgeOption')}
         />
       ) : (
-        <div className="group flex justify-between items-center mb-1">
-          <div className="flex items-center gap-1">
+        <div className={`${groupRow} mb-1`}>
+          <div className={flexCenter}>
             <span className="text-sm font-medium text-cyan-300">{opt.name}</span>
             <button
               onClick={() => setEditingName(true)}
-              className="p-0.5 text-gray-600 opacity-0 group-hover:opacity-100 hover:text-cyan-400 transition-opacity"
+              className={iconBtnEdit}
               title={t('sections.reforge.correct')}
             >
               <Pencil className="w-3 h-3" />
             </button>
             <button
               onClick={() => onRemove(optIdx)}
-              className="p-0.5 text-gray-600 opacity-0 group-hover:opacity-100 hover:text-red-400 transition-opacity"
+              className={iconBtnRemove}
               title={t('sections.reforge.remove')}
             >
               <X className="w-3 h-3" />
@@ -86,11 +87,11 @@ const ReforgeOption = ({ opt, optIdx, lineIdx, onLineChange, onRemove }) => {
                   if (e.key === 'Enter') commitLevel(levelDraft);
                   if (e.key === 'Escape') setEditingLevel(false);
                 }}
-                className="w-16 text-xs text-cyan-300 bg-gray-900 border border-cyan-500 rounded px-1 py-0.5 text-center outline-none"
+                className={editLevelCyan}
               />
             ) : (
               <span
-                className={`text-xs px-2 py-0.5 rounded border cursor-pointer ${isTranscend ? 'bg-orange-900/50 text-orange-300 border-orange-700/50 hover:border-orange-500' : 'bg-cyan-900/50 text-cyan-300 border-cyan-700/50 hover:border-cyan-500'}`}
+                className={`${badgeClickable} ${isTranscend ? badgeOrange : badgeCyan}`}
                 onClick={() => { setLevelDraft(String(opt.level)); setEditingLevel(true); }}
                 title={t('sections.reforge.clickToEditLevel')}
               >
@@ -150,7 +151,7 @@ const AddReforgeOption = ({ onLineChange, existingCount }) => {
     <button
       type="button"
       onClick={() => setSearching(true)}
-      className="w-full border-2 border-dashed border-gray-700 hover:border-cyan-500 rounded-lg p-3 text-sm text-gray-500 hover:text-cyan-300 transition-colors flex items-center justify-center gap-2"
+      className={addBtnCyan}
     >
       <Plus className="w-4 h-4" />
       {t('sections.reforge.addOption')}
@@ -200,7 +201,7 @@ const ReforgeSection = ({ options, lines, onLineChange }) => {
             type="text"
             value={line.text}
             onChange={(e) => onLineChange(idx, e.target.value)}
-            className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-sm text-gray-300 focus:ring-1 focus:ring-orange-500 outline-none"
+            className={inputCompact}
           />
         ))}
       </div>

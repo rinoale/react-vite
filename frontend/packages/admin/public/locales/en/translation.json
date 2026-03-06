@@ -13,12 +13,14 @@
     "effects": "Effects",
     "enchantEffects": "Enchant Effects",
     "listings": "Listings",
-    "gameItems": "Game Items"
+    "gameItems": "Game Items",
+    "tags": "Tags"
   },
   "tabs": {
     "enchants": "Enchants",
     "listings": "Listings",
-    "corrections": "Corrections"
+    "corrections": "Corrections",
+    "tags": "Tags"
   },
   "corrections": {
     "title": "OCR CORRECTIONS",
@@ -51,6 +53,39 @@
     "enchantCount": "{{count}} ENCHANT",
     "enchantCount_plural": "{{count}} ENCHANTS",
     "price": "{{price}}G"
+  },
+  "tags": {
+    "title": "TAGS",
+    "entityType": "Entity Type",
+    "entitySearch": "Search entity...",
+    "tagName": "Tag name",
+    "weight": "Weight",
+    "create": "Create",
+    "prev": "PREV",
+    "next": "NEXT",
+    "noTags": "No tags found.",
+    "refresh": "Refresh",
+    "selectAll": "Select All",
+    "targetCount": "{{count}} targets",
+    "deleteConfirm": "Delete this target?",
+    "deleteTagConfirm": "Delete this tag and all its targets?",
+    "duplicateError": "Tag already exists.",
+    "loadingDetail": "Loading...",
+    "tagWeight": "Tag Weight",
+    "targets": "Targets",
+    "targetWeight": "w:",
+    "noTargets": "No targets."
+  },
+  "bulkTag": {
+    "title": "BULK TAG",
+    "likeSearch": "Like",
+    "searchPlaceholder": "Search entity...",
+    "selected": "{{count}} selected",
+    "tagName": "Tag name",
+    "weight": "Weight",
+    "create": "Create",
+    "resultCreated": "{{count}} created",
+    "resultDuplicates": "{{count}} duplicates"
   },
   "enchants": {
     "title": "ENCHANT ENTRIES",

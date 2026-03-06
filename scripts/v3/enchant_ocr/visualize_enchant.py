@@ -360,7 +360,7 @@ def main():
     # =====================================================================
     print(f"\n--- Step 6: Line detection + classification ---")
     binary_detect = cv2.bitwise_not(binary)
-    detected = splitter.detect_text_lines(binary_detect)
+    detected = splitter.detect_centered_lines(binary_detect)
     grouped = group_by_y(detected)
     print(f"  Detected {len(detected)} raw lines → {len(grouped)} groups")
 

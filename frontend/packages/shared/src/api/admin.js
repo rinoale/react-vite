@@ -28,3 +28,33 @@ export const getListings = ({ limit, offset }) =>
 
 export const getListingDetail = (listingId) =>
   client.get(`/admin/listings/${listingId}/detail`);
+
+export const getTags = ({ targetType, limit, offset }) =>
+  client.get('/admin/tags', { params: { target_type: targetType || '', limit, offset } });
+
+export const createTag = ({ target_type, target_id, name, weight }) =>
+  client.post('/admin/tags', { target_type, target_id, name, weight });
+
+export const deleteTag = (tagId) =>
+  client.delete(`/admin/tags/${tagId}`);
+
+export const searchTagEntities = (targetType, q, { like = true } = {}) =>
+  client.get('/admin/tags/search-entities', { params: { target_type: targetType, q, like } });
+
+export const bulkCreateTags = ({ targets, names, weight }) =>
+  client.post('/admin/tags/bulk', { targets, names, ...(weight != null && { weight }) });
+
+export const getUniqueTags = ({ limit, offset }) =>
+  client.get('/admin/tags/unique', { params: { limit, offset } });
+
+export const deleteTagById = (tagId) =>
+  client.delete(`/admin/tags/by-tag/${tagId}`);
+
+export const getTagDetail = (tagId) =>
+  client.get(`/admin/tags/${tagId}`);
+
+export const updateTagWeight = (tagId, weight) =>
+  client.patch(`/admin/tags/${tagId}`, { weight });
+
+export const updateTagTargetWeight = (tagTargetId, weight) =>
+  client.patch(`/admin/tags/targets/${tagTargetId}`, { weight });

@@ -7,7 +7,7 @@ Reproduces the exact V3 pipeline path up to line detection:
   3. build_segments with border coordinates
   4. Header classification via header OCR model + fuzzy match
   5. BT.601 + threshold=80 → ocr_binary (same as BaseHandler.process())
-  6. detect_text_lines() on ocr_binary
+  6. detect_centered_lines() on ocr_binary
   7. group_by_y() on detected lines
 
 Output directory structure:
@@ -26,11 +26,13 @@ Output directory structure:
       overview.png
 
 Usage:
-    python3 scripts/v3/segmentation/test_line_split.py data/sample_images/captain_suit_original.png split_result/
-    python3 scripts/v3/segmentation/test_line_split.py data/sample_images/ split_result/
+    python3 scripts/v3/line_split/test_line_split.py
+    python3 scripts/v3/line_split/test_line_split.py data/sample_images/captain_suit_original.png
+    python3 scripts/v3/line_split/test_line_split.py data/sample_images/ tmp/custom_output/
 """
 
 import argparse
+import glob
 import os
 import sys
 
@@ -52,6 +54,7 @@ from lib.pipeline.segmenter import (
 )
 from lib.pipeline.section_handlers._helpers import bt601_binary
 from lib.pipeline.line_split import MabinogiTooltipSplitter, group_by_y
+from lib.pipeline.line_split import group_by_distance
 
 
 SEGMENT_COLORS = [
@@ -62,6 +65,18 @@ HEADER_COLOR = (0, 127, 255)
 LINE_COLOR = (0, 255, 0)
 LINE_COLOR_BINARY = (0, 0, 255)
 
+# Distinct colors per distance group (BGR)
+DIST_GROUP_COLORS = [
+    (0, 255, 0),     # green
+    (0, 200, 255),   # orange
+    (255, 0, 255),   # magenta
+    (255, 255, 0),   # cyan
+    (0, 0, 255),     # red
+    (255, 0, 0),     # blue
+    (0, 255, 255),   # yellow
+    (200, 100, 255), # pink
+]
+
 
 def draw_lines_on_image(img, lines, color, thickness=1):
     """Draw line bounding boxes on an image copy. Returns the annotated copy."""
@@ -71,7 +86,28 @@ def draw_lines_on_image(img, lines, color, thickness=1):
     for i, line in enumerate(lines):
         x, y, w, h = line['x'], line['y'], line['width'], line['height']
         cv2.rectangle(vis, (x, y), (x + w - 1, y + h - 1), color, thickness)
-        cv2.putText(vis, str(i), (x + w + 2, y + h - 1),
+        cv2.putText(vis, f'{i} h={h}', (x + w + 2, y + h - 1),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.3, color, 1)
+    return vis
+
+
+def draw_distance_groups(img, grouped_lines):
+    """Draw line bounding boxes colored by _distance_group with group index label."""
+    vis = img.copy()
+    if len(vis.shape) == 2:
+        vis = cv2.cvtColor(vis, cv2.COLOR_GRAY2BGR)
+    for gi, group in enumerate(grouped_lines):
+        dg = group[0].get('_distance_group', 0)
+        color = DIST_GROUP_COLORS[dg % len(DIST_GROUP_COLORS)]
+        for sub in group:
+            x, y, w, h = sub['x'], sub['y'], sub['width'], sub['height']
+            cv2.rectangle(vis, (x, y), (x + w - 1, y + h - 1), color, 1)
+        # Label with group index and height on the left/right of first sub-line
+        first = group[0]
+        cv2.putText(vis, f'G{dg}', (max(0, first['x'] - 20), first['y'] + first['height'] - 1),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.35, color, 1)
+        last = group[-1]
+        cv2.putText(vis, f'h={first["height"]}', (last['x'] + last['width'] + 2, first['y'] + first['height'] - 1),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.3, color, 1)
     return vis
 
@@ -126,9 +162,10 @@ def process_image(image_path, output_root, header_reader, patterns, config):
         # BT.601 binary — same as BaseHandler.process()
         ocr_binary = bt601_binary(content_crop)
 
-        # Line detection — same as BaseHandler.process()
-        detected = splitter.detect_text_lines(ocr_binary)
+        # Line detection
+        detected = splitter.detect_centered_lines(ocr_binary)
         grouped = group_by_y(detected)
+        group_by_distance(grouped)
         total_lines += len(grouped)
 
         # Save content images
@@ -143,32 +180,45 @@ def process_image(image_path, output_root, header_reader, patterns, config):
         vis = draw_lines_on_image(content_crop, detected, LINE_COLOR)
         cv2.imwrite(os.path.join(out_dir, f"{prefix}_cnt_lines.png"), vis)
 
+        # Draw distance groups on content crop
+        vis_groups = draw_distance_groups(content_crop, grouped)
+        cv2.imwrite(os.path.join(out_dir, f"{prefix}_cnt_groups.png"), vis_groups)
+
         # Print summary
         hdr_text = seg.get('header_ocr_text', '')
         hdr_info = f"  hdr='{hdr_text}'" if hdr_text else ""
+        n_dist_groups = max((g[0].get('_distance_group', 0) for g in grouped), default=0) + 1
         print(f"  Seg {idx:02d} [{section:16s}]  "
               f"h={content_crop.shape[0]:3d}  "
-              f"→ {len(detected):2d} lines ({len(grouped):2d} grouped){hdr_info}")
+              f"→ {len(detected):2d} lines ({len(grouped):2d} grouped, {n_dist_groups} dist_groups){hdr_info}")
         for i, line in enumerate(detected):
+            dg = line.get('_distance_group', 0)
             print(f"           line {i:2d}: y={line['y']:3d} x={line['x']:3d} "
-                  f"w={line['width']:3d} h={line['height']:2d}")
+                  f"w={line['width']:3d} h={line['height']:2d}  G{dg}")
 
     print(f"\n  Total: {total_lines} grouped lines")
     print(f"  Output: {out_dir}/")
 
 
 def main():
+    default_output = os.path.join(PROJECT_ROOT, 'tmp', 'test_line_split')
+    default_input = os.path.join(PROJECT_ROOT, 'data', 'sample_images')
+
     parser = argparse.ArgumentParser(
         description='Validate v3 line splitting with visual output')
-    parser.add_argument('path', help='Image file or directory of images')
-    parser.add_argument('output', help='Output directory for results')
+    parser.add_argument('path', nargs='?', default=default_input,
+                        help='Image file or directory of images (default: data/sample_images/)')
+    parser.add_argument('output', nargs='?', default=default_output,
+                        help='Output directory for results (default: tmp/test_line_split/)')
     args = parser.parse_args()
 
     config = load_config(CONFIG_PATH)
     patterns = load_section_patterns(CONFIG_PATH)
     header_reader = init_header_reader(models_dir=MODELS_DIR)
 
-    if os.path.isdir(args.path):
+    if '*' in args.path or '?' in args.path:
+        images = sorted(glob.glob(args.path))
+    elif os.path.isdir(args.path):
         images = sorted(
             os.path.join(args.path, f)
             for f in os.listdir(args.path)

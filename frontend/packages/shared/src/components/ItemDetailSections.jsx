@@ -1,15 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Plus, RotateCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import SectionCard from './SectionCard';
+import CustomSelect from './CustomSelect';
 import { ColorPartsSection, EnchantSection, ErgSection, ItemAttrsSection, ItemModSection, ReforgeSection, SetItemSection, DefaultSection } from './sections';
 
 const ADDABLE_SECTIONS = [
   'item_attrs', 'enchant', 'reforge', 'item_mod',
-  'erg', 'set_item', 'item_grade', 'item_color',
+  'erg', 'set_item', 'item_color',
 ];
 
-const HIDDEN_SECTIONS = ['item_name', 'item_type', 'flavor_text', 'shop_price', 'pre_header', 'ego'];
+const HIDDEN_SECTIONS = ['item_name', 'item_type', 'flavor_text', 'shop_price', 'pre_header', 'ego', 'item_grade'];
 
 function createEmptySection(secKey) {
   if (secKey === 'enchant') return { prefix: null, suffix: null, lines: [] };
@@ -48,7 +49,7 @@ const ItemDetailSections = ({ sections, onSectionsChange, abbreviated = true }) 
   };
 
   const handleAddSection = (secKey) => {
-    onSectionsChange({ ...sections, [secKey]: createEmptySection(secKey) });
+    onSectionsChange({ ...sections, [secKey]: { ...createEmptySection(secKey), _added: true } });
     setOpenSections(prev => ({ ...prev, [secKey]: true }));
   };
 
@@ -56,6 +57,10 @@ const ItemDetailSections = ({ sections, onSectionsChange, abbreviated = true }) 
     const { [secKey]: _, ...rest } = sections;
     onSectionsChange(rest);
   };
+
+  const handleAddSectionSelect = useCallback((val) => {
+    if (val) handleAddSection(val);
+  }, [sections]);
 
   const renderSectionContent = (key, sectionData) => {
     if (sectionData.skipped) return <p className="text-xs text-gray-500 italic">{t('sell.sectionSkipped')}</p>;
@@ -81,13 +86,24 @@ const ItemDetailSections = ({ sections, onSectionsChange, abbreviated = true }) 
     return <DefaultSection lines={sectionData.lines} onLineChange={onLineChange} />;
   };
 
-  const visibleKeys = Object.keys(sections).filter(k => !HIDDEN_SECTIONS.includes(k));
-  const availableSections = ADDABLE_SECTIONS.filter(s => !sections[s]);
+  const hasContent = (key, data) => {
+    if (data.skipped) return false;
+    if (data._added) return true;
+    if (key === 'item_color') return data.parts?.length > 0;
+    if (key === 'enchant') return data.prefix || data.suffix || data.lines?.length > 0;
+    if (key === 'item_attrs') return data.attrs && Object.keys(data.attrs).length > 0;
+    if (key === 'reforge') return data.options?.length > 0 || data.lines?.length > 0;
+    if (key === 'item_mod') return data.has_special_upgrade || data.lines?.length > 0;
+    if (key === 'erg') return data.erg_grade != null || data.lines?.length > 0;
+    if (key === 'set_item') return data.set_effects?.length > 0 || data.lines?.length > 0;
+    return data.lines?.length > 0;
+  };
+
+  const visibleKeys = Object.keys(sections).filter(k => !HIDDEN_SECTIONS.includes(k) && hasContent(k, sections[k]));
+  const availableSections = ADDABLE_SECTIONS.filter(s => !visibleKeys.includes(s));
 
   return (
     <div className="space-y-2">
-      <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-4">{t('sell.detectedCategories')}</label>
-
       {visibleKeys.map((secKey) => (
         <SectionCard
           key={secKey}
@@ -117,16 +133,13 @@ const ItemDetailSections = ({ sections, onSectionsChange, abbreviated = true }) 
       {availableSections.length > 0 && (
         <div className="flex items-center gap-2 mt-4">
           <Plus className="w-4 h-4 text-gray-500" />
-          <select
-            onChange={(e) => { if (e.target.value) { handleAddSection(e.target.value); e.target.value = ''; } }}
-            defaultValue=""
-            className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-400 focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none cursor-pointer hover:border-gray-600 transition-colors"
-          >
-            <option value="" disabled>{t('sell.addSectionPlaceholder')}</option>
-            {availableSections.map(s => (
-              <option key={s} value={s}>{t(`categoryLabels.${s}`, s)}</option>
-            ))}
-          </select>
+          <CustomSelect
+            value=""
+            onChange={handleAddSectionSelect}
+            options={availableSections.map((s) => ({ value: s, label: t(`categoryLabels.${s}`, s) }))}
+            placeholder={t('sell.addSectionPlaceholder')}
+            triggerClassName="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-400 hover:border-gray-600 transition-colors"
+          />
         </div>
       )}
     </div>

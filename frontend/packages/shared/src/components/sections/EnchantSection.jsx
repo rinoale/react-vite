@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Pencil, Plus, AlertTriangle, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import ConfigSearchInput from '../ConfigSearchInput';
+import { cardSlot, flexCenter, effectRow, iconBtnEditOrange, iconBtnEditPurple, iconBtnRemove, editNumber, badgePurple, addBtnPurple, inputCompact } from '../../styles';
 
 /**
  * Craft enchant header text matching what the crop image shows.
@@ -141,7 +142,7 @@ const EffectRow = ({ eff, lineIdx, onLineChange, configEffects, abbreviated }) =
   })();
 
   return (
-    <div className="group flex items-center gap-1 text-xs text-gray-400">
+    <div className={effectRow}>
       {eff.option_name != null ? (
         <>
           <span>{eff.option_name} </span>
@@ -157,7 +158,7 @@ const EffectRow = ({ eff, lineIdx, onLineChange, configEffects, abbreviated }) =
                   if (e.key === 'Enter') commitLevel(levelDraft);
                   if (e.key === 'Escape') setEditingLevel(false);
                 }}
-                className={`w-12 text-orange-400 font-bold bg-gray-900 border rounded px-1 text-xs text-center outline-none ${isDraftOutOfRange ? 'border-red-500' : 'border-orange-500'}`}
+                className={`${editNumber} ${isDraftOutOfRange ? 'border-red-500!' : ''}`}
               />
               {hasRange && <span className="text-[10px] text-gray-600">{rangeMin}~{rangeMax}</span>}
               {isDraftOutOfRange && <AlertTriangle className="w-3 h-3 text-red-500" />}
@@ -182,7 +183,7 @@ const EffectRow = ({ eff, lineIdx, onLineChange, configEffects, abbreviated }) =
       {isRanged && (
         <button
           onClick={() => setEditingName(true)}
-          className="ml-auto p-0.5 text-gray-600 opacity-0 group-hover:opacity-100 hover:text-orange-400 transition-opacity"
+          className={`ml-auto ${iconBtnEditOrange}`}
           title={t('sections.enchant.correctEffect')}
         >
           <Pencil className="w-3 h-3" />
@@ -213,7 +214,7 @@ const EnchantSlot = ({ slot, slotLabel, headerLineIdx, lines, slotLines, onLineC
   if (!slot) return null;
 
   return (
-    <div className="bg-gray-900/50 p-3 rounded border border-gray-700">
+    <div className={cardSlot}>
       <div className="flex justify-between items-center mb-2">
         {editingHeader ? (
           <ConfigSearchInput
@@ -233,25 +234,25 @@ const EnchantSlot = ({ slot, slotLabel, headerLineIdx, lines, slotLines, onLineC
             placeholder={t('sections.enchant.searchEnchant')}
           />
         ) : (
-          <div className="group flex items-center gap-1">
+          <div className={`group ${flexCenter}`}>
             <span className="text-sm font-medium text-purple-300">{slot.name}</span>
             <button
               onClick={() => setEditingHeader(true)}
-              className="p-0.5 text-gray-600 opacity-0 group-hover:opacity-100 hover:text-purple-400 transition-opacity"
+              className={iconBtnEditPurple}
               title={t('sections.enchant.correctEnchant')}
             >
               <Pencil className="w-3 h-3" />
             </button>
             <button
               onClick={onRemove}
-              className="p-0.5 text-gray-600 opacity-0 group-hover:opacity-100 hover:text-red-400 transition-opacity"
+              className={iconBtnRemove}
               title={t('sections.enchant.remove')}
             >
               <X className="w-3 h-3" />
             </button>
           </div>
         )}
-        <span className="text-xs bg-purple-900/50 text-purple-300 px-2 py-0.5 rounded border border-purple-700/50 shrink-0 ml-2">
+        <span className={`${badgePurple} shrink-0 ml-2`}>
           {slotLabel} · Rank {slot.rank}
         </span>
       </div>
@@ -296,7 +297,7 @@ const FallbackLines = ({ slotLines, onLineChange }) => (
         type="text"
         value={line.text}
         onChange={(e) => onLineChange(line.lineIdx, e.target.value)}
-        className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-sm text-gray-300 focus:ring-1 focus:ring-orange-500 outline-none"
+        className={inputCompact}
       />
     ))}
   </div>
@@ -344,7 +345,7 @@ const AddEnchantSlot = ({ slotLabel, onLineChange }) => {
     <button
       type="button"
       onClick={() => setSearching(true)}
-      className="w-full border-2 border-dashed border-gray-700 hover:border-purple-500 rounded-lg p-3 text-sm text-gray-500 hover:text-purple-300 transition-colors flex items-center justify-center gap-2"
+      className={addBtnPurple}
     >
       <Plus className="w-4 h-4" />
       {t(i18nKey)}
@@ -398,8 +399,6 @@ const EnchantSection = ({ prefix, suffix, lines, onLineChange, abbreviated = tru
           }}
           abbreviated={abbreviated}
         />
-      ) : groups.prefix.length > 0 ? (
-        <FallbackLines slotLines={groups.prefix} onLineChange={onLineChange} />
       ) : (
         <AddEnchantSlot slotLabel="Prefix" onLineChange={onLineChange} />
       )}
@@ -420,13 +419,8 @@ const EnchantSection = ({ prefix, suffix, lines, onLineChange, abbreviated = tru
           }}
           abbreviated={abbreviated}
         />
-      ) : groups.suffix.length > 0 ? (
-        <FallbackLines slotLines={groups.suffix} onLineChange={onLineChange} />
       ) : (
         <AddEnchantSlot slotLabel="Suffix" onLineChange={onLineChange} />
-      )}
-      {groups.unassigned.length > 0 && (
-        <FallbackLines slotLines={groups.unassigned} onLineChange={onLineChange} />
       )}
     </div>
   );

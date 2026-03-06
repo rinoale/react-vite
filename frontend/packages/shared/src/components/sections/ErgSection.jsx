@@ -1,9 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import CustomSelect from '../CustomSelect';
+import { editNumber } from '../../styles';
 
 const GRADES = ['S', 'A', 'B'];
 const MAX_LEVEL = 50;
+
+const GRADE_OPTIONS = GRADES.map((g) => ({ value: g, label: g }));
 
 const GRADE_TEXT = {
   S: 'text-pink-300',
@@ -11,14 +15,45 @@ const GRADE_TEXT = {
   B: 'text-gray-300',
 };
 
-const inlineSelect = 'appearance-none bg-transparent border-none outline-none cursor-pointer text-center';
-const inlineInput = 'bg-transparent border-none outline-none text-center text-orange-400 font-medium w-5';
+const NumberField = ({ value, onCommit, placeholder }) => {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
 
-const ErgGradeRow = ({ grade, level, maxLevel, onLineChange }) => {
+  const commit = (raw) => {
+    setEditing(false);
+    onCommit(raw);
+  };
+
+  if (editing) {
+    return (
+      <input
+        type="text"
+        autoFocus
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => commit(draft)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') commit(draft);
+          if (e.key === 'Escape') setEditing(false);
+        }}
+        className={editNumber}
+      />
+    );
+  }
+
+  return (
+    <span
+      className="text-orange-400 font-bold cursor-pointer hover:underline"
+      onClick={() => { setDraft(value != null ? String(value) : ''); setEditing(true); }}
+    >
+      {value ?? placeholder ?? '?'}
+    </span>
+  );
+};
+
+const ErgGradeRow = ({ grade, level, maxLevel, hasLines, onLineChange }) => {
   const { t } = useTranslation();
-  const [levelDraft, setLevelDraft] = useState(null);
-  const [maxLevelDraft, setMaxLevelDraft] = useState(null);
-  const needsCorrection = grade === null || level === null;
+  const needsCorrection = hasLines && (grade === null || level === null);
 
   const update = (newGrade, newLevel, newMaxLevel) => {
     onLineChange(-1, '', (sec) => {
@@ -28,21 +63,12 @@ const ErgGradeRow = ({ grade, level, maxLevel, onLineChange }) => {
     });
   };
 
-  const commitLevel = (raw) => {
-    setLevelDraft(null);
-    const n = parseInt(raw, 10);
-    if (!isNaN(n)) update(grade, Math.max(1, Math.min(MAX_LEVEL, n)), maxLevel);
-  };
-
-  const commitMaxLevel = (raw) => {
-    setMaxLevelDraft(null);
-    const n = parseInt(raw, 10);
-    if (!isNaN(n)) update(grade, level, Math.max(1, Math.min(MAX_LEVEL, n)));
-  };
+  const handleGradeChange = useCallback((val) => {
+    update(val || null, level, maxLevel);
+  }, [level, maxLevel]);
 
   const gradeColor = GRADE_TEXT[grade] || GRADE_TEXT.B;
   const textColor = needsCorrection ? 'text-amber-200' : 'text-gray-300';
-  const inputColor = needsCorrection ? `${inlineInput} text-amber-300` : inlineInput;
 
   return (
     <div className="p-2">
@@ -54,32 +80,30 @@ const ErgGradeRow = ({ grade, level, maxLevel, onLineChange }) => {
       )}
       <p className={`text-sm font-medium ${textColor}`}>
         {t('sections.erg.gradeLabel') + ' '}
-        <select
+        <CustomSelect
           value={grade || ''}
-          onChange={(e) => update(e.target.value || null, level, maxLevel)}
-          className={`${inlineSelect} ${needsCorrection ? 'text-amber-300' : gradeColor} font-bold w-4`}
-        >
-          {!grade && <option value="">—</option>}
-          {GRADES.map(g => <option key={g} value={g} className="text-gray-300 bg-gray-900">{g}</option>)}
-        </select>
+          onChange={handleGradeChange}
+          options={GRADE_OPTIONS}
+          placeholder="—"
+          variant="inline"
+          triggerClassName={`${needsCorrection ? 'text-amber-300' : gradeColor} font-bold`}
+        />
         {' ('}
-        <input
-          type="text"
-          value={levelDraft ?? level ?? ''}
-          onChange={(e) => setLevelDraft(e.target.value)}
-          onBlur={(e) => commitLevel(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') commitLevel(e.target.value); }}
-          className={inputColor}
+        <NumberField
+          value={level}
+          onCommit={(raw) => {
+            const n = parseInt(raw, 10);
+            if (!isNaN(n)) update(grade, Math.max(1, Math.min(MAX_LEVEL, n)), maxLevel);
+          }}
           placeholder="—"
         />
         {'/'}
-        <input
-          type="text"
-          value={maxLevelDraft ?? maxLevel ?? ''}
-          onChange={(e) => setMaxLevelDraft(e.target.value)}
-          onBlur={(e) => commitMaxLevel(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') commitMaxLevel(e.target.value); }}
-          className={inputColor}
+        <NumberField
+          value={maxLevel}
+          onCommit={(raw) => {
+            const n = parseInt(raw, 10);
+            if (!isNaN(n)) update(grade, level, Math.max(1, Math.min(MAX_LEVEL, n)));
+          }}
           placeholder="—"
         />
         {' ' + t('sections.erg.levelLabel') + ')'}
@@ -95,6 +119,7 @@ const ErgSection = ({ lines, erg_grade, erg_level, erg_max_level, onLineChange }
         grade={erg_grade ?? null}
         level={erg_level ?? null}
         maxLevel={erg_max_level ?? null}
+        hasLines={lines?.length > 0}
         onLineChange={onLineChange}
       />
     </div>

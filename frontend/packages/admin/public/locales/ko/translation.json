@@ -13,12 +13,14 @@
     "effects": "Effects",
     "enchantEffects": "Enchant Effects",
     "listings": "Listings",
-    "gameItems": "Game Items"
+    "gameItems": "Game Items",
+    "tags": "Tags"
   },
   "tabs": {
     "enchants": "Enchants",
     "listings": "Listings",
-    "corrections": "Corrections"
+    "corrections": "Corrections",
+    "tags": "Tags"
   },
   "corrections": {
     "title": "OCR CORRECTIONS",
@@ -51,6 +53,39 @@
     "enchantCount": "{{count}} ENCHANT",
     "enchantCount_plural": "{{count}} ENCHANTS",
     "price": "{{price}}골드"
+  },
+  "tags": {
+    "title": "TAGS",
+    "entityType": "Entity Type",
+    "entitySearch": "Search entity...",
+    "tagName": "Tag name",
+    "weight": "Weight",
+    "create": "Create",
+    "prev": "PREV",
+    "next": "NEXT",
+    "noTags": "No tags found.",
+    "refresh": "Refresh",
+    "selectAll": "전체 선택",
+    "targetCount": "{{count}}개 대상",
+    "deleteConfirm": "이 대상을 삭제하시겠습니까?",
+    "deleteTagConfirm": "이 태그와 모든 대상을 삭제하시겠습니까?",
+    "duplicateError": "Tag already exists.",
+    "loadingDetail": "로딩 중...",
+    "tagWeight": "태그 가중치",
+    "targets": "대상",
+    "targetWeight": "w:",
+    "noTargets": "대상 없음."
+  },
+  "bulkTag": {
+    "title": "일괄 태그",
+    "likeSearch": "유사 검색",
+    "searchPlaceholder": "엔티티 검색...",
+    "selected": "{{count}}개 선택",
+    "tagName": "태그 이름",
+    "weight": "가중치",
+    "create": "생성",
+    "resultCreated": "{{count}}개 생성",
+    "resultDuplicates": "{{count}}개 중복"
   },
   "enchants": {
     "title": "ENCHANT ENTRIES",

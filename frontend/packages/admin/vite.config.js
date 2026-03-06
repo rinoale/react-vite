@@ -7,4 +7,9 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   envDir: path.resolve(import.meta.dirname, '../..'),
   envPrefix: 'MABINOGI_',
+  server: {
+    watch: {
+      followSymlinks: true,
+    },
+  },
 })

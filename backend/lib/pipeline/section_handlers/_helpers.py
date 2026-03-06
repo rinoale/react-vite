@@ -52,12 +52,13 @@ def detect_prefix(*prefix_types):
                     w = line_info['width']
                     h = line_info['height']
                     pad_x = max(_PAD_HORIZONTAL_MINIMUM, h // _PAD_HORIZONTAL_DIVISOR)
-                    pad_y = max(_PAD_VERTICAL_MINIMUM, h // _PAD_VERTICAL_DIVISOR)
                     x_pad = max(0, x - pad_x)
-                    y_pad = max(0, y - pad_y)
                     w_pad = min(img_w - x_pad, w + 2 * pad_x)
-                    h_pad = min(img_h - y_pad, h + 2 * pad_y)
-                    bgr_crop = content_bgr[y_pad:y_pad + h_pad, x_pad:x_pad + w_pad]
+                    # No vertical padding for prefix detection — the line
+                    # height IS the threshold reference.  Padding inflates
+                    # h, which inflates ratio-based thresholds (min_gap etc.)
+                    # and rejects real prefixes.
+                    bgr_crop = content_bgr[y:y + h, x_pad:x_pad + w_pad]
                     prefix_info = {'type': None}
                     for cfg in configs:
                         prefix_info = detect_prefix_per_color(bgr_crop, config=cfg)
@@ -108,7 +109,6 @@ def reject_prefix(*rejected_types):
     def decorator(fn):
         @wraps(fn)
         def wrapper(self, seg, grouped_lines, *args, **kw):
-            breakpoint()
             filtered = [
                 group for group in grouped_lines
                 if (group[0].get('_prefix_info') or {}).get('type') not in rejected

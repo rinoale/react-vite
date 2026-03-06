@@ -41,7 +41,11 @@
     "itemRegistered": "Item registered successfully.",
     "correctionsCapture": " ({{count}} correction(s) captured for training)",
     "registerFailed": "Failed to register item.",
-    "requiredFields": "Please fill in the required fields: {{fields}}"
+    "requiredFields": "Please fill in the required fields: {{fields}}",
+    "tags": "Tags",
+    "tagPlaceholder": "Add tag...",
+    "description": "Description",
+    "descriptionPlaceholder": "Describe your listing..."
   },
   "categoryLabels": {
     "item_name": "Item Name",
@@ -68,7 +72,13 @@
     "noResults": "No listings match your search.",
     "selectListing": "Select a listing to view details",
     "enchantLabel": "Enchants",
-    "reforgeLabel": "Reforge"
+    "reforgeLabel": "Reforge",
+    "specialUpgradeLabel": "Special Upgrade",
+    "specialUpgradeR": "Red Upgrade Stone",
+    "specialUpgradeS": "Blue Upgrade Stone",
+    "specialUpgradeLevel": "Lv.{{level}}",
+    "ergLabel": "Erg",
+    "ergGrade": "Grade {{grade}}"
   },
   "sidebar": {
     "home": "matrade",

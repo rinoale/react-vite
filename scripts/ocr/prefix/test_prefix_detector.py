@@ -34,7 +34,7 @@ def _detect_on_mask(mask, img_h, img_w, label, splitter, config=None,
     (each color tested independently) to prevent mixed-color FPs.
     """
     ink_pct = 100.0 * np.sum(mask > 0) / mask.size
-    lines = splitter.detect_text_lines(mask)
+    lines = splitter.detect_centered_lines(mask)
 
     if not lines:
         return [], ink_pct
@@ -239,7 +239,7 @@ def run_on_image(path, out_dir):
     print(f"{'='*60}")
 
     _project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
-    splitter = MabinogiTooltipSplitter(output_dir=os.path.join(_project_root, 'tmp', 'prefix_test'))
+    splitter = MabinogiTooltipSplitter()
     os.makedirs(out_dir, exist_ok=True)
 
     # --- 1. Subbullet: per-color detection ---

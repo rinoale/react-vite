@@ -180,24 +180,20 @@ function thresholdBinaryInv(imageData, thresh) {
   return imageData
 }
 
-// ─── Step 5: Line detection (horizontal projection) ───
+// ─── Step 5: Line detection (greedy group merging with centered windows) ───
 
-function detectLines(binaryData, minHeight = 6, maxHeight = 25, minWidth = 10) {
+function detectCenteredLines(binaryData, minHeight = 13, minWidth = 10, splitFactor = 3) {
   const { width: w, height: h } = binaryData
   const d = binaryData.data
 
-  // Build binary array (1 = ink/white pixel on inverted image i.e. text)
-  // binaryData is black-text-on-white (BINARY_INV), invert for detection
+  // Build binary array (1 = ink pixel)
+  // binaryData is black-text-on-white (BINARY_INV): text=0, bg=255
   const ink = new Uint8Array(w * h)
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      // After BINARY_INV: text=0 (black), bg=255 (white)
-      // For detection we want text=1
+  for (let y = 0; y < h; y++)
+    for (let x = 0; x < w; x++)
       if (d[(y * w + x) * 4] === 0) ink[y * w + x] = 1
-    }
-  }
 
-  // Border removal: find columns with >60% density, mask narrow runs (<=3px)
+  // Border removal: mask narrow (<=3px) high-density vertical column runs
   const colDensity = new Float32Array(w)
   for (let x = 0; x < w; x++) {
     let count = 0
@@ -219,86 +215,170 @@ function detectLines(binaryData, minHeight = 6, maxHeight = 25, minWidth = 10) {
     }
   }
 
-  // Horizontal projection on cleaned
+  // Horizontal projection on cleaned image
   const projection = new Uint32Array(h)
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) projection[y] += cleaned[y * w + x]
-  }
+  for (let y = 0; y < h; y++)
+    for (let x = 0; x < w; x++)
+      projection[y] += cleaned[y * w + x]
 
   const threshold = Math.max(3, w * 0.015)
   const hasText = new Uint8Array(h)
   for (let y = 0; y < h; y++) hasText[y] = projection[y] > threshold ? 1 : 0
 
-  // Gap closure (tolerance=2)
-  for (let y = 1; y < h; ) {
-    if (!hasText[y] && hasText[y - 1]) {
-      const gs = y
-      while (y < h && !hasText[y]) y++
-      if (y - gs <= 2 && y < h && hasText[y]) {
-        for (let g = gs; g < y; g++) hasText[g] = 1
+  // Find raw text groups (contiguous hasText runs — NO gap closure)
+  const groups = []
+  let inGroup = false, groupStart = 0
+  for (let y = 0; y < h; y++) {
+    if (hasText[y] && !inGroup) { groupStart = y; inGroup = true }
+    else if (!hasText[y] && inGroup) { groups.push([groupStart, y]); inGroup = false }
+  }
+  if (inGroup) groups.push([groupStart, h])
+
+  // Greedy group merging with centered windows
+  const minBlockHeight = 6
+  const windows = []
+  let gi = 0
+  while (gi < groups.length) {
+    const [gStart, gEnd] = groups[gi]
+    const lineStart = Math.max(0, gStart - 1) // 1-row head padding
+    let contentStart = gStart
+    let contentEnd = gEnd
+    gi++
+
+    // Absorb subsequent groups while total span fits within minHeight
+    while (gi < groups.length) {
+      const [nextStart, nextEnd] = groups[gi]
+      if (nextEnd - lineStart <= minHeight) {
+        contentEnd = nextEnd
+        gi++
+      } else {
+        break
       }
-    } else { y++ }
+    }
+
+    // Trim trailing zero-projection rows
+    while (contentEnd > contentStart && projection[contentEnd - 1] === 0)
+      contentEnd--
+
+    // Skip noise / border artifacts
+    if (contentEnd - contentStart < minBlockHeight) continue
+
+    // Center minHeight window on content extent
+    const center = contentStart + Math.floor((contentEnd - contentStart - 1) / 2)
+    const halfAbove = Math.floor((minHeight - 1) / 2)
+    let winStart = center - halfAbove
+    let winEnd = winStart + minHeight
+
+    // Clamp to image bounds
+    if (winStart < 0) { winStart = 0; winEnd = Math.min(minHeight, h) }
+    if (winEnd > h) { winEnd = h; winStart = Math.max(0, winEnd - minHeight) }
+
+    // Conflict resolution: respect upper window
+    if (windows.length > 0) {
+      const prevEnd = windows[windows.length - 1][1]
+      if (winStart < prevEnd) winStart = prevEnd
+    }
+
+    if (winEnd - winStart > 0) windows.push([winStart, winEnd])
   }
 
-  // Find contiguous text runs
+  // Compute horizontal extents for each window (equivalent to _add_line)
   const lines = []
-  let inLine = false, lineStart = 0
-  for (let y = 0; y <= h; y++) {
-    const t = y < h && hasText[y]
-    if (t && !inLine) { lineStart = y; inLine = true }
-    else if (!t && inLine) {
-      const lineH = y - lineStart
-      if (lineH >= minHeight && lineH <= maxHeight) {
-        // Compute horizontal extent
-        const rowSlice = ink.subarray(lineStart * w, y * w)
-        const colProj = new Uint32Array(w)
-        for (let ly = 0; ly < y - lineStart; ly++) {
-          for (let x = 0; x < w; x++) {
-            colProj[x] += rowSlice[ly * w + x]
-          }
-        }
-        let xStart = -1, xEnd = -1
-        for (let x = 0; x < w; x++) if (colProj[x] > 0) { xStart = x; break }
-        for (let x = w - 1; x >= 0; x--) if (colProj[x] > 0) { xEnd = x + 1; break }
-        if (xStart >= 0 && xEnd - xStart >= minWidth) {
-          lines.push({ x: xStart, y: lineStart, width: xEnd - xStart, height: lineH })
-        }
-      } else if (lineH > maxHeight) {
-        // Split tall block: local re-projection with lower threshold
-        const block = cleaned.subarray(lineStart * w, y * w)
-        const bProj = new Uint32Array(lineH)
-        for (let ly = 0; ly < lineH; ly++) {
-          for (let x = 0; x < w; x++) bProj[ly] += block[ly * w + x]
-        }
-        let median = 0
-        const nonzero = Array.from(bProj).filter(v => v > 0).sort((a, b) => a - b)
-        if (nonzero.length) median = nonzero[Math.floor(nonzero.length / 2)]
-        const bThresh = Math.max(1, median * 0.1)
-        let subIn = false, subStart = 0
-        for (let ly = 0; ly <= lineH; ly++) {
-          const tt = ly < lineH && bProj[ly] > bThresh
-          if (tt && !subIn) { subStart = ly; subIn = true }
-          else if (!tt && subIn) {
-            const sh = ly - subStart
-            if (sh >= minHeight && sh <= maxHeight) {
-              const absY = lineStart + subStart
-              const absYEnd = lineStart + ly
-              const rs2 = ink.subarray(absY * w, absYEnd * w)
-              const cp2 = new Uint32Array(w)
-              for (let sly = 0; sly < sh; sly++)
-                for (let x = 0; x < w; x++) cp2[x] += rs2[sly * w + x]
-              let xs2 = -1, xe2 = -1
-              for (let x = 0; x < w; x++) if (cp2[x] > 0) { xs2 = x; break }
-              for (let x = w - 1; x >= 0; x--) if (cp2[x] > 0) { xe2 = x + 1; break }
-              if (xs2 >= 0 && xe2 - xs2 >= minWidth) {
-                lines.push({ x: xs2, y: absY, width: xe2 - xs2, height: sh })
-              }
+  for (const [winStart, winEnd] of windows) {
+    const lineH = winEnd - winStart
+
+    // Column projection for this row band (using original ink, not cleaned)
+    const colProj = new Uint32Array(w)
+    for (let y = winStart; y < winEnd; y++)
+      for (let x = 0; x < w; x++)
+        colProj[x] += ink[y * w + x]
+
+    // Find contiguous ink clusters
+    const clusters = []
+    let inCluster = false, clusterStart = 0
+    for (let x = 0; x < w; x++) {
+      if (colProj[x] > 0 && !inCluster) { clusterStart = x; inCluster = true }
+      else if (colProj[x] === 0 && inCluster) { clusters.push([clusterStart, x - 1]); inCluster = false }
+    }
+    if (inCluster) clusters.push([clusterStart, w - 1])
+
+    if (clusters.length === 0) continue
+
+    // Filter thin border clusters (Mabinogi _filter_clusters simplified)
+    let filtered = clusters
+    if (clusters.length > 1) {
+      const thinWidth = 2
+      const barWidthFactor = 3
+      const barMaxDensity = 2.0
+      const gapFactor = 2
+      const borderStripeDensity = 0.85
+
+      const textClusters = clusters.filter(([cs, ce]) => {
+        const cw = ce - cs + 1
+        if (cw <= thinWidth) return false
+        let sum = 0
+        for (let x = cs; x <= ce; x++) sum += colProj[x]
+        if (cw > lineH * barWidthFactor && sum / cw < barMaxDensity) return false
+        return true
+      })
+
+      if (textClusters.length > 0) {
+        filtered = []
+        for (let ci = 0; ci < clusters.length; ci++) {
+          const [cs, ce] = clusters[ci]
+          const cw = ce - cs + 1
+          let sum = 0
+          for (let x = cs; x <= ce; x++) sum += colProj[x]
+          const avgDensity = sum / cw
+
+          // Skip horizontal bar borders
+          if (cw > lineH * barWidthFactor && avgDensity < barMaxDensity) continue
+
+          if (cw > thinWidth) {
+            // Corner bracket artifact: first cluster, low density, gap to next
+            if (ci === 0 && avgDensity < barMaxDensity && ci + 1 < clusters.length) {
+              const gapToNext = clusters[ci + 1][0] - ce - 1
+              if (gapToNext >= 4) continue
             }
-            subIn = false
+            filtered.push([cs, ce])
+            continue
+          }
+
+          // Thin cluster: check distance to nearest text cluster
+          const gapThreshold = lineH * gapFactor
+          let minDist = Infinity
+          for (const [tcs, tce] of textClusters)
+            minDist = Math.min(minDist, Math.abs(cs - tce), Math.abs(ce - tcs))
+          if (minDist <= gapThreshold) {
+            // Full-height border stripe: spans nearly all rows → remove
+            if (avgDensity >= lineH * borderStripeDensity) continue
+            filtered.push([cs, ce])
           }
         }
+        if (filtered.length === 0) filtered = clusters
       }
-      inLine = false
+    }
+
+    // Split horizontally if wide gaps exist between cluster groups
+    const splitThreshold = lineH * splitFactor
+    const segments = []
+    let segStart = 0
+    for (let i = 1; i < filtered.length; i++) {
+      const gap = filtered[i][0] - filtered[i - 1][1] - 1
+      if (gap > splitThreshold) {
+        segments.push(filtered.slice(segStart, i))
+        segStart = i
+      }
+    }
+    segments.push(filtered.slice(segStart))
+
+    for (const seg of segments) {
+      const xStart = seg[0][0]
+      const xEnd = seg[seg.length - 1][1] + 1
+      const lineW = xEnd - xStart
+      if (lineW >= minWidth) {
+        lines.push({ x: xStart, y: winStart, width: lineW, height: lineH })
+      }
     }
   }
 
@@ -615,7 +695,7 @@ function runPipeline(ctx, originalImageData) {
       steps.push({ id: 'enchantOreoFlip', dataURL: canvasToDataURL(oreoWithBands), enchantBandCount: segEnchantBands.length })
 
       // enchantClassification
-      const enchantLines = detectLines(oreoVis)
+      const enchantLines = detectCenteredLines(oreoVis)
       const classVis = cloneImageData(ctx, contentCrop)
       const classColors = {
         header: [0, 180, 255],
@@ -643,7 +723,7 @@ function runPipeline(ctx, originalImageData) {
     }
 
     // segLineDetection
-    const lines = detectLines(binary)
+    const lines = detectCenteredLines(binary)
     const lineVis = cloneImageData(ctx, binary)
     const lineColors = [
       [0, 200, 255], [255, 100, 100], [100, 255, 100],
@@ -652,10 +732,9 @@ function runPipeline(ctx, originalImageData) {
     lines.forEach((line, i) => {
       const [cr, cg, cb] = lineColors[i % lineColors.length]
       const padX = Math.max(2, Math.floor(line.height / 3))
-      const padY = Math.max(1, Math.floor(line.height / 5))
       drawRect(lineVis,
-        Math.max(0, line.x - padX), Math.max(0, line.y - padY),
-        line.width + padX * 2, line.height + padY * 2,
+        Math.max(0, line.x - padX), line.y,
+        line.width + padX * 2, line.height,
         cr, cg, cb, 2)
     })
     steps.push({ id: 'segLineDetection', dataURL: canvasToDataURL(lineVis), lineCount: lines.length })
@@ -663,12 +742,10 @@ function runPipeline(ctx, originalImageData) {
     // segLineCrops
     const lineCrops = lines.map(line => {
       const padX = Math.max(2, Math.floor(line.height / 3))
-      const padY = Math.max(1, Math.floor(line.height / 5))
       const cx = Math.max(0, line.x - padX)
-      const cy = Math.max(0, line.y - padY)
       const cw = Math.min(segW - cx, line.width + padX * 2)
-      const ch = Math.min(segH - cy, line.height + padY * 2)
-      const crop = cropImageData(ctx, binary, cx, cy, cw, ch)
+      const ch = Math.min(segH - line.y, line.height)
+      const crop = cropImageData(ctx, binary, cx, line.y, cw, ch)
       return canvasToDataURL(crop)
     })
     steps.push({ id: 'segLineCrops', dataURL: lineCrops.length > 0 ? lineCrops[0] : null, lineCrops })

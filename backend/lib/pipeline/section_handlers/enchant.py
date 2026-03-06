@@ -18,7 +18,7 @@ from ._ocr import ocr_grouped_lines, ocr_enchant_headers
 class EnchantHandler(BaseHandler):
     """White-mask bands, line classification, enchant OCR, Dullahan FM."""
 
-    @detect_prefix('bullet', 'subbullet')
+    @detect_prefix('bullet')
     def _process(self, seg, grouped_lines, *, pipeline, font_reader,
                  attach_crops=False, parsed_item_name=None, **ctx):
         """Full enchant lifecycle: image process → OCR → FM → structured rebuild."""

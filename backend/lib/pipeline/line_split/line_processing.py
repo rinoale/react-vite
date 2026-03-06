@@ -16,6 +16,59 @@ from lib.image_processors.prefix_detector import detect_prefix_per_color, BULLET
 _STITCH_BASELINE_OFFSET = 1
 
 
+def group_by_distance(grouped_lines, gap_multiplier=2, gap_offset=4):
+    """Assign a distance group index to each line group based on vertical gaps.
+
+    Lines within the same distance group are visually close together.
+    A gap exceeding ``max(median_gap * gap_multiplier, median_gap + gap_offset)``
+    starts a new distance group.
+
+    Each sub-line dict in grouped_lines gets a ``_distance_group`` key (0-based).
+
+    Args:
+        grouped_lines: list of groups from group_by_y() — each group is a list
+                       of sub-line dicts with 'y' and 'height'.
+        gap_multiplier: multiplier on median gap for threshold.
+        gap_offset:     additive offset on median gap for threshold.
+
+    Returns:
+        grouped_lines (same object, mutated with _distance_group flags).
+    """
+    if len(grouped_lines) < 2:
+        for group in grouped_lines:
+            for sl in group:
+                sl['_distance_group'] = 0
+        return grouped_lines
+
+    # Compute gaps between consecutive line groups
+    bounds = []
+    for group in grouped_lines:
+        y = group[0]['y']
+        h = group[0]['height']
+        bounds.append((y, h))
+
+    gaps = []
+    for i in range(1, len(bounds)):
+        gap = bounds[i][0] - (bounds[i - 1][0] + bounds[i - 1][1])
+        gaps.append(gap)
+
+    sorted_gaps = sorted(gaps)
+    median_gap = sorted_gaps[len(sorted_gaps) // 2]
+    threshold = max(median_gap * gap_multiplier, median_gap + gap_offset)
+
+    # Assign group indices
+    dist_group = 0
+    for sl in grouped_lines[0]:
+        sl['_distance_group'] = dist_group
+    for i, gap in enumerate(gaps):
+        if gap >= threshold:
+            dist_group += 1
+        for sl in grouped_lines[i + 1]:
+            sl['_distance_group'] = dist_group
+
+    return grouped_lines
+
+
 def merge_group_bounds(group):
     """Merge sub-line dicts into a single bounding box covering the group.
 

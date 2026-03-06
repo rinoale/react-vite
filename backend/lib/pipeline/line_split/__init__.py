@@ -2,6 +2,7 @@
 from .line_splitter import TooltipLineSplitter, group_by_y
 from .mabinogi_tooltip_splitter import MabinogiTooltipSplitter
 from .line_processing import (
+    group_by_distance,
     merge_group_bounds,
     trim_outlier_tail,
     promote_grey_by_prefix,

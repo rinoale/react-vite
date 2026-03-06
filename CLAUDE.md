@@ -143,11 +143,10 @@ backend/lib/
 **Line Splitter** (`backend/lib/pipeline/line_split/line_splitter.py`):
 - Horizontal projection profiling, auto-detects background polarity
 - `_remove_borders()`: Masks narrow (<=3px) high-density vertical column runs
-- Gap tolerance=2 rows, `_rescue_gaps()` two-pass detection for sparse lines
-- `_split_tall_block()`, `_has_internal_gap()` for merged blocks (1+ consecutive zero rows triggers split)
+- **Greedy Group Merging** (`detect_centered_lines`): no gap tolerance, no `_has_internal_gap`, no `_split_tall_block`. Finds raw ink groups, greedily absorbs groups until span reaches `min_height=13`, centers window on content
 - `horizontal_split_factor`: 3 default, 1.5 for Mabinogi color parts
-- Proportional padding: `pad_x = max(2, h//3)`, `pad_y = max(1, h//5)`
-- Parameters: `min_height=6, max_height=25, min_width=10`
+- Horizontal padding only: `pad_x = max(2, h//3)` — no vertical padding (centered windows provide margin)
+- Parameters: `min_height=13, min_width=10`
 - `_add_line()` filters thin vertical borders and wide horizontal bars
 
 **Line Processing** (`backend/lib/pipeline/line_split/line_processing.py`):

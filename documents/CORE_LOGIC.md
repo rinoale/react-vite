@@ -1331,10 +1331,10 @@ merge_continuations() sets anchor['_is_stitched'] = True
 
 This flow enables reviewers to identify corrections where the original OCR text came from merged lines (potentially lower confidence due to continuation joining).
 
-## 17. Line Splitting — Horizontal Projection Profiling
+## 17. Line Splitting — Greedy Group Merging
 
 **File:** `backend/lib/pipeline/line_split/line_splitter.py` (base), `mabinogi_tooltip_splitter.py` (subclass)
-**Called from:** Section handlers via `detect_text_lines(binary_img)`
+**Called from:** Section handlers via `detect_centered_lines(binary_img)`
 
 Replaces CRAFT for line detection. CRAFT fragments lines, merges adjacent text, and misses entire sections on structured tooltip layouts. This splitter achieves perfect detection (244 total lines across 5 test images, 0 misses).
 
@@ -1380,64 +1380,45 @@ Row   Image (░=black, █=white ink)       Projection
 
 A row is text if: `projection[y] > max(3, width × 0.015)`
 
-### Step 3: Gap Closing (tolerance = 2 rows)
+### Step 3: Greedy Group Merging
 
-In a full line of text, the projection rarely dips below threshold because many characters contribute ink at every row. But very short lines (2-3 characters like `적용)`) can have sparse rows where the total ink briefly drops below `max(3, w × 0.015)`. The gap tolerance closes these 1-2 row dips to prevent splitting a single line in two:
+Korean characters with horizontal vowel ㅡ (like 증, 스, 승) have 1-2 pixel zero-projection rows between syllable components. A fixed gap tolerance cannot distinguish these character-internal gaps from actual inter-line gaps — both can be 1-2 pixels wide.
 
-```
-Example A: 1-row gap → closed       Example B: 3-row gap → kept
-
-Row  has_text  After close          Row  has_text  After close
-  0  True      True                   0  True      True
-  1  True      True                   1  True      True
-  2  True      True                   2  False     False  ← real
-  3  False     True  ← closed         3  False     False  ← line
-  4  True      True                   4  False     False  ← break
-  5  True      True                   5  True      True
-  6  True      True                   6  True      True
-→ one block (rows 0-6)              → two blocks (0-1) and (5-6)
-```
-
-### Step 4: Contiguous Run Detection
-
-Each contiguous run of True rows = a candidate line block:
+Instead of gap heuristics, the algorithm uses a physical constraint: a line of text at game font sizes occupies roughly 13 pixels vertically (`min_height=13`).
 
 ```
-Row   has_text    Block
-  2   True  ─┐
-  3   True   ├── Block A (h=3, rows 2-4)
-  4   True  ─┘
-  5   False       ← gap (3 rows)
-  8   True  ─┐
-  9   True   ├── Block B (h=3, rows 8-10)
- 10   True  ─┘
+Step 3a: Find raw text groups — contiguous has_text=True rows, NO gap tolerance.
+         Each group is a pure ink cluster.
+
+Step 3b: Greedy merge (top → bottom):
+         Start each candidate line with 1-row head padding (1 row above first ink).
+         Absorb subsequent groups while total_span ≤ min_height.
+         Stop when the next group would exceed min_height.
+
+Step 3c: Trim trailing zero-projection rows from accumulated content.
+
+Step 3d: Center a min_height window on the content extent (upper-biased).
+
+Step 3e: Conflict resolution — if a centered window overlaps the previous
+         line's bottom, trim the top. Don't expand downward.
 ```
 
-Routing by block height:
-
-| Condition | Action |
-|---|---|
-| `h < min_height (6)` | Discard (noise) |
-| `min_height ≤ h ≤ max_height (25)`, no internal gap | Accept as single line |
-| `min_height ≤ h ≤ max_height`, has internal gap | `_split_tall_block()` |
-| `h > max_height` | `_split_tall_block()` |
-
-**Internal gap** = any row with projection=0 inside the block. This means two lines were merged by gap tolerance but have a fully empty row between them.
-
-**`_split_tall_block()`**: Re-projects the block region with a lower local threshold (`max(1, median(non-zero) × 0.1)`) and re-detects sub-lines without gap tolerance.
-
-### Step 5: Rescue Pass
-
-Lines with very sparse text (e.g., `적용)`, `(6~7)`) get missed by the main threshold. The rescue pass re-scans large inter-block gaps with a lower threshold:
-
+**Example — character 증 (single line):**
 ```
-Main threshold:    max(3, width × 0.015)
-Rescue threshold:  max(2, width × 0.01)
+Groups: A=[0-4], B=[6-8]
+Merge:  Start A, try B → span 0→8 = 9 ≤ 13 → absorb
+Result: One line, centered 13px window on rows 0-8
 ```
 
-Only gaps larger than `avg_line_height × 1.5` are re-scanned. This prevents false rescues in normal line gaps while catching isolated short text.
+**Example — two lines 증\n가:**
+```
+Groups: A=[0-4], B=[6-8], C=[14-18], D=[20-22]
+Line 1: A + B (span=9 ≤ 13). C would give span=19 > 13 → stop.
+Line 2: C + D (span=9 ≤ 13).
+Result: Two lines, no gap threshold needed.
+```
 
-### Step 6: Horizontal Analysis (`_add_line`)
+### Step 4: Horizontal Analysis (`_add_line`)
 
 For each detected y-range, compute a vertical projection (per-column ink count):
 
@@ -1458,16 +1439,15 @@ If `gap > line_h × horizontal_split_factor (default 3)`, the line splits into s
 | Corner bracket (`「`) | First cluster, `avg_density < 2.0`, gap ≥ 4px to next | Drop |
 | Thin border stripe | Width ≤ 2px, `density ≥ line_h × 0.85` | Drop |
 
-### Step 7: Padding
+### Step 5: Padding
 
-Final crops get proportional padding before OCR:
+OCR and prefix detection crops use horizontal padding only — the centered window already provides vertical margin:
 
 ```
 pad_x = max(2, h // 3)    # horizontal: ~1/3 of line height
-pad_y = max(1, h // 5)    # vertical: ~1/5 of line height
 ```
 
-For a typical 14px line: `pad_x = 4`, `pad_y = 2`. Padding is clamped to image boundaries.
+No vertical padding. The centered 13px window places 2-3 empty rows above and below text.
 
 ### Post-Detection Processing
 
@@ -1490,15 +1470,10 @@ After splitting, the pipeline applies (in `line_processing.py` and `line_merge.p
 | Binarization threshold | 80 | Grayscale → binary cutoff |
 | Background polarity | mean ≥ 128 → `BINARY_INV`, else `BINARY` | Auto-detect dark/light background |
 | Row text threshold | `max(3, w × 0.015)` | Min ink pixels for a row to count as text |
-| Gap tolerance | 2 rows | Max gap to close between text rows |
-| min_height | 6 | Minimum line height to accept |
-| max_height | 25 | Maximum single-line height before splitting |
+| min_height | 13 | Greedy merge window size / centered output height |
 | min_width | 10 | Minimum line width to accept |
 | horizontal_split_factor | 3 (1.5 for color) | `gap > h × factor` triggers horizontal split |
-| Rescue threshold | `max(2, w × 0.01)` | Lower threshold for second pass |
-| Min gap for rescue | `avg_h × 1.5` | Gap must be this large to attempt rescue |
 | Border column density | 60% | Column density threshold for border removal |
 | Border run max width | 3px | Only mask narrow dense column runs |
 | pad_x | `max(2, h // 3)` | Horizontal crop padding |
-| pad_y | `max(1, h // 5)` | Vertical crop padding |
 | Gap outlier threshold | `max(median×2, median+4)` | Detect section-boundary gaps |

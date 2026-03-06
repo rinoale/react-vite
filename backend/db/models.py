@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, SmallInteger, Boolean, Numeric, ForeignKey, Text, DateTime, UniqueConstraint
+from sqlalchemy import Column, Index, Integer, String, SmallInteger, Boolean, Numeric, ForeignKey, Text, DateTime, UniqueConstraint
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 
@@ -14,6 +14,11 @@ class Enchant(Base):
     header_text = Column(Text, nullable=False, unique=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    restriction = Column(Text, nullable=True)
+    binding = Column(Boolean, nullable=False, default=False, server_default='false')
+    guaranteed_success = Column(Boolean, nullable=False, default=False, server_default='false')
+    activation = Column(Text, nullable=True)
+    credit = Column(Text, nullable=True)
 
     effects = relationship("EnchantEffect", back_populates="enchant", cascade="all, delete-orphan")
 
@@ -77,7 +82,6 @@ class OcrCorrection(Base):
     charset_mismatch = Column(Text, nullable=True)
     image_filename = Column(Text, nullable=False)
     is_stitched = Column(Boolean, default=False)  # continuation stitch: crop is merged from multiple lines
-    # DB migration: ALTER TABLE ocr_corrections ADD COLUMN is_stitched BOOLEAN DEFAULT FALSE;
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     trained_version = Column(Text, nullable=True)
 
@@ -94,7 +98,8 @@ class Listing(Base):
     __tablename__ = "listings"
 
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(Text, nullable=False)
+    name = Column(Text, nullable=False, index=True)
+    description = Column(Text, nullable=True)
     price = Column(Integer, nullable=True)
     game_item_id = Column(Integer, ForeignKey("game_items.id", ondelete="SET NULL"), nullable=True)
     prefix_enchant_id = Column(Integer, ForeignKey("enchants.id", ondelete="SET NULL"), nullable=True)
@@ -103,6 +108,18 @@ class Listing(Base):
     item_grade = Column(Text, nullable=True)
     erg_grade = Column(Text, nullable=True)
     erg_level = Column(Integer, nullable=True)
+    special_upgrade_type = Column(Text, nullable=True)
+    special_upgrade_level = Column(Integer, nullable=True)
+    damage = Column(Integer, nullable=True)
+    magic_damage = Column(Integer, nullable=True)
+    additional_damage = Column(Integer, nullable=True)
+    balance = Column(Integer, nullable=True)
+    defense = Column(Integer, nullable=True)
+    protection = Column(Integer, nullable=True)
+    magic_defense = Column(Integer, nullable=True)
+    magic_protection = Column(Integer, nullable=True)
+    durability = Column(Integer, nullable=True)
+    piercing_level = Column(Integer, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -118,7 +135,7 @@ class ListingEnchantEffect(Base):
     id = Column(Integer, primary_key=True, index=True)
     listing_id = Column(Integer, ForeignKey("listings.id", ondelete="CASCADE"), nullable=False)
     enchant_effect_id = Column(Integer, ForeignKey("enchant_effects.id", ondelete="RESTRICT"), nullable=False)
-    value = Column(Numeric, nullable=True)
+    value = Column(Numeric, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     listing = relationship("Listing", back_populates="enchant_effects")
@@ -137,3 +154,37 @@ class ListingReforgeOption(Base):
 
     listing = relationship("Listing", back_populates="reforge_options")
     reforge_option = relationship("ReforgeOption")
+
+
+class Tag(Base):
+    __tablename__ = "tags"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(Text, nullable=False, unique=True)
+    weight = Column(Integer, nullable=False, server_default='0')
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    targets = relationship("TagTarget", back_populates="tag", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        Index('ix_tags_weight', 'weight'),
+    )
+
+
+class TagTarget(Base):
+    __tablename__ = "tag_targets"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tag_id = Column(Integer, ForeignKey("tags.id", ondelete="CASCADE"), nullable=False)
+    target_type = Column(Text, nullable=False)
+    target_id = Column(Integer, nullable=False)
+    weight = Column(Integer, nullable=False, server_default='0')
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    tag = relationship("Tag", back_populates="targets")
+
+    __table_args__ = (
+        UniqueConstraint('tag_id', 'target_type', 'target_id', name='_tag_target_uc'),
+        Index('ix_tag_targets_target', 'target_type', 'target_id'),
+        Index('ix_tag_targets_tag_id', 'tag_id'),
+    )

@@ -104,7 +104,7 @@ _INTERNAL_FIELDS = {
 }
 
 # Fields accepted by OcrLineResponse
-_PUBLIC_FIELDS = {'text', 'confidence', 'line_index'}
+_PUBLIC_FIELDS = {'text', 'line_index'}
 
 
 # ===================================================================
@@ -131,11 +131,6 @@ class TestHttpResponseSchema:
         assert set(dumped.keys()) == _PUBLIC_FIELDS
         assert 'enchant_slot' not in dumped
         assert 'enchant_name' not in dumped
-
-    def test_confidence_rounding(self):
-        """Confidence is rounded to 4 decimal places."""
-        resp = OcrLineResponse(text='test', confidence=0.123456789, line_index=0)
-        assert resp.confidence == 0.1235
 
     def test_no_internal_fields_in_response(self):
         """No known internal field leaks into the serialized response."""

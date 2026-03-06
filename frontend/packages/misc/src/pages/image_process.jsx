@@ -1,6 +1,7 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Upload, Download, Settings, FileText, Scissors, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import CustomSelect from '@mabi/shared/components/CustomSelect';
 
 const MabinogiTesseractPrep = () => {
   const { t } = useTranslation();
@@ -491,17 +492,18 @@ echo "Box files generated. Please manually correct them before proceeding."
 
                 <div>
                   <label className="block text-sm font-medium mb-2">{t('imageProcess.colorChannel')}</label>
-                  <select
+                  <CustomSelect
                     value={settings.colorChannel}
-                    onChange={(e) => handleSettingChange('colorChannel', e.target.value)}
-                    className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2"
-                  >
-                    <option value="grayscale">{t('imageProcess.grayscale')}</option>
-                    <option value="red">{t('imageProcess.redChannel')}</option>
-                    <option value="green">{t('imageProcess.greenChannel')}</option>
-                    <option value="blue">{t('imageProcess.blueChannel')}</option>
-                    <option value="original">{t('imageProcess.original')}</option>
-                  </select>
+                    onChange={(val) => handleSettingChange('colorChannel', val)}
+                    options={[
+                      { value: 'grayscale', label: t('imageProcess.grayscale') },
+                      { value: 'red', label: t('imageProcess.redChannel') },
+                      { value: 'green', label: t('imageProcess.greenChannel') },
+                      { value: 'blue', label: t('imageProcess.blueChannel') },
+                      { value: 'original', label: t('imageProcess.original') },
+                    ]}
+                    triggerClassName="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2"
+                  />
                 </div>
               </div>
             </div>

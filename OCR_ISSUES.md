@@ -12,7 +12,7 @@ For training attempt results, see [OCR_TRAINING_HISTORY.md](OCR_TRAINING_HISTORY
 - **PAD Mismatch** — Added `--PAD` flag to match EasyOCR's hardcoded `keep_ratio_with_pad=True`.
 - **Grayscale Domain Gap** — Enforced 100% binary thresholding and re-thresholding after resize.
 - **Line Splitter Border Artifacts** — `_remove_borders()` masks narrow (≤3px) high-density vertical column runs. Previous approach masked ALL columns >15% density, which removed 34 columns including text alignment positions (ㄴ, - prefixes), causing lines like `담금질 2/3/4` to disappear.
-- **Line Splitter Padding Bleed** — Proportional padding: `pad_x = max(2, h//3)`, `pad_y = max(1, h//5)`.
+- **Line Splitter Padding Bleed** — Horizontal padding only: `pad_x = max(2, h//3)`. Vertical padding removed — centered 13px windows already provide vertical margin.
 - **Missing Section Headers** — Kept horizontal separators (removing them destroyed "개조", "세공" headers).
 - **Short Text Filtered** — Reduced `min_width` from 30 to 10 for short text like "천옷".
 - **CRAFT Detection** — Replaced with `TooltipLineSplitter` in v2 pipeline. CRAFT fragmented lines, merged adjacent text, and missed entire sections on structured tooltip layouts.
@@ -21,8 +21,9 @@ For training attempt results, see [OCR_TRAINING_HISTORY.md](OCR_TRAINING_HISTORY
 - **Illegible Training Images** — Removed font sizes 6-7 (produced unreadable tiny text). Quality gates enforce ink ratio ≥2%, width ≥10px, height ≥8px on every generated image.
 - **Faint Training Images** — Removed augmentation (blur, erode/dilate) that produced 25% unreadable images. Clean binary only.
 - **Full-Canvas Whitespace** — Training images now tight-cropped to ink bounds, matching real splitter output. Eliminates hallucination from whitespace.
-- **Missing Sparse Continuation Lines** — Lines like `적용)`, `제외)` were missed because their sparse ink fell below the main projection threshold. Added `_rescue_gaps()` two-pass detection: main threshold for normal lines, then lower threshold (`max(2, w*0.01)`) re-scans large gaps to catch sparse continuation lines without causing merging.
-- **Merged Blocks Within max_height** — Blocks like `기본 효과` + `무기 공격력 50 증가` merged as h=23 (within max_height=25) despite having a clear zero-projection gap. Added `_has_internal_gap()` check: blocks with 2+ consecutive zero-projection rows get sent to `_split_tall_block()` even if within max_height.
+- **Missing Sparse Continuation Lines** — Lines like `적용)`, `제외)` were missed because their sparse ink fell below the main projection threshold. Added `_rescue_gaps()` two-pass detection: main threshold for normal lines, then lower threshold (`max(2, w*0.01)`) re-scans large gaps to catch sparse continuation lines without causing merging. (Legacy `detect_text_lines` only; `detect_centered_lines` handles sparse lines via greedy merging.)
+- **Merged Blocks Within max_height** — Blocks like `기본 효과` + `무기 공격력 50 증가` merged as h=23 (within max_height=25) despite having a clear zero-projection gap. Previously fixed by `_has_internal_gap()` + `_split_tall_block()`. **Superseded by Greedy Group Merging** (`detect_centered_lines`), which uses no gap tolerance and no re-splitting — groups are merged by physical span constraint (min_height=13).
+- **False h=6 Fragments from Korean Characters** — Characters with horizontal vowel ㅡ (증, 스, 승) have 1-2px zero-projection rows between syllable components. The old `gap_tolerance=2` → `_has_internal_gap()` flow merged then re-split these, producing false h=6 fragments. Fixed by Greedy Group Merging: no gap tolerance, no re-splitting. Groups are greedily absorbed until total span reaches min_height, then centered. Character-internal gaps are absorbed naturally because the total span of all syllable parts is always well under 13px.
 - **Color Parts Not Split Horizontally** — Multi-digit RGB values (e.g., `R:187 G:153 B:85`) merged into one segment because gap sizes (15-16px) were below the split threshold. Made `horizontal_split_factor` configurable (default 3 in base, 1.5 for Mabinogi via `configs/mabinogi_tooltip.yaml`). For h=8 color lines: threshold=12, gaps 15-16 > 12 → correct 4-way split.
 - **Section-Aware Parsing** — Created `MabinogiTooltipParser` (`backend/lib/mabinogi_tooltip_parser.py`) that categorizes lines into game sections (item_attrs, enchant, reforge, etc.) using config from `configs/mabinogi_tooltip.yaml`. Enables structured output and section-specific handling (e.g., color parts parsed via regex, flavor text skipped).
 - **GT Alignment Drift** — Old GT files didn't match pipeline output (different line counts from horizontal splitting, skip logic changes). Created `scripts/regenerate_gt.py` to produce GT candidates from actual pipeline output. Added `*_expected.txt` files for expected OCR output (separate from full GT).
@@ -83,7 +84,7 @@ Ink ratio gap: real padded crops 0.201 vs synthetic 0.144 (strokes ~1.4× thicke
 
 ## V3 Pipeline — Current Status
 
-**Latest v3 result:** 184/311 exact, 90.4% char acc, FM=60 (18 images, 7 with GT)
+**Latest v3 result:** 429/597 exact, 94.6% char acc, FM=268 (18 images)
 
 ### Resolved (V3)
 

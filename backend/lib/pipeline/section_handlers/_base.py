@@ -1,11 +1,11 @@
 """Base class for content section handlers."""
 
 from ._helpers import bt601_binary
-from lib.pipeline.line_split import group_by_y
+from lib.pipeline.line_split import group_by_y, group_by_distance
 
 
 class BaseHandler:
-    """Common pipeline: bt601 → detect_text_lines → group_by_y → _process()."""
+    """Common pipeline: bt601 → detect_centered_lines → group_by_y → group_by_distance → _process()."""
 
     def process(self, seg, *, font_reader, attach_crops=False, **ctx):
         from lib.pipeline.v3 import get_pipeline
@@ -14,8 +14,9 @@ class BaseHandler:
         seg['ocr_binary'] = bt601_binary(seg['content_crop'])
 
         splitter = pipeline['splitter']
-        detected = splitter.detect_text_lines(seg['ocr_binary'])
+        detected = splitter.detect_centered_lines(seg['ocr_binary'])
         grouped_lines = group_by_y(detected)
+        group_by_distance(grouped_lines)
 
         return self._process(seg, grouped_lines, pipeline=pipeline,
                              font_reader=font_reader, attach_crops=attach_crops, **ctx)

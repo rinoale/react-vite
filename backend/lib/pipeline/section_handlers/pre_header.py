@@ -65,7 +65,7 @@ def _preprocess_nanum_gothic(content_bgr):
 def _ocr_pre_header_image(ocr_binary, splitter, reader,
                           save_label, save_crops_dir, attach_crops):
     """Run line detection + OCR on a preprocessed pre_header image."""
-    detected = splitter.detect_text_lines(ocr_binary)
+    detected = splitter.detect_centered_lines(ocr_binary)
     grouped = group_by_y(detected)
     return ocr_grouped_lines(
         ocr_binary, grouped, reader,

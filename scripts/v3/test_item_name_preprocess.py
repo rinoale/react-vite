@@ -42,7 +42,7 @@ def detect_lines(binary):
     """Run line splitter on binary (black-on-white) and return line dicts."""
     binary_detect = cv2.bitwise_not(binary)  # white-on-black for detection
     splitter = MabinogiTooltipSplitter()
-    return splitter.detect_text_lines(binary_detect)
+    return splitter.detect_centered_lines(binary_detect)
 
 
 def run_ocr_on_crop(reader, crop_binary):

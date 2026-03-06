@@ -41,8 +41,7 @@ A specialized marketplace for trading in-game items with automated OCR item regi
 ├── infra/
 │   ├── README.md                  # Infra/service layout guide
 │   └── database/                  # PostgreSQL Docker assets
-│       ├── Dockerfile
-│       └── init/                  # Optional SQL bootstrap scripts
+│       └── Dockerfile
 ├── documents/
 │   ├── ARCHITECTURE.md            # OCR pipeline internals
 │   └── STRATEGY_MABINOGI.md       # Design decisions with porting guides (D1–D10)
@@ -96,8 +95,32 @@ docker compose exec backend bash
 docker compose down
 ```
 
-If you add `.sql` files under `infra/database/init/`, they will run automatically
-on first DB initialization.
+## Database Migrations (Alembic)
+
+Schema changes are tracked via Alembic. Run all commands from `backend/`.
+
+```bash
+# Show current migration revision
+alembic current
+
+# Check for un-migrated model changes
+alembic check
+
+# Create a new migration after editing db/models.py
+alembic revision --autogenerate -m "add xyz column"
+
+# Apply all pending migrations
+alembic upgrade head
+
+# Rollback the last migration
+alembic downgrade -1
+
+# View migration history
+alembic history
+
+# Stamp DB as current without running migrations (e.g. after manual SQL)
+alembic stamp head
+```
 
 ## Database Dictionary Import
 

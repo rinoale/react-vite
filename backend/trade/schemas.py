@@ -4,13 +4,7 @@ from pydantic import BaseModel, field_validator
 
 class OcrLineResponse(BaseModel):
     text: str = ''
-    confidence: float = 0.0
     line_index: int
-
-    @field_validator('confidence', mode='before')
-    @classmethod
-    def round_confidence(cls, v):
-        return round(v, 4) if v is not None else 0.0
 
 
 # --- Typed sub-models for structured section data ---
@@ -34,23 +28,6 @@ class EnchantSlotResponse(BaseModel):
     source: Optional[str] = None
 
 
-class EnchantResolutionCandidateResponse(BaseModel):
-    name: Optional[str] = None
-    score: Optional[Union[int, float]] = None
-    raw_text: Optional[str] = None
-
-
-class EnchantResolutionSlotResponse(BaseModel):
-    winner: Optional[str] = None
-    p1: Optional[EnchantResolutionCandidateResponse] = None
-    p2: Optional[EnchantResolutionCandidateResponse] = None
-    p3: Optional[EnchantResolutionCandidateResponse] = None
-
-
-class EnchantResolutionResponse(BaseModel):
-    prefix: Optional[EnchantResolutionSlotResponse] = None
-    suffix: Optional[EnchantResolutionSlotResponse] = None
-
 
 class ReforgeOptionResponse(BaseModel):
     name: str
@@ -69,20 +46,24 @@ class ColorPartResponse(BaseModel):
 
 
 class OcrSectionResponse(BaseModel):
-    header_text: Optional[str] = None
-    header_confidence: Optional[float] = None
-    header_index: Optional[int] = None
     lines: Optional[List[OcrLineResponse]] = None
     text: Optional[str] = None
     skipped: Optional[bool] = None
     # enchant
     prefix: Optional[EnchantSlotResponse] = None
     suffix: Optional[EnchantSlotResponse] = None
-    resolution: Optional[EnchantResolutionResponse] = None
     # reforge
     options: Optional[List[ReforgeOptionResponse]] = None
     # item_attrs
     attrs: Optional[Dict[str, str]] = None
+
+    @field_validator('attrs', mode='before')
+    @classmethod
+    def _strip_hidden_attrs(cls, v):
+        hidden = {'additional_piercing'}
+        if isinstance(v, dict):
+            return {k: val for k, val in v.items() if k not in hidden}
+        return v
     # set_item
     set_effects: Optional[List[Dict[str, Any]]] = None
     # erg

@@ -7,13 +7,15 @@
  * @param {Object} params
  * @param {string} params.sessionId
  * @param {string} params.name
+ * @param {string} params.description
  * @param {string} params.price
  * @param {string} params.category
  * @param {Object|null} params.gameItem - selected game item
  * @param {Object} params.sections - form sections data
+ * @param {string[]} params.tags - user-assigned tags (max 3)
  * @returns {Object} payload ready for POST /register-listing
  */
-export function buildRegistrationPayload({ sessionId, name, price, category, gameItem, sections }) {
+export function buildRegistrationPayload({ sessionId, name, description, price, category, gameItem, sections, tags }) {
   // Collect all lines with (section, line_index) + current text
   const lines = [];
   for (const [secKey, secData] of Object.entries(sections)) {
@@ -32,6 +34,7 @@ export function buildRegistrationPayload({ sessionId, name, price, category, gam
   return {
     session_id: sessionId,
     name,
+    description: description || null,
     price,
     category,
     game_item_id: gameItem?.id || null,
@@ -41,9 +44,11 @@ export function buildRegistrationPayload({ sessionId, name, price, category, gam
     erg_level: ergLevel,
     special_upgrade_type: sections?.item_mod?.special_upgrade_type || null,
     special_upgrade_level: sections?.item_mod?.special_upgrade_level || null,
+    attrs: sections?.item_attrs?.attrs || null,
     lines,
     enchants,
     reforge_options,
+    tags: (tags || []).slice(0, 3),
   };
 }
 
