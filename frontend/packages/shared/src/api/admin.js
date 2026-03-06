@@ -59,6 +59,9 @@ export const updateTagWeight = (tagId, weight) =>
 export const updateTagTargetWeight = (tagTargetId, weight) =>
   client.patch(`/admin/tags/targets/${tagTargetId}`, { weight });
 
+export const bulkUpdateTagTargetWeights = (ids, weight) =>
+  client.patch('/admin/tags/targets/bulk', { ids, weight });
+
 export const getUsers = ({ limit, offset } = {}) =>
   client.get('/admin/users', { params: { limit, offset } });
 

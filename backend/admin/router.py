@@ -259,6 +259,15 @@ def admin_update_tag_target_weight(
     return {"ok": True}
 
 
+@router.patch("/tags/targets/bulk")
+def admin_bulk_update_tag_target_weights(
+    data: schemas.BulkWeightUpdate,
+    db: Session = Depends(get_db),
+    _: User = _manage_tags,
+):
+    return crud_admin.bulk_update_tag_target_weights(db, data.ids, data.weight)
+
+
 @router.get("/tags/{tag_id}", response_model=schemas.TagDetail)
 def admin_tag_detail(
     tag_id: int,

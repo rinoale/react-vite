@@ -378,7 +378,7 @@ def bulk_create_tags(db: Session, data: schemas.BulkTagCreate):
             if not existing:
                 db.add(tag)
                 db.flush()
-            weight = explicit_weight
+            weight = 0
         else:
             pos_weight = _TAG_POSITION_WEIGHTS[i] if i < len(_TAG_POSITION_WEIGHTS) else 0
             if existing:
@@ -501,6 +501,14 @@ def update_tag_weight(db: Session, tag_id: int, weight: int):
     tag.weight = weight
     db.commit()
     return True
+
+
+def bulk_update_tag_target_weights(db: Session, ids: list[int], weight: int):
+    updated = db.query(models.TagTarget).filter(models.TagTarget.id.in_(ids)).update(
+        {"weight": weight}, synchronize_session="fetch"
+    )
+    db.commit()
+    return {"updated": updated}
 
 
 def update_tag_target_weight(db: Session, tag_target_id: int, weight: int):

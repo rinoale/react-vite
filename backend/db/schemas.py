@@ -148,6 +148,10 @@ class TagDetail(BaseModel):
 class WeightUpdate(BaseModel):
     weight: int
 
+class BulkWeightUpdate(BaseModel):
+    ids: List[int]
+    weight: int
+
 class SummarySchema(BaseModel):
     enchants: int
     effects: int

@@ -200,6 +200,9 @@ const Marketplace = () => {
                   onClick={() => handleSelectListing(listing)}
                   className={`bg-gray-800 p-4 rounded-xl border cursor-pointer transition-all hover:scale-[1.02] ${selectedListing?.id === listing.id ? 'border-cyan-500 shadow-[0_0_15px_rgba(6,182,212,0.3)]' : 'border-gray-700 hover:border-gray-600'}`}
                 >
+                  {/* listing-title */}
+                  <h3 className="font-bold text-lg leading-tight mb-1">{listing.name}</h3>
+                  {/* listing-specs */}
                   <div className="flex flex-wrap items-center gap-1.5 mb-1">
                     {listing.prefix_enchant_name && (
                       <span className={enchantBadge}>{listing.prefix_enchant_name}</span>
@@ -207,7 +210,9 @@ const Marketplace = () => {
                     {listing.suffix_enchant_name && (
                       <span className={enchantBadge}>{listing.suffix_enchant_name}</span>
                     )}
-                    <h3 className="font-bold text-lg leading-tight">{listing.name}</h3>
+                    {listing.game_item_name && (
+                      <span className="text-sm text-gray-300">{listing.game_item_name}</span>
+                    )}
                     {listing.special_upgrade_type && (
                       <span className={upgradeBadge}>
                         {listing.special_upgrade_type}{listing.special_upgrade_level != null ? listing.special_upgrade_level : ''}
@@ -219,6 +224,7 @@ const Marketplace = () => {
                       </span>
                     )}
                   </div>
+                  {/* listing-tags */}
                   {listing.tags?.length > 0 && (
                     <div className="flex flex-wrap gap-1.5 mb-2">
                       {listing.tags.map((tag, idx) => (
@@ -226,6 +232,7 @@ const Marketplace = () => {
                       ))}
                     </div>
                   )}
+                  {/* listing-seller */}
                   <p className="text-xs text-gray-500">
                     <PlayerName server={listing.seller_server} gameId={listing.seller_game_id} />
                     {listing.created_at && (

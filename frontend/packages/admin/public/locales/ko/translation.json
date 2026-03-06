@@ -76,7 +76,8 @@
     "targets": "대상",
     "targetWeight": "w:",
     "noTargets": "대상 없음.",
-    "filterAll": "전체"
+    "filterAll": "전체",
+    "bulkUpdate": "일괄 적용 ({{count}})"
   },
   "bulkTag": {
     "title": "일괄 태그",

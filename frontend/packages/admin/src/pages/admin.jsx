@@ -2,10 +2,11 @@ import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Loader2, ChevronDown, ChevronRight, Info, List, RefreshCw, Check, Image, Pencil, X, Save, Package, Trash2, Tag, Plus, Search } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { getSummary, getEnchantEntries, getEnchantEffects, getLinks, getCorrections, approveCorrection, editCorrection, truncateCorrections, getListings, getListingDetail, getTags, createTag, deleteTag, searchTagEntities, bulkCreateTags, getUniqueTags, deleteTagById, getTagDetail, updateTagWeight, updateTagTargetWeight } from '@mabi/shared/api/admin';
+import { getSummary, getEnchantEntries, getEnchantEffects, getLinks, getCorrections, approveCorrection, editCorrection, truncateCorrections, getListings, getListingDetail, getTags, createTag, deleteTag, searchTagEntities, bulkCreateTags, getUniqueTags, deleteTagById, getTagDetail, updateTagWeight, updateTagTargetWeight, bulkUpdateTagTargetWeights } from '@mabi/shared/api/admin';
 import CustomSelect from '@mabi/shared/components/CustomSelect';
 import TagBadge from '@mabi/shared/components/TagBadge';
 import { getTagColor } from '@mabi/shared/lib/tagColors';
+import { pillActive, pillInactive, btnSmEmerald, weightInputSm } from '@mabi/shared/styles';
 import { useAuth } from '@mabi/shared/hooks/useAuth';
 import UsersPanel from '../components/UsersPanel';
 
@@ -413,6 +414,7 @@ const TagsPanel = () => {
   const [editingTagWeight, setEditingTagWeight] = useState(null);
   const [editingTargetWeights, setEditingTargetWeights] = useState({});
   const [targetTypeFilter, setTargetTypeFilter] = useState(null);
+  const [bulkWeight, setBulkWeight] = useState('');
 
   // --- Fetch unique tags ---
   const fetchTags = useCallback(async () => {
@@ -641,6 +643,30 @@ const TagsPanel = () => {
     setEditingTargetWeights((prev) => ({ ...prev, [ttId]: e.target.value }));
   }, []);
 
+  const handleBulkWeightUpdate = useCallback(async () => {
+    if (!tagDetail || bulkWeight === '') return;
+    const w = parseInt(bulkWeight, 10) || 0;
+    const filtered = targetTypeFilter
+      ? tagDetail.targets.filter((tgt) => tgt.target_type === targetTypeFilter)
+      : tagDetail.targets;
+    if (filtered.length === 0) return;
+    const ids = filtered.map((tgt) => tgt.id);
+    try {
+      await bulkUpdateTagTargetWeights(ids, w);
+      setTagDetail((prev) => ({
+        ...prev,
+        targets: prev.targets.map((tgt) => ids.includes(tgt.id) ? { ...tgt, weight: w } : tgt),
+      }));
+      setBulkWeight('');
+    } catch (error) {
+      console.error('Error bulk updating target weights:', error);
+    }
+  }, [tagDetail, targetTypeFilter, bulkWeight]);
+
+  const handleBulkWeightKeyDown = useCallback((e) => {
+    if (e.key === 'Enter') handleBulkWeightUpdate();
+  }, [handleBulkWeightUpdate]);
+
   const canCreate = !creating && tagName.trim().length > 0;
 
   return (
@@ -679,7 +705,7 @@ const TagsPanel = () => {
               className="text-xs bg-gray-800 border border-gray-600 rounded pl-7 pr-2 py-1.5 w-full outline-none focus:border-emerald-500"
             />
             {showSuggestions && suggestions.length > 0 && (
-              <div className="absolute z-50 mt-1 w-full bg-gray-800 border border-gray-700 rounded-lg shadow-xl max-h-48 overflow-auto">
+              <div className="absolute z-50 mt-1 w-full bg-gray-800 border border-gray-700 rounded-lg shadow-xl max-h-48 overflow-auto scrollbar-thin">
                 {suggestions.map((ent) => {
                   const alreadyAdded = selectedTargets.some((st) => st.target_type === searchType && st.target_id === ent.id);
                   return (
@@ -751,6 +777,28 @@ const TagsPanel = () => {
               )}
             </span>
           )}
+        </div>
+
+        {/* Color tier legend */}
+        <div className="px-6 py-3 border-t border-gray-700 flex flex-wrap gap-2">
+          {[
+            { label: '80+ Artifact', w: 80 },
+            { label: '70+ Mythic', w: 70 },
+            { label: '60+ Legendary', w: 60 },
+            { label: '50+ Heroic', w: 50 },
+            { label: '40+ Epic', w: 40 },
+            { label: '30+ Rare', w: 30 },
+            { label: '20+ Uncommon', w: 20 },
+            { label: '10+ Common', w: 10 },
+            { label: '0+ Hidden', w: 0 },
+          ].map(({ label, w }) => {
+            const c = getTagColor(w);
+            return (
+              <span key={w} className={`text-[10px] px-1.5 py-0.5 rounded border ${c.bg} ${c.text} ${c.border}`}>
+                {label}
+              </span>
+            );
+          })}
         </div>
       </div>
 
@@ -862,7 +910,7 @@ const TagsPanel = () => {
                                   <div className="flex gap-1">
                                     <button
                                       onClick={() => setTargetTypeFilter(null)}
-                                      className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded transition-colors ${!targetTypeFilter ? 'bg-emerald-700 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}
+                                      className={!targetTypeFilter ? pillActive : pillInactive}
                                     >
                                       {t('tags.filterAll')}
                                     </button>
@@ -870,13 +918,30 @@ const TagsPanel = () => {
                                       <button
                                         key={type}
                                         onClick={() => setTargetTypeFilter(type)}
-                                        className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded transition-colors ${targetTypeFilter === type ? 'bg-emerald-700 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}
+                                        className={targetTypeFilter === type ? pillActive : pillInactive}
                                       >
                                         {type.replace('_', ' ')}
                                       </button>
                                     ))}
                                   </div>
                                 )}
+                                <div className="flex items-center gap-1 ml-auto">
+                                  <input
+                                    type="number"
+                                    value={bulkWeight}
+                                    onChange={(e) => setBulkWeight(e.target.value)}
+                                    onKeyDown={handleBulkWeightKeyDown}
+                                    placeholder="w"
+                                    className={`${weightInputSm} ${getTagColor(parseInt(bulkWeight, 10) || 0).text}`}
+                                  />
+                                  <button
+                                    onClick={handleBulkWeightUpdate}
+                                    disabled={bulkWeight === '' || filtered.length === 0}
+                                    className={btnSmEmerald}
+                                  >
+                                    {t('tags.bulkUpdate', { count: filtered.length })}
+                                  </button>
+                                </div>
                               </div>
                               {filtered.length === 0 ? (
                                 <div className="text-xs text-gray-500 py-1">{t('tags.noTargets')}</div>

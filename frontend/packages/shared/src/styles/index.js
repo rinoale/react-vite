@@ -50,6 +50,20 @@ export const dropdownTriggerInline = 'inline-flex items-center gap-0.5 cursor-po
 
 export const clearBtnAbsolute = 'absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white';
 
+// --- Pill tabs (small toggle buttons) ---
+
+const pillBase = 'text-[10px] font-bold uppercase px-1.5 py-0.5 rounded transition-colors';
+export const pillActive = `${pillBase} bg-emerald-700 text-white`;
+export const pillInactive = `${pillBase} bg-gray-700 text-gray-400 hover:bg-gray-600`;
+
+// --- Small action buttons ---
+
+export const btnSmEmerald = 'text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-emerald-700 hover:bg-emerald-600 text-white disabled:opacity-50';
+
+// --- Compact weight input ---
+
+export const weightInputSm = 'text-[10px] font-bold bg-gray-800 border border-gray-600 rounded px-1.5 py-0.5 w-12 outline-none focus:border-emerald-500';
+
 // --- Layout ---
 
 export const groupRow = 'group flex justify-between items-center';

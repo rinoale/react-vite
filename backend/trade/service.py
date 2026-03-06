@@ -342,7 +342,7 @@ def create_listing_tags(listing, payload, db):
             attached.add(tag_name)
 
         # --- Auto tags (skip if already attached by user) ---
-        auto_tags = _build_auto_tags(payload)
+        auto_tags = _build_auto_tags(payload, db)
         for name in auto_tags:
             if name in attached:
                 continue
@@ -357,29 +357,49 @@ def create_listing_tags(listing, payload, db):
         logger.exception("register-listing  tag creation failed for listing id=%d", listing.id)
 
 
-def _build_auto_tags(payload):
+def _build_auto_tags(payload, db):
     """Build list of auto-generated tag names from structured listing data."""
     tags = []
+    _tag_enchant_names(tags, payload)
+    _tag_erg(tags, payload)
+    _tag_special_upgrade(tags, payload)
+    _tag_piercing_maxroll(tags, payload, db)
+    return tags
 
-    # Enchant names
+
+def _tag_enchant_names(tags, payload):
     for enc in payload.enchants:
         if enc.name:
             tags.append(enc.name)
 
-    # Erg (only level 50)
+
+def _tag_erg(tags, payload):
     if payload.erg_grade and payload.erg_level == 50:
         tags.append(f'{payload.erg_grade}르그50')
 
-    # Special upgrade
-    if payload.special_upgrade_type:
-        upgrade_name = _SPECIAL_UPGRADE_NAMES.get(payload.special_upgrade_type)
-        if upgrade_name:
-            tags.append(upgrade_name)
-        # Level tag only for 7, 8
-        if payload.special_upgrade_level in (7, 8):
-            tags.append(f'{payload.special_upgrade_level}강')
 
-    return tags
+def _tag_special_upgrade(tags, payload):
+    if not payload.special_upgrade_type:
+        return
+    upgrade_name = _SPECIAL_UPGRADE_NAMES.get(payload.special_upgrade_type)
+    if upgrade_name:
+        tags.append(upgrade_name)
+    if payload.special_upgrade_level in (7, 8):
+        tags.append(f'{payload.special_upgrade_level}강')
+
+
+def _tag_piercing_maxroll(tags, payload, db):
+    for enc in payload.enchants:
+        for eff in enc.effects:
+            if eff.option_name != '피어싱 레벨' or eff.option_level is None or not eff.enchant_effect_id:
+                continue
+            row = db.execute(
+                text("SELECT max_value FROM enchant_effects WHERE id = :id"),
+                {"id": eff.enchant_effect_id},
+            ).mappings().first()
+            if row and row['max_value'] is not None and float(eff.option_level) >= float(row['max_value']):
+                tags.append('풀피어싱')
+                return
 
 
 def _batch_resolve_tags(db, listing_ids):

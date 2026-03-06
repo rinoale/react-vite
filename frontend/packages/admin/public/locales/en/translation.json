@@ -76,7 +76,8 @@
     "targets": "Targets",
     "targetWeight": "w:",
     "noTargets": "No targets.",
-    "filterAll": "All"
+    "filterAll": "All",
+    "bulkUpdate": "Set all ({{count}})"
   },
   "bulkTag": {
     "title": "BULK TAG",
