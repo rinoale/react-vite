@@ -1,13 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import DefaultSection from './DefaultSection';
+import CustomSelect from '../CustomSelect';
+import { editNumber } from '../../styles';
 
 const TYPES = ['R', 'S'];
 const MAX_LEVEL = 8;
 
-const inlineSelect = 'appearance-none bg-transparent border-none outline-none cursor-pointer text-center';
-const editInput = 'w-12 text-orange-400 font-bold bg-gray-900 border border-orange-500 rounded px-1 text-xs text-center outline-none';
+const TYPE_OPTIONS = TYPES.map((tp) => ({ value: tp, label: tp }));
 
 const NumberField = ({ value, onCommit, placeholder }) => {
   const [editing, setEditing] = useState(false);
@@ -30,7 +31,7 @@ const NumberField = ({ value, onCommit, placeholder }) => {
           if (e.key === 'Enter') commit(draft);
           if (e.key === 'Escape') setEditing(false);
         }}
-        className={editInput}
+        className={editNumber}
       />
     );
   }
@@ -56,6 +57,10 @@ const SpecialUpgradeRow = ({ type, level, onLineChange }) => {
     });
   };
 
+  const handleTypeChange = useCallback((val) => {
+    update(val || null, level);
+  }, [level]);
+
   const typeColor = needsCorrection ? 'text-amber-300' : (type === 'S' ? 'text-cyan-300' : 'text-pink-300');
   const textColor = needsCorrection ? 'text-amber-200' : 'text-gray-300';
 
@@ -69,14 +74,14 @@ const SpecialUpgradeRow = ({ type, level, onLineChange }) => {
       )}
       <p className={`text-sm font-medium ${textColor}`}>
         {t('sections.item_mod.label') + ' '}
-        <select
+        <CustomSelect
           value={type || ''}
-          onChange={(e) => update(e.target.value || null, level)}
-          className={`${inlineSelect} ${typeColor} font-bold w-4`}
-        >
-          {!type && <option value="">—</option>}
-          {TYPES.map(tp => <option key={tp} value={tp} className="text-gray-300 bg-gray-900">{tp}</option>)}
-        </select>
+          onChange={handleTypeChange}
+          options={TYPE_OPTIONS}
+          placeholder="—"
+          variant="inline"
+          triggerClassName={`${typeColor} font-bold`}
+        />
         {' ('}
         <NumberField
           value={level}

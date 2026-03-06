@@ -1,2 +1,14 @@
 @import 'tailwindcss';
+@import '../../shared/src/styles/shared.css';
 @source "../../shared/src/**/*.{js,jsx}";
+
+@keyframes blink-twice {
+  0%, 100% { opacity: 1; }
+  25% { opacity: 0.2; }
+  50% { opacity: 1; }
+  75% { opacity: 0.2; }
+}
+
+@utility animate-blink-twice {
+  animation: blink-twice 0.6s ease-in-out;
+}

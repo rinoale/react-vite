@@ -255,30 +255,43 @@ def get_game_item_count(db: Session):
     return db.query(models.GameItem).count()
 
 
-# --- Tags ---
+# --- Tags (normalized: tags + tag_targets) ---
+
+def _get_or_create_tag(db: Session, name: str, weight: int = 0):
+    """Get existing tag by name or create a new one. Returns Tag model instance."""
+    tag = db.query(models.Tag).filter(models.Tag.name == name).first()
+    if tag:
+        return tag
+    tag = models.Tag(name=name, weight=weight)
+    db.add(tag)
+    db.flush()
+    return tag
+
 
 def get_tags(db: Session, target_type: Optional[str] = None, limit: int = 100, offset: int = 0):
-    where = "WHERE t.target_type = :target_type" if target_type else ""
+    where = "WHERE tt.target_type = :target_type" if target_type else ""
     params = {"limit": limit, "offset": offset}
     if target_type:
         params["target_type"] = target_type
     rows = db.execute(
         text(f"""
             SELECT
-                t.id,
-                t.target_type,
-                t.target_id,
+                tt.id,
+                t.id AS tag_id,
+                tt.target_type,
+                tt.target_id,
                 t.name,
                 t.weight,
-                CASE t.target_type
-                    WHEN 'reforge_option' THEN (SELECT ro.option_name FROM reforge_options ro WHERE ro.id = t.target_id)
-                    WHEN 'game_item'      THEN (SELECT gi.name FROM game_items gi WHERE gi.id = t.target_id)
-                    WHEN 'listing'        THEN (SELECT l.name FROM listings l WHERE l.id = t.target_id)
-                    WHEN 'enchant'        THEN (SELECT e.name FROM enchants e WHERE e.id = t.target_id)
+                CASE tt.target_type
+                    WHEN 'reforge_option' THEN (SELECT ro.option_name FROM reforge_options ro WHERE ro.id = tt.target_id)
+                    WHEN 'game_item'      THEN (SELECT gi.name FROM game_items gi WHERE gi.id = tt.target_id)
+                    WHEN 'listing'        THEN (SELECT l.name FROM listings l WHERE l.id = tt.target_id)
+                    WHEN 'enchant'        THEN (SELECT e.name FROM enchants e WHERE e.id = tt.target_id)
                 END AS target_display_name
-            FROM tags t
+            FROM tag_targets tt
+            JOIN tags t ON t.id = tt.tag_id
             {where}
-            ORDER BY t.id DESC
+            ORDER BY tt.id DESC
             LIMIT :limit OFFSET :offset
         """),
         params,
@@ -287,32 +300,42 @@ def get_tags(db: Session, target_type: Optional[str] = None, limit: int = 100, o
 
 
 def create_tag(db: Session, data: schemas.TagCreate):
-    tag = models.Tag(
+    """Get-or-create tag definition (weight on tags table), then attach to the target."""
+    tag = _get_or_create_tag(db, data.name, data.weight)
+    tt = models.TagTarget(
+        tag_id=tag.id,
         target_type=data.target_type,
         target_id=data.target_id,
-        name=data.name,
-        weight=data.weight,
     )
-    db.add(tag)
+    db.add(tt)
     try:
         db.commit()
-        db.refresh(tag)
+        db.refresh(tt)
     except IntegrityError:
         db.rollback()
         return None
-    return tag
+    return tt
 
 
-def delete_tag(db: Session, tag_id: int):
-    tag = db.query(models.Tag).filter(models.Tag.id == tag_id).first()
-    if not tag:
+def delete_tag(db: Session, tag_target_id: int):
+    """Delete a tag-target association. If tag has no remaining targets, delete the tag too."""
+    tt = db.query(models.TagTarget).filter(models.TagTarget.id == tag_target_id).first()
+    if not tt:
         return False
-    db.delete(tag)
+    tag_id = tt.tag_id
+    db.delete(tt)
+    db.flush()
+    # Clean up orphaned tag definition
+    remaining = db.query(models.TagTarget).filter(models.TagTarget.tag_id == tag_id).count()
+    if remaining == 0:
+        tag = db.query(models.Tag).filter(models.Tag.id == tag_id).first()
+        if tag:
+            db.delete(tag)
     db.commit()
     return True
 
 
-def search_entities(db: Session, target_type: str, q: str, limit: int = 20):
+def search_entities(db: Session, target_type: str, q: str, limit: int = 20, like: bool = True):
     if target_type == 'reforge_option':
         tbl, col = 'reforge_options', 'option_name'
     elif target_type == 'game_item':
@@ -323,6 +346,7 @@ def search_entities(db: Session, target_type: str, q: str, limit: int = 20):
         tbl, col = 'enchants', 'name'
     else:
         return []
+    q_param = f"%{q}%" if like else q
     rows = db.execute(
         text(f"""
             SELECT id, {col} AS name
@@ -331,15 +355,94 @@ def search_entities(db: Session, target_type: str, q: str, limit: int = 20):
             ORDER BY {col}
             LIMIT :limit
         """),
-        {"q": f"%{q}%", "limit": limit},
+        {"q": q_param, "limit": limit},
     ).mappings()
     return [dict(r) for r in rows]
+
+
+_TAG_POSITION_WEIGHTS = [80, 60, 30]
+
+
+def bulk_create_tags(db: Session, data: schemas.BulkTagCreate):
+    created = 0
+    duplicates = 0
+    seen = set()
+    explicit_weight = data.weight
+    for i, name in enumerate(data.names):
+        if name in seen:
+            continue
+        seen.add(name)
+        existing = db.query(models.Tag).filter(models.Tag.name == name).first()
+        if explicit_weight is not None:
+            tag = existing or models.Tag(name=name, weight=0)
+            if not existing:
+                db.add(tag)
+                db.flush()
+            weight = explicit_weight
+        else:
+            pos_weight = _TAG_POSITION_WEIGHTS[i] if i < len(_TAG_POSITION_WEIGHTS) else 0
+            if existing:
+                tag = existing
+                weight = max(0, pos_weight - tag.weight)
+            else:
+                tag = models.Tag(name=name, weight=0)
+                db.add(tag)
+                db.flush()
+                weight = pos_weight
+        if not data.targets:
+            if not existing:
+                created += 1
+            else:
+                duplicates += 1
+            continue
+        for target in data.targets:
+            sp = db.begin_nested()
+            tt = models.TagTarget(
+                tag_id=tag.id,
+                target_type=target.target_type,
+                target_id=target.target_id,
+                weight=weight,
+            )
+            db.add(tt)
+            try:
+                sp.commit()
+                created += 1
+            except IntegrityError:
+                sp.rollback()
+                duplicates += 1
+    db.commit()
+    return {"created": created, "duplicates": duplicates}
+
+
+def get_unique_tags(db: Session, limit: int = 100, offset: int = 0):
+    rows = db.execute(
+        text("""
+            SELECT t.id, t.name, t.weight, COUNT(tt.id) AS target_count
+            FROM tags t
+            LEFT JOIN tag_targets tt ON tt.tag_id = t.id
+            GROUP BY t.id
+            ORDER BY t.id DESC
+            LIMIT :limit OFFSET :offset
+        """),
+        {"limit": limit, "offset": offset},
+    ).mappings()
+    return [dict(r) for r in rows]
+
+
+def delete_tag_by_id(db: Session, tag_id: int):
+    """Delete a tag and all its tag_targets (via CASCADE)."""
+    tag = db.query(models.Tag).filter(models.Tag.id == tag_id).first()
+    if not tag:
+        return False
+    db.delete(tag)
+    db.commit()
+    return True
 
 
 def resolve_listing_tags(db: Session, listing_id: int):
     rows = db.execute(
         text("""
-            SELECT DISTINCT t.name, t.weight
+            SELECT DISTINCT t.name, (t.weight + tt.weight) AS weight
             FROM (
                 SELECT 'listing' AS ttype, :lid AS tid
                 UNION ALL
@@ -351,9 +454,59 @@ def resolve_listing_tags(db: Session, listing_id: int):
                 UNION ALL
                 SELECT 'enchant', l.suffix_enchant_id FROM listings l WHERE l.id = :lid AND l.suffix_enchant_id IS NOT NULL
             ) AS sub(ttype, tid)
-            JOIN tags t ON t.target_type = sub.ttype AND t.target_id = sub.tid
-            ORDER BY t.weight DESC, t.name
+            JOIN tag_targets tt ON tt.target_type = sub.ttype AND tt.target_id = sub.tid
+            JOIN tags t ON t.id = tt.tag_id
+            ORDER BY (t.weight + tt.weight) DESC, t.name
         """),
         {"lid": listing_id},
     ).mappings()
     return [{"name": r["name"], "weight": r["weight"]} for r in rows]
+
+
+def get_tag_detail(db: Session, tag_id: int):
+    tag = db.query(models.Tag).filter(models.Tag.id == tag_id).first()
+    if not tag:
+        return None
+    rows = db.execute(
+        text("""
+            SELECT
+                tt.id,
+                tt.target_type,
+                tt.target_id,
+                tt.weight,
+                CASE tt.target_type
+                    WHEN 'reforge_option' THEN (SELECT ro.option_name FROM reforge_options ro WHERE ro.id = tt.target_id)
+                    WHEN 'game_item'      THEN (SELECT gi.name FROM game_items gi WHERE gi.id = tt.target_id)
+                    WHEN 'listing'        THEN (SELECT l.name FROM listings l WHERE l.id = tt.target_id)
+                    WHEN 'enchant'        THEN (SELECT e.name FROM enchants e WHERE e.id = tt.target_id)
+                END AS target_display_name
+            FROM tag_targets tt
+            WHERE tt.tag_id = :tag_id
+            ORDER BY tt.id
+        """),
+        {"tag_id": tag_id},
+    ).mappings()
+    return {
+        "id": tag.id,
+        "name": tag.name,
+        "weight": tag.weight,
+        "targets": [dict(r) for r in rows],
+    }
+
+
+def update_tag_weight(db: Session, tag_id: int, weight: int):
+    tag = db.query(models.Tag).filter(models.Tag.id == tag_id).first()
+    if not tag:
+        return False
+    tag.weight = weight
+    db.commit()
+    return True
+
+
+def update_tag_target_weight(db: Session, tag_target_id: int, weight: int):
+    tt = db.query(models.TagTarget).filter(models.TagTarget.id == tag_target_id).first()
+    if not tt:
+        return False
+    tt.weight = weight
+    db.commit()
+    return True

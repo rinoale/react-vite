@@ -1,18 +1,19 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import CustomSelect from '../CustomSelect';
+import { editNumber } from '../../styles';
 
 const GRADES = ['S', 'A', 'B'];
 const MAX_LEVEL = 50;
+
+const GRADE_OPTIONS = GRADES.map((g) => ({ value: g, label: g }));
 
 const GRADE_TEXT = {
   S: 'text-pink-300',
   A: 'text-cyan-300',
   B: 'text-gray-300',
 };
-
-const inlineSelect = 'appearance-none bg-transparent border-none outline-none cursor-pointer text-center';
-const editInput = 'w-12 text-orange-400 font-bold bg-gray-900 border border-orange-500 rounded px-1 text-xs text-center outline-none';
 
 const NumberField = ({ value, onCommit, placeholder }) => {
   const [editing, setEditing] = useState(false);
@@ -35,7 +36,7 @@ const NumberField = ({ value, onCommit, placeholder }) => {
           if (e.key === 'Enter') commit(draft);
           if (e.key === 'Escape') setEditing(false);
         }}
-        className={editInput}
+        className={editNumber}
       />
     );
   }
@@ -62,6 +63,10 @@ const ErgGradeRow = ({ grade, level, maxLevel, hasLines, onLineChange }) => {
     });
   };
 
+  const handleGradeChange = useCallback((val) => {
+    update(val || null, level, maxLevel);
+  }, [level, maxLevel]);
+
   const gradeColor = GRADE_TEXT[grade] || GRADE_TEXT.B;
   const textColor = needsCorrection ? 'text-amber-200' : 'text-gray-300';
 
@@ -75,14 +80,14 @@ const ErgGradeRow = ({ grade, level, maxLevel, hasLines, onLineChange }) => {
       )}
       <p className={`text-sm font-medium ${textColor}`}>
         {t('sections.erg.gradeLabel') + ' '}
-        <select
+        <CustomSelect
           value={grade || ''}
-          onChange={(e) => update(e.target.value || null, level, maxLevel)}
-          className={`${inlineSelect} ${needsCorrection ? 'text-amber-300' : gradeColor} font-bold w-4`}
-        >
-          {!grade && <option value="">—</option>}
-          {GRADES.map(g => <option key={g} value={g} className="text-gray-300 bg-gray-900">{g}</option>)}
-        </select>
+          onChange={handleGradeChange}
+          options={GRADE_OPTIONS}
+          placeholder="—"
+          variant="inline"
+          triggerClassName={`${needsCorrection ? 'text-amber-300' : gradeColor} font-bold`}
+        />
         {' ('}
         <NumberField
           value={level}

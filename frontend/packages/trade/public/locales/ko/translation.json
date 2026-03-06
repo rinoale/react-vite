@@ -72,7 +72,13 @@
     "noResults": "검색 결과가 없습니다.",
     "selectListing": "매물을 선택하여 상세 정보를 확인하세요",
     "enchantLabel": "인챈트",
-    "reforgeLabel": "세공"
+    "reforgeLabel": "세공",
+    "specialUpgradeLabel": "특별 개조",
+    "specialUpgradeR": "붉은 개조석",
+    "specialUpgradeS": "푸른 개조석",
+    "specialUpgradeLevel": "{{level}}강",
+    "ergLabel": "에르그",
+    "ergGrade": "{{grade}}등급"
   },
   "sidebar": {
     "home": "마트레",

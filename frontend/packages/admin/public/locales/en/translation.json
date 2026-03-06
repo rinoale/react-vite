@@ -65,8 +65,27 @@
     "next": "NEXT",
     "noTags": "No tags found.",
     "refresh": "Refresh",
-    "deleteConfirm": "Delete this tag?",
-    "duplicateError": "Tag already exists."
+    "selectAll": "Select All",
+    "targetCount": "{{count}} targets",
+    "deleteConfirm": "Delete this target?",
+    "deleteTagConfirm": "Delete this tag and all its targets?",
+    "duplicateError": "Tag already exists.",
+    "loadingDetail": "Loading...",
+    "tagWeight": "Tag Weight",
+    "targets": "Targets",
+    "targetWeight": "w:",
+    "noTargets": "No targets."
+  },
+  "bulkTag": {
+    "title": "BULK TAG",
+    "likeSearch": "Like",
+    "searchPlaceholder": "Search entity...",
+    "selected": "{{count}} selected",
+    "tagName": "Tag name",
+    "weight": "Weight",
+    "create": "Create",
+    "resultCreated": "{{count}} created",
+    "resultDuplicates": "{{count}} duplicates"
   },
   "enchants": {
     "title": "ENCHANT ENTRIES",

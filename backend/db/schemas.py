@@ -56,6 +56,7 @@ class ReforgeOption(ReforgeOptionBase):
         from_attributes = True
 
 class TagCreate(BaseModel):
+    """Create a tag and attach to a single target."""
     target_type: str
     target_id: int
     name: str
@@ -68,20 +69,60 @@ class TagCreate(BaseModel):
             raise ValueError('tag name must be 5 characters or fewer')
         return v
 
+
+class TagTarget(BaseModel):
+    target_type: str
+    target_id: int
+
+
+class BulkTagCreate(BaseModel):
+    """Create tags and attach to multiple targets. Weights are positional unless explicit weight given."""
+    targets: List[TagTarget] = []
+    names: List[str]
+    weight: Optional[int] = None
+
+    @field_validator('names')
+    @classmethod
+    def validate_names(cls, v):
+        if len(v) < 1 or len(v) > 3:
+            raise ValueError('must provide 1 to 3 tag names')
+        for name in v:
+            if len(name) > 5:
+                raise ValueError('each tag name must be 5 characters or fewer')
+        return v
+
 class TagBadge(BaseModel):
     name: str
     weight: int = 0
 
-class TagOut(BaseModel):
-    id: int
+class TagTargetOut(BaseModel):
+    """A single tag-target association row for admin display."""
+    id: int  # tag_targets.id
+    tag_id: int
     target_type: str
     target_id: int
     name: str
     weight: int = 0
     target_display_name: Optional[str] = None
 
-    class Config:
-        from_attributes = True
+
+class TagDetailTarget(BaseModel):
+    id: int
+    target_type: str
+    target_id: int
+    weight: int = 0
+    target_display_name: Optional[str] = None
+
+
+class TagDetail(BaseModel):
+    id: int
+    name: str
+    weight: int = 0
+    targets: List[TagDetailTarget] = []
+
+
+class WeightUpdate(BaseModel):
+    weight: int
 
 class SummarySchema(BaseModel):
     enchants: int
@@ -193,7 +234,7 @@ class RegisterListingLine(BaseModel):
 class RegisterListingRequest(BaseModel):
     session_id: Optional[str] = None
     name: str = ''
-    description: Optional[str] = None
+    description: Optional[str] = Field(None, max_length=50)
     price: str = ''
     category: str = 'weapon'
     game_item_id: Optional[int] = None

@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Plus, RotateCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import SectionCard from './SectionCard';
+import CustomSelect from './CustomSelect';
 import { ColorPartsSection, EnchantSection, ErgSection, ItemAttrsSection, ItemModSection, ReforgeSection, SetItemSection, DefaultSection } from './sections';
 
 const ADDABLE_SECTIONS = [
@@ -56,6 +57,10 @@ const ItemDetailSections = ({ sections, onSectionsChange, abbreviated = true }) 
     const { [secKey]: _, ...rest } = sections;
     onSectionsChange(rest);
   };
+
+  const handleAddSectionSelect = useCallback((val) => {
+    if (val) handleAddSection(val);
+  }, [sections]);
 
   const renderSectionContent = (key, sectionData) => {
     if (sectionData.skipped) return <p className="text-xs text-gray-500 italic">{t('sell.sectionSkipped')}</p>;
@@ -128,16 +133,13 @@ const ItemDetailSections = ({ sections, onSectionsChange, abbreviated = true }) 
       {availableSections.length > 0 && (
         <div className="flex items-center gap-2 mt-4">
           <Plus className="w-4 h-4 text-gray-500" />
-          <select
-            onChange={(e) => { if (e.target.value) { handleAddSection(e.target.value); e.target.value = ''; } }}
-            defaultValue=""
-            className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-400 focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none cursor-pointer hover:border-gray-600 transition-colors"
-          >
-            <option value="" disabled>{t('sell.addSectionPlaceholder')}</option>
-            {availableSections.map(s => (
-              <option key={s} value={s}>{t(`categoryLabels.${s}`, s)}</option>
-            ))}
-          </select>
+          <CustomSelect
+            value=""
+            onChange={handleAddSectionSelect}
+            options={availableSections.map((s) => ({ value: s, label: t(`categoryLabels.${s}`, s) }))}
+            placeholder={t('sell.addSectionPlaceholder')}
+            triggerClassName="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-400 hover:border-gray-600 transition-colors"
+          />
         </div>
       )}
     </div>

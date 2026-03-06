@@ -160,14 +160,31 @@ class Tag(Base):
     __tablename__ = "tags"
 
     id = Column(Integer, primary_key=True, index=True)
-    target_type = Column(Text, nullable=False)
-    target_id = Column(Integer, nullable=False)
-    name = Column(Text, nullable=False)
+    name = Column(Text, nullable=False, unique=True)
     weight = Column(Integer, nullable=False, server_default='0')
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
+    targets = relationship("TagTarget", back_populates="tag", cascade="all, delete-orphan")
+
     __table_args__ = (
-        UniqueConstraint('target_type', 'target_id', 'name', name='_tag_type_id_name_uc'),
-        Index('ix_tags_target', 'target_type', 'target_id'),
-        Index('ix_tags_name', 'name'),
+        Index('ix_tags_weight', 'weight'),
+    )
+
+
+class TagTarget(Base):
+    __tablename__ = "tag_targets"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tag_id = Column(Integer, ForeignKey("tags.id", ondelete="CASCADE"), nullable=False)
+    target_type = Column(Text, nullable=False)
+    target_id = Column(Integer, nullable=False)
+    weight = Column(Integer, nullable=False, server_default='0')
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    tag = relationship("Tag", back_populates="targets")
+
+    __table_args__ = (
+        UniqueConstraint('tag_id', 'target_type', 'target_id', name='_tag_target_uc'),
+        Index('ix_tag_targets_target', 'target_type', 'target_id'),
+        Index('ix_tag_targets_tag_id', 'tag_id'),
     )

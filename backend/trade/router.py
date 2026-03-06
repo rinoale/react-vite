@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from db.connector import get_db
 from db.schemas import RegisterListingRequest
 from trade.schemas import ExamineItemResponse
-from trade.service import capture_corrections, create_listing, get_listings as svc_get_listings, search_game_items as svc_search_game_items, search_listings as svc_search_listings
+from trade.service import capture_corrections, create_listing, create_listing_tags, get_listings as svc_get_listings, search_game_items as svc_search_game_items, search_listings as svc_search_listings
 from lib.utils.log import logger
 from lib.pipeline.v3 import init_pipeline, run_v3_pipeline, prepare_sections_for_response
 from crud.admin import get_listing_detail
@@ -100,6 +100,7 @@ def register_listing(payload: RegisterListingRequest, db: Session = Depends(get_
 
     corrections_saved = capture_corrections(payload.session_id, payload.lines, db)
     listing = create_listing(payload, db)
+    create_listing_tags(listing, payload, db)
 
     return {
         "registered": True,

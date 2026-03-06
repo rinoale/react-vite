@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from 'react'
 import { Upload, Download, RotateCcw, FlipHorizontal, SlidersHorizontal, Droplets, Grid3X3, Scan, Pipette, HelpCircle, Grid2X2, Palette, Search, Scissors, Plus, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import CustomSelect from '@mabi/shared/components/CustomSelect'
 
 // --- Image processing kernels (pure functions on ImageData) ---
 
@@ -1317,18 +1318,20 @@ const ImageProcessLab = () => {
             {activeTab === 'grayscale' && (
               <div className="space-y-3">
                 <label className="block text-sm font-medium mb-1">{t('imageProcessLab.grayscale.method')}</label>
-                <select
+                <CustomSelect
                   value={grayscaleMethod}
-                  onChange={e => setGrayscaleMethod(e.target.value)}
-                  className="w-full max-w-xs bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm"
-                >
-                  <option value="bt601">BT.601 (0.299R + 0.587G + 0.114B)</option>
-                  <option value="bt709">BT.709 (0.2126R + 0.7152G + 0.0722B)</option>
-                  <option value="equal">Equal (avg)</option>
-                  <option value="red">Red channel</option>
-                  <option value="green">Green channel</option>
-                  <option value="blue">Blue channel</option>
-                </select>
+                  onChange={setGrayscaleMethod}
+                  className="max-w-xs"
+                  triggerClassName="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm"
+                  options={[
+                    { value: 'bt601', label: 'BT.601 (0.299R + 0.587G + 0.114B)' },
+                    { value: 'bt709', label: 'BT.709 (0.2126R + 0.7152G + 0.0722B)' },
+                    { value: 'equal', label: 'Equal (avg)' },
+                    { value: 'red', label: 'Red channel' },
+                    { value: 'green', label: 'Green channel' },
+                    { value: 'blue', label: 'Blue channel' },
+                  ]}
+                />
               </div>
             )}
 
@@ -1347,14 +1350,16 @@ const ImageProcessLab = () => {
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">{t('imageProcessLab.threshold.mode')}</label>
-                  <select
+                  <CustomSelect
                     value={thresholdMode}
-                    onChange={e => setThresholdMode(e.target.value)}
-                    className="w-full max-w-xs bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm"
-                  >
-                    <option value="binary">BINARY (&gt; T → 255, else 0)</option>
-                    <option value="binary_inv">BINARY_INV (&gt; T → 0, else 255)</option>
-                  </select>
+                    onChange={setThresholdMode}
+                    className="max-w-xs"
+                    triggerClassName="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm"
+                    options={[
+                      { value: 'binary', label: 'BINARY (> T → 255, else 0)' },
+                      { value: 'binary_inv', label: 'BINARY_INV (> T → 0, else 255)' },
+                    ]}
+                  />
                 </div>
               </div>
             )}
@@ -1502,16 +1507,18 @@ const ImageProcessLab = () => {
               <div className="space-y-3">
                 <div>
                   <label className="block text-sm font-medium mb-1">{t('imageProcessLab.morphology.operation')}</label>
-                  <select
+                  <CustomSelect
                     value={morphOp}
-                    onChange={e => setMorphOp(e.target.value)}
-                    className="w-full max-w-xs bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm"
-                  >
-                    <option value="erode">Erode</option>
-                    <option value="dilate">Dilate</option>
-                    <option value="open">Open (erode → dilate)</option>
-                    <option value="close">Close (dilate → erode)</option>
-                  </select>
+                    onChange={setMorphOp}
+                    className="max-w-xs"
+                    triggerClassName="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm"
+                    options={[
+                      { value: 'erode', label: 'Erode' },
+                      { value: 'dilate', label: 'Dilate' },
+                      { value: 'open', label: 'Open (erode → dilate)' },
+                      { value: 'close', label: 'Close (dilate → erode)' },
+                    ]}
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">
@@ -1531,15 +1538,17 @@ const ImageProcessLab = () => {
               <div className="space-y-3">
                 <div>
                   <label className="block text-sm font-medium mb-1">{t('imageProcessLab.filter.type')}</label>
-                  <select
+                  <CustomSelect
                     value={filterType}
-                    onChange={e => setFilterType(e.target.value)}
-                    className="w-full max-w-xs bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm"
-                  >
-                    <option value="gaussian">Gaussian</option>
-                    <option value="median">Median</option>
-                    <option value="box">Box (Mean)</option>
-                  </select>
+                    onChange={setFilterType}
+                    className="max-w-xs"
+                    triggerClassName="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm"
+                    options={[
+                      { value: 'gaussian', label: 'Gaussian' },
+                      { value: 'median', label: 'Median' },
+                      { value: 'box', label: 'Box (Mean)' },
+                    ]}
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">
@@ -1559,27 +1568,31 @@ const ImageProcessLab = () => {
               <div className="space-y-3">
                 <div>
                   <label className="block text-sm font-medium mb-1">{t('imageProcessLab.edge.type')}</label>
-                  <select
+                  <CustomSelect
                     value={edgeType}
-                    onChange={e => setEdgeType(e.target.value)}
-                    className="w-full max-w-xs bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm"
-                  >
-                    <option value="sobel">Sobel</option>
-                    <option value="laplacian">Laplacian</option>
-                  </select>
+                    onChange={setEdgeType}
+                    className="max-w-xs"
+                    triggerClassName="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm"
+                    options={[
+                      { value: 'sobel', label: 'Sobel' },
+                      { value: 'laplacian', label: 'Laplacian' },
+                    ]}
+                  />
                 </div>
                 {edgeType === 'sobel' && (
                   <div>
                     <label className="block text-sm font-medium mb-1">{t('imageProcessLab.edge.direction')}</label>
-                    <select
+                    <CustomSelect
                       value={edgeDir}
-                      onChange={e => setEdgeDir(e.target.value)}
-                      className="w-full max-w-xs bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm"
-                    >
-                      <option value="both">Both (X + Y)</option>
-                      <option value="x">X (horizontal edges)</option>
-                      <option value="y">Y (vertical edges)</option>
-                    </select>
+                      onChange={setEdgeDir}
+                      className="max-w-xs"
+                      triggerClassName="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm"
+                      options={[
+                        { value: 'both', label: 'Both (X + Y)' },
+                        { value: 'x', label: 'X (horizontal edges)' },
+                        { value: 'y', label: 'Y (vertical edges)' },
+                      ]}
+                    />
                   </div>
                 )}
               </div>
@@ -1689,14 +1702,16 @@ const ImageProcessLab = () => {
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">{t('imageProcessLab.hueReject.mode')}</label>
-                  <select
+                  <CustomSelect
                     value={hueMode}
-                    onChange={e => setHueMode(e.target.value)}
-                    className="w-full max-w-xs bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm"
-                  >
-                    <option value="reject">{t('imageProcessLab.hueReject.modeReject')}</option>
-                    <option value="isolate">{t('imageProcessLab.hueReject.modeIsolate')}</option>
-                  </select>
+                    onChange={setHueMode}
+                    className="max-w-xs"
+                    triggerClassName="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm"
+                    options={[
+                      { value: 'reject', label: t('imageProcessLab.hueReject.modeReject') },
+                      { value: 'isolate', label: t('imageProcessLab.hueReject.modeIsolate') },
+                    ]}
+                  />
                 </div>
               </div>
             )}

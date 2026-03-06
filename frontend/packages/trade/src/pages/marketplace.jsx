@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Search, ShoppingBag, Wand2, Hammer, X, Hash } from 'lucide-react';
+import { Search, ShoppingBag, Wand2, Hammer, X } from 'lucide-react';
+import { badgeCyan, badgeYellow, badgePink, cardSlot } from '@mabi/shared/styles';
 import { useTranslation } from 'react-i18next';
-import { getListings, getListingDetail, getListingsByGameItem, searchGameItems, searchListings } from '@mabi/shared/api/recommend';
+import { getListings, getListingDetail, searchListings } from '@mabi/shared/api/recommend';
 import { getTagColor } from '@mabi/shared/lib/tagColors';
 
 const SLOT_LABELS = { 0: 'Prefix', 1: 'Suffix' };
@@ -19,16 +20,9 @@ const Marketplace = () => {
   const [listings, setListings] = useState([]);
   const [selectedListing, setSelectedListing] = useState(null);
   const [listingDetail, setListingDetail] = useState(null);
-  const [searchQuery, setSearchQuery] = useState('');
 
-  // Game item filter state
-  const [gameItemQuery, setGameItemQuery] = useState('');
-  const [gameItemSuggestions, setGameItemSuggestions] = useState([]);
-  const [selectedGameItem, setSelectedGameItem] = useState(null);
-  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const debounceRef = useRef(null);
-  const searchDebounceRef = useRef(null);
-  const suggestionsRef = useRef(null);
 
   const fetchListings = async () => {
     try {
@@ -50,20 +44,39 @@ const Marketplace = () => {
   };
 
   const [searchParams] = useSearchParams();
+  const initialIdRef = useRef(searchParams.get('id'));
 
   useEffect(() => {
-    const itemId = searchParams.get('item');
-    const itemName = searchParams.get('name');
-    if (itemId) {
-      const gi = { id: Number(itemId), name: itemName || '' };
-      setSelectedGameItem(gi);
-      setGameItemQuery(gi.name);
-      getListingsByGameItem(gi.id)
-        .then(({ data }) => setListings(data))
-        .catch(() => fetchListings());
-    } else {
-      fetchListings();
-    }
+    const targetId = initialIdRef.current ? parseInt(initialIdRef.current, 10) : null;
+    const name = searchParams.get('name');
+
+    const init = async () => {
+      let data;
+      if (name) {
+        setSearchQuery(name);
+        try {
+          const res = await searchListings(name);
+          data = res.data;
+        } catch {
+          const res = await getListings();
+          data = res.data;
+        }
+      } else {
+        const res = await getListings();
+        data = res.data;
+      }
+      setListings(data);
+
+      if (targetId) {
+        const match = data.find((l) => l.id === targetId);
+        if (match) {
+          setSelectedListing(match);
+        } else {
+          setSelectedListing({ id: targetId, name: '' });
+        }
+      }
+    };
+    init();
   }, []);
 
   useEffect(() => {
@@ -74,80 +87,28 @@ const Marketplace = () => {
     }
   }, [selectedListing]);
 
-  // Close suggestions on outside click
-  useEffect(() => {
-    const handleClick = (e) => {
-      if (suggestionsRef.current && !suggestionsRef.current.contains(e.target)) {
-        setShowSuggestions(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, []);
-
-  const handleGameItemSearch = useCallback((q) => {
-    setGameItemQuery(q);
+  const handleSearch = useCallback((q) => {
+    setSearchQuery(q);
     if (debounceRef.current) clearTimeout(debounceRef.current);
     if (!q.trim()) {
-      setGameItemSuggestions([]);
-      setShowSuggestions(false);
+      fetchListings();
       return;
     }
     debounceRef.current = setTimeout(async () => {
       try {
-        const { data } = await searchGameItems(q.trim());
-        setGameItemSuggestions(data);
-        setShowSuggestions(true);
+        const { data } = await searchListings(q.trim());
+        setListings(data);
       } catch (error) {
-        console.error("Failed to search game items:", error);
+        console.error("Failed to search:", error);
       }
     }, 300);
   }, []);
 
-  const handleSelectGameItem = async (gi) => {
-    setSelectedGameItem(gi);
-    setGameItemQuery(gi.name);
-    setShowSuggestions(false);
-    setSelectedListing(null);
-    try {
-      const { data } = await getListingsByGameItem(gi.id);
-      setListings(data);
-    } catch (error) {
-      console.error("Failed to fetch listings by game item:", error);
-    }
-  };
-
-  const clearGameItemFilter = async () => {
-    setSelectedGameItem(null);
-    setGameItemQuery('');
-    setGameItemSuggestions([]);
+  const clearSearch = () => {
+    setSearchQuery('');
     setSelectedListing(null);
     fetchListings();
   };
-
-  const handleSearch = useCallback((q) => {
-    setSearchQuery(q);
-    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
-    if (!q.trim()) {
-      // Clear search — reload all (or game-item-filtered) listings
-      if (selectedGameItem) {
-        getListingsByGameItem(selectedGameItem.id)
-          .then(({ data }) => setListings(data))
-          .catch(() => {});
-      } else {
-        fetchListings();
-      }
-      return;
-    }
-    searchDebounceRef.current = setTimeout(async () => {
-      try {
-        const { data } = await searchListings(q.trim());
-        setListings(data);
-      } catch (error) {
-        console.error("Failed to search listings:", error);
-      }
-    }, 300);
-  }, [selectedGameItem]);
 
   const formatDate = (dateStr) => {
     if (!dateStr) return '';
@@ -164,66 +125,25 @@ const Marketplace = () => {
             {t('marketplace.title')}
           </h1>
 
-          <div className="flex gap-3 w-full md:w-auto">
-            {/* Game item filter */}
-            <div className="relative w-full md:w-64" ref={suggestionsRef}>
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-              <input
-                type="text"
-                placeholder={t('marketplace.gameItemFilter')}
-                value={gameItemQuery}
-                onChange={(e) => handleGameItemSearch(e.target.value)}
-                onFocus={() => { if (gameItemSuggestions.length > 0) setShowSuggestions(true); }}
-                className="w-full bg-gray-800 border border-gray-700 rounded-full py-2 pl-9 pr-8 text-sm text-gray-100 focus:ring-2 focus:ring-orange-500 outline-none"
-              />
-              {selectedGameItem && (
-                <button
-                  onClick={clearGameItemFilter}
-                  className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              )}
-              {showSuggestions && gameItemSuggestions.length > 0 && (
-                <div className="absolute z-10 mt-1 w-full bg-gray-800 border border-gray-700 rounded-lg shadow-xl max-h-60 overflow-auto">
-                  {gameItemSuggestions.map((gi) => (
-                    <button
-                      key={gi.id}
-                      onClick={() => handleSelectGameItem(gi)}
-                      className="w-full text-left px-4 py-2 text-sm hover:bg-gray-700 transition-colors"
-                    >
-                      {gi.name}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Text search */}
-            <div className="relative w-full md:w-72">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-              <input
-                type="text"
-                placeholder={t('marketplace.searchPlaceholder')}
-                value={searchQuery}
-                onChange={(e) => handleSearch(e.target.value)}
-                className="w-full bg-gray-800 border border-gray-700 rounded-full py-2 pl-10 pr-4 text-gray-100 focus:ring-2 focus:ring-cyan-500 outline-none"
-              />
-            </div>
+          <div className="relative w-full md:w-96">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <input
+              type="text"
+              placeholder={t('marketplace.searchPlaceholder')}
+              value={searchQuery}
+              onChange={(e) => handleSearch(e.target.value)}
+              className="w-full bg-gray-800 border border-gray-700 rounded-full py-2 pl-10 pr-8 text-gray-100 focus:ring-2 focus:ring-cyan-500 outline-none"
+            />
+            {searchQuery && (
+              <button
+                onClick={clearSearch}
+                className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
           </div>
         </div>
-
-        {selectedGameItem && (
-          <div className="mb-4 flex items-center gap-2">
-            <span className="text-xs font-bold text-orange-400 uppercase">{t('marketplace.filteredBy')}</span>
-            <span className="text-sm bg-orange-900/40 text-orange-300 px-3 py-1 rounded-full border border-orange-700/50">
-              {selectedGameItem.name}
-            </span>
-            <button onClick={clearGameItemFilter} className="text-xs text-gray-500 hover:text-white underline">
-              {t('marketplace.clearFilter')}
-            </button>
-          </div>
-        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Listing Grid */}
@@ -236,51 +156,21 @@ const Marketplace = () => {
                   className={`bg-gray-800 p-4 rounded-xl border cursor-pointer transition-all hover:scale-[1.02] ${selectedListing?.id === listing.id ? 'border-cyan-500 shadow-[0_0_15px_rgba(6,182,212,0.3)]' : 'border-gray-700 hover:border-gray-600'}`}
                 >
                   <h3 className="font-bold text-lg mb-1">{listing.name}</h3>
-                  {(listing.item_type || listing.item_grade) && (
-                    <p className="text-xs text-gray-400 mb-2">
-                      {[listing.item_type, listing.item_grade].filter(Boolean).join(' / ')}
-                    </p>
+                  {listing.game_item_name && (
+                    <p className="text-xs text-gray-400 mb-1">{listing.game_item_name}</p>
                   )}
-                  <div className="flex flex-wrap gap-2 mb-3">
-                    {listing.prefix_enchant_name && (
-                      <span className="text-xs px-2 py-1 bg-purple-900/50 text-purple-300 rounded-full flex items-center gap-1">
-                        <Wand2 className="w-3 h-3" />
-                        {listing.prefix_enchant_name}
-                      </span>
-                    )}
-                    {listing.suffix_enchant_name && (
-                      <span className="text-xs px-2 py-1 bg-purple-900/50 text-purple-300 rounded-full flex items-center gap-1">
-                        <Wand2 className="w-3 h-3" />
-                        {listing.suffix_enchant_name}
-                      </span>
-                    )}
-                    {listing.tags?.length > 0 ? (
-                      listing.tags.map((tag, idx) => {
+                  {listing.tags?.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mb-3">
+                      {listing.tags.map((tag, idx) => {
                         const c = getTagColor(tag.weight);
                         return (
-                          <span key={idx} className={`text-xs px-2 py-1 rounded-full flex items-center gap-0.5 ${c.bg} ${c.text}`}>
-                            <Hash className={`w-3 h-3 ${c.icon}`} />
+                          <span key={idx} className={`text-xs px-2 py-0.5 rounded-full ${c.bg} ${c.text}`}>
                             {tag.name}
                           </span>
                         );
-                      })
-                    ) : listing.reforge_count > 0 ? (
-                      <span className="text-xs px-2 py-1 bg-cyan-900/50 text-cyan-300 rounded-full flex items-center gap-1">
-                        <Hammer className="w-3 h-3" />
-                        {t('marketplace.reforges', { count: listing.reforge_count })}
-                      </span>
-                    ) : null}
-                    {listing.erg_grade && (
-                      <span className="text-xs px-2 py-1 bg-yellow-900/50 text-yellow-300 rounded-full">
-                        ERG {listing.erg_grade}{listing.erg_level != null ? ` Lv.${listing.erg_level}` : ''}
-                      </span>
-                    )}
-                    {listing.special_upgrade_type && (
-                      <span className={`text-xs px-2 py-1 rounded-full ${listing.special_upgrade_type === 'R' ? 'bg-pink-900/50 text-pink-300' : 'bg-cyan-900/50 text-cyan-300'}`}>
-                        {listing.special_upgrade_type}강{listing.special_upgrade_level != null ? ` Lv.${listing.special_upgrade_level}` : ''}
-                      </span>
-                    )}
-                  </div>
+                      })}
+                    </div>
+                  )}
                   <p className="text-xs text-gray-500">{formatDate(listing.created_at)}</p>
                 </div>
               ))
@@ -296,25 +186,20 @@ const Marketplace = () => {
           <div className="lg:col-span-1 space-y-6">
             {selectedListing && listingDetail ? (
               <div className="bg-gray-800 rounded-xl p-6 border border-gray-700 sticky top-6">
-                <h2 className="text-2xl font-bold mb-2">{listingDetail.name}</h2>
-                {(listingDetail.item_type || listingDetail.item_grade) && (
-                  <p className="text-sm text-gray-400 mb-4">
-                    {[listingDetail.item_type, listingDetail.item_grade].filter(Boolean).join(' / ')}
-                  </p>
+                <h2 className="text-2xl font-bold mb-1">{listingDetail.name}</h2>
+                {listingDetail.game_item_name && (
+                  <p className="text-sm text-gray-400 mb-2">{listingDetail.game_item_name}</p>
                 )}
-
-                {(listingDetail.erg_grade || listingDetail.special_upgrade_type) && (
-                  <div className="mb-4 flex flex-wrap gap-2">
-                    {listingDetail.erg_grade && (
-                      <span className="text-xs px-2 py-1 bg-yellow-900/50 text-yellow-300 rounded-full">
-                        ERG {listingDetail.erg_grade}{listingDetail.erg_level != null ? ` Lv.${listingDetail.erg_level}` : ''}
-                      </span>
-                    )}
-                    {listingDetail.special_upgrade_type && (
-                      <span className={`text-xs px-2 py-1 rounded-full ${listingDetail.special_upgrade_type === 'R' ? 'bg-pink-900/50 text-pink-300' : 'bg-cyan-900/50 text-cyan-300'}`}>
-                        {listingDetail.special_upgrade_type}강{listingDetail.special_upgrade_level != null ? ` Lv.${listingDetail.special_upgrade_level}` : ''}
-                      </span>
-                    )}
+                {listingDetail.tags?.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mb-4">
+                    {listingDetail.tags.map((tag, idx) => {
+                      const c = getTagColor(tag.weight);
+                      return (
+                        <span key={idx} className={`text-xs px-2 py-0.5 rounded-full ${c.bg} ${c.text}`}>
+                          {tag.name}
+                        </span>
+                      );
+                    })}
                   </div>
                 )}
 
@@ -324,7 +209,6 @@ const Marketplace = () => {
                   if (!attrs.length) return null;
                   return (
                     <div className="mb-4">
-                      <h3 className="text-sm font-semibold text-gray-400 mb-2">아이템 속성</h3>
                       <div className="grid grid-cols-2 gap-x-4 gap-y-1">
                         {attrs.map(([k, label]) => (
                           <div key={k} className="flex justify-between text-xs">
@@ -346,7 +230,7 @@ const Marketplace = () => {
                     </h3>
                     <div className="space-y-2">
                       {[listingDetail.prefix_enchant, listingDetail.suffix_enchant].filter(Boolean).map((enc, idx) => (
-                        <div key={idx} className="bg-gray-900/50 p-3 rounded border border-gray-700">
+                        <div key={idx} className={cardSlot}>
                           <div className="flex justify-between items-center mb-1">
                             <span className="text-sm font-medium text-purple-300">{enc.enchant_name}</span>
                             <span className="text-xs text-gray-400">{SLOT_LABELS[enc.slot] || enc.slot}</span>
@@ -380,10 +264,10 @@ const Marketplace = () => {
                     </h3>
                     <div className="space-y-2">
                       {listingDetail.reforge_options.map((opt, idx) => (
-                        <div key={idx} className="bg-gray-900/50 p-3 rounded border border-gray-700 flex justify-between items-center">
+                        <div key={idx} className={`${cardSlot} flex justify-between items-center`}>
                           <span className="text-sm text-cyan-300">{opt.option_name}</span>
                           {opt.level != null && (
-                            <span className="text-xs bg-cyan-900/50 text-cyan-300 px-2 py-0.5 rounded border border-cyan-700/50">
+                            <span className={badgeCyan}>
                               Lv.{opt.level} / {opt.max_level}
                             </span>
                           )}
@@ -393,22 +277,34 @@ const Marketplace = () => {
                   </div>
                 )}
 
-                {/* Tags */}
-                {listingDetail.tags?.length > 0 && (
+                {/* Special Upgrade */}
+                {listingDetail.special_upgrade_type && (
                   <div className="mb-4">
-                    <h3 className="text-sm font-semibold text-emerald-400 mb-2 flex items-center gap-1">
-                      <Hash className="w-4 h-4" />
-                      Tags
-                    </h3>
-                    <div className="flex flex-wrap gap-2">
-                      {listingDetail.tags.map((tag, idx) => {
-                        const c = getTagColor(tag.weight);
-                        return (
-                          <span key={idx} className={`text-xs font-bold pl-1.5 pr-2 py-1 rounded-full inline-flex items-center gap-0.5 ${c.bg} ${c.text}`}>
-                            <Hash className={`w-3 h-3 ${c.icon}`} />{tag.name}
-                          </span>
-                        );
-                      })}
+                    <h3 className="text-sm font-semibold text-pink-400 mb-2">{t('marketplace.specialUpgradeLabel')}</h3>
+                    <div className={`${cardSlot} flex justify-between items-center`}>
+                      <span className="text-sm text-pink-300">
+                        {t(`marketplace.specialUpgrade${listingDetail.special_upgrade_type}`)}
+                      </span>
+                      {listingDetail.special_upgrade_level != null && (
+                        <span className={badgePink}>
+                          {t('marketplace.specialUpgradeLevel', { level: listingDetail.special_upgrade_level })}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Erg */}
+                {listingDetail.erg_grade && (
+                  <div className="mb-4">
+                    <h3 className="text-sm font-semibold text-yellow-400 mb-2">{t('marketplace.ergLabel')}</h3>
+                    <div className={`${cardSlot} flex justify-between items-center`}>
+                      <span className="text-sm text-yellow-300">{t('marketplace.ergGrade', { grade: listingDetail.erg_grade })}</span>
+                      {listingDetail.erg_level != null && (
+                        <span className={badgeYellow}>
+                          Lv.{listingDetail.erg_level}
+                        </span>
+                      )}
                     </div>
                   </div>
                 )}

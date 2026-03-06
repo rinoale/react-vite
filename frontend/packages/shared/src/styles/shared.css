@@ -1,0 +1,19 @@
+/* Thin modern scrollbar — use class "scrollbar-thin" on any scrollable element */
+@utility scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: #4b5563 transparent;
+
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: #4b5563;
+    border-radius: 3px;
+  }
+  &::-webkit-scrollbar-thumb:hover {
+    background: #6b7280;
+  }
+}

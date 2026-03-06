@@ -2,8 +2,9 @@ import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Loader2, ChevronDown, ChevronRight, Info, List, RefreshCw, Check, Image, Pencil, X, Save, Package, Trash2, Tag, Plus, Search } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { getSummary, getEnchantEntries, getEnchantEffects, getLinks, getCorrections, approveCorrection, editCorrection, truncateCorrections, getListings, getListingDetail, getTags, createTag, deleteTag, searchTagEntities } from '@mabi/shared/api/admin';
+import { getSummary, getEnchantEntries, getEnchantEffects, getLinks, getCorrections, approveCorrection, editCorrection, truncateCorrections, getListings, getListingDetail, getTags, createTag, deleteTag, searchTagEntities, bulkCreateTags, getUniqueTags, deleteTagById, getTagDetail, updateTagWeight, updateTagTargetWeight } from '@mabi/shared/api/admin';
 import { getTagColor } from '@mabi/shared/lib/tagColors';
+import CustomSelect from '@mabi/shared/components/CustomSelect';
 
 const toRankLabel = (rank) => {
   const n = Number(rank);
@@ -340,29 +341,82 @@ const ENTITY_TYPES = [
   { value: 'enchant', label: 'Enchant' },
 ];
 
+const TagBadge = ({ name, weight }) => {
+  const c = getTagColor(weight);
+  return (
+    <span className={`text-sm font-bold px-2 py-0.5 rounded ${c.bg} ${c.text} group-hover:ring-1 ring-emerald-500/50`}>
+      {name}
+    </span>
+  );
+};
+
+const TagTargetRow = ({ tgt, editingWeight, onStartEdit, onSaveWeight, onCancelEdit, onChangeWeight, onDelete, t }) => (
+  <div className="flex items-center gap-3 py-1 px-2 rounded hover:bg-gray-800/50">
+    <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-gray-700 text-gray-400 min-w-[80px] text-center">
+      {tgt.target_type}
+    </span>
+    <span className="text-xs text-gray-300 flex-1">
+      {tgt.target_display_name || `#${tgt.target_id}`}
+    </span>
+    <span className="text-[10px] text-gray-500 mr-1">{t('tags.targetWeight')}</span>
+    {editingWeight != null ? (
+      <span className="flex items-center gap-1">
+        <input
+          type="number"
+          value={editingWeight}
+          onChange={onChangeWeight}
+          onKeyDown={(e) => { if (e.key === 'Enter') onSaveWeight(); if (e.key === 'Escape') onCancelEdit(); }}
+          className="text-xs bg-gray-800 border border-emerald-600 rounded px-1.5 py-0.5 w-14 outline-none"
+          autoFocus
+        />
+        <button onClick={onSaveWeight} className="p-0.5 text-emerald-400 hover:text-emerald-300"><Check className="w-3 h-3" /></button>
+        <button onClick={onCancelEdit} className="p-0.5 text-gray-500 hover:text-gray-300"><X className="w-3 h-3" /></button>
+      </span>
+    ) : (
+      <button onClick={onStartEdit} className="text-xs font-mono text-orange-400 hover:text-orange-300 px-1.5 py-0.5 rounded bg-gray-800 hover:bg-gray-700">
+        {tgt.weight}
+      </button>
+    )}
+    <button onClick={onDelete} className="p-0.5 text-gray-500 hover:text-red-400">
+      <X className="w-3 h-3" />
+    </button>
+  </div>
+);
+
 const TagsPanel = () => {
   const { t } = useTranslation();
-  const [tags, setTags] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [pagination, setPagination] = useState({ limit: 50, offset: 0 });
-  const [filterType, setFilterType] = useState('');
 
-  // Create form state
-  const [newTargetType, setNewTargetType] = useState('reforge_option');
-  const [newEntityQuery, setNewEntityQuery] = useState('');
-  const [entitySuggestions, setEntitySuggestions] = useState([]);
+  // --- Section A: Bulk Tag Creator ---
+  const [searchType, setSearchType] = useState('game_item');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [likeSearch, setLikeSearch] = useState(true);
+  const [suggestions, setSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const [selectedEntity, setSelectedEntity] = useState(null);
-  const [newTagName, setNewTagName] = useState('');
-  const [newWeight, setNewWeight] = useState(0);
+  const [selectedTargets, setSelectedTargets] = useState([]);
+  const [tagName, setTagName] = useState('');
+  const [tagWeight, setTagWeight] = useState(0);
   const [creating, setCreating] = useState(false);
+  const [createResult, setCreateResult] = useState(null);
   const suggestionsRef = useRef(null);
   const debounceRef = useRef(null);
 
+  // --- Section B: Unique Tags List ---
+  const [tags, setTags] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [pagination, setPagination] = useState({ limit: 50, offset: 0 });
+
+  // Detail state
+  const [expandedTagId, setExpandedTagId] = useState(null);
+  const [tagDetail, setTagDetail] = useState(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
+  const [editingTagWeight, setEditingTagWeight] = useState(null);
+  const [editingTargetWeights, setEditingTargetWeights] = useState({});
+
+  // --- Fetch unique tags ---
   const fetchTags = useCallback(async () => {
     setIsLoading(true);
     try {
-      const { data } = await getTags({ targetType: filterType, limit: pagination.limit, offset: pagination.offset });
+      const { data } = await getUniqueTags({ limit: pagination.limit, offset: pagination.offset });
       setTags(data.rows || []);
     } catch (error) {
       console.error('Error fetching tags:', error);
@@ -370,7 +424,7 @@ const TagsPanel = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [filterType, pagination.offset, pagination.limit]);
+  }, [pagination.offset, pagination.limit]);
 
   useEffect(() => { fetchTags(); }, [fetchTags]);
 
@@ -385,222 +439,438 @@ const TagsPanel = () => {
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
-  const handleEntitySearch = useCallback((q) => {
-    setNewEntityQuery(q);
-    setSelectedEntity(null);
+  // --- Search logic ---
+  const handleSearchChange = useCallback((e) => {
+    const q = e.target.value;
+    setSearchQuery(q);
     if (debounceRef.current) clearTimeout(debounceRef.current);
     if (!q.trim()) {
-      setEntitySuggestions([]);
+      setSuggestions([]);
       setShowSuggestions(false);
       return;
     }
     debounceRef.current = setTimeout(async () => {
       try {
-        const { data } = await searchTagEntities(newTargetType, q.trim());
-        setEntitySuggestions(data);
+        const { data } = await searchTagEntities(searchType, q.trim(), { like: likeSearch });
+        setSuggestions(data);
         setShowSuggestions(true);
       } catch (error) {
         console.error('Error searching entities:', error);
       }
     }, 300);
-  }, [newTargetType]);
+  }, [searchType, likeSearch]);
 
-  const handleSelectEntity = (entity) => {
-    setSelectedEntity(entity);
-    setNewEntityQuery(entity.name);
-    setShowSuggestions(false);
-  };
+  const handleSearchFocus = useCallback(() => {
+    if (suggestions.length > 0) setShowSuggestions(true);
+  }, [suggestions.length]);
 
-  const handleCreate = async () => {
-    if (!selectedEntity || !newTagName.trim()) return;
+  const handleAddTarget = useCallback((entity) => {
+    setSelectedTargets((prev) => {
+      const key = `${searchType}:${entity.id}`;
+      if (prev.some((st) => `${st.target_type}:${st.target_id}` === key)) return prev;
+      return [...prev, { target_type: searchType, target_id: entity.id, name: entity.name }];
+    });
+  }, [searchType]);
+
+  const handleSelectAll = useCallback(() => {
+    setSelectedTargets((prev) => {
+      const newTargets = suggestions.filter((ent) => {
+        const key = `${searchType}:${ent.id}`;
+        return !prev.some((st) => `${st.target_type}:${st.target_id}` === key);
+      }).map((ent) => ({ target_type: searchType, target_id: ent.id, name: ent.name }));
+      return newTargets.length > 0 ? [...prev, ...newTargets] : prev;
+    });
+  }, [suggestions, searchType]);
+
+  const handleRemoveTarget = useCallback((index) => {
+    setSelectedTargets((prev) => prev.filter((_, i) => i !== index));
+  }, []);
+
+  const handleSearchTypeChange = useCallback((e) => setSearchType(e.target.value), []);
+  const handleLikeChange = useCallback((e) => setLikeSearch(e.target.checked), []);
+  const handleTagNameChange = useCallback((e) => setTagName(e.target.value), []);
+  const handleTagWeightChange = useCallback((e) => setTagWeight(Number(e.target.value) || 0), []);
+
+  // Reset search when type changes
+  useEffect(() => {
+    setSearchQuery('');
+    setSuggestions([]);
+  }, [searchType]);
+
+  // --- Create bulk tag ---
+  const handleCreate = useCallback(async () => {
+    const name = tagName.trim();
+    if (!name) return;
     setCreating(true);
+    setCreateResult(null);
     try {
-      await createTag({ target_type: newTargetType, target_id: selectedEntity.id, name: newTagName.trim(), weight: newWeight });
-      setNewTagName('');
-      setNewWeight(0);
-      setNewEntityQuery('');
-      setSelectedEntity(null);
-      fetchTags();
-    } catch (error) {
-      if (error.response?.status === 409) {
-        alert(t('tags.duplicateError'));
-      } else {
-        console.error('Error creating tag:', error);
+      const { data } = await bulkCreateTags({
+        targets: selectedTargets.map(({ target_type, target_id }) => ({ target_type, target_id })),
+        names: [name],
+        weight: tagWeight,
+      });
+      setCreateResult(data);
+      if (data.created > 0) {
+        setSelectedTargets([]);
+        setTagName('');
+        setTagWeight(0);
+        fetchTags();
       }
+    } catch (error) {
+      console.error('Error creating bulk tags:', error);
     } finally {
       setCreating(false);
     }
-  };
+  }, [tagName, tagWeight, selectedTargets, fetchTags]);
 
-  const handleDelete = async (tagId) => {
-    if (!window.confirm(t('tags.deleteConfirm'))) return;
+  const handleFormKeyDown = useCallback((e) => {
+    if (e.key === 'Enter') handleCreate();
+  }, [handleCreate]);
+
+  // --- Pagination ---
+  const handlePrevPage = useCallback(() => {
+    setPagination((prev) => ({ ...prev, offset: Math.max(0, prev.offset - prev.limit) }));
+  }, []);
+
+  const handleNextPage = useCallback(() => {
+    setPagination((prev) => ({ ...prev, offset: prev.offset + prev.limit }));
+  }, []);
+
+  // --- Tag detail ---
+  const fetchTagDetail = useCallback(async (tagId) => {
+    setLoadingDetail(true);
     try {
-      await deleteTag(tagId);
+      const { data } = await getTagDetail(tagId);
+      setTagDetail(data);
+      setEditingTagWeight(null);
+      setEditingTargetWeights({});
+    } catch (error) {
+      console.error('Error fetching tag detail:', error);
+    } finally {
+      setLoadingDetail(false);
+    }
+  }, []);
+
+  const toggleDetail = useCallback((tagId) => {
+    if (expandedTagId === tagId) {
+      setExpandedTagId(null);
+      setTagDetail(null);
+    } else {
+      setExpandedTagId(tagId);
+      fetchTagDetail(tagId);
+    }
+  }, [expandedTagId, fetchTagDetail]);
+
+  const handleDeleteTag = useCallback(async (tagId) => {
+    if (!window.confirm(t('tags.deleteTagConfirm'))) return;
+    try {
+      await deleteTagById(tagId);
       setTags((prev) => prev.filter((tg) => tg.id !== tagId));
+      if (expandedTagId === tagId) {
+        setExpandedTagId(null);
+        setTagDetail(null);
+      }
     } catch (error) {
       console.error('Error deleting tag:', error);
     }
-  };
+  }, [expandedTagId, t]);
 
-  // Reset entity search when target type changes
-  useEffect(() => {
-    setNewEntityQuery('');
-    setSelectedEntity(null);
-    setEntitySuggestions([]);
-  }, [newTargetType]);
+  const handleDeleteTarget = useCallback(async (tagTargetId) => {
+    if (!window.confirm(t('tags.deleteConfirm'))) return;
+    try {
+      await deleteTag(tagTargetId);
+      if (tagDetail) {
+        fetchTagDetail(tagDetail.id);
+        fetchTags();
+      }
+    } catch (error) {
+      console.error('Error deleting target:', error);
+    }
+  }, [tagDetail, fetchTagDetail, fetchTags, t]);
+
+  const handleSaveTagWeight = useCallback(async () => {
+    if (editingTagWeight == null || !tagDetail) return;
+    try {
+      await updateTagWeight(tagDetail.id, editingTagWeight);
+      setTagDetail((prev) => ({ ...prev, weight: editingTagWeight }));
+      setEditingTagWeight(null);
+      fetchTags();
+    } catch (error) {
+      console.error('Error updating tag weight:', error);
+    }
+  }, [editingTagWeight, tagDetail, fetchTags]);
+
+  const handleCancelTagWeightEdit = useCallback(() => setEditingTagWeight(null), []);
+  const handleStartTagWeightEdit = useCallback(() => setEditingTagWeight(tagDetail?.weight ?? 0), [tagDetail]);
+  const handleTagWeightEditChange = useCallback((e) => setEditingTagWeight(Number(e.target.value) || 0), []);
+
+  const handleTagWeightEditKeyDown = useCallback((e) => {
+    if (e.key === 'Enter') handleSaveTagWeight();
+    if (e.key === 'Escape') handleCancelTagWeightEdit();
+  }, [handleSaveTagWeight, handleCancelTagWeightEdit]);
+
+  const handleSaveTargetWeight = useCallback(async (ttId) => {
+    const w = editingTargetWeights[ttId];
+    if (w == null) return;
+    try {
+      await updateTagTargetWeight(ttId, w);
+      setTagDetail((prev) => ({
+        ...prev,
+        targets: prev.targets.map((tgt) => tgt.id === ttId ? { ...tgt, weight: w } : tgt),
+      }));
+      setEditingTargetWeights((prev) => { const n = { ...prev }; delete n[ttId]; return n; });
+    } catch (error) {
+      console.error('Error updating target weight:', error);
+    }
+  }, [editingTargetWeights]);
+
+  const startTargetWeightEdit = useCallback((tgt) => {
+    setEditingTargetWeights((prev) => ({ ...prev, [tgt.id]: tgt.weight }));
+  }, []);
+
+  const cancelTargetWeightEdit = useCallback((ttId) => {
+    setEditingTargetWeights((prev) => { const n = { ...prev }; delete n[ttId]; return n; });
+  }, []);
+
+  const changeTargetWeight = useCallback((ttId, e) => {
+    setEditingTargetWeights((prev) => ({ ...prev, [ttId]: Number(e.target.value) || 0 }));
+  }, []);
+
+  const canCreate = !creating && tagName.trim().length > 0;
 
   return (
-    <div className="bg-gray-800 rounded-2xl border border-gray-700 shadow-2xl overflow-hidden">
-      <div className="bg-gray-700/50 px-6 py-4 flex justify-between items-center">
-        <h2 className="text-xl font-bold flex items-center gap-2">
-          <Tag className="w-5 h-5 text-emerald-500" />
-          {t('tags.title')}
-        </h2>
-        <div className="flex items-center gap-4">
-          <select
-            value={filterType}
-            onChange={(e) => { setFilterType(e.target.value); setPagination((p) => ({ ...p, offset: 0 })); }}
-            className="text-xs bg-gray-900 border border-gray-600 rounded px-2 py-1 outline-none focus:border-emerald-500"
-          >
-            <option value="">All Types</option>
-            {ENTITY_TYPES.map((et) => (
-              <option key={et.value} value={et.value}>{et.label}</option>
-            ))}
-          </select>
-          <button
-            onClick={() => setPagination((prev) => ({ ...prev, offset: Math.max(0, prev.offset - prev.limit) }))}
-            className="text-xs bg-gray-600 hover:bg-gray-500 px-3 py-1 rounded"
-            disabled={pagination.offset === 0}
-          >
-            {t('tags.prev')}
-          </button>
-          <span className="text-xs font-mono">
-            {pagination.offset + 1} - {pagination.offset + tags.length}
-          </span>
-          <button
-            onClick={() => setPagination((prev) => ({ ...prev, offset: prev.offset + prev.limit }))}
-            className="text-xs bg-gray-600 hover:bg-gray-500 px-3 py-1 rounded"
-            disabled={tags.length < pagination.limit}
-          >
-            {t('tags.next')}
-          </button>
-          <button onClick={fetchTags} className="p-1 hover:text-emerald-400" title={t('tags.refresh')}>
-            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
-          </button>
+    <div className="space-y-6">
+      {/* Section A: Bulk Tag Creator */}
+      <div className="bg-gray-800 rounded-2xl border border-gray-700 shadow-2xl overflow-hidden">
+        <div className="bg-gray-700/50 px-6 py-4">
+          <h2 className="text-xl font-bold flex items-center gap-2">
+            <Tag className="w-5 h-5 text-emerald-500" />
+            {t('tags.title')}
+          </h2>
         </div>
-      </div>
 
-      {/* Create form */}
-      <div className="px-6 py-4 bg-gray-900/50 border-b border-gray-700 flex items-center gap-3 flex-wrap">
-        <select
-          value={newTargetType}
-          onChange={(e) => setNewTargetType(e.target.value)}
-          className="text-xs bg-gray-800 border border-gray-600 rounded px-2 py-1.5 outline-none focus:border-emerald-500"
-        >
-          {ENTITY_TYPES.map((et) => (
-            <option key={et.value} value={et.value}>{et.label}</option>
-          ))}
-        </select>
+        {/* Search row */}
+        <div className="px-6 py-4 bg-gray-900/50 border-b border-gray-700 flex items-center gap-3 flex-wrap">
+          <CustomSelect
+            value={searchType}
+            onChange={handleSearchTypeChange}
+            options={ENTITY_TYPES}
+            triggerClassName="text-xs bg-gray-800 border border-gray-600 rounded px-2 py-1.5 focus:border-emerald-500"
+          />
 
-        <div className="relative" ref={suggestionsRef}>
-          <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-500 w-3 h-3" />
+          <label className="flex items-center gap-1 text-xs text-gray-400 cursor-pointer select-none">
+            <input type="checkbox" checked={likeSearch} onChange={handleLikeChange} className="accent-emerald-500" />
+            {t('bulkTag.likeSearch')}
+          </label>
+
+          <div className="relative flex-1 min-w-[200px] max-w-xs" ref={suggestionsRef}>
+            <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-500 w-3 h-3" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={handleSearchChange}
+              onFocus={handleSearchFocus}
+              placeholder={t('bulkTag.searchPlaceholder')}
+              className="text-xs bg-gray-800 border border-gray-600 rounded pl-7 pr-2 py-1.5 w-full outline-none focus:border-emerald-500"
+            />
+            {showSuggestions && suggestions.length > 0 && (
+              <div className="absolute z-50 mt-1 w-full bg-gray-800 border border-gray-700 rounded-lg shadow-xl max-h-48 overflow-auto">
+                {suggestions.map((ent) => {
+                  const alreadyAdded = selectedTargets.some((st) => st.target_type === searchType && st.target_id === ent.id);
+                  return (
+                    <button
+                      key={ent.id}
+                      onClick={() => handleAddTarget(ent)}
+                      disabled={alreadyAdded}
+                      className={`w-full text-left px-3 py-1.5 text-xs flex items-center justify-between transition-colors ${alreadyAdded ? 'opacity-40 cursor-not-allowed' : 'hover:bg-gray-700'}`}
+                    >
+                      <span><span className="text-gray-400 mr-1">#{ent.id}</span> {ent.name}</span>
+                      {!alreadyAdded && <Plus className="w-3 h-3 text-emerald-400" />}
+                    </button>
+                  );
+                })}
+                <button onClick={handleSelectAll} className="w-full text-center px-3 py-1.5 text-xs font-bold text-emerald-400 hover:bg-gray-700 border-t border-gray-700 transition-colors">
+                  {t('tags.selectAll')}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Basket */}
+        {selectedTargets.length > 0 && (
+          <div className="px-6 py-3 border-b border-gray-700 flex items-center gap-2 flex-wrap">
+            <span className="text-[10px] font-bold uppercase text-gray-500 mr-1">
+              {t('bulkTag.selected', { count: selectedTargets.length })}
+            </span>
+            {selectedTargets.map((tgt, i) => (
+              <span key={`${tgt.target_type}:${tgt.target_id}`} className="inline-flex items-center gap-1 text-xs bg-gray-700 text-gray-300 px-2 py-0.5 rounded">
+                <span className="text-[9px] font-bold uppercase text-gray-500">{tgt.target_type.replace('_', ' ')}</span>
+                {tgt.name}
+                <button onClick={() => handleRemoveTarget(i)} className="text-gray-500 hover:text-red-400 ml-0.5">
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* Form row */}
+        <div className="px-6 py-4 flex items-center gap-3 flex-wrap">
           <input
             type="text"
-            value={newEntityQuery}
-            onChange={(e) => handleEntitySearch(e.target.value)}
-            onFocus={() => { if (entitySuggestions.length > 0) setShowSuggestions(true); }}
-            placeholder={t('tags.entitySearch')}
-            className="text-xs bg-gray-800 border border-gray-600 rounded pl-7 pr-2 py-1.5 w-48 outline-none focus:border-emerald-500"
+            value={tagName}
+            onChange={handleTagNameChange}
+            placeholder={t('bulkTag.tagName')}
+            maxLength={5}
+            onKeyDown={handleFormKeyDown}
+            className="text-xs bg-gray-800 border border-gray-600 rounded px-2 py-1.5 w-32 outline-none focus:border-emerald-500"
           />
-          {showSuggestions && entitySuggestions.length > 0 && (
-            <div className="absolute z-10 mt-1 w-full bg-gray-800 border border-gray-700 rounded-lg shadow-xl max-h-48 overflow-auto">
-              {entitySuggestions.map((ent) => (
-                <button
-                  key={ent.id}
-                  onClick={() => handleSelectEntity(ent)}
-                  className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-700 transition-colors"
-                >
-                  <span className="text-gray-400 mr-1">#{ent.id}</span> {ent.name}
-                </button>
-              ))}
-            </div>
+          <input
+            type="number"
+            value={tagWeight}
+            onChange={handleTagWeightChange}
+            placeholder={t('bulkTag.weight')}
+            className="text-xs bg-gray-800 border border-gray-600 rounded px-2 py-1.5 w-16 outline-none focus:border-emerald-500"
+          />
+          <button onClick={handleCreate} disabled={!canCreate} className="flex items-center gap-1 text-xs font-bold uppercase px-3 py-1.5 rounded bg-emerald-700 hover:bg-emerald-600 text-white disabled:opacity-50">
+            {creating ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
+            {t('bulkTag.create')}
+          </button>
+
+          {createResult && (
+            <span className="text-xs ml-2">
+              <span className="text-emerald-400">{t('bulkTag.resultCreated', { count: createResult.created })}</span>
+              {createResult.duplicates > 0 && (
+                <span className="text-yellow-400 ml-2">{t('bulkTag.resultDuplicates', { count: createResult.duplicates })}</span>
+              )}
+            </span>
           )}
         </div>
-
-        <input
-          type="text"
-          value={newTagName}
-          onChange={(e) => setNewTagName(e.target.value)}
-          placeholder={t('tags.tagName')}
-          onKeyDown={(e) => { if (e.key === 'Enter') handleCreate(); }}
-          className="text-xs bg-gray-800 border border-gray-600 rounded px-2 py-1.5 w-32 outline-none focus:border-emerald-500"
-        />
-
-        <input
-          type="number"
-          value={newWeight}
-          onChange={(e) => setNewWeight(Number(e.target.value) || 0)}
-          placeholder={t('tags.weight')}
-          className="text-xs bg-gray-800 border border-gray-600 rounded px-2 py-1.5 w-16 outline-none focus:border-emerald-500"
-        />
-
-        <button
-          onClick={handleCreate}
-          disabled={creating || !selectedEntity || !newTagName.trim()}
-          className="flex items-center gap-1 text-xs font-bold uppercase px-3 py-1.5 rounded bg-emerald-700 hover:bg-emerald-600 text-white disabled:opacity-50"
-        >
-          {creating ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
-          {t('tags.create')}
-        </button>
       </div>
 
-      <div className="divide-y divide-gray-700">
-        {isLoading ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
+      {/* Section B: Unique Tags List */}
+      <div className="bg-gray-800 rounded-2xl border border-gray-700 shadow-2xl overflow-hidden">
+        <div className="bg-gray-700/50 px-6 py-4 flex justify-between items-center">
+          <h2 className="text-lg font-bold flex items-center gap-2 text-gray-300">
+            <List className="w-4 h-4 text-emerald-500" />
+            {t('tags.title')}
+          </h2>
+          <div className="flex items-center gap-4">
+            <button onClick={handlePrevPage} className="text-xs bg-gray-600 hover:bg-gray-500 px-3 py-1 rounded" disabled={pagination.offset === 0}>
+              {t('tags.prev')}
+            </button>
+            <span className="text-xs font-mono">
+              {pagination.offset + 1} - {pagination.offset + tags.length}
+            </span>
+            <button onClick={handleNextPage} className="text-xs bg-gray-600 hover:bg-gray-500 px-3 py-1 rounded" disabled={tags.length < pagination.limit}>
+              {t('tags.next')}
+            </button>
+            <button onClick={fetchTags} className="p-1 hover:text-emerald-400" title={t('tags.refresh')}>
+              <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+            </button>
           </div>
-        ) : tags.length === 0 ? (
-          <div className="px-6 py-8 text-center text-xs text-gray-500 uppercase tracking-wide">
-            {t('tags.noTags')}
-          </div>
-        ) : (
-          tags.map((tg) => (
-            <div key={tg.id} className="px-6 py-3 flex items-center justify-between hover:bg-gray-700/30 transition-colors">
-              <div className="flex items-center gap-3 flex-wrap">
-                <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-gray-700 text-gray-400">
-                  {tg.target_type}
-                </span>
-                <span className="text-sm text-gray-300">
-                  {tg.target_display_name || `#${tg.target_id}`}
-                </span>
-                <span className="text-gray-600">&rarr;</span>
-                {(() => {
-                  const c = getTagColor(tg.weight);
-                  return (
-                    <span className={`text-sm font-bold px-2 py-0.5 rounded ${c.bg} ${c.text}`}>
-                      #{tg.name}
-                    </span>
-                  );
-                })()}
-                <span className="text-[10px] text-gray-500">w:{tg.weight}</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <span className="text-[10px] font-mono text-gray-600">ID: {tg.id}</span>
-                <button
-                  onClick={() => handleDelete(tg.id)}
-                  className="p-1 text-gray-500 hover:text-red-400"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
+        </div>
+
+        <div className="divide-y divide-gray-700">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
             </div>
-          ))
-        )}
+          ) : tags.length === 0 ? (
+            <div className="px-6 py-8 text-center text-xs text-gray-500 uppercase tracking-wide">
+              {t('tags.noTags')}
+            </div>
+          ) : (
+            tags.map((tg) => (
+              <div key={tg.id}>
+                <div className="px-6 py-3 flex items-center justify-between hover:bg-gray-700/30 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <button onClick={() => toggleDetail(tg.id)} className="flex items-center gap-1 group">
+                      {expandedTagId === tg.id
+                        ? <ChevronDown className="w-3 h-3 text-gray-500" />
+                        : <ChevronRight className="w-3 h-3 text-gray-500" />
+                      }
+                      <TagBadge name={tg.name} weight={tg.weight} />
+                    </button>
+                    <span className="text-[10px] text-gray-500">w:{tg.weight}</span>
+                    <span className="text-[10px] text-gray-500">
+                      ({t('tags.targetCount', { count: tg.target_count })})
+                    </span>
+                  </div>
+                  <button onClick={() => handleDeleteTag(tg.id)} className="p-1 text-gray-500 hover:text-red-400">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* Tag detail panel */}
+                {expandedTagId === tg.id && (
+                  <div className="px-6 py-3 bg-gray-900/60 border-t border-gray-700/50">
+                    {loadingDetail ? (
+                      <div className="flex items-center gap-2 py-2">
+                        <Loader2 className="w-4 h-4 text-emerald-500 animate-spin" />
+                        <span className="text-xs text-gray-500">{t('tags.loadingDetail')}</span>
+                      </div>
+                    ) : tagDetail ? (
+                      <div>
+                        {/* Tag-level weight */}
+                        <div className="flex items-center gap-3 mb-3">
+                          <span className="text-xs font-bold text-gray-400 uppercase">{t('tags.tagWeight')}</span>
+                          {editingTagWeight != null ? (
+                            <span className="flex items-center gap-1">
+                              <input
+                                type="number"
+                                value={editingTagWeight}
+                                onChange={handleTagWeightEditChange}
+                                onKeyDown={handleTagWeightEditKeyDown}
+                                className="text-xs bg-gray-800 border border-emerald-600 rounded px-2 py-0.5 w-16 outline-none"
+                                autoFocus
+                              />
+                              <button onClick={handleSaveTagWeight} className="p-0.5 text-emerald-400 hover:text-emerald-300"><Check className="w-3 h-3" /></button>
+                              <button onClick={handleCancelTagWeightEdit} className="p-0.5 text-gray-500 hover:text-gray-300"><X className="w-3 h-3" /></button>
+                            </span>
+                          ) : (
+                            <button onClick={handleStartTagWeightEdit} className="text-xs font-mono text-emerald-400 hover:text-emerald-300 px-1.5 py-0.5 rounded bg-gray-800 hover:bg-gray-700">
+                              {tagDetail.weight}
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Targets list */}
+                        <div className="text-xs font-bold text-gray-400 uppercase mb-2">
+                          {t('tags.targets')} ({tagDetail.targets.length})
+                        </div>
+                        {tagDetail.targets.length === 0 ? (
+                          <div className="text-xs text-gray-500 py-1">{t('tags.noTargets')}</div>
+                        ) : (
+                          <div className="space-y-1">
+                            {tagDetail.targets.map((tgt) => (
+                              <TagTargetRow
+                                key={tgt.id}
+                                tgt={tgt}
+                                editingWeight={editingTargetWeights[tgt.id] ?? null}
+                                onStartEdit={() => startTargetWeightEdit(tgt)}
+                                onSaveWeight={() => handleSaveTargetWeight(tgt.id)}
+                                onCancelEdit={() => cancelTargetWeightEdit(tgt.id)}
+                                onChangeWeight={(e) => changeTargetWeight(tgt.id, e)}
+                                onDelete={() => handleDeleteTarget(tgt.id)}
+                                t={t}
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ) : null}
+                  </div>
+                )}
+              </div>
+            ))
+          )}
+        </div>
       </div>
     </div>
   );
 };
-
 const ListingsPanel = () => {
   const { t } = useTranslation();
   const [listings, setListings] = useState([]);
@@ -864,7 +1134,7 @@ const ListingsPanel = () => {
                               const c = getTagColor(tag.weight);
                               return (
                                 <span key={idx} className={`text-xs font-bold px-2 py-0.5 rounded ${c.bg} ${c.text}`}>
-                                  #{tag.name}
+                                  {tag.name}
                                 </span>
                               );
                             })}
