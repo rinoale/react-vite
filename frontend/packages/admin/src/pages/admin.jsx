@@ -486,7 +486,7 @@ const TagsPanel = () => {
     setSelectedTargets((prev) => prev.filter((_, i) => i !== index));
   }, []);
 
-  const handleSearchTypeChange = useCallback((e) => setSearchType(e.target.value), []);
+  const handleSearchTypeChange = useCallback((val) => setSearchType(val), []);
   const handleLikeChange = useCallback((e) => setLikeSearch(e.target.checked), []);
   const handleTagNameChange = useCallback((e) => setTagName(e.target.value), []);
   const handleTagWeightChange = useCallback((e) => setTagWeight(e.target.value), []);
@@ -644,8 +644,8 @@ const TagsPanel = () => {
   return (
     <div className="space-y-6">
       {/* Section A: Bulk Tag Creator */}
-      <div className="bg-gray-800 rounded-2xl border border-gray-700 shadow-2xl overflow-hidden">
-        <div className="bg-gray-700/50 px-6 py-4">
+      <div className="bg-gray-800 rounded-2xl border border-gray-700 shadow-2xl">
+        <div className="bg-gray-700/50 px-6 py-4 rounded-t-2xl">
           <h2 className="text-xl font-bold flex items-center gap-2">
             <Tag className="w-5 h-5 text-emerald-500" />
             {t('tags.title')}
@@ -753,8 +753,8 @@ const TagsPanel = () => {
       </div>
 
       {/* Section B: Unique Tags List */}
-      <div className="bg-gray-800 rounded-2xl border border-gray-700 shadow-2xl overflow-hidden">
-        <div className="bg-gray-700/50 px-6 py-4 flex justify-between items-center">
+      <div className="bg-gray-800 rounded-2xl border border-gray-700 shadow-2xl">
+        <div className="bg-gray-700/50 px-6 py-4 rounded-t-2xl flex justify-between items-center">
           <h2 className="text-lg font-bold flex items-center gap-2 text-gray-300">
             <List className="w-4 h-4 text-emerald-500" />
             {t('tags.title')}

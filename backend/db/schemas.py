@@ -1,7 +1,10 @@
+import re
 from typing import Dict, List, Optional, Union
 from pydantic import BaseModel, Field, field_validator
 from decimal import Decimal
 from datetime import datetime
+
+_HTML_TAG_RE = re.compile(r'<[^>]*>?')
 
 class EnchantBase(BaseModel):
     slot: int
@@ -249,6 +252,16 @@ class RegisterListingRequest(BaseModel):
     enchants: List[RegisterEnchantSlot] = []
     reforge_options: List[RegisterReforgeOption] = []
     tags: List[str] = []
+
+    @field_validator('name', 'description', mode='before')
+    @classmethod
+    def strip_html(cls, v, info):
+        if not v:
+            return v
+        cleaned = _HTML_TAG_RE.sub('', v).strip()
+        if not cleaned:
+            return '' if info.field_name == 'name' else None
+        return cleaned
 
     @field_validator('tags')
     @classmethod

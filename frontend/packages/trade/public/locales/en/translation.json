@@ -81,8 +81,13 @@
     "ergGrade": "Grade {{grade}}",
     "addMoreTags": "Add more tags..."
   },
+  "search": {
+    "title": "Item Search",
+    "placeholder": "Search items, tags..."
+  },
   "sidebar": {
     "home": "matrade",
+    "search": "Search",
     "marketplace": "Marketplace",
     "sellItem": "Sell Item"
   },

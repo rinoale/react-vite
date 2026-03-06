@@ -426,7 +426,7 @@ def _batch_resolve_tags(db, listing_ids):
     return tags_by_listing
 
 
-def get_listings(db, game_item_id=None):
+def get_listings(db, game_item_id=None, limit=50, offset=0):
     """Fetch listing summaries, optionally filtered by game_item_id."""
     base_sql = """
         SELECT
@@ -462,21 +462,26 @@ def get_listings(db, game_item_id=None):
         LEFT JOIN enchants se ON se.id = l.suffix_enchant_id
         LEFT JOIN listing_reforge_options lro ON lro.listing_id = l.id
     """
+    params = {"limit": limit, "offset": offset}
     if game_item_id is not None:
+        params["game_item_id"] = game_item_id
         rows = db.execute(
             text(base_sql + """
                 WHERE l.game_item_id = :game_item_id
                 GROUP BY l.id, gi.name, pe.name, se.name
                 ORDER BY l.id DESC
+                LIMIT :limit OFFSET :offset
             """),
-            {"game_item_id": game_item_id},
+            params,
         ).mappings()
     else:
         rows = db.execute(
             text(base_sql + """
                 GROUP BY l.id, gi.name, pe.name, se.name
                 ORDER BY l.id DESC
-            """)
+                LIMIT :limit OFFSET :offset
+            """),
+            params,
         ).mappings()
     listings = [dict(r) for r in rows]
 
@@ -521,7 +526,7 @@ def search_tags(db, q, limit=10):
     return [dict(r) for r in rows]
 
 
-def search_listings(db, q, tags=None):
+def search_listings(db, q, tags=None, limit=50, offset=0):
     """Search listings by tags (AND) and/or text query (cascading).
 
     - tags: list of exact tag names — intersection (listings matching ALL)
@@ -556,7 +561,7 @@ def search_listings(db, q, tags=None):
     if not result_ids:
         return []
 
-    return _fetch_listings_by_ids(db, list(result_ids))
+    return _fetch_listings_by_ids(db, list(result_ids), limit=limit, offset=offset)
 
 
 _LISTING_RESOLVE_CTE = """
@@ -635,12 +640,14 @@ def _search_by_text(db, q):
     return set(name_listing_ids)
 
 
-def _fetch_listings_by_ids(db, listing_ids):
+def _fetch_listings_by_ids(db, listing_ids, limit=50, offset=0):
     """Fetch full listing summaries for a set of IDs."""
     if not listing_ids:
         return []
     placeholders = ', '.join(f':id{i}' for i in range(len(listing_ids)))
     params = {f'id{i}': lid for i, lid in enumerate(listing_ids)}
+    params['limit'] = limit
+    params['offset'] = offset
     rows = db.execute(
         text(f"""
             SELECT
@@ -664,6 +671,7 @@ def _fetch_listings_by_ids(db, listing_ids):
             WHERE l.id IN ({placeholders})
             GROUP BY l.id, gi.name, pe.name, se.name
             ORDER BY l.id DESC
+            LIMIT :limit OFFSET :offset
         """),
         params,
     ).mappings()

@@ -1,3 +1,15 @@
+@font-face {
+  font-family: 'Mabinogi Classic';
+  src: url('./mabinogi_classic.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@theme {
+  --font-sans: 'Mabinogi Classic', sans-serif;
+}
+
 /* Thin modern scrollbar — use class "scrollbar-thin" on any scrollable element */
 @utility scrollbar-thin {
   scrollbar-width: thin;

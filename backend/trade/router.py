@@ -16,19 +16,26 @@ init_pipeline()
 
 
 @router.get("/listings")
-def get_listings(game_item_id: int | None = Query(default=None), db: Session = Depends(get_db)):
-    return svc_get_listings(db, game_item_id=game_item_id)
+def get_listings(
+    game_item_id: int | None = Query(default=None),
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+):
+    return svc_get_listings(db, game_item_id=game_item_id, limit=limit, offset=offset)
 
 
 @router.get("/listings/search")
 def search_listings(
     q: str = Query(default=""),
     tags: list[str] = Query(default=[]),
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
 ):
     if not q.strip() and not tags:
-        return svc_get_listings(db)
-    return svc_search_listings(db, q.strip() or None, tags=tags or None)
+        return svc_get_listings(db, limit=limit, offset=offset)
+    return svc_search_listings(db, q.strip() or None, tags=tags or None, limit=limit, offset=offset)
 
 
 @router.get("/tags/search")

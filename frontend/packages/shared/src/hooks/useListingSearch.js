@@ -42,7 +42,7 @@ export function useListingSearch({ onResults, onSelectListing, onSubmit, onClear
   const executeSearch = useCallback(async (tags, text) => {
     try {
       const { data } = await searchListings(text?.trim() || '', tags.length > 0 ? tags : undefined);
-      onResults?.(data);
+      onResults?.(data, { tags, text: text?.trim() || '' });
     } catch (error) {
       console.error('Search failed:', error);
     }
