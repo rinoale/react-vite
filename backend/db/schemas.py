@@ -1,6 +1,6 @@
 import re
 from typing import Dict, List, Optional, Union
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, Field, field_validator
 from decimal import Decimal
 from datetime import datetime
 
@@ -8,22 +8,6 @@ _HTML_TAG_RE = re.compile(r'<[^>]*>?')
 
 
 # --- Auth ---
-
-class UserRegister(BaseModel):
-    email: EmailStr
-    password: str = Field(..., min_length=8)
-
-class UserLogin(BaseModel):
-    email: EmailStr
-    password: str
-
-class TokenResponse(BaseModel):
-    access_token: str
-    refresh_token: str
-    token_type: str = "bearer"
-
-class RefreshRequest(BaseModel):
-    refresh_token: str
 
 class UserUpdate(BaseModel):
     server: Optional[str] = None
@@ -219,7 +203,8 @@ class ListingOut(BaseModel):
     durability: Optional[int] = None
     piercing_level: Optional[int] = None
     created_at: Optional[datetime] = None
-    reforge_count: int = 0
+    seller_server: Optional[str] = None
+    seller_game_id: Optional[str] = None
     tags: List[TagBadge] = []
 
     class Config:

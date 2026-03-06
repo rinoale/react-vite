@@ -95,6 +95,18 @@
       "no_email": "Discord login failed. No email associated with your Discord account."
     }
   },
+  "onboarding": {
+    "welcome": "Welcome, {{name}}!",
+    "subtitle": "Set your game server and character name to get started.",
+    "server": "Server",
+    "selectServer": "Select server...",
+    "gameId": "Character Name",
+    "gameIdPlaceholder": "Enter your in-game name",
+    "submit": "Get Started",
+    "saving": "Saving...",
+    "complete": "Profile set up successfully!",
+    "error": "Failed to save profile. Please try again."
+  },
   "sidebar": {
     "home": "matrade",
     "search": "Search",

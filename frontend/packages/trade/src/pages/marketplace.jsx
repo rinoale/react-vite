@@ -7,10 +7,32 @@ import { getListings, getListingDetail, searchListings } from '@mabi/shared/api/
 import { useListingSearch } from '@mabi/shared/hooks/useListingSearch';
 import ListingSearchBar from '@mabi/shared/components/ListingSearchBar';
 import TagBadge from '@mabi/shared/components/TagBadge';
+import PlayerName from '@mabi/shared/components/PlayerName';
 
 const PAGE_SIZE = 50;
 
 const SLOT_LABELS = { 0: 'Prefix', 1: 'Suffix' };
+
+const enchantBadge = 'text-xs px-1.5 py-0.5 rounded bg-purple-900/50 text-purple-300 border border-purple-700/50';
+const upgradeBadge = 'text-xs px-1.5 py-0.5 rounded bg-pink-900/50 text-pink-300 border border-pink-700/50';
+const ergBadge = 'text-xs px-1.5 py-0.5 rounded bg-yellow-900/50 text-yellow-300 border border-yellow-700/50';
+
+const rollColor = (eff) => {
+  const { value, min_value, max_value, raw_text } = eff;
+  if (value == null || min_value == null || max_value == null) return null;
+  if (+min_value === +max_value) return null;
+
+  const isMax = +value === +max_value;
+  if (raw_text?.includes('피어싱 레벨')) return isMax ? 'text-red-400' : 'text-green-400';
+  if (isMax) return 'text-red-400';
+
+  const pct = (+value - +min_value) / (+max_value - +min_value);
+  if (pct >= 0.8) return 'text-orange-400';
+  if (pct >= 0.3) return 'text-blue-400';
+  return 'text-green-400';
+};
+
+const RANGE_RE = /\d+\s*~\s*\d+/;
 
 const ATTR_LABELS = {
   damage: '공격력', magic_damage: '마법공격력', additional_damage: '추가대미지',
@@ -156,7 +178,7 @@ const Marketplace = () => {
 
   return (
     <div id="marketplace-page" className="min-h-screen bg-gray-900 text-gray-100 p-6">
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-screen-2xl mx-auto">
         {/* Header */}
         <div id="marketplace-header" className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
           <h1 className="text-3xl font-bold text-cyan-400 flex items-center gap-2">
@@ -178,18 +200,38 @@ const Marketplace = () => {
                   onClick={() => handleSelectListing(listing)}
                   className={`bg-gray-800 p-4 rounded-xl border cursor-pointer transition-all hover:scale-[1.02] ${selectedListing?.id === listing.id ? 'border-cyan-500 shadow-[0_0_15px_rgba(6,182,212,0.3)]' : 'border-gray-700 hover:border-gray-600'}`}
                 >
-                  <h3 className="font-bold text-lg mb-1">{listing.name}</h3>
-                  {listing.game_item_name && (
-                    <p className="text-xs text-gray-400 mb-1">{listing.game_item_name}</p>
-                  )}
+                  <div className="flex flex-wrap items-center gap-1.5 mb-1">
+                    {listing.prefix_enchant_name && (
+                      <span className={enchantBadge}>{listing.prefix_enchant_name}</span>
+                    )}
+                    {listing.suffix_enchant_name && (
+                      <span className={enchantBadge}>{listing.suffix_enchant_name}</span>
+                    )}
+                    <h3 className="font-bold text-lg leading-tight">{listing.name}</h3>
+                    {listing.special_upgrade_type && (
+                      <span className={upgradeBadge}>
+                        {listing.special_upgrade_type}{listing.special_upgrade_level != null ? listing.special_upgrade_level : ''}
+                      </span>
+                    )}
+                    {listing.erg_grade && (
+                      <span className={ergBadge}>
+                        {listing.erg_grade}{listing.erg_level != null ? ` Lv.${listing.erg_level}` : ''}
+                      </span>
+                    )}
+                  </div>
                   {listing.tags?.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 mb-3">
+                    <div className="flex flex-wrap gap-1.5 mb-2">
                       {listing.tags.map((tag, idx) => (
                         <TagBadge key={idx} name={tag.name} weight={tag.weight} />
                       ))}
                     </div>
                   )}
-                  <p className="text-xs text-gray-500">{formatDate(listing.created_at)}</p>
+                  <p className="text-xs text-gray-500">
+                    <PlayerName server={listing.seller_server} gameId={listing.seller_game_id} />
+                    {listing.created_at && (
+                      <span className="ml-2">{formatDate(listing.created_at)}</span>
+                    )}
+                  </p>
                 </div>
               ))
             ) : (
@@ -260,16 +302,25 @@ const Marketplace = () => {
                           </div>
                           {enc.effects?.length > 0 && (
                             <ul className="space-y-0.5">
-                              {enc.effects.map((eff, i) => (
-                                <li key={i} className="text-xs text-gray-400">
-                                  {eff.raw_text}
-                                  {eff.value != null ? (
-                                    <span className="text-cyan-300 ml-1">({eff.value})</span>
-                                  ) : eff.min_value != null && (
-                                    <span className="text-gray-500 ml-1">({eff.min_value === eff.max_value ? eff.min_value : `${eff.min_value}~${eff.max_value}`})</span>
-                                  )}
-                                </li>
-                              ))}
+                              {enc.effects.map((eff, i) => {
+                                const fixed = eff.min_value == null || eff.max_value == null || +eff.min_value === +eff.max_value;
+                                const hasRoll = !fixed && eff.value != null;
+                                const color = hasRoll ? rollColor(eff) : null;
+                                return (
+                                  <li key={i} className="text-xs text-gray-400">
+                                    {hasRoll ? (
+                                      <>
+                                        {eff.raw_text.split(RANGE_RE).map((part, pi, arr) =>
+                                          pi < arr.length - 1 ? (
+                                            <span key={pi}>{part}<span className={`font-bold ${color}`}>{eff.value}</span></span>
+                                          ) : part
+                                        )}
+                                        <span className="text-gray-600 ml-1">({eff.min_value}~{eff.max_value})</span>
+                                      </>
+                                    ) : eff.raw_text}
+                                  </li>
+                                );
+                              })}
                             </ul>
                           )}
                         </div>

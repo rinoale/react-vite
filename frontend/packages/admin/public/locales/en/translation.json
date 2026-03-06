@@ -107,6 +107,18 @@
     "next": "NEXT",
     "refresh": "Refresh"
   },
+  "onboarding": {
+    "welcome": "Welcome, {{name}}!",
+    "subtitle": "Set your game server and character name to get started.",
+    "server": "Server",
+    "selectServer": "Select server...",
+    "gameId": "Character Name",
+    "gameIdPlaceholder": "Enter your in-game name",
+    "submit": "Get Started",
+    "saving": "Saving...",
+    "complete": "Profile set up successfully!",
+    "error": "Failed to save profile. Please try again."
+  },
   "enchants": {
     "title": "ENCHANT ENTRIES",
     "searchPlaceholder": "Search enchant name",

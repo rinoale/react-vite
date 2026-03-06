@@ -173,6 +173,7 @@ class Listing(Base):
     __tablename__ = "listings"
 
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     name = Column(Text, nullable=False, index=True)
     description = Column(Text, nullable=True)
     price = Column(Integer, nullable=True)
@@ -198,6 +199,7 @@ class Listing(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
+    user = relationship("User")
     game_item = relationship("GameItem")
     prefix_enchant = relationship("Enchant", foreign_keys=[prefix_enchant_id])
     suffix_enchant = relationship("Enchant", foreign_keys=[suffix_enchant_id])

@@ -162,7 +162,7 @@ def _parse_attrs(attrs_dict):
     return result
 
 
-def create_listing(payload, db):
+def create_listing(payload, db, *, user_id=None):
     """Resolve FKs and persist a Listing with enchant effects and reforge options.
 
     Returns the created Listing.
@@ -201,6 +201,7 @@ def create_listing(payload, db):
             pass
 
     listing = Listing(
+        user_id=user_id,
         name=payload.name,
         description=payload.description,
         price=price_int,
@@ -455,12 +456,13 @@ def get_listings(db, game_item_id=None, limit=50, offset=0):
             l.durability,
             l.piercing_level,
             l.created_at,
-            COUNT(DISTINCT lro.id) AS reforge_count
+            u.server AS seller_server,
+            u.game_id AS seller_game_id
         FROM listings l
         LEFT JOIN game_items gi ON gi.id = l.game_item_id
         LEFT JOIN enchants pe ON pe.id = l.prefix_enchant_id
         LEFT JOIN enchants se ON se.id = l.suffix_enchant_id
-        LEFT JOIN listing_reforge_options lro ON lro.listing_id = l.id
+        LEFT JOIN users u ON u.id = l.user_id
     """
     params = {"limit": limit, "offset": offset}
     if game_item_id is not None:
@@ -468,7 +470,6 @@ def get_listings(db, game_item_id=None, limit=50, offset=0):
         rows = db.execute(
             text(base_sql + """
                 WHERE l.game_item_id = :game_item_id
-                GROUP BY l.id, gi.name, pe.name, se.name
                 ORDER BY l.id DESC
                 LIMIT :limit OFFSET :offset
             """),
@@ -477,7 +478,6 @@ def get_listings(db, game_item_id=None, limit=50, offset=0):
     else:
         rows = db.execute(
             text(base_sql + """
-                GROUP BY l.id, gi.name, pe.name, se.name
                 ORDER BY l.id DESC
                 LIMIT :limit OFFSET :offset
             """),
@@ -662,14 +662,14 @@ def _fetch_listings_by_ids(db, listing_ids, limit=50, offset=0):
                 l.defense, l.protection, l.magic_defense, l.magic_protection,
                 l.durability, l.piercing_level,
                 l.created_at,
-                COUNT(DISTINCT lro.id) AS reforge_count
+                u.server AS seller_server,
+                u.game_id AS seller_game_id
             FROM listings l
             LEFT JOIN game_items gi ON gi.id = l.game_item_id
             LEFT JOIN enchants pe ON pe.id = l.prefix_enchant_id
             LEFT JOIN enchants se ON se.id = l.suffix_enchant_id
-            LEFT JOIN listing_reforge_options lro ON lro.listing_id = l.id
+            LEFT JOIN users u ON u.id = l.user_id
             WHERE l.id IN ({placeholders})
-            GROUP BY l.id, gi.name, pe.name, se.name
             ORDER BY l.id DESC
             LIMIT :limit OFFSET :offset
         """),

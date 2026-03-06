@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { RequireAuth } from '@mabi/shared/components/RequireAuth'
+import { OnboardingModal } from '@mabi/shared/components/OnboardingModal'
 import Sidebar from './components/Sidebar'
 import SearchPage from './pages/search'
 import Marketplace from './pages/marketplace'
@@ -25,6 +26,7 @@ function App() {
           <Route path="*" element={<h1>404 Not Found</h1>} />
         </Routes>
       </main>
+      <OnboardingModal />
     </div>
   )
 }

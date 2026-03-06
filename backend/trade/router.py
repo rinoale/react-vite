@@ -111,7 +111,7 @@ async def examine_item(file: UploadFile = File(...)):
 
 
 @router.post("/register-listing")
-def register_listing(payload: RegisterListingRequest, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
+def register_listing(payload: RegisterListingRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Register a listing and implicitly capture any OCR corrections."""
     logger.info(
         "register-listing  session=%s  name=%r  lines=%d",
@@ -119,7 +119,7 @@ def register_listing(payload: RegisterListingRequest, db: Session = Depends(get_
     )
 
     corrections_saved = capture_corrections(payload.session_id, payload.lines, db)
-    listing = create_listing(payload, db)
+    listing = create_listing(payload, db, user_id=current_user.id)
     create_listing_tags(listing, payload, db)
 
     return {
