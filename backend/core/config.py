@@ -36,6 +36,10 @@ class Settings(BaseSettings):
     # --- Frontend ---
     frontend_url: str = "https://dev.trade.mabitra.com"
 
+    # --- Nexon Open API ---
+    mabinogi_open_api_url: str = ""
+    mabinogi_open_api_key: str = ""
+
     # --- Cookie ---
     cookie_domain: str = ".mabitra.com"
     cookie_secure: bool = False

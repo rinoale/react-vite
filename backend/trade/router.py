@@ -10,6 +10,7 @@ from lib.utils.log import logger
 from lib.pipeline.v3 import init_pipeline, run_v3_pipeline, prepare_sections_for_response
 from crud.admin import get_listing_detail
 from auth.dependencies import get_current_user
+from lib.api.nexon_open_api import get_horn_bugle_history
 
 router = APIRouter()
 
@@ -53,6 +54,15 @@ def get_listing(listing_id: int, db: Session = Depends(get_db)):
     if result is None:
         raise HTTPException(status_code=404, detail="Listing not found")
     return result
+
+
+@router.get("/horn-bugle")
+def horn_bugle(server_name: str = Query(default="류트")):
+    try:
+        return get_horn_bugle_history(server_name)
+    except Exception as e:
+        logger.exception("horn-bugle fetch failed")
+        raise HTTPException(status_code=502, detail=str(e))
 
 
 @router.get("/game-items")

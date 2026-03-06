@@ -16,3 +16,6 @@ export const searchListings = (q, tags, { limit, offset } = {}) =>
 
 export const searchTags = (q) =>
   client.get('/tags/search', { params: { q } });
+
+export const getHornBugleHistory = (serverName = '류트') =>
+  client.get('/horn-bugle', { params: { server_name: serverName } });

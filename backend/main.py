@@ -1,5 +1,7 @@
-from fastapi import FastAPI
+from fastapi import APIRouter, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 import logging
 import os
 from admin import router as admin_router
@@ -34,10 +36,17 @@ for name in ('uvicorn', 'uvicorn.access', 'uvicorn.error'):
 settings = get_settings()
 
 app = FastAPI()
-app.include_router(auth_router)
-app.include_router(admin_router)
-app.include_router(corrections_router)
-app.include_router(trade_router)
+
+_FRONTEND_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'frontend')
+_SPA_MODE = os.path.isdir(_FRONTEND_DIR)
+
+_api_prefix = "/api" if _SPA_MODE else ""
+api = APIRouter(prefix=_api_prefix)
+api.include_router(auth_router)
+api.include_router(admin_router)
+api.include_router(corrections_router)
+api.include_router(trade_router)
+app.include_router(api)
 
 app.add_middleware(
     CORSMiddleware,
@@ -47,6 +56,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.get("/")
-def read_root():
-    return {"message": "Mabinogi Item Trade API is running"}
+# ---------------------------------------------------------------------------
+# SPA static file serving (must be after API routers)
+# ---------------------------------------------------------------------------
+if _SPA_MODE:
+    app.mount("/assets", StaticFiles(directory=os.path.join(_FRONTEND_DIR, "assets")), name="assets")
+
+    @app.get("/{path:path}")
+    async def spa_fallback(request: Request, path: str):
+        file_path = os.path.join(_FRONTEND_DIR, path)
+        if path and os.path.isfile(file_path):
+            return FileResponse(file_path)
+        return FileResponse(os.path.join(_FRONTEND_DIR, "index.html"))
+else:
+    @app.get("/")
+    def read_root():
+        return {"message": "Mabinogi Item Trade API is running"}

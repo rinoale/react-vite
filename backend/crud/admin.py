@@ -374,7 +374,7 @@ def bulk_create_tags(db: Session, data: schemas.BulkTagCreate):
         seen.add(name)
         existing = db.query(models.Tag).filter(models.Tag.name == name).first()
         if explicit_weight is not None:
-            tag = existing or models.Tag(name=name, weight=0)
+            tag = existing or models.Tag(name=name, weight=explicit_weight)
             if not existing:
                 db.add(tag)
                 db.flush()
