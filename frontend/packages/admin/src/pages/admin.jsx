@@ -411,6 +411,7 @@ const TagsPanel = () => {
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [editingTagWeight, setEditingTagWeight] = useState(null);
   const [editingTargetWeights, setEditingTargetWeights] = useState({});
+  const [targetTypeFilter, setTargetTypeFilter] = useState(null);
 
   // --- Fetch unique tags ---
   const fetchTags = useCallback(async () => {
@@ -544,6 +545,7 @@ const TagsPanel = () => {
       setTagDetail(data);
       setEditingTagWeight(null);
       setEditingTargetWeights({});
+      setTargetTypeFilter(null);
     } catch (error) {
       console.error('Error fetching tag detail:', error);
     } finally {
@@ -837,28 +839,59 @@ const TagsPanel = () => {
                         </div>
 
                         {/* Targets list */}
-                        <div className="text-xs font-bold text-gray-400 uppercase mb-2">
-                          {t('tags.targets')} ({tagDetail.targets.length})
-                        </div>
-                        {tagDetail.targets.length === 0 ? (
-                          <div className="text-xs text-gray-500 py-1">{t('tags.noTargets')}</div>
-                        ) : (
-                          <div className="space-y-1">
-                            {tagDetail.targets.map((tgt) => (
-                              <TagTargetRow
-                                key={tgt.id}
-                                tgt={tgt}
-                                editingWeight={editingTargetWeights[tgt.id] ?? null}
-                                onStartEdit={() => startTargetWeightEdit(tgt)}
-                                onSaveWeight={() => handleSaveTargetWeight(tgt.id)}
-                                onCancelEdit={() => cancelTargetWeightEdit(tgt.id)}
-                                onChangeWeight={(e) => changeTargetWeight(tgt.id, e)}
-                                onDelete={() => handleDeleteTarget(tgt.id)}
-                                t={t}
-                              />
-                            ))}
-                          </div>
-                        )}
+                        {(() => {
+                          const types = [...new Set(tagDetail.targets.map((tgt) => tgt.target_type))].sort();
+                          const filtered = targetTypeFilter
+                            ? tagDetail.targets.filter((tgt) => tgt.target_type === targetTypeFilter)
+                            : tagDetail.targets;
+                          return (
+                            <>
+                              <div className="flex items-center gap-2 mb-2 flex-wrap">
+                                <span className="text-xs font-bold text-gray-400 uppercase">
+                                  {t('tags.targets')} ({filtered.length}/{tagDetail.targets.length})
+                                </span>
+                                {types.length > 1 && (
+                                  <div className="flex gap-1">
+                                    <button
+                                      onClick={() => setTargetTypeFilter(null)}
+                                      className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded transition-colors ${!targetTypeFilter ? 'bg-emerald-700 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}
+                                    >
+                                      {t('tags.filterAll')}
+                                    </button>
+                                    {types.map((type) => (
+                                      <button
+                                        key={type}
+                                        onClick={() => setTargetTypeFilter(type)}
+                                        className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded transition-colors ${targetTypeFilter === type ? 'bg-emerald-700 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}
+                                      >
+                                        {type.replace('_', ' ')}
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                              {filtered.length === 0 ? (
+                                <div className="text-xs text-gray-500 py-1">{t('tags.noTargets')}</div>
+                              ) : (
+                                <div className="space-y-1">
+                                  {filtered.map((tgt) => (
+                                    <TagTargetRow
+                                      key={tgt.id}
+                                      tgt={tgt}
+                                      editingWeight={editingTargetWeights[tgt.id] ?? null}
+                                      onStartEdit={() => startTargetWeightEdit(tgt)}
+                                      onSaveWeight={() => handleSaveTargetWeight(tgt.id)}
+                                      onCancelEdit={() => cancelTargetWeightEdit(tgt.id)}
+                                      onChangeWeight={(e) => changeTargetWeight(tgt.id, e)}
+                                      onDelete={() => handleDeleteTarget(tgt.id)}
+                                      t={t}
+                                    />
+                                  ))}
+                                </div>
+                              )}
+                            </>
+                          );
+                        })()}
                       </div>
                     ) : null}
                   </div>

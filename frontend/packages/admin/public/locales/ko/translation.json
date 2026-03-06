@@ -74,7 +74,8 @@
     "tagWeight": "태그 가중치",
     "targets": "대상",
     "targetWeight": "w:",
-    "noTargets": "대상 없음."
+    "noTargets": "대상 없음.",
+    "filterAll": "전체"
   },
   "bulkTag": {
     "title": "일괄 태그",

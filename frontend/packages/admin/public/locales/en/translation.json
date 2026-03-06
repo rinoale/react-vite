@@ -74,7 +74,8 @@
     "tagWeight": "Tag Weight",
     "targets": "Targets",
     "targetWeight": "w:",
-    "noTargets": "No targets."
+    "noTargets": "No targets.",
+    "filterAll": "All"
   },
   "bulkTag": {
     "title": "BULK TAG",
