@@ -14,16 +14,20 @@ source "$ENV_CONF"
 
 SSH="ssh -i $PK"
 SCP="scp -i $PK"
+RSYNC="rsync -az --delete --exclude='__pycache__' -e 'ssh -i $PK'"
 
 # ---------------------------------------------------------------------------
-# Usage:  ./deploy.sh [--models]
-#   --models   Rebuild and transfer the OCR models image (only needed when
-#              models change; ~1.3GB transfer).
-#   Default    Build backend image + frontend, transfer, and restart.
+# Usage:  ./deploy.sh [--base] [--models]
+#   --base     Rebuild and transfer the base image (Python deps + OCR models).
+#              Only needed when requirements.txt or models change.
+#   --models   Rebuild and transfer the OCR models image first.
+#   Default    Rsync source code + frontend dist, restart container.
 # ---------------------------------------------------------------------------
+BUILD_BASE=false
 PUSH_MODELS=false
 for arg in "$@"; do
   case $arg in
+    --base) BUILD_BASE=true ;;
     --models) PUSH_MODELS=true ;;
   esac
 done
@@ -47,8 +51,25 @@ if $PUSH_MODELS; then
   echo "==> Models image transferred."
 fi
 
-# --- 3. Stage build context ---
-echo "==> Staging build context..."
+# --- 3. Optionally build & push base image ---
+if $BUILD_BASE; then
+  echo "==> Building base image (${PLATFORM})..."
+  STAGING=$(mktemp -d)
+  trap 'rm -rf "$STAGING"' EXIT
+  cp "$PROJECT_ROOT/backend/requirements.txt" "$STAGING/requirements.txt"
+  cp "$PROJECT_ROOT/infra/deploy/Dockerfile.base" "$STAGING/Dockerfile"
+  docker buildx build --platform "$PLATFORM" --load -t mabi-base:latest "$STAGING"
+  rm -rf "$STAGING"
+  trap - EXIT
+
+  echo "==> Saving and transferring base image..."
+  docker save mabi-base:latest | gzip | \
+    $SSH "$TARGET" "cat > /tmp/mabi-base.tar.gz && docker load < /tmp/mabi-base.tar.gz && rm /tmp/mabi-base.tar.gz"
+  echo "==> Base image transferred."
+fi
+
+# --- 4. Stage app directory ---
+echo "==> Staging app directory..."
 STAGING=$(mktemp -d)
 trap 'rm -rf "$STAGING"' EXIT
 
@@ -60,8 +81,7 @@ rsync -a \
   --exclude='ocr/' \
   "$PROJECT_ROOT/backend/" "$STAGING/backend/"
 
-# Create minimal ocr dir (models are in the Docker image, but backend code
-# may reference ocr/__init__.py or similar)
+# Create minimal ocr dir (models are in the base image)
 mkdir -p "$STAGING/backend/ocr/models"
 
 # Configs
@@ -84,30 +104,24 @@ mkdir -p "$STAGING/scripts/db" "$STAGING/scripts/frontend/configs"
 cp "$PROJECT_ROOT/scripts/db/import_dictionaries.py" "$STAGING/scripts/db/"
 cp "$PROJECT_ROOT/scripts/frontend/configs/"*.py "$STAGING/scripts/frontend/configs/"
 
-# Dockerfile + startup
-cp "$PROJECT_ROOT/infra/deploy/Dockerfile" "$STAGING/Dockerfile"
+# Startup script
 cp "$PROJECT_ROOT/infra/deploy/startup.sh" "$STAGING/startup.sh"
+chmod +x "$STAGING/startup.sh"
 
-# --- 4. Build backend image (cross-platform) ---
-echo "==> Building backend image (${PLATFORM})..."
-docker buildx build --platform "$PLATFORM" --load -t mabi-backend:latest "$STAGING"
+# --- 5. Rsync app to server ---
+echo "==> Syncing app to server..."
+$SSH "$TARGET" "mkdir -p $REMOTE_DIR/app"
+eval $RSYNC "$STAGING/" "$TARGET:$REMOTE_DIR/app/"
 
-# --- 5. Transfer backend image ---
-echo "==> Saving and transferring backend image..."
-docker save mabi-backend:latest | gzip | \
-  $SSH "$TARGET" "cat > /tmp/mabi-backend.tar.gz && docker load < /tmp/mabi-backend.tar.gz && rm /tmp/mabi-backend.tar.gz"
-
-# --- 6. Transfer compose + env + nginx ---
+# --- 6. Sync config files ---
 echo "==> Syncing config files..."
-$SSH "$TARGET" "mkdir -p $REMOTE_DIR/certs"
 $SCP "$PROJECT_ROOT/infra/deploy/docker-compose.stg.yml" "$TARGET:$REMOTE_DIR/docker-compose.yml"
 $SCP "$ENV_FILE" "$TARGET:$REMOTE_DIR/.env"
 $SCP "$PROJECT_ROOT/infra/nginx/stg.conf" "$TARGET:$REMOTE_DIR/nginx.conf"
-$SCP "$PROJECT_ROOT/infra/nginx/certs/dev.crt" "$PROJECT_ROOT/infra/nginx/certs/dev.key" "$TARGET:$REMOTE_DIR/certs/"
 
 # --- 7. Restart on server ---
 echo "==> Restarting services..."
-$SSH "$TARGET" "cd $REMOTE_DIR && docker compose up -d"
+$SSH "$TARGET" "cd $REMOTE_DIR && docker compose up -d --force-recreate backend"
 
 echo ""
 echo "==> Done."

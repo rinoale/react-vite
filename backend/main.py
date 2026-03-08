@@ -71,15 +71,17 @@ if _SPA_MODE:
 
         @app.get("/admin/{path:path}")
         async def admin_spa_fallback(request: Request, path: str, allowed: bool = Depends(is_admin_user)):
-            if not allowed:
-                return RedirectResponse("/")
             file_path = os.path.join(_ADMIN_DIR, path)
             if path and os.path.isfile(file_path):
                 return FileResponse(file_path)
+            if not allowed:
+                return RedirectResponse("/")
             return FileResponse(os.path.join(_ADMIN_DIR, "index.html"))
 
     @app.get("/{path:path}")
     async def spa_fallback(request: Request, path: str):
+        if path == "admin":
+            return RedirectResponse("/admin/")
         file_path = os.path.join(_FRONTEND_DIR, path)
         if path and os.path.isfile(file_path):
             return FileResponse(file_path)

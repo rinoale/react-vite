@@ -66,7 +66,7 @@ services:
     container_name: mabinogi-frontend
     working_dir: /app
     environment:
-      MABINOGI_TRADE_API_URL: https://dev.api.mabitra.com
+      MABINOGI_TRADE_API_URL: https://dev.mabitra.local
     ports:
       - "5173:5173"
       - "5174:5174"

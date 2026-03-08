@@ -31,25 +31,23 @@ class Settings(BaseSettings):
     # --- Discord OAuth ---
     discord_client_id: str = ""
     discord_client_secret: str = ""
-    discord_redirect_uri: str = "https://dev.trade.mabitra.com/api/auth/discord/callback"
+    discord_redirect_uri: str = "https://dev.mabitra.local/api/auth/discord/callback"
 
     # --- Frontend ---
-    frontend_url: str = "https://dev.trade.mabitra.com"
+    frontend_url: str = "https://dev.mabitra.local"
 
     # --- Nexon Open API ---
     mabinogi_open_api_url: str = ""
     mabinogi_open_api_key: str = ""
 
     # --- Cookie ---
-    cookie_domain: str = ".mabitra.com"
+    cookie_domain: str = ".mabitra.local"
     cookie_secure: bool = False
     cookie_samesite: str = "lax"
 
     # --- CORS ---
     cors_origins: list[str] = [
-        "https://dev.trade.mabitra.com",
-        "https://dev.admin.mabitra.com",
-        "https://dev.misc.mabitra.com",
+        "https://dev.mabitra.local",
     ]
 
     @property

@@ -1,6 +1,10 @@
 #!/bin/bash
 set -e
 
+# Link OCR models from separate volume into backend
+mkdir -p /app/backend/ocr
+ln -sfn /models /app/backend/ocr/models
+
 echo "==> Running migrations..."
 alembic upgrade head
 
