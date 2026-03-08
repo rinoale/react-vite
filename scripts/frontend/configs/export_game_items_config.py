@@ -13,7 +13,8 @@ PROJECT_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '.
 sys.path.append(os.path.join(PROJECT_ROOT, 'backend'))
 from db.connector import SessionLocal
 
-OUTPUT_PATH = os.path.join(PROJECT_ROOT, 'frontend', 'packages', 'trade', 'public', 'game_items_config.js')
+_FRONTEND_DIR = os.environ.get('FRONTEND_DIST_DIR', os.path.join(PROJECT_ROOT, 'frontend', 'packages', 'trade', 'public'))
+OUTPUT_PATH = os.path.join(_FRONTEND_DIR, 'game_items_config.js')
 
 
 def export_config():

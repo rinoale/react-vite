@@ -69,11 +69,18 @@ mkdir -p "$STAGING/data/dictionary" "$STAGING/data/source_of_truth"
 cp -r "$PROJECT_ROOT/data/dictionary/"* "$STAGING/data/dictionary/" 2>/dev/null || true
 cp -r "$PROJECT_ROOT/data/source_of_truth/"* "$STAGING/data/source_of_truth/" 2>/dev/null || true
 
-# Frontend dist
+# Frontend dist (remove stale configs — startup.sh generates them from server DB)
 cp -r "$PROJECT_ROOT/frontend/packages/trade/dist" "$STAGING/frontend"
+rm -f "$STAGING/frontend/enchants_config.js" "$STAGING/frontend/reforges_config.js" "$STAGING/frontend/game_items_config.js"
 
-# Dockerfile
+# Scripts (import dictionaries + export configs, run at container startup)
+mkdir -p "$STAGING/scripts/db" "$STAGING/scripts/frontend/configs"
+cp "$PROJECT_ROOT/scripts/db/import_dictionaries.py" "$STAGING/scripts/db/"
+cp "$PROJECT_ROOT/scripts/frontend/configs/"*.py "$STAGING/scripts/frontend/configs/"
+
+# Dockerfile + startup
 cp "$PROJECT_ROOT/infra/deploy/Dockerfile" "$STAGING/Dockerfile"
+cp "$PROJECT_ROOT/infra/deploy/startup.sh" "$STAGING/startup.sh"
 
 # --- 4. Build backend image (cross-platform) ---
 echo "==> Building backend image (${PLATFORM})..."
