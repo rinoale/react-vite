@@ -9,7 +9,7 @@ function App() {
   useEffect(() => { document.title = t('app.title') }, [t])
 
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={import.meta.env.BASE_URL}>
       <Routes>
         <Route path="/:tab" element={<Admin />} />
         <Route path="/" element={<Admin />} />

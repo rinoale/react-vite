@@ -1,4 +1,5 @@
 from fastapi import Cookie, Depends, HTTPException, status
+from fastapi.responses import RedirectResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
@@ -75,6 +76,25 @@ def require_role(role_name: str):
             return current_user
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient role")
     return dependency
+
+
+def is_admin_user(
+    creds: HTTPAuthorizationCredentials | None = Depends(_bearer),
+    access_token: str | None = Cookie(default=None),
+    db: Session = Depends(get_db),
+) -> bool:
+    """Check if the current request is from a master or admin user."""
+    token = _resolve_token(creds, access_token)
+    if not token:
+        return False
+    payload = decode_token(token)
+    if not payload or payload.get("type") != "access":
+        return False
+    user = get_user_by_id(db, int(payload["sub"]))
+    if not user or user.status != 0:
+        return False
+    roles = get_user_roles(db, user.id)
+    return "master" in roles or "admin" in roles
 
 
 def require_feature(flag_name: str):

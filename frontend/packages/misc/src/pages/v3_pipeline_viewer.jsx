@@ -2,8 +2,6 @@ import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { Upload, Play, Pause, SkipBack, SkipForward, ChevronLeft, ChevronRight, HelpCircle, Grid2X2, Send, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-const API_BASE = import.meta.env.MABINOGI_TRADE_API_URL || 'https://dev.api.mabitra.com'
-
 // ─── Image processing helpers (mirror the Python V3 pipeline) ───
 
 function getPixel(data, w, x, y) {
@@ -833,7 +831,7 @@ const V3PipelineViewer = () => {
     try {
       const formData = new FormData()
       formData.append('file', uploadedFileRef.current)
-      const resp = await fetch(`${API_BASE}/examine-item`, {
+      const resp = await fetch('/api/examine-item', {
         method: 'POST',
         body: formData,
       })

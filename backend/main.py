@@ -1,11 +1,12 @@
-from fastapi import APIRouter, FastAPI, Request
+from fastapi import APIRouter, Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 import logging
 import os
 from admin import router as admin_router
 from auth import router as auth_router
+from auth.dependencies import is_admin_user
 from corrections import router as corrections_router
 from misc import router as misc_router
 from trade import router as trade_router
@@ -39,6 +40,7 @@ settings = get_settings()
 app = FastAPI()
 
 _FRONTEND_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'frontend')
+_ADMIN_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'frontend-admin')
 _SPA_MODE = os.path.isdir(_FRONTEND_DIR)
 
 _api_prefix = "/api" if _SPA_MODE else ""
@@ -63,6 +65,18 @@ app.add_middleware(
 # ---------------------------------------------------------------------------
 if _SPA_MODE:
     app.mount("/assets", StaticFiles(directory=os.path.join(_FRONTEND_DIR, "assets")), name="assets")
+
+    if os.path.isdir(_ADMIN_DIR):
+        app.mount("/admin/assets", StaticFiles(directory=os.path.join(_ADMIN_DIR, "assets")), name="admin-assets")
+
+        @app.get("/admin/{path:path}")
+        async def admin_spa_fallback(request: Request, path: str, allowed: bool = Depends(is_admin_user)):
+            if not allowed:
+                return RedirectResponse("/")
+            file_path = os.path.join(_ADMIN_DIR, path)
+            if path and os.path.isfile(file_path):
+                return FileResponse(file_path)
+            return FileResponse(os.path.join(_ADMIN_DIR, "index.html"))
 
     @app.get("/{path:path}")
     async def spa_fallback(request: Request, path: str):

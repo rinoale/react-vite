@@ -27,8 +27,9 @@ COPY scripts/ /app/scripts/
 # Overlay resolved model files from the models image
 COPY --from=models /models/ /app/backend/ocr/models/
 
-# Frontend SPA (pre-built dist)
+# Frontend SPAs (pre-built dist)
 COPY frontend/ /app/frontend/
+COPY frontend-admin/ /app/frontend-admin/
 
 COPY startup.sh /app/startup.sh
 RUN chmod +x /app/startup.sh

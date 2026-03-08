@@ -71,7 +71,6 @@ const ATTR_LABELS = {
   durability: '내구력', piercing_level: '관통 레벨',
 };
 
-const API_BASE = import.meta.env.MABINOGI_TRADE_API_URL || 'https://dev.api.mabitra.com';
 
 const CorrectionsPanel = () => {
   const { t } = useTranslation();
@@ -153,7 +152,7 @@ const CorrectionsPanel = () => {
     }
   };
 
-  const cropUrl = (c) => `${API_BASE}/admin/corrections/crop/${c.session_id}/${c.image_filename}`;
+  const cropUrl = (c) => `/api/admin/corrections/crop/${c.session_id}/${c.image_filename}`;
 
   return (
     <div className="bg-gray-800 rounded-2xl border border-gray-700 shadow-2xl overflow-hidden">

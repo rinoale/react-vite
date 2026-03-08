@@ -28,10 +28,13 @@ for arg in "$@"; do
   esac
 done
 
-# --- 1. Build frontend ---
+# --- 1. Build frontends ---
 echo "==> Building frontend (trade)..."
 cd "$PROJECT_ROOT/frontend"
 npm run build -w @mabi/trade
+
+echo "==> Building frontend (admin)..."
+npm run build -w @mabi/admin
 
 # --- 2. Optionally build & push OCR models image ---
 if $PUSH_MODELS; then
@@ -72,6 +75,9 @@ cp -r "$PROJECT_ROOT/data/source_of_truth/"* "$STAGING/data/source_of_truth/" 2>
 # Frontend dist (remove stale configs — startup.sh generates them from server DB)
 cp -r "$PROJECT_ROOT/frontend/packages/trade/dist" "$STAGING/frontend"
 rm -f "$STAGING/frontend/enchants_config.js" "$STAGING/frontend/reforges_config.js" "$STAGING/frontend/game_items_config.js"
+
+# Admin dist
+cp -r "$PROJECT_ROOT/frontend/packages/admin/dist" "$STAGING/frontend-admin"
 
 # Scripts (import dictionaries + export configs, run at container startup)
 mkdir -p "$STAGING/scripts/db" "$STAGING/scripts/frontend/configs"
