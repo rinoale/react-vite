@@ -111,7 +111,9 @@
     "home": "마트레",
     "search": "검색",
     "marketplace": "시장",
-    "sellItem": "아이템 팔기"
+    "sellItem": "아이템 팔기",
+    "expand": "메뉴 열기",
+    "collapse": "메뉴 닫기"
   },
   "attrs": {
     "damage": "공격",
