@@ -157,6 +157,7 @@ class BulkWeightUpdate(BaseModel):
 class JobOut(BaseModel):
     name: str
     description: str
+    schedule_seconds: Optional[int] = None
     last_run: Optional['JobRunOut'] = None
 
 class JobRunOut(BaseModel):
@@ -165,6 +166,7 @@ class JobRunOut(BaseModel):
     status: str
     result_summary: Optional[str] = None
     error: Optional[str] = None
+    worker_id: Optional[str] = None
     started_at: datetime
     finished_at: Optional[datetime] = None
 

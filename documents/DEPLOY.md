@@ -96,7 +96,7 @@ ENV_FILE=~/workspace/ocr_training_data/env/.env.staging
    infra/nginx/stg.conf → nginx.conf
 
 7. Restart
-   docker compose up -d --force-recreate backend
+   docker compose up -d --force-recreate backend worker
 ```
 
 ## Docker Images
@@ -179,12 +179,15 @@ exec uvicorn main:app --host 0.0.0.0 --port 8000
 ```yaml
 services:
   db:           # postgres:16-alpine, port 5432 (localhost only), db_data volume
+  redis:        # redis:7-alpine, port 6379, password-protected
   backend:      # mabi-base:latest, volume-mounts ./app:/app + ocr_models:/models
+  worker:       # mabi-base:latest, runs `python worker.py`, same volumes as backend
   nginx:        # nginx:alpine, ports 80+443, certbot volumes (ro)
   certbot:      # certbot/certbot, auto-renewal loop (every 12h)
 
 volumes:
   db_data:
+  redis_data:
   ocr_models:
   certbot_www:  # Shared webroot for ACME challenges
   certbot_certs: # Let's Encrypt certificates
@@ -192,7 +195,9 @@ volumes:
 
 Key details:
 - `backend` reads `env_file: .env` (copied from staging env file during deploy)
-- `backend` gets DB credentials via both `env_file` and explicit `environment` (DB_HOST=db)
+- `backend` gets DB + Redis credentials via both `env_file` and explicit `environment`
+- `redis` requires password (`REDIS_PASSWORD` from `.env`), data persisted in `redis_data` volume
+- `worker` uses the same `mabi-base` image and `./app` volume as `backend`; runs `python worker.py` (dequeue loop + scheduler thread)
 - `nginx` bind-mounts `./nginx.conf` (copied from `infra/nginx/stg.conf` during deploy)
 - `certbot` runs an infinite renewal loop: `certbot renew; sleep 12h`
 
@@ -311,9 +316,10 @@ sudo netfilter-persistent save
 
 ### Docker Networking
 
-- Staging: `backend` connects to `db` via Docker DNS (`db:5432`)
+- Staging: `backend` and `worker` connect to `db` via Docker DNS (`db:5432`) and `redis` via (`redis:6379`)
 - Dev: Nginx connects to host services via `host.docker.internal` (set by `extra_hosts`)
 - DB port 5432 bound to `127.0.0.1` only (staging) — not exposed to public
+- Redis port 6379 exposed in dev, internal-only in staging (Docker DNS)
 
 ## Environment Configuration
 
@@ -341,6 +347,9 @@ sudo netfilter-persistent save
 | `COOKIE_DOMAIN` | `.mabitra.local` | `.mabitra.com` | See cookie isolation below |
 | `COOKIE_SECURE` | `false` | `true` | HTTPS required when `true` |
 | `COOKIE_SAMESITE` | `lax` | `lax` | |
+| `REDIS_HOST` | `localhost` | `redis` | Docker service name in staging |
+| `REDIS_PORT` | `6379` | `6379` | |
+| `REDIS_PASSWORD` | `devredis` | **strong password** | Required for broker auth |
 | `CORS_ORIGINS` | `["https://dev.mabitra.local"]` | `["https://stg.mabitra.com"]` | |
 
 ### Cookie Domain Isolation
@@ -374,8 +383,8 @@ Add these redirect URIs in the Discord app settings:
 ### Start Dev Environment
 
 ```bash
-# 1. Start database + nginx
-docker compose up -d db nginx
+# 1. Start database + redis + nginx
+docker compose up -d db redis nginx
 
 # 2. Backend (terminal 1)
 cd backend && uvicorn main:app --reload --port 8000
@@ -385,6 +394,11 @@ cd frontend && npm run dev -w @mabi/trade
 
 # 4. Frontend admin (terminal 3)
 cd frontend && npm run dev -w @mabi/admin
+```
+
+```bash
+# 5. Worker (terminal 4, optional — for background job processing)
+cd backend && python worker.py
 ```
 
 Or use Docker for everything:
@@ -397,7 +411,9 @@ docker compose up -d
 Services:
 - `nginx`: Routes `dev.mabitra.local` to local dev servers (self-signed cert)
 - `db`: PostgreSQL 16 (`mabinogi/mabinogi/mabinogi`)
+- `redis`: Redis 7, password-protected (`devredis`)
 - `backend`: Hot-reload, volume-mounts source code + OCR data from host
+- `worker`: Background job processor (dequeue loop + scheduler)
 - `frontend`: Runs all three Vite dev servers (trade :5173, admin :5174, misc :5175)
 
 Notable volume mounts:
@@ -492,6 +508,7 @@ docker-compose.yml              # Local dev compose
 
 Docker volumes:
   db_data                       # PostgreSQL data
+  redis_data                    # Redis persistence
   ocr_models                    # OCR .pth files (from mabi-ocr-models image)
   mabinogi_certbot_www          # ACME challenge webroot
   mabinogi_certbot_certs        # Let's Encrypt certificates

@@ -623,6 +623,157 @@ See `documents/API_SPEC.md` for full response schema.
 
 ---
 
+## Background Jobs
+
+### Overview
+
+Background jobs run in a **standalone worker process** separate from the web server. The worker can run anywhere — on the same server, a different server, or a local PC with a GPU. Communication happens via Redis (message queue) and PostgreSQL (job history).
+
+```
+                 PRODUCERS                        BROKER                      CONSUMER
+           ┌───────────────────┐              ┌──────────┐              ┌───────────────────┐
+           │  Admin API        │──enqueue()──►│          │──dequeue()──►│  Worker process   │
+           │  (FastAPI)        │              │  Redis   │              │  (standalone)     │
+           ├───────────────────┤              │  Lists   │              │                   │
+           │  Scheduler        │──enqueue()──►│          │◄──ack()/────►│  Executes job fn  │
+           │  (inside worker)  │              └──────────┘   fail()     │  Records to DB    │
+           └───────────────────┘                                        └───────────────────┘
+```
+
+### Broker Abstraction
+
+**File:** `backend/jobs/broker.py`
+
+```python
+class JobBroker(Protocol):
+    def enqueue(self, queue: str, message: JobMessage) -> None: ...
+    def dequeue(self, queue: str, timeout: int) -> JobMessage | None: ...
+    def ack(self, queue: str, message: JobMessage) -> None: ...
+    def fail(self, queue: str, message: JobMessage, error: str) -> None: ...
+```
+
+`RedisBroker` is the current implementation. Uses two Redis lists per queue:
+- `jobs:{queue}` — pending messages (`LPUSH` to enqueue)
+- `jobs:{queue}:processing` — in-flight messages (`BRPOPLPUSH` to dequeue atomically)
+
+Swapping to SQS, Kafka, or Pub/Sub requires only implementing a new class — no changes to worker, jobs, or admin code.
+
+### Message Format
+
+```json
+{
+  "job_id": "uuid4",
+  "job_name": "cleanup_zero_weight_tags",
+  "run_id": 42,
+  "enqueued_at": "2026-03-09T12:00:00Z",
+  "payload": {}
+}
+```
+
+`run_id` links the message to a `job_runs` DB row for status tracking.
+
+### Job Registry
+
+**File:** `backend/jobs/__init__.py`
+
+```python
+REGISTRY = {
+    "cleanup_zero_weight_tags": {
+        "fn": cleanup_zero_weight_tags,
+        "description": "Delete user-created tags with weight 0",
+        "schedule_seconds": 12 * 3600,
+    },
+}
+```
+
+Each entry: a Python function `fn(db: Session) -> str`, a description, and an optional schedule interval. Adding a new job = write a function + add it here.
+
+### Worker
+
+**File:** `backend/worker.py`
+
+Standalone process with two responsibilities:
+
+1. **Dequeue loop** — `BRPOP` with 5-second timeout, execute job, update `job_runs` row, ack/fail
+2. **Scheduler thread** — daemon thread that enqueues scheduled jobs at their configured intervals
+
+```bash
+# Local dev
+cd backend && python worker.py
+
+# Remote worker (e.g., local PC with GPU connecting to OCI)
+REDIS_HOST=64.110.116.116 REDIS_PASSWORD=pass DB_HOST=64.110.116.116 python worker.py
+```
+
+The worker records `worker_id` (hostname) on each `job_runs` row — visible in the admin dashboard to track which machine processed a job.
+
+Handles `SIGINT`/`SIGTERM` for graceful shutdown.
+
+### Admin API
+
+**File:** `backend/admin/jobs.py`
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/admin/jobs` | GET | List registered jobs with last run status and schedule |
+| `/admin/jobs/{name}/run` | POST | Enqueue a job (creates `job_runs` row + Redis message) |
+| `/admin/jobs/history` | GET | Paginated execution history |
+
+Triggering a job via admin inserts a `pending` row into `job_runs` and calls `broker.enqueue()`. The web server does not execute jobs — it only enqueues them.
+
+### Database
+
+**Table:** `job_runs`
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | int (PK) | Auto-increment |
+| `job_name` | text | Registry key |
+| `status` | text | `pending` → `running` → `completed` / `failed` |
+| `result_summary` | text | Return value of job function |
+| `error` | text | Exception message (truncated to 500 chars) |
+| `worker_id` | text | Hostname of the worker that executed the job |
+| `started_at` | timestamptz | Row creation time |
+| `finished_at` | timestamptz | Completion/failure time |
+
+### Infrastructure
+
+Redis runs as a Docker container in both dev and staging:
+
+```yaml
+# docker-compose.yml / docker-compose.stg.yml
+redis:
+  image: redis:7-alpine
+  command: redis-server --requirepass ${REDIS_PASSWORD}
+  ports:
+    - "6379:6379"
+
+worker:
+  image: mabi-base:latest
+  command: ["python", "worker.py"]
+  depends_on: [db, redis]
+```
+
+Staging exposes Redis on port 6379 (password-protected) so remote workers (local PC) can connect.
+
+### File Layout
+
+```
+backend/
+├── worker.py                  # Standalone worker entry point
+├── jobs/
+│   ├── __init__.py            # REGISTRY — job definitions + schedule config
+│   ├── broker.py              # JobBroker protocol + RedisBroker implementation
+│   ├── connection.py          # get_broker() factory (Redis connection from settings)
+│   └── cleanup_tags.py        # Job: delete zero-weight tags
+├── admin/
+│   └── jobs.py                # Admin API: list, trigger, history
+└── db/
+    └── models.py              # JobRun model
+```
+
+---
+
 ## Authentication & Authorization
 
 ### Overview

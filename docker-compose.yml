@@ -12,6 +12,16 @@ services:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped
 
+  redis:
+    image: redis:7-alpine
+    container_name: mabinogi-redis
+    command: redis-server --requirepass ${REDIS_PASSWORD:-devredis}
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
   db:
     build:
       context: ./infra/database
@@ -42,6 +52,9 @@ services:
       DB_NAME: mabinogi
       DB_USER: mabinogi
       DB_PASSWORD: mabinogi
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-devredis}
     command: >
       sh -lc "ln -sf /app/env/.env.development /app/backend/.env.development &&
       pip install --user -r /app/backend/requirements.txt &&
@@ -78,5 +91,38 @@ services:
       - backend
     restart: unless-stopped
 
+  worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      args:
+        UID: ${UID:-1000}
+        GID: ${GID:-1000}
+    container_name: mabinogi-worker
+    working_dir: /app/backend
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: mabinogi
+      DB_USER: mabinogi
+      DB_PASSWORD: mabinogi
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-devredis}
+    command: >
+      sh -lc "ln -sf /app/env/.env.development /app/backend/.env.development &&
+      pip install --user -r /app/backend/requirements.txt &&
+      python worker.py"
+    volumes:
+      - ./backend:/app/backend
+      - /home/gbsong/workspace/ocr_training_data/mabinogi/data:/app/data
+      - ./configs:/app/configs
+      - ./logs:/app/logs
+    depends_on:
+      - db
+      - redis
+    restart: unless-stopped
+
 volumes:
   db_data:
+  redis_data:

@@ -5,7 +5,7 @@ import { getJobs, triggerJob, getJobHistory } from '@mabi/shared/api/admin';
 import {
   panelOuter, panelHeader, panelTitle, panelEmpty,
   loadingCenter, loadingIcon, dividerY, metaRow, hoverRow,
-  jobRow, jobName, jobDesc, jobMeta, jobMetaResult, jobMetaError,
+  jobRow, jobName, jobDesc, jobMeta, jobMetaResult, jobMetaError, badgeCyan,
   iconSmSpin, iconSm, btnJobRun, btnPagGray, thRow, thCell, tdCell, tdCellMono, tdCellSub, tdCellTrunc,
 } from '@mabi/shared/styles';
 
@@ -27,6 +27,15 @@ const formatTime = (iso) => {
   return new Date(iso).toLocaleString('ko-KR', {
     month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit',
   });
+};
+
+const formatInterval = (seconds) => {
+  if (!seconds) return null;
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  if (h > 0 && m > 0) return `${h}h ${m}m`;
+  if (h > 0) return `${h}h`;
+  return `${m}m`;
 };
 
 const JobsPanel = () => {
@@ -92,7 +101,12 @@ const JobsPanel = () => {
             return (
               <div key={job.name} className={jobRow}>
                 <div className="flex-1">
-                  <p className={jobName}>{job.name}</p>
+                  <div className={metaRow}>
+                    <p className={jobName}>{job.name}</p>
+                    {job.schedule_seconds && (
+                      <span className={badgeCyan}>{t('jobs.every', { interval: formatInterval(job.schedule_seconds) })}</span>
+                    )}
+                  </div>
                   <p className={jobDesc}>{job.description}</p>
                   {lastRun && (
                     <div className={metaRow}>
@@ -153,6 +167,7 @@ const JobsPanel = () => {
             <tr className={thRow}>
               <th className={thCell}>{t('jobs.colStatus')}</th>
               <th className={thCell}>{t('jobs.colName')}</th>
+              <th className={thCell}>{t('jobs.colWorker')}</th>
               <th className={thCell}>{t('jobs.colStarted')}</th>
               <th className={thCell}>{t('jobs.colFinished')}</th>
               <th className={thCell}>{t('jobs.colResult')}</th>
@@ -163,6 +178,7 @@ const JobsPanel = () => {
               <tr key={run.id} className={hoverRow}>
                 <td className={tdCell}><StatusIcon status={run.status} /></td>
                 <td className={tdCellMono}>{run.job_name}</td>
+                <td className={tdCellSub}>{run.worker_id || '-'}</td>
                 <td className={tdCellSub}>{formatTime(run.started_at)}</td>
                 <td className={tdCellSub}>{formatTime(run.finished_at)}</td>
                 <td className={tdCellTrunc}>
@@ -172,7 +188,7 @@ const JobsPanel = () => {
             ))}
             {history.length === 0 && (
               <tr>
-                <td colSpan={5} className={panelEmpty}>{t('jobs.noHistory')}</td>
+                <td colSpan={6} className={panelEmpty}>{t('jobs.noHistory')}</td>
               </tr>
             )}
           </tbody>

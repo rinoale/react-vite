@@ -12,6 +12,16 @@ services:
       - db_data:/var/lib/postgresql/data
     restart: unless-stopped
 
+  redis:
+    image: redis:7-alpine
+    container_name: mabi-redis
+    command: redis-server --requirepass ${REDIS_PASSWORD}
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
   backend:
     image: mabi-base:latest
     container_name: mabi-backend
@@ -22,11 +32,38 @@ services:
       DB_NAME: mabinogi
       DB_USER: mabinogi
       DB_PASSWORD: ${DB_PASSWORD:-mabinogi}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
     volumes:
       - ./app:/app
       - ocr_models:/models
     depends_on:
       - db
+      - redis
+    restart: unless-stopped
+
+  worker:
+    image: mabi-base:latest
+    container_name: mabi-worker
+    env_file: .env
+    working_dir: /app/backend
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: mabinogi
+      DB_USER: mabinogi
+      DB_PASSWORD: ${DB_PASSWORD:-mabinogi}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    command: ["python", "worker.py"]
+    volumes:
+      - ./app:/app
+      - ocr_models:/models
+    depends_on:
+      - db
+      - redis
     restart: unless-stopped
 
   nginx:
@@ -55,6 +92,7 @@ services:
 volumes:
   db_data:
   ocr_models:
+  redis_data:
   certbot_www:
     name: mabinogi_certbot_www
   certbot_certs:
