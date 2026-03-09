@@ -14,7 +14,7 @@ source "$ENV_CONF"
 
 SSH="ssh -i $PK"
 SCP="scp -i $PK"
-RSYNC="rsync -az --delete --exclude='__pycache__' -e 'ssh -i $PK'"
+RSYNC="rsync -az --delete --exclude='__pycache__' --exclude='logs' --exclude='backend/ocr' -e 'ssh -i $PK'"
 
 # ---------------------------------------------------------------------------
 # Usage:  ./deploy.sh [--base] [--models]
@@ -81,9 +81,6 @@ rsync -a \
   --exclude='ocr/' \
   "$PROJECT_ROOT/backend/" "$STAGING/backend/"
 
-# Create minimal ocr dir (models are in the base image)
-mkdir -p "$STAGING/backend/ocr/models"
-
 # Configs
 cp -r "$PROJECT_ROOT/configs" "$STAGING/configs"
 
@@ -121,7 +118,7 @@ $SCP "$PROJECT_ROOT/infra/nginx/stg.conf" "$TARGET:$REMOTE_DIR/nginx.conf"
 
 # --- 7. Restart on server ---
 echo "==> Restarting services..."
-$SSH "$TARGET" "cd $REMOTE_DIR && docker compose up -d --force-recreate backend"
+$SSH "$TARGET" "cd $REMOTE_DIR && docker compose up -d --force-recreate backend worker && docker compose restart nginx"
 
 echo ""
 echo "==> Done."
