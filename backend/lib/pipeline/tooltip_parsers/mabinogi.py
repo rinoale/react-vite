@@ -10,9 +10,9 @@ from pathlib import Path
 import yaml
 
 # Reforge section patterns
-# Flexible: two digit groups near 레벨 at end, optional parens, any non-digit separator
-# Matches: '보호(13/20 레벨)', '보호13/20 레벨)', '보호 13 20 레벨'
-_REFORGE_LEVEL_RE = re.compile(r'^[-\s]*(.+?)\s*\(?(\d+)\D+(\d+)\s*레벨\)?\s*$')
+# Flexible: two digit groups with optional 레벨 at end, optional parens, any non-digit separator
+# Matches: '보호(13/20 레벨)', '보호(14/20)', '보호13/20 레벨)', '보호 13 20 레벨'
+_REFORGE_LEVEL_RE = re.compile(r'^[-\s]*(.+?)\s*\(?(\d+)\D+(\d+)\s*(?:레벨)?\)?\s*$')
 
 # Enchant section patterns
 # Header: '[접두] 충격을 (랭크 F)' or '[접미] 관리자 (랭크 6)' — ranks: A-F or 1-9

@@ -146,9 +146,11 @@
     "reforge": {
       "correct": "Correct",
       "clickToEditLevel": "눌러서 수정하기",
+      "setLevel": "레벨 입력",
       "addOption": "세공 옵션 추가",
       "searchReforgeOption": "세공 옵션 검색",
-      "levelDisplay": "Lv. {{level}} / {{maxLevel}}"
+      "levelDisplay": "Lv. {{level}} / {{maxLevel}}",
+      "remove": "삭제"
     },
     "cancel": "취소",
     "erg": {

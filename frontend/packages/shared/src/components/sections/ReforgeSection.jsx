@@ -13,17 +13,19 @@ const ReforgeOption = ({ opt, optIdx, lineIdx, onLineChange, onRemove }) => {
   const reforgeItems = useMemo(() => window.REFORGES_CONFIG || [], []);
   const cfgEntry = useMemo(() => reforgeItems.find(r => r.option_name === opt.name), [reforgeItems, opt.name]);
   const isTranscend = opt.level != null && cfgEntry?.max_level != null && opt.level > cfgEntry.max_level;
+  const hasLevel = !NO_LEVEL_OPTIONS.includes(opt.name);
 
   const commitLevel = (value) => {
     setEditingLevel(false);
     if (value === '' || value === String(opt.level)) return;
     const numLevel = parseInt(value, 10);
     if (isNaN(numLevel)) return;
-    const newText = `${opt.name} (${numLevel}/${opt.max_level} 레벨)`;
+    const maxLevel = opt.max_level || cfgEntry?.max_level || 20;
+    const newText = `${opt.name} (${numLevel}/${maxLevel} 레벨)`;
     onLineChange(lineIdx, newText, (sec) => {
       if (sec.options) {
         const opts = [...sec.options];
-        opts[optIdx] = { ...opts[optIdx], level: numLevel, option_level: numLevel };
+        opts[optIdx] = { ...opts[optIdx], level: numLevel, max_level: maxLevel, option_level: numLevel };
         sec.options = opts;
       }
     });
@@ -75,7 +77,7 @@ const ReforgeOption = ({ opt, optIdx, lineIdx, onLineChange, onRemove }) => {
               <X className="w-3 h-3" />
             </button>
           </div>
-          {opt.level != null && (
+          {hasLevel && (
             editingLevel ? (
               <input
                 type="text"
@@ -91,11 +93,13 @@ const ReforgeOption = ({ opt, optIdx, lineIdx, onLineChange, onRemove }) => {
               />
             ) : (
               <span
-                className={`${badgeClickable} ${isTranscend ? badgeOrange : badgeCyan}`}
-                onClick={() => { setLevelDraft(String(opt.level)); setEditingLevel(true); }}
+                className={`${badgeClickable} ${opt.level == null ? 'bg-gray-600 text-gray-300' : isTranscend ? badgeOrange : badgeCyan}`}
+                onClick={() => { setLevelDraft(opt.level != null ? String(opt.level) : ''); setEditingLevel(true); }}
                 title={t('sections.reforge.clickToEditLevel')}
               >
-                Level {opt.level} / {opt.max_level}
+                {opt.level != null
+                  ? `Level ${opt.level} / ${opt.max_level}`
+                  : t('sections.reforge.setLevel')}
               </span>
             )
           )}

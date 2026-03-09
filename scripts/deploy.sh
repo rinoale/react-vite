@@ -14,7 +14,7 @@ source "$ENV_CONF"
 
 SSH="ssh -i $PK"
 SCP="scp -i $PK"
-RSYNC="rsync -az --delete --exclude='__pycache__' --exclude='logs' --exclude='backend/ocr' -e 'ssh -i $PK'"
+RSYNC="rsync -az --delete --exclude='__pycache__' --exclude='logs' --exclude='backend/ocr' --exclude='tmp' --exclude='data/corrections' -e 'ssh -i $PK'"
 
 # ---------------------------------------------------------------------------
 # Usage:  ./deploy.sh [--base] [--models]
@@ -118,7 +118,20 @@ $SCP "$PROJECT_ROOT/infra/nginx/stg.conf" "$TARGET:$REMOTE_DIR/nginx.conf"
 
 # --- 7. Restart on server ---
 echo "==> Restarting services..."
-$SSH "$TARGET" "cd $REMOTE_DIR && docker compose up -d --force-recreate backend worker && docker compose restart nginx"
+# up -d: creates new services (redis on first deploy) or recreates if config changed
+# restart: picks up new code from volume mount without changing container IP
+$SSH "$TARGET" "cd $REMOTE_DIR && docker compose up -d && docker compose restart backend worker"
+
+# --- 8. Wait for backend health ---
+echo "==> Waiting for backend..."
+for i in $(seq 1 60); do
+  STATUS=$($SSH "$TARGET" "curl -sfk https://localhost/health 2>/dev/null" || true)
+  if echo "$STATUS" | grep -q '"ok"'; then
+    echo "==> Backend healthy (${i}s)"
+    break
+  fi
+  sleep 1
+done
 
 echo ""
 echo "==> Done."

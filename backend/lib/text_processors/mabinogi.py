@@ -688,13 +688,8 @@ class MabinogiTextCorrector(TextCorrector):
                     best_used_full = score_full > score
 
             if best_score < 50 or best_db_idx < 0:
-                # No DB match — keep OCR text as-is
-                eff = {'text': ocr_core, 'line_index': gi}
-                opt_name, opt_level = _parse_effect_number(ocr_core)
-                if opt_name is not None:
-                    eff['option_name'] = opt_name
-                    eff['option_level'] = opt_level
-                result.append(eff)
+                # No DB match — drop unmatched OCR lines (noise, holywater, etc.)
+                # DB entry is the source of truth; unmatched lines are not effects.
                 continue
 
             used_db.add(best_db_idx)
@@ -764,6 +759,34 @@ class MabinogiTextCorrector(TextCorrector):
                 eff['option_name'] = opt_name
                 eff['option_level'] = eff.get('rolled_value')
 
+            result.append(eff)
+
+        # Append unmatched DB effects as empty templates so the frontend
+        # shows all expected effects (user can fill in rolled values).
+        for db_idx, (norm_db, raw_db) in enumerate(effects_norm):
+            if db_idx in used_db:
+                continue
+            raw_effect_only = effects[db_idx]
+            opt_name, _ = _parse_effect_number(raw_effect_only)
+            # Build display text from DB template with numbers stripped
+            norm_abbrev = re.sub(r'N\s*~\s*N', 'N', norm_db)
+            db_numbers = _NUM_PAT.findall(raw_effect_only)
+            eff = {
+                'text': norm_abbrev.replace('N', '').strip(),
+                'db_effect': raw_effect_only,
+            }
+            if db_numbers:
+                if len(db_numbers) >= 2:
+                    n1, n2 = db_numbers[0], db_numbers[1]
+                    eff['min_value'] = float(n1) if '.' in n1 else int(n1)
+                    eff['max_value'] = float(n2) if '.' in n2 else int(n2)
+                else:
+                    n1 = db_numbers[0]
+                    val = float(n1) if '.' in n1 else int(n1)
+                    eff['min_value'] = val
+                    eff['max_value'] = val
+            if opt_name is not None:
+                eff['option_name'] = opt_name
             result.append(eff)
 
         return result
