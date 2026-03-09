@@ -341,6 +341,76 @@ def import_game_items(conn, names: list[str]) -> int:
     return count
 
 
+def parse_echostone(path: Path) -> list[dict]:
+    """Parse echostone.yaml into list of {option_name, type, max_level, min_level}."""
+    with open(path, "r", encoding="utf-8") as f:
+        return yaml.safe_load(f) or []
+
+
+def parse_murias_relic(path: Path) -> list[dict]:
+    """Parse murias_relic.yaml into list of {option_name, type, max_level, min_level, value_per_level, option_unit}."""
+    with open(path, "r", encoding="utf-8") as f:
+        return yaml.safe_load(f) or []
+
+
+def import_echostone(conn, entries: list[dict]) -> int:
+    count = 0
+    for entry in entries:
+        conn.execute(
+            text(
+                """
+                INSERT INTO echostone_options (option_name, type, max_level, min_level)
+                VALUES (:option_name, :type, :max_level, :min_level)
+                ON CONFLICT (option_name)
+                DO UPDATE SET
+                    type = EXCLUDED.type,
+                    max_level = EXCLUDED.max_level,
+                    min_level = EXCLUDED.min_level
+                """
+            ),
+            {
+                "option_name": entry["option_name"],
+                "type": entry["type"],
+                "max_level": entry.get("max_level"),
+                "min_level": entry.get("min_level", 1),
+            },
+        )
+        count += 1
+    return count
+
+
+def import_murias_relic(conn, entries: list[dict]) -> int:
+    count = 0
+    for entry in entries:
+        conn.execute(
+            text(
+                """
+                INSERT INTO murias_relic_options
+                    (option_name, type, max_level, min_level, value_per_level, option_unit)
+                VALUES
+                    (:option_name, :type, :max_level, :min_level, :value_per_level, :option_unit)
+                ON CONFLICT (option_name)
+                DO UPDATE SET
+                    type = EXCLUDED.type,
+                    max_level = EXCLUDED.max_level,
+                    min_level = EXCLUDED.min_level,
+                    value_per_level = EXCLUDED.value_per_level,
+                    option_unit = EXCLUDED.option_unit
+                """
+            ),
+            {
+                "option_name": entry["option_name"],
+                "type": entry["type"],
+                "max_level": entry.get("max_level"),
+                "min_level": entry.get("min_level", 1),
+                "value_per_level": entry.get("value_per_level"),
+                "option_unit": entry.get("option_unit", ""),
+            },
+        )
+        count += 1
+    return count
+
+
 def backfill_listings(conn) -> int:
     """Set game_item_id on listings where name matches a game_item exactly."""
     result = conn.execute(
@@ -422,6 +492,16 @@ def main() -> None:
         help="Path to game item names dictionary file.",
     )
     parser.add_argument(
+        "--echostone-path",
+        default="data/source_of_truth/echostone.yaml",
+        help="Path to echostone options file (YAML).",
+    )
+    parser.add_argument(
+        "--murias-relic-path",
+        default="data/source_of_truth/murias_relic.yaml",
+        help="Path to murias relic options file (YAML).",
+    )
+    parser.add_argument(
         "--backfill-listings",
         action="store_true",
         help="Backfill game_item_id on existing listings where name matches.",
@@ -437,6 +517,8 @@ def main() -> None:
     effects_path = Path(args.effects_path)
     reforge_path = Path(args.reforge_path)
     item_names_path = Path(args.item_names_path)
+    echostone_path = Path(args.echostone_path)
+    murias_relic_path = Path(args.murias_relic_path)
 
     if not enchant_path.exists():
         raise FileNotFoundError(f"Enchant file not found: {enchant_path}")
@@ -449,7 +531,10 @@ def main() -> None:
     engine = create_engine(db_url, pool_pre_ping=True)
 
     # Check if dictionary files changed since last import
-    file_hash = _compute_files_hash(enchant_path, effects_path, reforge_path, item_names_path)
+    file_hash = _compute_files_hash(
+        enchant_path, effects_path, reforge_path, item_names_path,
+        echostone_path, murias_relic_path,
+    )
     with engine.begin() as conn:
         stored_hash = _get_stored_hash(conn)
 
@@ -468,6 +553,19 @@ def main() -> None:
     else:
         print(f"Warning: Item names file not found: {item_names_path} — skipping game_items import")
 
+    # Echostone and murias relic are optional
+    echostone_entries = []
+    if echostone_path.exists():
+        echostone_entries = parse_echostone(echostone_path)
+    else:
+        print(f"Warning: Echostone file not found: {echostone_path} — skipping")
+
+    murias_relic_entries = []
+    if murias_relic_path.exists():
+        murias_relic_entries = parse_murias_relic(murias_relic_path)
+    else:
+        print(f"Warning: Murias relic file not found: {murias_relic_path} — skipping")
+
     with engine.begin() as conn:
         # Import game items first (no dependencies)
         game_items_count = 0
@@ -479,6 +577,14 @@ def main() -> None:
             conn, enchant_entries, effect_name_to_id
         )
         reforge_count = import_reforge(conn, reforge_options)
+
+        echostone_count = 0
+        if echostone_entries:
+            echostone_count = import_echostone(conn, echostone_entries)
+
+        murias_relic_count = 0
+        if murias_relic_entries:
+            murias_relic_count = import_murias_relic(conn, murias_relic_entries)
 
         backfill_count = 0
         if args.backfill_listings:
@@ -492,7 +598,9 @@ def main() -> None:
         f" effects={len(effect_name_to_id)},"
         f" enchants={enchant_count},"
         f" enchant_effects={link_count},"
-        f" reforge_options={reforge_count}"
+        f" reforge_options={reforge_count},"
+        f" echostone={echostone_count},"
+        f" murias_relic={murias_relic_count}"
     )
     if args.backfill_listings:
         print(f"Backfilled {backfill_count} listing(s) with game_item_id")

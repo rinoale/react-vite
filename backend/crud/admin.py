@@ -10,6 +10,8 @@ def get_summary(db: Session):
         "effects": db.query(models.Effect).count(),
         "enchant_effects": db.query(models.EnchantEffect).count(),
         "reforge_options": db.query(models.ReforgeOption).count(),
+        "echostone_options": db.query(models.EchostoneOption).count(),
+        "murias_relic_options": db.query(models.MuriasRelicOption).count(),
         "listings": db.query(models.Listing).count(),
         "game_items": db.query(models.GameItem).count(),
         "tags": db.query(models.Tag).count(),
@@ -95,6 +97,12 @@ def get_enchant_effects_by_id(db: Session, enchant_id: int):
 def get_reforge_options(db: Session, limit: int = 100, offset: int = 0):
     return db.query(models.ReforgeOption).order_by(models.ReforgeOption.id).limit(limit).offset(offset).all()
 
+def get_echostone_options(db: Session, limit: int = 100, offset: int = 0):
+    return db.query(models.EchostoneOption).order_by(models.EchostoneOption.id).limit(limit).offset(offset).all()
+
+def get_murias_relic_options(db: Session, limit: int = 100, offset: int = 0):
+    return db.query(models.MuriasRelicOption).order_by(models.MuriasRelicOption.id).limit(limit).offset(offset).all()
+
 def get_listings(db: Session, limit: int = 100, offset: int = 0):
     rows = db.execute(
         text(
@@ -113,12 +121,12 @@ def get_listings(db: Session, limit: int = 100, offset: int = 0):
                 l.erg_grade,
                 l.erg_level,
                 l.created_at,
-                COUNT(DISTINCT lro.id) AS reforge_count
+                COUNT(DISTINCT lo.id) AS option_count
             FROM listings l
             LEFT JOIN game_items gi ON gi.id = l.game_item_id
             LEFT JOIN enchants pe ON pe.id = l.prefix_enchant_id
             LEFT JOIN enchants se ON se.id = l.suffix_enchant_id
-            LEFT JOIN listing_reforge_options lro ON lro.listing_id = l.id
+            LEFT JOIN listing_options lo ON lo.listing_id = l.id
             GROUP BY l.id, gi.name, pe.name, se.name
             ORDER BY l.id DESC
             LIMIT :limit OFFSET :offset
@@ -134,7 +142,7 @@ def get_listing_count(db: Session):
 def _build_enchant_detail(db: Session, listing_id: int, enchant_id: int, slot: int):
     """Build enchant detail dict with all effects for a single enchant slot.
 
-    LEFT JOINs listing_enchant_effects so fixed effects (no rolled value)
+    LEFT JOINs listing_options (enchant_effects) so fixed effects (no rolled value)
     also appear. Returns min_value/max_value from enchant_effects for display.
     """
     enc = db.query(models.Enchant).filter(models.Enchant.id == enchant_id).first()
@@ -143,11 +151,12 @@ def _build_enchant_detail(db: Session, listing_id: int, enchant_id: int, slot: i
     effect_rows = db.execute(
         text(
             """
-            SELECT ee.raw_text, ee.min_value, ee.max_value, lee.value
+            SELECT ee.raw_text, ee.min_value, ee.max_value, lo.rolled_value AS value
             FROM enchant_effects ee
-            LEFT JOIN listing_enchant_effects lee
-              ON lee.enchant_effect_id = ee.id
-              AND lee.listing_id = :listing_id
+            LEFT JOIN listing_options lo
+              ON lo.option_type = 'enchant_effects'
+              AND lo.option_id = ee.id
+              AND lo.listing_id = :listing_id
             WHERE ee.enchant_id = :enchant_id
             ORDER BY ee.effect_order
             """
@@ -181,12 +190,12 @@ def get_listing_detail(db: Session, listing_id: int):
     if listing.suffix_enchant_id:
         suffix_enchant = _build_enchant_detail(db, listing_id, listing.suffix_enchant_id, 1)
 
-    # Reforge options
-    reforge_rows = db.execute(
+    # All listing options (reforge, echostone, murias_relic, enchant_effect)
+    option_rows = db.execute(
         text(
             """
-            SELECT option_name, level, max_level
-            FROM listing_reforge_options
+            SELECT option_type, option_name, rolled_value, max_level
+            FROM listing_options
             WHERE listing_id = :listing_id
             ORDER BY id
             """
@@ -219,7 +228,7 @@ def get_listing_detail(db: Session, listing_id: int):
         "piercing_level": listing.piercing_level,
         "prefix_enchant": prefix_enchant,
         "suffix_enchant": suffix_enchant,
-        "reforge_options": [dict(r) for r in reforge_rows],
+        "listing_options": [dict(r) for r in option_rows],
         "tags": resolve_listing_tags(db, listing_id),
     }
 
@@ -448,7 +457,7 @@ def resolve_listing_tags(db: Session, listing_id: int):
                 UNION ALL
                 SELECT 'game_item', l.game_item_id FROM listings l WHERE l.id = :lid AND l.game_item_id IS NOT NULL
                 UNION ALL
-                SELECT 'reforge_option', lro.reforge_option_id FROM listing_reforge_options lro WHERE lro.listing_id = :lid AND lro.reforge_option_id IS NOT NULL
+                SELECT lo.option_type, lo.option_id FROM listing_options lo WHERE lo.listing_id = :lid AND lo.option_id IS NOT NULL
                 UNION ALL
                 SELECT 'enchant', l.prefix_enchant_id FROM listings l WHERE l.id = :lid AND l.prefix_enchant_id IS NOT NULL
                 UNION ALL

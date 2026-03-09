@@ -31,6 +31,42 @@ _ENCHANT_FILE_HDR  = re.compile(r'^\[(접두|접미)\]\s+(.+?)\s*\(랭크\s*([A-
 # Display-only: DB already has ranges, and other parenthesized text is noise for matching.
 _PAREN_PAT = re.compile(r'\s*\([^)]*\)')
 
+# ---------------------------------------------------------------------------
+# Jamo-level fuzzy matching: decompose Korean syllables into consonant/vowel
+# components so fuzz.ratio operates on sub-character granularity.
+# This prevents short-string inflation (e.g. "나이트" beating "나이트폴"
+# when matching OCR garble "나이트폼").
+# ---------------------------------------------------------------------------
+_CHOSEONG = 'ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ'
+_JUNGSEONG = 'ㅏㅐㅑㅒㅓㅔㅕㅖㅗㅘㅙㅚㅛㅜㅝㅞㅟㅠㅡㅢㅣ'
+_JONGSEONG = (
+    '', 'ㄱ', 'ㄲ', 'ㄳ', 'ㄴ', 'ㄵ', 'ㄶ', 'ㄷ', 'ㄹ', 'ㄺ', 'ㄻ', 'ㄼ',
+    'ㄽ', 'ㄾ', 'ㄿ', 'ㅀ', 'ㅁ', 'ㅂ', 'ㅄ', 'ㅅ', 'ㅆ', 'ㅇ', 'ㅈ',
+    'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ',
+)
+
+
+def _decompose_jamo(text):
+    """Decompose Korean syllables into jamo (consonant/vowel) sequences."""
+    result = []
+    for ch in text:
+        cp = ord(ch)
+        if 0xAC00 <= cp <= 0xD7A3:
+            idx = cp - 0xAC00
+            result.append(_CHOSEONG[idx // (21 * 28)])
+            result.append(_JUNGSEONG[(idx % (21 * 28)) // 28])
+            jong = idx % 28
+            if jong > 0:
+                result.append(_JONGSEONG[jong])
+        else:
+            result.append(ch)
+    return ''.join(result)
+
+
+def _jamo_ratio(s1, s2, *, score_cutoff=0, **kwargs):
+    """fuzz.ratio on jamo-decomposed strings."""
+    return fuzz.ratio(_decompose_jamo(s1), _decompose_jamo(s2), score_cutoff=score_cutoff)
+
 
 class MabinogiTextCorrector(TextCorrector):
     """Section-aware text correction with enchant DB, Dullahan, and item name parsing."""
@@ -1015,14 +1051,14 @@ class MabinogiTextCorrector(TextCorrector):
 
             if p_text and self._enchant_prefixes:
                 pm = process.extractOne(
-                    p_text, self._enchant_prefixes, scorer=fuzz.ratio,
+                    p_text, self._enchant_prefixes, scorer=_jamo_ratio,
                     score_cutoff=60)
                 if pm:
                     p_match, p_score = pm[0], pm[1]
 
             if s_text and self._enchant_suffixes:
                 sm = process.extractOne(
-                    s_text, self._enchant_suffixes, scorer=fuzz.ratio,
+                    s_text, self._enchant_suffixes, scorer=_jamo_ratio,
                     score_cutoff=60)
                 if sm:
                     s_match, s_score = sm[0], sm[1]

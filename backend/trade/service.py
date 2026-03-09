@@ -5,11 +5,11 @@ import shutil
 from fastapi import HTTPException
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 
 from db.models import (
-    OcrCorrection, Listing, ListingEnchantEffect, ListingReforgeOption,
-    Enchant, EnchantEffect, ReforgeOption, GameItem, Tag, TagTarget,
+    OcrCorrection, Listing, ListingOption,
+    Enchant, GameItem, Tag, TagTarget,
 )
 from lib.utils.log import logger
 
@@ -163,7 +163,7 @@ def _parse_attrs(attrs_dict):
 
 
 def create_listing(payload, db, *, user_id=None):
-    """Resolve FKs and persist a Listing with enchant effects and reforge options.
+    """Resolve FKs and persist a Listing with listing options.
 
     Returns the created Listing.
     """
@@ -220,61 +220,21 @@ def create_listing(payload, db, *, user_id=None):
     try:
         db.flush()  # get listing.id for FK references
 
-        # --- Enchant effects (rolled values) ---
-        for slot, (enchant_row, enc) in enchant_rows_by_slot.items():
-            # Pre-load enchant_effects with effect names for name-based fallback
-            ee_rows = (db.query(EnchantEffect)
-                       .options(joinedload(EnchantEffect.effect_def))
-                       .filter(EnchantEffect.enchant_id == enchant_row.id)
-                       .order_by(EnchantEffect.effect_order)
-                       .all())
-            ee_by_name = {}
-            for row in ee_rows:
-                if row.effect_def and row.effect_def.name:
-                    ee_by_name.setdefault(row.effect_def.name, []).append(row.id)
-
-            for eff in enc.effects:
-                if eff.option_level is None:
-                    continue
-                # Use direct ID from config when provided
-                ee_id = eff.enchant_effect_id
-                if not ee_id and eff.option_name:
-                    # Fallback: exact name match first, then fuzzy (longest substring)
-                    candidates = ee_by_name.get(eff.option_name, [])
-                    if not candidates:
-                        fuzzy = [(n, ids) for n, ids in ee_by_name.items() if n in eff.option_name and ids]
-                        if fuzzy:
-                            best_name = max(fuzzy, key=lambda x: len(x[0]))[0]
-                            candidates = ee_by_name[best_name]
-                    if candidates:
-                        ee_id = candidates.pop(0)  # consume to avoid reuse
-                if ee_id:
-                    db.add(ListingEnchantEffect(
-                        listing_id=listing.id,
-                        enchant_effect_id=ee_id,
-                        value=eff.option_level,
-                    ))
-
-        # --- Reforge options ---
-        for opt in payload.reforge_options:
-            reforge_option_id = opt.reforge_option_id
-            if not reforge_option_id:
-                reforge_row = db.query(ReforgeOption).filter(
-                    ReforgeOption.option_name == opt.name,
-                ).first()
-                reforge_option_id = reforge_row.id if reforge_row else None
-            db.add(ListingReforgeOption(
+        # --- All listing options (enchant_effect, reforge, echostone, murias_relic) ---
+        for opt in payload.listing_options:
+            db.add(ListingOption(
                 listing_id=listing.id,
-                reforge_option_id=reforge_option_id,
-                option_name=opt.name,
-                level=opt.level,
+                option_type=opt.option_type,
+                option_id=opt.option_id,
+                option_name=opt.option_name,
+                rolled_value=opt.rolled_value,
                 max_level=opt.max_level,
             ))
 
         db.commit()
         db.refresh(listing)
-        logger.info("register-listing  persisted listing id=%d name=%r enchants=%d reforges=%d",
-                     listing.id, listing.name, len(payload.enchants), len(payload.reforge_options))
+        logger.info("register-listing  persisted listing id=%d name=%r enchants=%d options=%d",
+                     listing.id, listing.name, len(payload.enchants), len(payload.listing_options))
     except HTTPException:
         raise
     except Exception:
@@ -389,17 +349,18 @@ def _tag_special_upgrade(tags, payload):
 
 
 def _tag_piercing_maxroll(tags, payload, db):
-    for enc in payload.enchants:
-        for eff in enc.effects:
-            if eff.option_name != '피어싱 레벨' or eff.option_level is None or not eff.enchant_effect_id:
-                continue
-            row = db.execute(
-                text("SELECT max_value FROM enchant_effects WHERE id = :id"),
-                {"id": eff.enchant_effect_id},
-            ).mappings().first()
-            if row and row['max_value'] is not None and float(eff.option_level) >= float(row['max_value']):
-                tags.append('풀피어싱')
-                return
+    for opt in payload.listing_options:
+        if opt.option_type != 'enchant_effects' or opt.option_name != '피어싱 레벨':
+            continue
+        if opt.rolled_value is None or not opt.option_id:
+            continue
+        row = db.execute(
+            text("SELECT max_value FROM enchant_effects WHERE id = :id"),
+            {"id": opt.option_id},
+        ).mappings().first()
+        if row and row['max_value'] is not None and float(opt.rolled_value) >= float(row['max_value']):
+            tags.append('풀피어싱')
+            return
 
 
 def _batch_resolve_tags(db, listing_ids):
@@ -419,7 +380,7 @@ def _batch_resolve_tags(db, listing_ids):
                 UNION ALL
                 SELECT l.id, 'game_item', l.game_item_id FROM listings l WHERE l.id IN ({placeholders}) AND l.game_item_id IS NOT NULL
                 UNION ALL
-                SELECT lro.listing_id, 'reforge_option', lro.reforge_option_id FROM listing_reforge_options lro WHERE lro.listing_id IN ({placeholders}) AND lro.reforge_option_id IS NOT NULL
+                SELECT lo.listing_id, lo.option_type, lo.option_id FROM listing_options lo WHERE lo.listing_id IN ({placeholders}) AND lo.option_id IS NOT NULL
                 UNION ALL
                 SELECT l.id, 'enchant', l.prefix_enchant_id FROM listings l WHERE l.id IN ({placeholders}) AND l.prefix_enchant_id IS NOT NULL
                 UNION ALL
@@ -589,7 +550,7 @@ _LISTING_RESOLVE_CTE = """
     UNION ALL
     SELECT l.id, 'game_item', l.game_item_id FROM listings l WHERE l.game_item_id IS NOT NULL
     UNION ALL
-    SELECT lro.listing_id, 'reforge_option', lro.reforge_option_id FROM listing_reforge_options lro WHERE lro.reforge_option_id IS NOT NULL
+    SELECT lo.listing_id, lo.option_type, lo.option_id FROM listing_options lo WHERE lo.option_id IS NOT NULL
     UNION ALL
     SELECT l.id, 'enchant', l.prefix_enchant_id FROM listings l WHERE l.prefix_enchant_id IS NOT NULL
     UNION ALL
