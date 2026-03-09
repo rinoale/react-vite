@@ -287,6 +287,7 @@ const Sell = () => {
                     sections={formData.sections}
                     onSectionsChange={handleSectionsChange}
                     abbreviated={formData.abbreviated}
+                    gameItemName={gameItem.selectedGameItem?.name}
                   />
                 </div>
 

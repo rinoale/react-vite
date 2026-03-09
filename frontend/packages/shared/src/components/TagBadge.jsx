@@ -3,8 +3,8 @@ import { X } from 'lucide-react';
 import { getTagColor } from '../lib/tagColors.js';
 
 const SIZE = {
-  xs: 'text-xs px-2 py-0.5',
-  sm: 'text-sm px-2 py-0.5',
+  xs: 'text-xs leading-none px-2 pt-1 pb-0.5',
+  sm: 'text-sm leading-none px-2 pt-1 pb-0.5',
 };
 
 /**

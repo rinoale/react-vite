@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { dropdownFull } from '../styles';
 
 /**
  * Search-and-select dropdown for correcting OCR values from config data.
@@ -11,7 +12,7 @@ import { useTranslation } from 'react-i18next';
  * @param {Function} onCancel - Called when user cancels (Escape / click outside)
  * @param {string} placeholder - Input placeholder text
  */
-const ConfigSearchInput = ({ items, getLabel, onSelect, onCancel, placeholder }) => {
+const ConfigSearchInput = ({ items, getLabel, onSelect, onCancel, placeholder, showAllOnEmpty = false }) => {
   const { t } = useTranslation();
   const [query, setQuery] = useState('');
   const [highlightIdx, setHighlightIdx] = useState(0);
@@ -33,7 +34,7 @@ const ConfigSearchInput = ({ items, getLabel, onSelect, onCancel, placeholder })
 
   const filtered = query.length > 0
     ? items.filter(item => getLabel(item).toLowerCase().includes(query.toLowerCase())).slice(0, 30)
-    : [];
+    : showAllOnEmpty ? items.slice(0, 30) : [];
 
   const handleKeyDown = (e) => {
     if (e.key === 'Escape') {
@@ -67,7 +68,7 @@ const ConfigSearchInput = ({ items, getLabel, onSelect, onCancel, placeholder })
         </button>
       </div>
       {filtered.length > 0 && (
-        <div className="absolute z-10 w-full mt-1 max-h-48 overflow-y-auto bg-gray-800 border border-gray-600 rounded shadow-lg">
+        <div className={dropdownFull}>
           {filtered.map((item, i) => (
             <div
               key={i}

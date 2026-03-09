@@ -512,7 +512,7 @@ echo "Box files generated. Please manually correct them before proceeding."
               <div className="bg-gray-800 rounded-lg p-6">
                 <h2 className="text-xl font-semibold mb-4">{t('imageProcess.selectedSegments', { count: manualSegments.length })}</h2>
 
-                <div className="space-y-3 max-h-96 overflow-y-auto">
+                <div className="space-y-3 max-h-96 overflow-y-auto scrollbar-thin">
                   {manualSegments.map((segment) => (
                     <div key={segment.id} className="border border-gray-700 rounded p-3">
                       <div className="flex gap-3 mb-2">

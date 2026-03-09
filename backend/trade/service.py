@@ -408,6 +408,32 @@ def _batch_resolve_tags(db, listing_ids):
     return tags_by_listing
 
 
+def _batch_resolve_options(db, listing_ids):
+    """Batch-fetch listing_options for a set of listing IDs."""
+    if not listing_ids:
+        return {}
+    placeholders = ', '.join(f':id{i}' for i in range(len(listing_ids)))
+    params = {f'id{i}': lid for i, lid in enumerate(listing_ids)}
+    rows = db.execute(
+        text(f"""
+            SELECT listing_id, option_type, option_name, rolled_value, max_level
+            FROM listing_options
+            WHERE listing_id IN ({placeholders})
+            ORDER BY id
+        """),
+        params,
+    ).mappings()
+    options_by_listing = {}
+    for r in rows:
+        options_by_listing.setdefault(r['listing_id'], []).append({
+            'option_type': r['option_type'],
+            'option_name': r['option_name'],
+            'rolled_value': r['rolled_value'],
+            'max_level': r['max_level'],
+        })
+    return options_by_listing
+
+
 def get_listings(db, game_item_id=None, limit=50, offset=0):
     """Fetch listing summaries, optionally filtered by game_item_id."""
     base_sql = """
@@ -466,11 +492,13 @@ def get_listings(db, game_item_id=None, limit=50, offset=0):
         ).mappings()
     listings = [dict(r) for r in rows]
 
-    # Batch-resolve tags
+    # Batch-resolve tags and options
     listing_ids = [l['id'] for l in listings]
     tags_map = _batch_resolve_tags(db, listing_ids)
+    options_map = _batch_resolve_options(db, listing_ids)
     for l in listings:
         l['tags'] = tags_map.get(l['id'], [])
+        l['listing_options'] = options_map.get(l['id'], [])
 
     return listings
 
@@ -658,8 +686,11 @@ def _fetch_listings_by_ids(db, listing_ids, limit=50, offset=0):
     ).mappings()
     listings = [dict(r) for r in rows]
 
-    tags_map = _batch_resolve_tags(db, [l['id'] for l in listings])
+    ids = [l['id'] for l in listings]
+    tags_map = _batch_resolve_tags(db, ids)
+    options_map = _batch_resolve_options(db, ids)
     for l in listings:
         l['tags'] = tags_map.get(l['id'], [])
+        l['listing_options'] = options_map.get(l['id'], [])
 
     return listings

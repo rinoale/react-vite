@@ -97,7 +97,7 @@ const AdminLayout = () => {
           </h1>
         </div>
 
-        <div className="flex-1 overflow-y-auto py-2">
+        <div className="flex-1 overflow-y-auto scrollbar-thin py-2">
           {visibleGroups.map((group) => {
             const isOpen = activeGroup === group.key;
             const Icon = group.icon;
@@ -151,7 +151,7 @@ const AdminLayout = () => {
       </nav>
 
       {/* content */}
-      <main className="flex-1 p-6 overflow-auto">
+      <main className="flex-1 p-6 overflow-auto scrollbar-thin">
         <div className="max-w-7xl mx-auto">
           <Outlet />
         </div>

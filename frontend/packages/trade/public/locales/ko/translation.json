@@ -58,7 +58,9 @@
     "erg": "에르그",
     "set_item": "세트아이템",
     "item_color": "아이템 색상",
-    "ego": "정령"
+    "ego": "정령",
+    "echostone_options": "에코스톤 옵션",
+    "murias_relic_options": "무리아스 유물 옵션"
   },
   "marketplace": {
     "title": "시장",
@@ -73,6 +75,12 @@
     "selectListing": "매물을 선택하여 상세 정보를 확인하세요",
     "enchantLabel": "인챈트",
     "reforgeLabel": "세공",
+    "optionsLabel": "옵션",
+    "optionType": {
+      "reforge_options": "세공",
+      "echostone_options": "에코스톤",
+      "murias_relic_options": "무리아스 유물"
+    },
     "specialUpgradeLabel": "특별 개조",
     "specialUpgradeR": "붉은 개조석",
     "specialUpgradeS": "푸른 개조석",
@@ -151,6 +159,36 @@
       "searchReforgeOption": "세공 옵션 검색",
       "levelDisplay": "Lv. {{level}} / {{maxLevel}}",
       "remove": "삭제"
+    },
+    "echostone": {
+      "addOption": "에코스톤 옵션 추가",
+      "searchOption": "옵션 검색...",
+      "remove": "삭제",
+      "types": {
+        "red": "레드",
+        "blue": "블루",
+        "yellow": "옐로",
+        "black": "블랙",
+        "silver": "실버"
+      }
+    },
+    "murias_relic": {
+      "addOption": "무리아스 유물 옵션 추가",
+      "searchOption": "옵션 검색...",
+      "selectType": "직업 선택...",
+      "remove": "삭제",
+      "types": {
+        "elemental_knight": "엘리멘탈 나이트",
+        "saint_bard": "세인트 바드",
+        "sacred_guard": "세이크리드 가드",
+        "dark_mage": "다크 메이지",
+        "fury_fighter": "퓨리 파이터",
+        "blast_lancer": "블래스트 랜서",
+        "alchemic_stinger": "알케믹 스팅어",
+        "variable_gunner": "베리어블 거너",
+        "melodic_puppeteer": "멜로딕 퍼펫티어",
+        "forbidden_alchemist": "포비든 알케미스트"
+      }
     },
     "cancel": "취소",
     "erg": {

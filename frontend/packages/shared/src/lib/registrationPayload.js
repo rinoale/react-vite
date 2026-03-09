@@ -1,8 +1,8 @@
 /**
  * Build the registration payload from form state.
  *
- * Collects all OCR lines, resolves enchant effect IDs from config,
- * extracts structured reforge/erg data.
+ * Collects all OCR lines, resolves enchant/reforge IDs from config,
+ * and produces unified listing_options[].
  *
  * @param {Object} params
  * @param {string} params.sessionId
@@ -27,8 +27,13 @@ export function buildRegistrationPayload({ sessionId, name, description, price, 
     }
   }
 
-  const enchants = buildEnchantPayload(sections.enchant);
-  const reforge_options = buildReforgePayload(sections.reforge);
+  const enchants = buildEnchantSlots(sections.enchant);
+  const listing_options = [
+    ...buildEnchantEffectOptions(sections.enchant),
+    ...buildReforgeOptions(sections.reforge),
+    ...buildEchostoneOptions(sections._echostone_options),
+    ...buildMuriasRelicOptions(sections._murias_relic_options),
+  ];
   const { itemType, itemGrade, ergGrade, ergLevel } = extractAttributes(sections);
 
   return {
@@ -47,17 +52,31 @@ export function buildRegistrationPayload({ sessionId, name, description, price, 
     attrs: sections?.item_attrs?.attrs || null,
     lines,
     enchants,
-    reforge_options,
+    listing_options,
     tags: (tags || []).slice(0, 3),
   };
 }
 
-/** Resolve enchant effects against window.ENCHANTS_CONFIG */
-function buildEnchantPayload(enchantSec) {
+/** Build enchant slots (slot/name/rank only, no effects) */
+function buildEnchantSlots(enchantSec) {
   const enchants = [];
   if (!enchantSec) return enchants;
+  if (enchantSec.prefix?.name) {
+    enchants.push({ slot: 0, name: enchantSec.prefix.name, rank: enchantSec.prefix.rank || '' });
+  }
+  if (enchantSec.suffix?.name) {
+    enchants.push({ slot: 1, name: enchantSec.suffix.name, rank: enchantSec.suffix.rank || '' });
+  }
+  return enchants;
+}
 
-  const resolveEffects = (slotData, slotInt) => {
+/** Resolve enchant effects into listing_options with option_type='enchant_effects' */
+function buildEnchantEffectOptions(enchantSec) {
+  if (!enchantSec) return [];
+  const options = [];
+
+  const resolveSlot = (slotData, slotInt) => {
+    if (!slotData?.name) return;
     const config = (window.ENCHANTS_CONFIG || []).find(
       e => e.name === slotData.name && e.slot === slotInt
     );
@@ -77,44 +96,55 @@ function buildEnchantPayload(enchantSec) {
       if (idx >= 0) { usedIdx.add(idx); return config.effects[idx]; }
       return null;
     };
-    return (slotData.effects || []).map(eff => {
-      if (eff.enchant_effect_id) return eff;
-      const configEff = findConfigEff(eff.option_name);
-      return {
-        text: eff.text,
-        option_name: configEff?.option_name ?? eff.option_name ?? null,
-        option_level: eff.option_level ?? null,
-        enchant_effect_id: configEff?.enchant_effect_id ?? null,
-      };
-    });
+
+    for (const eff of slotData.effects || []) {
+      const configEff = eff.enchant_effect_id ? eff : findConfigEff(eff.option_name);
+      options.push({
+        option_type: 'enchant_effects',
+        option_name: configEff?.option_name ?? eff.option_name ?? '',
+        option_id: (eff.enchant_effect_id ?? configEff?.enchant_effect_id) || null,
+        rolled_value: eff.option_level ?? null,
+      });
+    }
   };
 
-  if (enchantSec.prefix?.name) {
-    enchants.push({
-      slot: 0,
-      name: enchantSec.prefix.name,
-      rank: enchantSec.prefix.rank || '',
-      effects: resolveEffects(enchantSec.prefix, 0),
-    });
-  }
-  if (enchantSec.suffix?.name) {
-    enchants.push({
-      slot: 1,
-      name: enchantSec.suffix.name,
-      rank: enchantSec.suffix.rank || '',
-      effects: resolveEffects(enchantSec.suffix, 1),
-    });
-  }
-  return enchants;
+  resolveSlot(enchantSec.prefix, 0);
+  resolveSlot(enchantSec.suffix, 1);
+  return options;
 }
 
-/** Extract structured reforge options */
-function buildReforgePayload(reforgeSec) {
+/** Convert reforge options into listing_options with option_type='reforge_options' */
+function buildReforgeOptions(reforgeSec) {
   if (!reforgeSec?.options) return [];
   return reforgeSec.options.map(opt => ({
-    name: opt.option_name || opt.name || '',
-    reforge_option_id: opt.reforge_option_id ?? null,
-    level: opt.option_level ?? opt.level ?? null,
+    option_type: 'reforge_options',
+    option_name: opt.option_name || opt.name || '',
+    option_id: opt.reforge_option_id ?? null,
+    rolled_value: opt.option_level ?? opt.level ?? null,
+    max_level: opt.max_level ?? null,
+  }));
+}
+
+/** Convert echostone options into listing_options with option_type='echostone_options' */
+function buildEchostoneOptions(opts) {
+  if (!opts?.length) return [];
+  return opts.map(opt => ({
+    option_type: 'echostone_options',
+    option_name: opt.option_name || '',
+    option_id: opt.option_id ?? null,
+    rolled_value: opt.level ?? null,
+    max_level: opt.max_level ?? null,
+  }));
+}
+
+/** Convert murias relic options into listing_options with option_type='murias_relic_options' */
+function buildMuriasRelicOptions(opts) {
+  if (!opts?.length) return [];
+  return opts.map(opt => ({
+    option_type: 'murias_relic_options',
+    option_name: opt.option_name || '',
+    option_id: opt.option_id ?? null,
+    rolled_value: opt.level ?? null,
     max_level: opt.max_level ?? null,
   }));
 }

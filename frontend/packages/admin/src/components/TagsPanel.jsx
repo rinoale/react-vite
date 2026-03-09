@@ -453,23 +453,27 @@ const TagsPanel = () => {
         {/* Color tier legend */}
         <div className="px-6 py-3 border-t border-gray-700 flex flex-wrap gap-2">
           {[
-            { label: '80+ Artifact', w: 80 },
+            { label: '170+ Genesis', w: 170 },
+            { label: '160+ Void', w: 160 },
+            { label: '150+ Celestial', w: 150 },
+            { label: '140+ Infernal', w: 140 },
+            { label: '130+ Astral', w: 130 },
+            { label: '120+ Eternal', w: 120 },
+            { label: '110+ Transcend', w: 110 },
+            { label: '100+ Divine', w: 100 },
+            { label: '90+ Artifact', w: 90 },
+            { label: '80+ Heroic', w: 80 },
             { label: '70+ Mythic', w: 70 },
             { label: '60+ Legendary', w: 60 },
-            { label: '50+ Heroic', w: 50 },
-            { label: '40+ Epic', w: 40 },
-            { label: '30+ Rare', w: 30 },
-            { label: '20+ Uncommon', w: 20 },
-            { label: '10+ Common', w: 10 },
+            { label: '50+ Epic', w: 50 },
+            { label: '40+ Rare', w: 40 },
+            { label: '30+ Uncommon', w: 30 },
+            { label: '20+ Common', w: 20 },
+            { label: '10+ Basic', w: 10 },
             { label: '0+ Hidden', w: 0 },
-          ].map(({ label, w }) => {
-            const c = getTagColor(w);
-            return (
-              <span key={w} className={`text-[10px] px-1.5 py-0.5 rounded border ${c.bg} ${c.text} ${c.border}`}>
-                {label}
-              </span>
-            );
-          })}
+          ].map(({ label, w }) => (
+            <TagBadge key={w} name={label} weight={w} />
+          ))}
         </div>
       </div>
 

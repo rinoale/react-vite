@@ -1,7 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { ShoppingBag, Wand2, Hammer, Loader2 } from 'lucide-react';
-import { badgeCyan, badgeYellow, badgePink, cardSlot } from '@mabi/shared/styles';
+import { badgeYellow, badgePink, cardSlot } from '@mabi/shared/styles';
+import LevelBadge from '@mabi/shared/components/LevelBadge';
+import EchostoneIcon from '@mabi/shared/components/icons/EchostoneIcon';
+import MuriasRelicIcon from '@mabi/shared/components/icons/MuriasRelicIcon';
 import { useTranslation } from 'react-i18next';
 import { getListings, getListingDetail, searchListings } from '@mabi/shared/api/recommend';
 import { useListingSearch } from '@mabi/shared/hooks/useListingSearch';
@@ -33,6 +36,32 @@ const rollColor = (eff) => {
 };
 
 const RANGE_RE = /\d+\s*~\s*\d+/;
+
+const ECHOSTONE_COLOR_MAP = {
+  '레드 에코스톤': 'red', '블루 에코스톤': 'blue',
+  '옐로 에코스톤': 'yellow', '블랙 에코스톤': 'black', '실버 에코스톤': 'silver',
+};
+
+const getOptionIcon = (optionType, gameItemName) => {
+  if (optionType === 'echostone_options') {
+    const color = ECHOSTONE_COLOR_MAP[gameItemName] || 'red';
+    return <EchostoneIcon color={color} className="w-4 h-4" />;
+  }
+  if (optionType === 'murias_relic_options') return <MuriasRelicIcon className="w-4 h-4" />;
+  return <Hammer className="w-4 h-4" />;
+};
+
+
+const getListingOptionDisplay = (opt, gameItemName) => {
+  if (opt.option_type === 'murias_relic_options') {
+    const cfg = (window.MURIAS_RELIC_CONFIG || []).find(c => c.option_name === opt.option_name);
+    if (cfg?.value_per_level != null && opt.rolled_value != null) {
+      const computed = +(cfg.value_per_level * +opt.rolled_value).toFixed(2);
+      return `${opt.option_name} ${computed}${cfg.option_unit || ''}`;
+    }
+  }
+  return opt.option_name;
+};
 
 const ATTR_LABELS = {
   damage: '공격력', magic_damage: '마법공격력', additional_damage: '추가대미지',
@@ -220,10 +249,27 @@ const Marketplace = () => {
                     )}
                     {listing.erg_grade && (
                       <span className={ergBadge}>
-                        {listing.erg_grade}{listing.erg_level != null ? ` Lv.${listing.erg_level}` : ''}
+                        {listing.erg_grade}{listing.erg_level != null ? ` ${listing.erg_level}` : ''}
                       </span>
                     )}
                   </div>
+                  {/* listing-options */}
+                  {listing.listing_options?.filter(o => o.option_type !== 'enchant_effects').map((opt, idx) => (
+                    <div key={idx} className="flex items-center gap-1.5 text-sm mb-0.5">
+                      {opt.option_type === 'echostone_options' && (
+                        <EchostoneIcon color={ECHOSTONE_COLOR_MAP[listing.game_item_name] || 'red'} className="w-4 h-4" />
+                      )}
+                      {opt.option_type === 'murias_relic_options' && (
+                        <MuriasRelicIcon className="w-4 h-4" />
+                      )}
+                      <span className="text-cyan-300">{getListingOptionDisplay(opt, listing.game_item_name)}</span>
+                      {opt.rolled_value != null && (
+                        <LevelBadge level={opt.rolled_value} maxLevel={opt.max_level}>
+                          {opt.rolled_value}{opt.max_level != null ? `/${opt.max_level}` : ''}
+                        </LevelBadge>
+                      )}
+                    </div>
+                  ))}
                   {/* listing-tags */}
                   {listing.tags?.length > 0 && (
                     <div className="flex flex-wrap gap-1.5 mb-2">
@@ -336,27 +382,42 @@ const Marketplace = () => {
                   </div>
                 )}
 
-                {/* Reforge */}
-                {listingDetail.reforge_options?.length > 0 && (
-                  <div className="mb-4">
-                    <h3 className="text-sm font-semibold text-cyan-400 mb-2 flex items-center gap-1">
-                      <Hammer className="w-4 h-4" />
-                      {t('marketplace.reforgeLabel')}
-                    </h3>
-                    <div className="space-y-2">
-                      {listingDetail.reforge_options.map((opt, idx) => (
-                        <div key={idx} className={`${cardSlot} flex justify-between items-center`}>
-                          <span className="text-sm text-cyan-300">{opt.option_name}</span>
-                          {opt.level != null && (
-                            <span className={badgeCyan}>
-                              Lv.{opt.level} / {opt.max_level}
-                            </span>
-                          )}
-                        </div>
-                      ))}
+                {/* Listing Options grouped by type */}
+                {(() => {
+                  const opts = (listingDetail.listing_options || []).filter(o => o.option_type !== 'enchant_effects');
+                  if (!opts.length) return null;
+                  const grouped = opts.reduce((acc, o) => { (acc[o.option_type] ??= []).push(o); return acc; }, {});
+                  return Object.entries(grouped).map(([type, items]) => (
+                    <div key={type} className="mb-4">
+                      <h3 className="text-sm font-semibold text-cyan-400 mb-2 flex items-center gap-1">
+                        {getOptionIcon(type, listingDetail.game_item_name)}
+                        {t(`marketplace.optionType.${type}`)}
+                      </h3>
+                      <div className="space-y-2">
+                        {items.map((opt, idx) => {
+                          let displayName = opt.option_name;
+                          if (opt.option_type === 'murias_relic_options' && opt.rolled_value != null) {
+                            const cfg = (window.MURIAS_RELIC_CONFIG || []).find(c => c.option_name === opt.option_name);
+                            if (cfg?.value_per_level != null) {
+                              const computed = +(cfg.value_per_level * +opt.rolled_value).toFixed(2);
+                              displayName = `${opt.option_name} ${computed}${cfg.option_unit || ''}`;
+                            }
+                          }
+                          return (
+                            <div key={idx} className={`${cardSlot} flex justify-between items-center`}>
+                              <span className="text-sm text-cyan-300">{displayName}</span>
+                              {opt.rolled_value != null && (
+                                <LevelBadge level={opt.rolled_value} maxLevel={opt.max_level}>
+                                  {opt.rolled_value}{opt.max_level != null ? ` / ${opt.max_level}` : ''}
+                                </LevelBadge>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  ));
+                })()}
 
                 {/* Special Upgrade */}
                 {listingDetail.special_upgrade_type && (
@@ -383,7 +444,7 @@ const Marketplace = () => {
                       <span className="text-sm text-yellow-300">{t('marketplace.ergGrade', { grade: listingDetail.erg_grade })}</span>
                       {listingDetail.erg_level != null && (
                         <span className={badgeYellow}>
-                          Lv.{listingDetail.erg_level}
+                          {listingDetail.erg_level}
                         </span>
                       )}
                     </div>

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Loader2, ChevronDown, ChevronRight, Package, RefreshCw } from 'lucide-react';
 import { getListings, getListingDetail } from '@mabi/shared/api/admin';
 import TagBadge from '@mabi/shared/components/TagBadge';
+import LevelBadge from '@mabi/shared/components/LevelBadge';
 
 const ATTR_LABELS = {
   damage: '공격력', magic_damage: '마법공격력', additional_damage: '추가대미지',
@@ -178,12 +179,12 @@ const ListingsPanel = () => {
                           <div className="mb-3 flex flex-wrap gap-2">
                             {detail.erg_grade && (
                               <span className="text-xs px-2 py-1 bg-yellow-900/40 text-yellow-300 rounded">
-                                ERG {detail.erg_grade}{detail.erg_level != null ? ` Lv.${detail.erg_level}` : ''}
+                                ERG {detail.erg_grade}{detail.erg_level != null ? ` ${detail.erg_level}` : ''}
                               </span>
                             )}
                             {detail.special_upgrade_type && (
                               <span className={`text-xs px-2 py-1 rounded ${detail.special_upgrade_type === 'R' ? 'bg-pink-900/40 text-pink-300' : 'bg-cyan-900/40 text-cyan-300'}`}>
-                                {detail.special_upgrade_type}강{detail.special_upgrade_level != null ? ` Lv.${detail.special_upgrade_level}` : ''}
+                                {detail.special_upgrade_type}강{detail.special_upgrade_level != null ? ` ${detail.special_upgrade_level}` : ''}
                               </span>
                             )}
                           </div>
@@ -260,14 +261,11 @@ const ListingsPanel = () => {
                                     <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-gray-700 text-gray-400">{opt.option_type}</span>
                                     <span className="text-sm font-medium text-gray-300">{opt.option_name}</span>
                                   </div>
-                                  <div className="flex items-center gap-2">
-                                    {opt.rolled_value != null && (
-                                      <span className="text-xs font-bold text-orange-400">Lv. {opt.rolled_value}</span>
-                                    )}
-                                    {opt.max_level != null && (
-                                      <span className="text-[10px] text-gray-500">/ {opt.max_level}</span>
-                                    )}
-                                  </div>
+                                  {opt.rolled_value != null && (
+                                    <LevelBadge level={opt.rolled_value} maxLevel={opt.max_level}>
+                                      {opt.rolled_value}{opt.max_level != null ? ` / ${opt.max_level}` : ''}
+                                    </LevelBadge>
+                                  )}
                                 </li>
                               ))}
                             </ul>

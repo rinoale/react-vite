@@ -242,6 +242,12 @@ class PaginatedReforgeResponse(BaseModel):
     offset: int
     rows: List[ReforgeOption]
 
+class ListingOptionOut(BaseModel):
+    option_type: str
+    option_name: str
+    rolled_value: Optional[Decimal] = None
+    max_level: Optional[int] = None
+
 class ListingOut(BaseModel):
     id: int
     name: str
@@ -271,6 +277,7 @@ class ListingOut(BaseModel):
     seller_server: Optional[str] = None
     seller_game_id: Optional[str] = None
     tags: List[TagBadge] = []
+    listing_options: List[ListingOptionOut] = []
 
     class Config:
         from_attributes = True
@@ -386,12 +393,6 @@ class ListingEnchantOut(BaseModel):
     enchant_name: str
     rank: int
     effects: List[ListingEnchantEffectOut] = []
-
-class ListingOptionOut(BaseModel):
-    option_type: str
-    option_name: str
-    rolled_value: Optional[Decimal] = None
-    max_level: Optional[int] = None
 
 class ListingDetailOut(BaseModel):
     id: int

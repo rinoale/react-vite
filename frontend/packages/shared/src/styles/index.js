@@ -22,13 +22,35 @@ export const cardSlot = 'bg-gray-900/50 p-3 rounded border border-gray-700';
 
 // --- Badges ---
 
-const badgeBase = 'text-xs px-2 py-0.5 rounded border';
+const badgeBase = 'text-xs leading-none px-2 pt-1 pb-0.5 rounded border';
 export const badgeCyan = `${badgeBase} bg-cyan-900/50 text-cyan-300 border-cyan-700/50`;
 export const badgePurple = `${badgeBase} bg-purple-900/50 text-purple-300 border-purple-700/50`;
 export const badgeOrange = `${badgeBase} bg-orange-900/50 text-orange-300 border-orange-700/50`;
 export const badgeYellow = `${badgeBase} bg-yellow-900/50 text-yellow-300 border-yellow-700/50`;
+export const badgeRed = `${badgeBase} bg-red-900/50 text-red-300 border-red-700/50`;
+export const badgeBlue = `${badgeBase} bg-blue-900/50 text-blue-300 border-blue-700/50`;
+export const badgeGreen = `${badgeBase} bg-green-900/50 text-green-300 border-green-700/50`;
 export const badgePink = `${badgeBase} bg-pink-900/50 text-pink-300 border-pink-700/50`;
+export const badgeTranscend = 'text-xs leading-none px-2 pt-1 pb-0.5 rounded border tag-rainbow text-black tag-border-rainbow font-bold';
 export const badgeClickable = 'cursor-pointer hover:border-current';
+
+/**
+ * Get badge style for a level value.
+ * Transcend (level > max) → rainbow, max → red, >=80% → orange, >=30% → blue, <30% → green.
+ */
+export function getLevelBadge(level, maxLevel, minLevel = 1) {
+  if (level == null || maxLevel == null) return badgeCyan;
+  const lv = +level;
+  const max = +maxLevel;
+  const min = +minLevel;
+  if (lv > max) return badgeTranscend;
+  if (lv === max) return badgeRed;
+  if (max <= min) return badgeCyan;
+  const pct = (lv - min) / (max - min);
+  if (pct >= 0.8) return badgeOrange;
+  if (pct >= 0.3) return badgeBlue;
+  return badgeGreen;
+}
 
 // --- Dashed add buttons ---
 

@@ -58,7 +58,9 @@
     "erg": "Erg",
     "set_item": "Set Item",
     "item_color": "Item Color",
-    "ego": "Ego"
+    "ego": "Ego",
+    "echostone_options": "Echostone Options",
+    "murias_relic_options": "Murias Relic Options"
   },
   "marketplace": {
     "title": "Marketplace",
@@ -73,6 +75,12 @@
     "selectListing": "Select a listing to view details",
     "enchantLabel": "Enchants",
     "reforgeLabel": "Reforge",
+    "optionsLabel": "Options",
+    "optionType": {
+      "reforge_options": "Reforge",
+      "echostone_options": "Echostone",
+      "murias_relic_options": "Murias Relic"
+    },
     "specialUpgradeLabel": "Special Upgrade",
     "specialUpgradeR": "Red Upgrade Stone",
     "specialUpgradeS": "Blue Upgrade Stone",
@@ -135,6 +143,36 @@
       "addOption": "Add Reforge Option",
       "searchReforgeOption": "Search reforge option...",
       "levelDisplay": "Lv. {{level}} / {{maxLevel}}"
+    },
+    "echostone": {
+      "addOption": "Add Echostone Option",
+      "searchOption": "Search option...",
+      "remove": "Remove",
+      "types": {
+        "red": "Red",
+        "blue": "Blue",
+        "yellow": "Yellow",
+        "black": "Black",
+        "silver": "Silver"
+      }
+    },
+    "murias_relic": {
+      "addOption": "Add Murias Relic Option",
+      "searchOption": "Search option...",
+      "selectType": "Select job class...",
+      "remove": "Remove",
+      "types": {
+        "elemental_knight": "Elemental Knight",
+        "saint_bard": "Saint Bard",
+        "sacred_guard": "Sacred Guard",
+        "dark_mage": "Dark Mage",
+        "fury_fighter": "Fury Fighter",
+        "blast_lancer": "Blast Lancer",
+        "alchemic_stinger": "Alchemic Stinger",
+        "variable_gunner": "Variable Gunner",
+        "melodic_puppeteer": "Melodic Puppeteer",
+        "forbidden_alchemist": "Forbidden Alchemist"
+      }
     },
     "cancel": "Cancel",
     "erg": {

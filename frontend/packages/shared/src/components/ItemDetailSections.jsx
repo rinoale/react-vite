@@ -3,7 +3,9 @@ import { Plus, RotateCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import SectionCard from './SectionCard';
 import CustomSelect from './CustomSelect';
-import { ColorPartsSection, EnchantSection, ErgSection, ItemAttrsSection, ItemModSection, ReforgeSection, SetItemSection, DefaultSection } from './sections';
+import EchostoneIcon from './icons/EchostoneIcon';
+import MuriasRelicIcon from './icons/MuriasRelicIcon';
+import { ColorPartsSection, EchostoneSection, EnchantSection, ErgSection, ItemAttrsSection, ItemModSection, MuriasRelicSection, ReforgeSection, SetItemSection, DefaultSection } from './sections';
 
 const ADDABLE_SECTIONS = [
   'item_attrs', 'enchant', 'reforge', 'item_mod',
@@ -12,6 +14,21 @@ const ADDABLE_SECTIONS = [
 
 const HIDDEN_SECTIONS = ['item_name', 'item_type', 'flavor_text', 'shop_price', 'pre_header', 'ego', 'item_grade'];
 
+const ECHOSTONE_TYPE_MAP = {
+  '레드 에코스톤': 'red',
+  '블루 에코스톤': 'blue',
+  '옐로 에코스톤': 'yellow',
+  '블랙 에코스톤': 'black',
+  '실버 에코스톤': 'silver',
+};
+
+function getSpecialItemType(gameItemName) {
+  if (!gameItemName) return null;
+  if (gameItemName === '무리아스의 유물') return 'murias_relic';
+  if (ECHOSTONE_TYPE_MAP[gameItemName]) return 'echostone';
+  return null;
+}
+
 function createEmptySection(secKey) {
   if (secKey === 'enchant') return { prefix: null, suffix: null, lines: [] };
   if (secKey === 'reforge') return { options: [], lines: [] };
@@ -19,7 +36,7 @@ function createEmptySection(secKey) {
   return { lines: [] };
 }
 
-const ItemDetailSections = ({ sections, onSectionsChange, abbreviated = true }) => {
+const ItemDetailSections = ({ sections, onSectionsChange, abbreviated = true, gameItemName }) => {
   const { t } = useTranslation();
   const [openSections, setOpenSections] = useState({
     item_attrs: true,
@@ -99,6 +116,49 @@ const ItemDetailSections = ({ sections, onSectionsChange, abbreviated = true }) 
     return data.lines?.length > 0;
   };
 
+  const specialType = getSpecialItemType(gameItemName);
+
+  // --- Special item: echostone or murias relic (options-only UI) ---
+  if (specialType === 'echostone') {
+    const echostoneType = ECHOSTONE_TYPE_MAP[gameItemName];
+    const options = sections._echostone_options || [];
+    const handleChange = (newOpts) => {
+      onSectionsChange({ ...sections, _echostone_options: newOpts });
+    };
+    return (
+      <div className="space-y-2">
+        <SectionCard
+          title={t('categoryLabels.echostone_options')}
+          icon={<EchostoneIcon color={echostoneType} className="w-5 h-5" />}
+          isOpen={openSections.echostone_options !== false}
+          onToggle={() => toggleSection('echostone_options')}
+        >
+          <EchostoneSection echostoneType={echostoneType} options={options} onOptionsChange={handleChange} />
+        </SectionCard>
+      </div>
+    );
+  }
+
+  if (specialType === 'murias_relic') {
+    const options = sections._murias_relic_options || [];
+    const handleChange = (newOpts) => {
+      onSectionsChange({ ...sections, _murias_relic_options: newOpts });
+    };
+    return (
+      <div className="space-y-2">
+        <SectionCard
+          title={t('categoryLabels.murias_relic_options')}
+          icon={<MuriasRelicIcon className="w-5 h-5" />}
+          isOpen={openSections.murias_relic_options !== false}
+          onToggle={() => toggleSection('murias_relic_options')}
+        >
+          <MuriasRelicSection options={options} onOptionsChange={handleChange} />
+        </SectionCard>
+      </div>
+    );
+  }
+
+  // --- Normal item: OCR sections ---
   const visibleKeys = Object.keys(sections).filter(k => !HIDDEN_SECTIONS.includes(k) && hasContent(k, sections[k]));
   const availableSections = ADDABLE_SECTIONS.filter(s => !visibleKeys.includes(s));
 
