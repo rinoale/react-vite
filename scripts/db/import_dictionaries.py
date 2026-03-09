@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import hashlib
 import re
 from pathlib import Path
 from typing import Iterable
@@ -244,20 +245,6 @@ def import_enchant(
         enchant_id = row[0]
         entry_count += 1
 
-        # Clear old links for upsert (listing refs first due to FK constraint)
-        conn.execute(
-            text(
-                "DELETE FROM listing_enchant_effects "
-                "WHERE enchant_effect_id IN "
-                "(SELECT id FROM enchant_effects WHERE enchant_id = :eid)"
-            ),
-            {"eid": enchant_id},
-        )
-        conn.execute(
-            text("DELETE FROM enchant_effects WHERE enchant_id = :eid"),
-            {"eid": enchant_id},
-        )
-
         for idx, eff_item in enumerate(entry["effects"], start=1):
             if isinstance(eff_item, dict):
                 condition_text = eff_item.get('condition')
@@ -282,6 +269,13 @@ def import_enchant(
                     VALUES
                     (:enchant_id, :effect_id, :effect_order, :condition_text,
                      :min_value, :max_value, :raw_text)
+                    ON CONFLICT (enchant_id, effect_order)
+                    DO UPDATE SET
+                        effect_id = EXCLUDED.effect_id,
+                        condition_text = EXCLUDED.condition_text,
+                        min_value = EXCLUDED.min_value,
+                        max_value = EXCLUDED.max_value,
+                        raw_text = EXCLUDED.raw_text
                     """
                 ),
                 {
@@ -295,6 +289,16 @@ def import_enchant(
                 },
             )
             link_count += 1
+
+        # Remove orphan effects if enchant now has fewer effects
+        num_effects = len(entry["effects"])
+        conn.execute(
+            text(
+                "DELETE FROM enchant_effects "
+                "WHERE enchant_id = :eid AND effect_order > :max_order"
+            ),
+            {"eid": enchant_id, "max_order": num_effects},
+        )
 
     return entry_count, link_count
 
@@ -353,6 +357,36 @@ def backfill_listings(conn) -> int:
     return result.rowcount
 
 
+def _compute_files_hash(*paths: Path) -> str:
+    """SHA-256 hash of all input files combined."""
+    h = hashlib.sha256()
+    for p in sorted(paths):
+        if p.exists():
+            h.update(p.read_bytes())
+    return h.hexdigest()
+
+
+def _get_stored_hash(conn) -> str | None:
+    conn.execute(text(
+        "CREATE TABLE IF NOT EXISTS import_metadata "
+        "(key TEXT PRIMARY KEY, value TEXT NOT NULL)"
+    ))
+    row = conn.execute(
+        text("SELECT value FROM import_metadata WHERE key = 'dictionary_hash'")
+    ).fetchone()
+    return row[0] if row else None
+
+
+def _set_stored_hash(conn, hash_value: str) -> None:
+    conn.execute(
+        text(
+            "INSERT INTO import_metadata (key, value) VALUES ('dictionary_hash', :h) "
+            "ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value"
+        ),
+        {"h": hash_value},
+    )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Import enchant/reforge/game-item dictionary files into PostgreSQL."
@@ -392,6 +426,11 @@ def main() -> None:
         action="store_true",
         help="Backfill game_item_id on existing listings where name matches.",
     )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Force import even if dictionary files haven't changed.",
+    )
     args = parser.parse_args()
 
     enchant_path = Path(args.enchant_path)
@@ -406,6 +445,18 @@ def main() -> None:
     if not reforge_path.exists():
         raise FileNotFoundError(f"Reforge file not found: {reforge_path}")
 
+    db_url = _db_url_from_args(args)
+    engine = create_engine(db_url, pool_pre_ping=True)
+
+    # Check if dictionary files changed since last import
+    file_hash = _compute_files_hash(enchant_path, effects_path, reforge_path, item_names_path)
+    with engine.begin() as conn:
+        stored_hash = _get_stored_hash(conn)
+
+    if stored_hash == file_hash and not args.force:
+        print("Dictionary files unchanged — skipping import.")
+        return
+
     effects_data = parse_effects_file(effects_path)
     enchant_entries = parse_enchant(enchant_path)
     reforge_options = parse_reforge(reforge_path)
@@ -416,9 +467,6 @@ def main() -> None:
         game_item_names = parse_game_items(item_names_path)
     else:
         print(f"Warning: Item names file not found: {item_names_path} — skipping game_items import")
-
-    db_url = _db_url_from_args(args)
-    engine = create_engine(db_url, pool_pre_ping=True)
 
     with engine.begin() as conn:
         # Import game items first (no dependencies)
@@ -435,6 +483,8 @@ def main() -> None:
         backfill_count = 0
         if args.backfill_listings:
             backfill_count = backfill_listings(conn)
+
+        _set_stored_hash(conn, file_hash)
 
     print(
         "Imported dictionaries:"
