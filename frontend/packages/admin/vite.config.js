@@ -4,10 +4,12 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
+  base: '/admin/',
   plugins: [react(), tailwindcss()],
   envDir: path.resolve(import.meta.dirname, '../..'),
   envPrefix: 'MABINOGI_',
   server: {
+    allowedHosts: ['.mabitra.local'],
     watch: {
       followSymlinks: true,
     },

@@ -4,6 +4,81 @@ from sqlalchemy.orm import relationship
 
 from .connector import Base
 
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(Text, nullable=False, unique=True)
+    password_hash = Column(Text, nullable=True)
+    discord_id = Column(Text, nullable=True, unique=True)
+    discord_username = Column(Text, nullable=True)
+    server = Column(Text, nullable=True)
+    game_id = Column(Text, nullable=True)
+    status = Column(SmallInteger, nullable=False, server_default='0')  # 0=active, 1=inactive
+    verified = Column(Boolean, nullable=False, server_default='false')
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    roles = relationship("UserRole", back_populates="user", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        UniqueConstraint('server', 'game_id', name='_user_server_game_id_uc'),
+    )
+
+
+class Role(Base):
+    __tablename__ = "roles"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(Text, nullable=False, unique=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    user_roles = relationship("UserRole", back_populates="role")
+    feature_flags = relationship("RoleFeatureFlag", back_populates="role", cascade="all, delete-orphan")
+
+
+class UserRole(Base):
+    __tablename__ = "user_roles"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    role_id = Column(Integer, ForeignKey("roles.id", ondelete="CASCADE"), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    user = relationship("User", back_populates="roles")
+    role = relationship("Role", back_populates="user_roles")
+
+    __table_args__ = (
+        UniqueConstraint('user_id', 'role_id', name='_user_role_uc'),
+    )
+
+
+class FeatureFlag(Base):
+    __tablename__ = "feature_flags"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(Text, nullable=False, unique=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    role_flags = relationship("RoleFeatureFlag", back_populates="feature_flag")
+
+
+class RoleFeatureFlag(Base):
+    __tablename__ = "role_feature_flags"
+
+    id = Column(Integer, primary_key=True, index=True)
+    role_id = Column(Integer, ForeignKey("roles.id", ondelete="CASCADE"), nullable=False)
+    feature_flag_id = Column(Integer, ForeignKey("feature_flags.id", ondelete="CASCADE"), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    role = relationship("Role", back_populates="feature_flags")
+    feature_flag = relationship("FeatureFlag", back_populates="role_flags")
+
+    __table_args__ = (
+        UniqueConstraint('role_id', 'feature_flag_id', name='_role_feature_flag_uc'),
+    )
+
+
 class Enchant(Base):
     __tablename__ = "enchants"
 
@@ -98,6 +173,7 @@ class Listing(Base):
     __tablename__ = "listings"
 
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     name = Column(Text, nullable=False, index=True)
     description = Column(Text, nullable=True)
     price = Column(Integer, nullable=True)
@@ -123,6 +199,7 @@ class Listing(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
+    user = relationship("User")
     game_item = relationship("GameItem")
     prefix_enchant = relationship("Enchant", foreign_keys=[prefix_enchant_id])
     suffix_enchant = relationship("Enchant", foreign_keys=[suffix_enchant_id])

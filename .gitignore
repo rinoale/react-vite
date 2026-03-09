@@ -23,6 +23,9 @@ dist-ssr
 *.sln
 *.sw?
 
+# Environment files (keep .env.example and .env.development committed)
+backend/.env.*
+
 # Project Specific
 data
 deep-text-recognition-benchmark/
@@ -34,6 +37,7 @@ backend/__pycache__/
 split_output/
 scripts/__pycache__/
 scripts/hidden/
+scripts/deploy.env
 saved_models
 tmp/
 
@@ -41,3 +45,7 @@ tmp/
 frontend/packages/trade/public/enchants_config.js
 frontend/packages/trade/public/game_items_config.js
 frontend/packages/trade/public/reforges_config.js
+
+# Misc
+
+.wrangler

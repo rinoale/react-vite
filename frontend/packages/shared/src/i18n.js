@@ -9,12 +9,13 @@ export function initI18n() {
     .use(LanguageDetector)
     .use(initReactI18next)
     .init({
-      fallbackLng: 'en',
+      lng: 'ko',
+      fallbackLng: 'ko',
       interpolation: {
         escapeValue: false,
       },
       backend: {
-        loadPath: '/locales/{{lng}}/{{ns}}.json',
+        loadPath: `${import.meta.env.BASE_URL}locales/{{lng}}/{{ns}}.json`,
       },
     });
 

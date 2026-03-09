@@ -20,7 +20,8 @@
     "enchants": "Enchants",
     "listings": "Listings",
     "corrections": "Corrections",
-    "tags": "Tags"
+    "tags": "Tags",
+    "users": "사용자"
   },
   "corrections": {
     "title": "OCR CORRECTIONS",
@@ -74,7 +75,9 @@
     "tagWeight": "태그 가중치",
     "targets": "대상",
     "targetWeight": "w:",
-    "noTargets": "대상 없음."
+    "noTargets": "대상 없음.",
+    "filterAll": "전체",
+    "bulkUpdate": "일괄 적용 ({{count}})"
   },
   "bulkTag": {
     "title": "일괄 태그",
@@ -86,6 +89,36 @@
     "create": "생성",
     "resultCreated": "{{count}}개 생성",
     "resultDuplicates": "{{count}}개 중복"
+  },
+  "users": {
+    "title": "사용자 관리",
+    "loading": "사용자 로딩중...",
+    "rolesAndFeatures": "역할 및 기능 플래그",
+    "email": "이메일",
+    "discord": "디스코드",
+    "server": "서버",
+    "gameId": "게임 ID",
+    "status": "상태",
+    "roles": "역할",
+    "createdAt": "가입일",
+    "active": "활성",
+    "inactive": "비활성",
+    "noUsers": "사용자가 없습니다.",
+    "prev": "이전",
+    "next": "다음",
+    "refresh": "새로고침"
+  },
+  "onboarding": {
+    "welcome": "환영합니다, {{name}}님!",
+    "subtitle": "서버와 캐릭터명을 설정해주세요.",
+    "server": "서버",
+    "selectServer": "서버 선택...",
+    "gameId": "캐릭터명",
+    "gameIdPlaceholder": "게임 내 캐릭터명을 입력해주세요",
+    "submit": "시작하기",
+    "saving": "저장 중...",
+    "complete": "프로필 설정 완료!",
+    "error": "프로필 저장에 실패했습니다. 다시 시도해주세요."
   },
   "enchants": {
     "title": "ENCHANT ENTRIES",

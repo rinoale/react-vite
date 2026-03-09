@@ -244,7 +244,15 @@ def import_enchant(
         enchant_id = row[0]
         entry_count += 1
 
-        # Clear old links for upsert
+        # Clear old links for upsert (listing refs first due to FK constraint)
+        conn.execute(
+            text(
+                "DELETE FROM listing_enchant_effects "
+                "WHERE enchant_effect_id IN "
+                "(SELECT id FROM enchant_effects WHERE enchant_id = :eid)"
+            ),
+            {"eid": enchant_id},
+        )
         conn.execute(
             text("DELETE FROM enchant_effects WHERE enchant_id = :eid"),
             {"eid": enchant_id},

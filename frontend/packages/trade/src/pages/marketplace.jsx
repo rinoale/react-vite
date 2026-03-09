@@ -1,12 +1,38 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { Search, ShoppingBag, Wand2, Hammer, X } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
+import { ShoppingBag, Wand2, Hammer, Loader2 } from 'lucide-react';
 import { badgeCyan, badgeYellow, badgePink, cardSlot } from '@mabi/shared/styles';
 import { useTranslation } from 'react-i18next';
 import { getListings, getListingDetail, searchListings } from '@mabi/shared/api/recommend';
-import { getTagColor } from '@mabi/shared/lib/tagColors';
+import { useListingSearch } from '@mabi/shared/hooks/useListingSearch';
+import ListingSearchBar from '@mabi/shared/components/ListingSearchBar';
+import TagBadge from '@mabi/shared/components/TagBadge';
+import PlayerName from '@mabi/shared/components/PlayerName';
+
+const PAGE_SIZE = 50;
 
 const SLOT_LABELS = { 0: 'Prefix', 1: 'Suffix' };
+
+const enchantBadge = 'text-xs px-1.5 py-0.5 rounded bg-purple-900/50 text-purple-300 border border-purple-700/50';
+const upgradeBadge = 'text-xs px-1.5 py-0.5 rounded bg-pink-900/50 text-pink-300 border border-pink-700/50';
+const ergBadge = 'text-xs px-1.5 py-0.5 rounded bg-yellow-900/50 text-yellow-300 border border-yellow-700/50';
+
+const rollColor = (eff) => {
+  const { value, min_value, max_value, raw_text } = eff;
+  if (value == null || min_value == null || max_value == null) return null;
+  if (+min_value === +max_value) return null;
+
+  const isMax = +value === +max_value;
+  if (raw_text?.includes('피어싱 레벨')) return isMax ? 'text-red-400' : 'text-green-400';
+  if (isMax) return 'text-red-400';
+
+  const pct = (+value - +min_value) / (+max_value - +min_value);
+  if (pct >= 0.8) return 'text-orange-400';
+  if (pct >= 0.3) return 'text-blue-400';
+  return 'text-green-400';
+};
+
+const RANGE_RE = /\d+\s*~\s*\d+/;
 
 const ATTR_LABELS = {
   damage: '공격력', magic_damage: '마법공격력', additional_damage: '추가대미지',
@@ -20,20 +46,57 @@ const Marketplace = () => {
   const [listings, setListings] = useState([]);
   const [selectedListing, setSelectedListing] = useState(null);
   const [listingDetail, setListingDetail] = useState(null);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const sentinelRef = useRef(null);
+  const searchStateRef = useRef({ tags: [], text: '' });
 
-  const [searchQuery, setSearchQuery] = useState('');
-  const debounceRef = useRef(null);
-
-  const fetchListings = async () => {
+  // --- Fetch a page of listings, returns the fetched data ---
+  const fetchPage = useCallback(async (offset, tags, text) => {
+    const pagination = { limit: PAGE_SIZE, offset };
     try {
-      const { data } = await getListings();
-      setListings(data);
+      let data;
+      if (text || tags?.length) {
+        const res = await searchListings(text || '', tags?.length ? tags : undefined, pagination);
+        data = res.data;
+      } else {
+        const res = await getListings(pagination);
+        data = res.data;
+      }
+      setHasMore(data.length >= PAGE_SIZE);
+      return data;
     } catch (error) {
       console.error("Failed to fetch listings:", error);
+      setHasMore(false);
+      return [];
     }
-  };
+  }, []);
 
-  const fetchDetail = async (listingId) => {
+  // --- Load next page (called by IntersectionObserver) ---
+  const loadMore = useCallback(async () => {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    const { tags, text } = searchStateRef.current;
+    const data = await fetchPage(listings.length, tags, text);
+    if (data.length > 0) {
+      setListings((prev) => [...prev, ...data]);
+    }
+    setLoadingMore(false);
+  }, [loadingMore, hasMore, listings.length, fetchPage]);
+
+  // --- IntersectionObserver for infinite scroll ---
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) loadMore(); },
+      { rootMargin: '200px' },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [loadMore]);
+
+  const fetchDetail = useCallback(async (listingId) => {
     try {
       const { data } = await getListingDetail(listingId);
       setListingDetail(data);
@@ -41,30 +104,51 @@ const Marketplace = () => {
       console.error("Failed to fetch listing detail:", error);
       setListingDetail(null);
     }
-  };
+  }, []);
 
-  const [searchParams] = useSearchParams();
-  const initialIdRef = useRef(searchParams.get('id'));
+  const handleSearchResults = useCallback((data, { tags, text } = {}) => {
+    setListings(data);
+    setHasMore(data.length >= PAGE_SIZE);
+    if (tags !== undefined || text !== undefined) {
+      searchStateRef.current = { tags: tags || [], text: text || '' };
+    }
+  }, []);
+
+  const handleSearchClear = useCallback(async () => {
+    setSelectedListing(null);
+    searchStateRef.current = { tags: [], text: '' };
+    const data = await fetchPage(0, [], '');
+    setListings(data);
+  }, [fetchPage]);
+
+  const handleSelectListing = useCallback((listing) => {
+    setSelectedListing(listing);
+  }, []);
+
+  const search = useListingSearch({
+    onResults: handleSearchResults,
+    onSelectListing: handleSelectListing,
+    onClear: handleSearchClear,
+  });
+
+  // --- Init from router state ---
+  const location = useLocation();
 
   useEffect(() => {
-    const targetId = initialIdRef.current ? parseInt(initialIdRef.current, 10) : null;
-    const name = searchParams.get('name');
+    const st = location.state || {};
+    const name = st.text || '';
+    const tags = st.tags || [];
+    const targetId = st.listingId || null;
 
     const init = async () => {
-      let data;
-      if (name) {
-        setSearchQuery(name);
-        try {
-          const res = await searchListings(name);
-          data = res.data;
-        } catch {
-          const res = await getListings();
-          data = res.data;
-        }
-      } else {
-        const res = await getListings();
-        data = res.data;
+      if (name) search.setSearchText(name);
+      if (tags.length) {
+        search.setSelectedTags(tags);
+        if (st.tagWeights) search.setTagWeights(st.tagWeights);
       }
+
+      searchStateRef.current = { tags, text: name };
+      const data = await fetchPage(0, tags.length ? tags : [], name);
       setListings(data);
 
       if (targetId) {
@@ -85,30 +169,7 @@ const Marketplace = () => {
     } else {
       setListingDetail(null);
     }
-  }, [selectedListing]);
-
-  const handleSearch = useCallback((q) => {
-    setSearchQuery(q);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (!q.trim()) {
-      fetchListings();
-      return;
-    }
-    debounceRef.current = setTimeout(async () => {
-      try {
-        const { data } = await searchListings(q.trim());
-        setListings(data);
-      } catch (error) {
-        console.error("Failed to search:", error);
-      }
-    }, 300);
-  }, []);
-
-  const clearSearch = () => {
-    setSearchQuery('');
-    setSelectedListing(null);
-    fetchListings();
-  };
+  }, [selectedListing, fetchDetail]);
 
   const formatDate = (dateStr) => {
     if (!dateStr) return '';
@@ -116,91 +177,102 @@ const Marketplace = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 text-gray-100 p-6">
-      <div className="max-w-7xl mx-auto">
+    <div id="marketplace-page" className="min-h-screen bg-gray-900 text-gray-100 p-6">
+      <div className="max-w-screen-2xl mx-auto">
         {/* Header */}
-        <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
+        <div id="marketplace-header" className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
           <h1 className="text-3xl font-bold text-cyan-400 flex items-center gap-2">
             <ShoppingBag className="w-8 h-8" />
             {t('marketplace.title')}
           </h1>
 
-          <div className="relative w-full md:w-96">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-            <input
-              type="text"
-              placeholder={t('marketplace.searchPlaceholder')}
-              value={searchQuery}
-              onChange={(e) => handleSearch(e.target.value)}
-              className="w-full bg-gray-800 border border-gray-700 rounded-full py-2 pl-10 pr-8 text-gray-100 focus:ring-2 focus:ring-cyan-500 outline-none"
-            />
-            {searchQuery && (
-              <button
-                onClick={clearSearch}
-                className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            )}
-          </div>
+          <ListingSearchBar search={search} />
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div id="marketplace-content" className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
           {/* Listing Grid */}
-          <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div id="listing-grid" className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
             {listings.length > 0 ? (
               listings.map(listing => (
                 <div
                   key={listing.id}
-                  onClick={() => setSelectedListing(listing)}
+                  id={`listing-${listing.id}`}
+                  onClick={() => handleSelectListing(listing)}
                   className={`bg-gray-800 p-4 rounded-xl border cursor-pointer transition-all hover:scale-[1.02] ${selectedListing?.id === listing.id ? 'border-cyan-500 shadow-[0_0_15px_rgba(6,182,212,0.3)]' : 'border-gray-700 hover:border-gray-600'}`}
                 >
-                  <h3 className="font-bold text-lg mb-1">{listing.name}</h3>
-                  {listing.game_item_name && (
-                    <p className="text-xs text-gray-400 mb-1">{listing.game_item_name}</p>
-                  )}
+                  {/* listing-title */}
+                  <h3 className="font-bold text-lg leading-tight mb-1">{listing.name}</h3>
+                  {/* listing-specs */}
+                  <div className="flex flex-wrap items-center gap-1.5 mb-1">
+                    {listing.prefix_enchant_name && (
+                      <span className={enchantBadge}>{listing.prefix_enchant_name}</span>
+                    )}
+                    {listing.suffix_enchant_name && (
+                      <span className={enchantBadge}>{listing.suffix_enchant_name}</span>
+                    )}
+                    {listing.game_item_name && (
+                      <span className="text-sm text-gray-300">{listing.game_item_name}</span>
+                    )}
+                    {listing.special_upgrade_type && (
+                      <span className={upgradeBadge}>
+                        {listing.special_upgrade_type}{listing.special_upgrade_level != null ? listing.special_upgrade_level : ''}
+                      </span>
+                    )}
+                    {listing.erg_grade && (
+                      <span className={ergBadge}>
+                        {listing.erg_grade}{listing.erg_level != null ? ` Lv.${listing.erg_level}` : ''}
+                      </span>
+                    )}
+                  </div>
+                  {/* listing-tags */}
                   {listing.tags?.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 mb-3">
-                      {listing.tags.map((tag, idx) => {
-                        const c = getTagColor(tag.weight);
-                        return (
-                          <span key={idx} className={`text-xs px-2 py-0.5 rounded-full ${c.bg} ${c.text}`}>
-                            {tag.name}
-                          </span>
-                        );
-                      })}
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      {listing.tags.map((tag, idx) => (
+                        <TagBadge key={idx} name={tag.name} weight={tag.weight} />
+                      ))}
                     </div>
                   )}
-                  <p className="text-xs text-gray-500">{formatDate(listing.created_at)}</p>
+                  {/* listing-seller */}
+                  <p className="text-xs text-gray-500">
+                    <PlayerName server={listing.seller_server} gameId={listing.seller_game_id} />
+                    {listing.created_at && (
+                      <span className="ml-2">{formatDate(listing.created_at)}</span>
+                    )}
+                  </p>
                 </div>
               ))
             ) : (
-              <div className="md:col-span-2 bg-gray-800/50 border border-gray-700 border-dashed rounded-xl p-12 text-center text-gray-500 flex flex-col items-center">
+              <div id="listing-empty" className="md:col-span-2 bg-gray-800/50 border border-gray-700 border-dashed rounded-xl p-12 text-center text-gray-500 flex flex-col items-center">
                 <ShoppingBag className="w-12 h-12 mb-4 opacity-50" />
                 <p>{listings.length === 0 ? t('marketplace.noListings') : t('marketplace.noResults')}</p>
+              </div>
+            )}
+            {/* Infinite scroll sentinel */}
+            {hasMore && listings.length > 0 && (
+              <div ref={sentinelRef} className="md:col-span-2 flex justify-center py-4">
+                {loadingMore && <Loader2 className="w-6 h-6 text-gray-500 animate-spin" />}
               </div>
             )}
           </div>
 
           {/* Sidebar: Listing Detail */}
-          <div className="lg:col-span-1 space-y-6">
+          <div id="listing-detail-panel" className="lg:col-span-1 space-y-6">
             {selectedListing && listingDetail ? (
-              <div className="bg-gray-800 rounded-xl p-6 border border-gray-700 sticky top-6">
+              <div id="listing-detail" className="bg-gray-800 rounded-xl p-6 border border-gray-700 sticky top-6">
                 <h2 className="text-2xl font-bold mb-1">{listingDetail.name}</h2>
                 {listingDetail.game_item_name && (
                   <p className="text-sm text-gray-400 mb-2">{listingDetail.game_item_name}</p>
                 )}
                 {listingDetail.tags?.length > 0 && (
                   <div className="flex flex-wrap gap-1.5 mb-4">
-                    {listingDetail.tags.map((tag, idx) => {
-                      const c = getTagColor(tag.weight);
-                      return (
-                        <span key={idx} className={`text-xs px-2 py-0.5 rounded-full ${c.bg} ${c.text}`}>
-                          {tag.name}
-                        </span>
-                      );
-                    })}
+                    {listingDetail.tags.map((tag, idx) => (
+                      <TagBadge key={idx} name={tag.name} weight={tag.weight} />
+                    ))}
                   </div>
+                )}
+
+                {listingDetail.description && (
+                  <p className="text-sm text-gray-400 mb-4">{listingDetail.description}</p>
                 )}
 
                 {/* Item Attrs */}
@@ -237,16 +309,25 @@ const Marketplace = () => {
                           </div>
                           {enc.effects?.length > 0 && (
                             <ul className="space-y-0.5">
-                              {enc.effects.map((eff, i) => (
-                                <li key={i} className="text-xs text-gray-400">
-                                  {eff.raw_text}
-                                  {eff.value != null ? (
-                                    <span className="text-cyan-300 ml-1">({eff.value})</span>
-                                  ) : eff.min_value != null && (
-                                    <span className="text-gray-500 ml-1">({eff.min_value === eff.max_value ? eff.min_value : `${eff.min_value}~${eff.max_value}`})</span>
-                                  )}
-                                </li>
-                              ))}
+                              {enc.effects.map((eff, i) => {
+                                const fixed = eff.min_value == null || eff.max_value == null || +eff.min_value === +eff.max_value;
+                                const hasRoll = !fixed && eff.value != null;
+                                const color = hasRoll ? rollColor(eff) : null;
+                                return (
+                                  <li key={i} className="text-xs text-gray-400">
+                                    {hasRoll ? (
+                                      <>
+                                        {eff.raw_text.split(RANGE_RE).map((part, pi, arr) =>
+                                          pi < arr.length - 1 ? (
+                                            <span key={pi}>{part}<span className={`font-bold ${color}`}>{eff.value}</span></span>
+                                          ) : part
+                                        )}
+                                        <span className="text-gray-600 ml-1">({eff.min_value}~{eff.max_value})</span>
+                                      </>
+                                    ) : eff.raw_text}
+                                  </li>
+                                );
+                              })}
                             </ul>
                           )}
                         </div>
@@ -310,7 +391,7 @@ const Marketplace = () => {
                 )}
               </div>
             ) : (
-              <div className="bg-gray-800/50 border border-gray-700 border-dashed rounded-xl p-8 text-center text-gray-500 flex flex-col items-center">
+              <div id="listing-detail-empty" className="bg-gray-800/50 border border-gray-700 border-dashed rounded-xl p-8 text-center text-gray-500 flex flex-col items-center">
                 <ShoppingBag className="w-12 h-12 mb-4 opacity-50" />
                 <p>{t('marketplace.selectListing')}</p>
               </div>

@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from db.connector import get_db
 from db import schemas
+from db.models import User
 from corrections.service import (
     list_corrections as svc_list_corrections,
     approve_correction as svc_approve_correction,
@@ -12,8 +13,11 @@ from corrections.service import (
     truncate_corrections as svc_truncate_corrections,
     resolve_crop_path,
 )
+from auth.dependencies import require_feature
 
 router = APIRouter(prefix="/admin/corrections", tags=["corrections"])
+
+_manage_corrections = Depends(require_feature("manage_corrections"))
 
 
 class CorrectionEdit(BaseModel):
@@ -26,12 +30,13 @@ def list_corrections(
     limit: int = Query(100, le=500),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
+    _: User = _manage_corrections,
 ):
     return svc_list_corrections(db, status=status, limit=limit, offset=offset)
 
 
 @router.post("/approve/{correction_id}")
-def approve_correction(correction_id: int, db: Session = Depends(get_db)):
+def approve_correction(correction_id: int, db: Session = Depends(get_db), _: User = _manage_corrections):
     row, error = svc_approve_correction(db, correction_id)
     if error:
         status_code = 404 if "not found" in error else 400
@@ -40,7 +45,7 @@ def approve_correction(correction_id: int, db: Session = Depends(get_db)):
 
 
 @router.patch("/{correction_id}")
-def edit_correction(correction_id: int, body: CorrectionEdit, db: Session = Depends(get_db)):
+def edit_correction(correction_id: int, body: CorrectionEdit, db: Session = Depends(get_db), _: User = _manage_corrections):
     row, error = svc_edit_correction(db, correction_id, body.corrected_text)
     if error:
         status_code = 404 if "not found" in error else 400
@@ -49,7 +54,7 @@ def edit_correction(correction_id: int, body: CorrectionEdit, db: Session = Depe
 
 
 @router.delete("/truncate")
-def truncate_corrections(db: Session = Depends(get_db)):
+def truncate_corrections(db: Session = Depends(get_db), _: User = _manage_corrections):
     count = svc_truncate_corrections(db)
     return {"deleted": count}
 

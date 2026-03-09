@@ -620,3 +620,213 @@ All models: TPS-ResNet-BiLSTM-CTC architecture, imgH=32, `sensitive=true`, `PAD=
 V3 response: `{sections: {section_name: OcrSectionResponse}, tagged_segments, abbreviated, session_id?}`
 
 See `documents/API_SPEC.md` for full response schema.
+
+---
+
+## Authentication & Authorization
+
+### Overview
+
+Stateless JWT-based auth. No server-side sessions — the backend validates the JWT signature and expiry on each request.
+
+### Token Architecture
+
+| Token | Algorithm | Lifetime | Storage | Purpose |
+|-------|-----------|----------|---------|---------|
+| Access token | HS256 JWT | 30 minutes | `HttpOnly` cookie (`access_token`) | Sent automatically with every request via cookie |
+| Refresh token | HS256 JWT | 7 days | `HttpOnly` cookie (`refresh_token`) | Used only to obtain a new token pair when access token expires |
+
+JWT payload: `{"sub": "<user_id>", "type": "access"|"refresh", "exp": <unix_ts>}`
+
+Secret: `JWT_SECRET_KEY` env var (falls back to dev default).
+
+Cookie attributes: `HttpOnly; SameSite=Lax; Domain=.mabitra.com; Path=/`
+
+- `HttpOnly` — not accessible via JavaScript (XSS protection)
+- `SameSite=Lax` — sent on same-site requests and top-level navigations
+- `Domain=.mabitra.com` — shared across all subdomains (trade, admin, api)
+
+Note: `Secure` and `SameSite=None` are NOT used. Chrome blocks `SameSite=None; Secure` cookies on self-signed certs. Instead, each frontend proxies API calls through `/api/` on its own origin (same-origin), so `SameSite=Lax` suffices.
+
+**Dual-mode token extraction:** Backend reads token from cookie first, falls back to `Authorization: Bearer` header. This supports both web (cookie) and future mobile (header) clients.
+
+### Authentication Flow
+
+```
+1. Discord OAuth (sole login method)
+   User clicks "Discord" button on /login
+     → GET /auth/discord → redirect to Discord authorize URL
+     → Discord callback → backend exchanges code for Discord user info
+     → Link to existing user (by discord_id or email) or create new user
+     → Backend sets HttpOnly cookies (access_token + refresh_token) on response
+     → Backend redirects to frontend /login?auth=success
+     → Frontend detects ?auth=success → GET /auth/me (cookie sent automatically)
+     → AuthProvider sets user state → navigate to home
+
+2. Authenticated Requests
+   Any API call (axios baseURL = '/api', withCredentials: true)
+     → Same-origin request to /api/* → nginx proxies to backend
+     → Browser sends cookies automatically (same-origin, SameSite=Lax)
+     → Backend get_current_user reads access_token cookie (or Bearer header fallback)
+     → Decodes JWT, loads user from DB
+     → If valid + user.status == 0 → request proceeds
+     → If invalid/expired → 401
+
+3. Automatic Token Refresh
+   API call returns 401
+     → Axios response interceptor catches it
+     → POST /auth/refresh (refresh_token cookie sent automatically)
+     → Backend validates refresh token, sets NEW cookie pair on response
+     → Interceptor retries original request (new cookies sent automatically)
+     → User never sees the 401
+   Concurrent 401s: queued — only one refresh call, then all retry
+
+4. Logout
+   POST /auth/logout
+     → Backend clears both cookies (set Max-Age=0)
+     → Frontend clears user state
+```
+
+### Session Persistence
+
+| Scenario | Behavior |
+|----------|----------|
+| Access token expires (30min) | Auto-refreshed silently via interceptor |
+| Refresh token expires (7 days idle) | Refresh fails → cookies cleared → user logged out |
+| Active usage | Each refresh issues new 7-day refresh token → session extends indefinitely |
+| Tab closed, reopened | Cookies persist → AuthProvider calls GET /auth/me → restores session (or auto-refreshes) |
+| Logout clicked | Backend clears cookies, frontend clears user state |
+
+Effective session lifetime: **7 days from last activity**. Indefinite with continuous use.
+
+### Authorization Model
+
+```
+Files:
+  backend/auth/service.py        — password hashing (bcrypt), JWT encode/decode, Discord OAuth
+  backend/auth/dependencies.py   — FastAPI dependencies for auth guards (cookie + Bearer dual-mode)
+  backend/auth/router.py         — /auth/* endpoints (Discord OAuth, refresh, logout, me)
+  backend/auth/cookies.py        — set_auth_cookies() / clear_auth_cookies() helpers
+  backend/crud/user.py           — User/Role/Feature CRUD
+```
+
+**Database tables:** `users`, `roles`, `user_roles`, `feature_flags`, `role_feature_flags`
+
+**Seeded data:** roles=`{master, admin}`, feature_flags=`{manage_tags, manage_corrections}`
+
+**Dependency chain:**
+
+```
+get_current_user         → any valid JWT, active user (status=0)
+optional_user            → same but returns None if no token
+require_role("admin")    → user has "admin" role (master bypasses all)
+require_feature("X")     → user's roles have feature flag X (master bypasses all)
+```
+
+### Endpoint Authorization Map
+
+| Router | Endpoint Pattern | Guard |
+|--------|-----------------|-------|
+| `/auth/*` | refresh, logout, discord, discord/callback | None (public) |
+| `/auth/me` | GET, PATCH | `get_current_user` |
+| `/admin/*` | All GET endpoints | `require_role("admin")` |
+| `/admin/tags` | POST, DELETE, PATCH (mutations) | `require_feature("manage_tags")` |
+| `/admin/users/*/roles/*` | POST, DELETE | `require_role("master")` |
+| `/admin/roles/*/features/*` | POST, DELETE | `require_role("master")` |
+| `/admin/corrections/*` | All except crop | `require_feature("manage_corrections")` |
+| `/admin/corrections/crop/*` | GET | None (public, serves static images) |
+| `/register-listing` | POST | `get_current_user` |
+| `/examine-item` | POST | None (public) |
+| `/listings`, `/tags/search`, `/game-items` | GET | None (public) |
+
+### Frontend Auth Infrastructure
+
+```
+Files:
+  shared/src/api/auth.js              — API functions (getMe, logout, updateProfile, getDiscordAuthUrl)
+  shared/src/api/client.js            — Axios with withCredentials: true, response interceptor (auto-refresh on 401)
+  shared/src/hooks/useAuth.js         — AuthContext + useAuth() hook
+  shared/src/components/AuthProvider   — Context provider (cookie-based, calls getMe on mount)
+  shared/src/components/RequireAuth    — Route guard (redirects to /login if not authenticated)
+  trade/src/pages/login.jsx           — Discord OAuth login page
+```
+
+**AuthProvider** wraps the app at root level (`main.jsx`). On mount, calls `GET /auth/me` (cookies sent automatically). Exposes `{user, loading, loadUser, logout, isAuthenticated}` via context. No localStorage — cookies are managed entirely by the browser.
+
+**RequireAuth** wraps protected routes (e.g. `/sell`). Redirects to `/login` with `state.from` if not authenticated.
+
+**Sidebar** shows discord username + logout button when authenticated, login link when not.
+
+**Admin dashboard** conditionally shows "Users" tab only when `user.roles` includes `'master'`.
+
+### Cross-Domain Cookie Sharing
+
+All apps are served behind nginx under subdomains of `.mabitra.com`. The backend sets `HttpOnly` cookies with `Domain=.mabitra.com`, making them accessible to all subdomains automatically. No `localStorage` — the browser manages cookie lifecycle.
+
+**Why not `localStorage`?** `localStorage` is scoped per origin (protocol + domain + port). The monorepo apps run on different subdomains, so `localStorage` is not shared between them. Cookies with a shared domain solve this.
+
+**Why same-origin proxy instead of cross-origin AJAX?** Chrome blocks `SameSite=None; Secure` cookies on self-signed certs (treats them as "not truly secure"). Rather than requiring real SSL certs for development, each frontend's nginx server block includes `location /api/` that proxies to the backend. This makes all API calls same-origin, so `SameSite=Lax` works naturally. The `dev.api.mabitra.com` subdomain still exists for direct API access (Swagger docs, mobile clients with Bearer header).
+
+---
+
+## Infrastructure & Domains
+
+### Domain Structure
+
+| Environment | Trade | Admin | API |
+|-------------|-------|-------|-----|
+| Development | `dev.trade.mabitra.com` | `dev.admin.mabitra.com` | `dev.api.mabitra.com` |
+| Staging | (TBD) | (TBD) | (TBD) |
+| Production | `trade.mabitra.com` | `admin.mabitra.com` | `api.mabitra.com` |
+
+All subdomains share cookies via `Domain=.mabitra.com`.
+
+### Reverse Proxy (nginx)
+
+nginx terminates HTTPS and routes traffic by subdomain. Each frontend server block includes an `/api/` location that proxies to the backend (same-origin API access):
+
+```
+Client (HTTPS)
+  │
+  └── nginx (port 443, SSL termination)
+        ├── dev.trade.mabitra.com
+        │     ├── /api/*  → backend FastAPI (:8000)   ← same-origin proxy
+        │     └── /*      → frontend trade app (:5173)
+        ├── dev.admin.mabitra.com
+        │     ├── /api/*  → backend FastAPI (:8000)   ← same-origin proxy
+        │     └── /*      → frontend admin app (:5174)
+        ├── dev.misc.mabitra.com
+        │     ├── /api/*  → backend FastAPI (:8000)   ← same-origin proxy
+        │     └── /*      → frontend misc app (:5175)
+        └── dev.api.mabitra.com    → backend FastAPI (:8000)  (direct, for Swagger/mobile)
+```
+
+Port 80 redirects all HTTP requests to HTTPS (`301`).
+
+### HTTPS (Development)
+
+Self-signed wildcard certificate for `*.mabitra.com`:
+- Certificate: `infra/nginx/certs/dev.crt`
+- Key: `infra/nginx/certs/dev.key`
+- Validity: 365 days, regenerate as needed
+
+Users must accept the self-signed cert in their browser for each subdomain on first visit.
+
+### Local DNS
+
+For development, `/etc/hosts` (both WSL and Windows) maps subdomains to `127.0.0.1`:
+
+```
+127.0.0.1  dev.trade.mabitra.com dev.admin.mabitra.com dev.misc.mabitra.com dev.api.mabitra.com
+```
+
+### Docker Environment
+
+Backend reads `.env.development` via symlink created at container startup:
+```
+/app/env/.env.development  (mounted from host, read-only)
+  ↑
+/app/backend/.env.development  (symlink, created by init script)
+```
+
+This avoids Docker mount conflicts when `./backend` volume already contains a symlink at that path.

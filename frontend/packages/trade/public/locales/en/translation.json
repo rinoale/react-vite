@@ -78,10 +78,38 @@
     "specialUpgradeS": "Blue Upgrade Stone",
     "specialUpgradeLevel": "Lv.{{level}}",
     "ergLabel": "Erg",
-    "ergGrade": "Grade {{grade}}"
+    "ergGrade": "Grade {{grade}}",
+    "addMoreTags": "Add more tags..."
+  },
+  "search": {
+    "title": "Item Search",
+    "placeholder": "Search items, tags..."
+  },
+  "auth": {
+    "loginTitle": "Login",
+    "loginSuccess": "Logged in successfully.",
+    "logout": "Logout",
+    "error": "Authentication failed.",
+    "discordError": {
+      "discord_failed": "Discord login failed. Please try again.",
+      "no_email": "Discord login failed. No email associated with your Discord account."
+    }
+  },
+  "onboarding": {
+    "welcome": "Welcome, {{name}}!",
+    "subtitle": "Set your game server and character name to get started.",
+    "server": "Server",
+    "selectServer": "Select server...",
+    "gameId": "Character Name",
+    "gameIdPlaceholder": "Enter your in-game name",
+    "submit": "Get Started",
+    "saving": "Saving...",
+    "complete": "Profile set up successfully!",
+    "error": "Failed to save profile. Please try again."
   },
   "sidebar": {
     "home": "matrade",
+    "search": "Search",
     "marketplace": "Marketplace",
     "sellItem": "Sell Item"
   },

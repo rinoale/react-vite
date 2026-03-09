@@ -162,7 +162,7 @@ def _parse_attrs(attrs_dict):
     return result
 
 
-def create_listing(payload, db):
+def create_listing(payload, db, *, user_id=None):
     """Resolve FKs and persist a Listing with enchant effects and reforge options.
 
     Returns the created Listing.
@@ -201,6 +201,7 @@ def create_listing(payload, db):
             pass
 
     listing = Listing(
+        user_id=user_id,
         name=payload.name,
         description=payload.description,
         price=price_int,
@@ -341,7 +342,7 @@ def create_listing_tags(listing, payload, db):
             attached.add(tag_name)
 
         # --- Auto tags (skip if already attached by user) ---
-        auto_tags = _build_auto_tags(payload)
+        auto_tags = _build_auto_tags(payload, db)
         for name in auto_tags:
             if name in attached:
                 continue
@@ -356,29 +357,49 @@ def create_listing_tags(listing, payload, db):
         logger.exception("register-listing  tag creation failed for listing id=%d", listing.id)
 
 
-def _build_auto_tags(payload):
+def _build_auto_tags(payload, db):
     """Build list of auto-generated tag names from structured listing data."""
     tags = []
+    _tag_enchant_names(tags, payload)
+    _tag_erg(tags, payload)
+    _tag_special_upgrade(tags, payload)
+    _tag_piercing_maxroll(tags, payload, db)
+    return tags
 
-    # Enchant names
+
+def _tag_enchant_names(tags, payload):
     for enc in payload.enchants:
         if enc.name:
             tags.append(enc.name)
 
-    # Erg (only level 50)
+
+def _tag_erg(tags, payload):
     if payload.erg_grade and payload.erg_level == 50:
         tags.append(f'{payload.erg_grade}르그50')
 
-    # Special upgrade
-    if payload.special_upgrade_type:
-        upgrade_name = _SPECIAL_UPGRADE_NAMES.get(payload.special_upgrade_type)
-        if upgrade_name:
-            tags.append(upgrade_name)
-        # Level tag only for 7, 8
-        if payload.special_upgrade_level in (7, 8):
-            tags.append(f'{payload.special_upgrade_level}강')
 
-    return tags
+def _tag_special_upgrade(tags, payload):
+    if not payload.special_upgrade_type:
+        return
+    upgrade_name = _SPECIAL_UPGRADE_NAMES.get(payload.special_upgrade_type)
+    if upgrade_name:
+        tags.append(upgrade_name)
+    if payload.special_upgrade_level in (7, 8):
+        tags.append(f'{payload.special_upgrade_level}강')
+
+
+def _tag_piercing_maxroll(tags, payload, db):
+    for enc in payload.enchants:
+        for eff in enc.effects:
+            if eff.option_name != '피어싱 레벨' or eff.option_level is None or not eff.enchant_effect_id:
+                continue
+            row = db.execute(
+                text("SELECT max_value FROM enchant_effects WHERE id = :id"),
+                {"id": eff.enchant_effect_id},
+            ).mappings().first()
+            if row and row['max_value'] is not None and float(eff.option_level) >= float(row['max_value']):
+                tags.append('풀피어싱')
+                return
 
 
 def _batch_resolve_tags(db, listing_ids):
@@ -426,7 +447,7 @@ def _batch_resolve_tags(db, listing_ids):
     return tags_by_listing
 
 
-def get_listings(db, game_item_id=None):
+def get_listings(db, game_item_id=None, limit=50, offset=0):
     """Fetch listing summaries, optionally filtered by game_item_id."""
     base_sql = """
         SELECT
@@ -455,28 +476,32 @@ def get_listings(db, game_item_id=None):
             l.durability,
             l.piercing_level,
             l.created_at,
-            COUNT(DISTINCT lro.id) AS reforge_count
+            u.server AS seller_server,
+            u.game_id AS seller_game_id
         FROM listings l
         LEFT JOIN game_items gi ON gi.id = l.game_item_id
         LEFT JOIN enchants pe ON pe.id = l.prefix_enchant_id
         LEFT JOIN enchants se ON se.id = l.suffix_enchant_id
-        LEFT JOIN listing_reforge_options lro ON lro.listing_id = l.id
+        LEFT JOIN users u ON u.id = l.user_id
     """
+    params = {"limit": limit, "offset": offset}
     if game_item_id is not None:
+        params["game_item_id"] = game_item_id
         rows = db.execute(
             text(base_sql + """
                 WHERE l.game_item_id = :game_item_id
-                GROUP BY l.id, gi.name, pe.name, se.name
                 ORDER BY l.id DESC
+                LIMIT :limit OFFSET :offset
             """),
-            {"game_item_id": game_item_id},
+            params,
         ).mappings()
     else:
         rows = db.execute(
             text(base_sql + """
-                GROUP BY l.id, gi.name, pe.name, se.name
                 ORDER BY l.id DESC
-            """)
+                LIMIT :limit OFFSET :offset
+            """),
+            params,
         ).mappings()
     listings = [dict(r) for r in rows]
 
@@ -504,41 +529,113 @@ def search_game_items(db, q, limit=20):
     return [dict(r) for r in rows]
 
 
-def search_listings(db, q):
-    """Cascading search: tag name → game_item name → listing name.
+def search_tags(db, q, limit=10):
+    """Search tag names by ILIKE. Returns [{name, weight}, ...]."""
+    if not q.strip():
+        return []
+    rows = db.execute(
+        text("""
+            SELECT name, weight
+            FROM tags
+            WHERE name ILIKE :q AND weight > 0
+            ORDER BY weight DESC, name
+            LIMIT :limit
+        """),
+        {"q": f"%{q.strip()}%", "limit": limit},
+    ).mappings()
+    return [dict(r) for r in rows]
 
-    Returns listings matching the first tier that produces results.
+
+def search_listings(db, q, tags=None, limit=50, offset=0):
+    """Search listings by tags (AND) and/or text query (cascading).
+
+    - tags: list of exact tag names — intersection (listings matching ALL)
+    - q: text query — cascading tier search (tag ILIKE → game_item → listing name)
+    When both are provided, intersect the results.
     """
-    q = q.strip()
-    if not q:
-        return get_listings(db)
+    tag_ids = set()
+    text_ids = set()
 
+    # --- Multi-tag filter (AND / intersection) ---
+    if tags:
+        tag_ids = _search_by_exact_tags(db, tags)
+        if not tag_ids:
+            return []
+
+    # --- Text query (cascading) ---
+    q = (q or '').strip()
+    if q:
+        text_ids = _search_by_text(db, q)
+        if not text_ids:
+            if not tags:
+                return []
+
+    # Combine
+    if tags and q:
+        result_ids = tag_ids & text_ids
+    elif tags:
+        result_ids = tag_ids
+    else:
+        result_ids = text_ids
+
+    if not result_ids:
+        return []
+
+    return _fetch_listings_by_ids(db, list(result_ids), limit=limit, offset=offset)
+
+
+_LISTING_RESOLVE_CTE = """
+    SELECT l.id, 'listing' AS ttype, l.id AS tid FROM listings l
+    UNION ALL
+    SELECT l.id, 'game_item', l.game_item_id FROM listings l WHERE l.game_item_id IS NOT NULL
+    UNION ALL
+    SELECT lro.listing_id, 'reforge_option', lro.reforge_option_id FROM listing_reforge_options lro WHERE lro.reforge_option_id IS NOT NULL
+    UNION ALL
+    SELECT l.id, 'enchant', l.prefix_enchant_id FROM listings l WHERE l.prefix_enchant_id IS NOT NULL
+    UNION ALL
+    SELECT l.id, 'enchant', l.suffix_enchant_id FROM listings l WHERE l.suffix_enchant_id IS NOT NULL
+"""
+
+
+def _search_by_exact_tags(db, tag_names):
+    """Find listing IDs matching ALL given tag names (intersection)."""
+    placeholders = ', '.join(f':t{i}' for i in range(len(tag_names)))
+    params = {f't{i}': name for i, name in enumerate(tag_names)}
+    params['cnt'] = len(tag_names)
+    rows = db.execute(
+        text(f"""
+            SELECT sub.id
+            FROM tags t
+            JOIN tag_targets tt ON tt.tag_id = t.id
+            JOIN ({_LISTING_RESOLVE_CTE}) AS sub(id, ttype, tid)
+                ON tt.target_type = sub.ttype AND tt.target_id = sub.tid
+            WHERE t.name IN ({placeholders})
+            GROUP BY sub.id
+            HAVING COUNT(DISTINCT t.name) = :cnt
+        """),
+        params,
+    ).scalars().all()
+    return set(rows)
+
+
+def _search_by_text(db, q):
+    """Cascading text search: tag ILIKE → game_item name → listing name."""
     like_q = f"%{q}%"
 
-    # Tier 1: tag name → resolve to listing IDs via polymorphic tags
+    # Tier 1: tag name ILIKE
     tag_listing_ids = db.execute(
-        text("""
+        text(f"""
             SELECT DISTINCT sub.id
             FROM tags t
             JOIN tag_targets tt ON tt.tag_id = t.id
-            JOIN (
-                SELECT l.id, 'listing' AS ttype, l.id AS tid FROM listings l
-                UNION ALL
-                SELECT l.id, 'game_item', l.game_item_id FROM listings l WHERE l.game_item_id IS NOT NULL
-                UNION ALL
-                SELECT lro.listing_id, 'reforge_option', lro.reforge_option_id FROM listing_reforge_options lro WHERE lro.reforge_option_id IS NOT NULL
-                UNION ALL
-                SELECT l.id, 'enchant', l.prefix_enchant_id FROM listings l WHERE l.prefix_enchant_id IS NOT NULL
-                UNION ALL
-                SELECT l.id, 'enchant', l.suffix_enchant_id FROM listings l WHERE l.suffix_enchant_id IS NOT NULL
-            ) AS sub(id, ttype, tid) ON tt.target_type = sub.ttype AND tt.target_id = sub.tid
+            JOIN ({_LISTING_RESOLVE_CTE}) AS sub(id, ttype, tid)
+                ON tt.target_type = sub.ttype AND tt.target_id = sub.tid
             WHERE t.name ILIKE :q
         """),
         {"q": like_q},
     ).scalars().all()
-
     if tag_listing_ids:
-        return _fetch_listings_by_ids(db, tag_listing_ids)
+        return set(tag_listing_ids)
 
     # Tier 2: game_item name
     gi_listing_ids = db.execute(
@@ -550,9 +647,8 @@ def search_listings(db, q):
         """),
         {"q": like_q},
     ).scalars().all()
-
     if gi_listing_ids:
-        return _fetch_listings_by_ids(db, gi_listing_ids)
+        return set(gi_listing_ids)
 
     # Tier 3: listing name
     name_listing_ids = db.execute(
@@ -561,19 +657,17 @@ def search_listings(db, q):
         """),
         {"q": like_q},
     ).scalars().all()
-
-    if name_listing_ids:
-        return _fetch_listings_by_ids(db, name_listing_ids)
-
-    return []
+    return set(name_listing_ids)
 
 
-def _fetch_listings_by_ids(db, listing_ids):
+def _fetch_listings_by_ids(db, listing_ids, limit=50, offset=0):
     """Fetch full listing summaries for a set of IDs."""
     if not listing_ids:
         return []
     placeholders = ', '.join(f':id{i}' for i in range(len(listing_ids)))
     params = {f'id{i}': lid for i, lid in enumerate(listing_ids)}
+    params['limit'] = limit
+    params['offset'] = offset
     rows = db.execute(
         text(f"""
             SELECT
@@ -588,15 +682,16 @@ def _fetch_listings_by_ids(db, listing_ids):
                 l.defense, l.protection, l.magic_defense, l.magic_protection,
                 l.durability, l.piercing_level,
                 l.created_at,
-                COUNT(DISTINCT lro.id) AS reforge_count
+                u.server AS seller_server,
+                u.game_id AS seller_game_id
             FROM listings l
             LEFT JOIN game_items gi ON gi.id = l.game_item_id
             LEFT JOIN enchants pe ON pe.id = l.prefix_enchant_id
             LEFT JOIN enchants se ON se.id = l.suffix_enchant_id
-            LEFT JOIN listing_reforge_options lro ON lro.listing_id = l.id
+            LEFT JOIN users u ON u.id = l.user_id
             WHERE l.id IN ({placeholders})
-            GROUP BY l.id, gi.name, pe.name, se.name
             ORDER BY l.id DESC
+            LIMIT :limit OFFSET :offset
         """),
         params,
     ).mappings()

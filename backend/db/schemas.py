@@ -1,7 +1,31 @@
+import re
 from typing import Dict, List, Optional, Union
 from pydantic import BaseModel, Field, field_validator
 from decimal import Decimal
 from datetime import datetime
+
+_HTML_TAG_RE = re.compile(r'<[^>]*>?')
+
+
+# --- Auth ---
+
+class UserUpdate(BaseModel):
+    server: Optional[str] = None
+    game_id: Optional[str] = None
+
+class UserOut(BaseModel):
+    id: int
+    email: str
+    discord_username: Optional[str] = None
+    server: Optional[str] = None
+    game_id: Optional[str] = None
+    status: int = 0
+    verified: bool = False
+    roles: List[str] = []
+    features: List[str] = []
+
+    class Config:
+        from_attributes = True
 
 class EnchantBase(BaseModel):
     slot: int
@@ -124,6 +148,10 @@ class TagDetail(BaseModel):
 class WeightUpdate(BaseModel):
     weight: int
 
+class BulkWeightUpdate(BaseModel):
+    ids: List[int]
+    weight: int
+
 class SummarySchema(BaseModel):
     enchants: int
     effects: int
@@ -179,7 +207,8 @@ class ListingOut(BaseModel):
     durability: Optional[int] = None
     piercing_level: Optional[int] = None
     created_at: Optional[datetime] = None
-    reforge_count: int = 0
+    seller_server: Optional[str] = None
+    seller_game_id: Optional[str] = None
     tags: List[TagBadge] = []
 
     class Config:
@@ -249,6 +278,16 @@ class RegisterListingRequest(BaseModel):
     enchants: List[RegisterEnchantSlot] = []
     reforge_options: List[RegisterReforgeOption] = []
     tags: List[str] = []
+
+    @field_validator('name', 'description', mode='before')
+    @classmethod
+    def strip_html(cls, v, info):
+        if not v:
+            return v
+        cleaned = _HTML_TAG_RE.sub('', v).strip()
+        if not cleaned:
+            return '' if info.field_name == 'name' else None
+        return cleaned
 
     @field_validator('tags')
     @classmethod
