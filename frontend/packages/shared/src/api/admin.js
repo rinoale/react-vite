@@ -62,6 +62,15 @@ export const updateTagTargetWeight = (tagTargetId, weight) =>
 export const bulkUpdateTagTargetWeights = (ids, weight) =>
   client.patch('/admin/tags/targets/bulk', { ids, weight });
 
+export const getJobs = () =>
+  client.get('/admin/jobs');
+
+export const triggerJob = (jobName) =>
+  client.post(`/admin/jobs/${jobName}/run`);
+
+export const getJobHistory = ({ jobName, limit, offset } = {}) =>
+  client.get('/admin/jobs/history', { params: { job_name: jobName || '', limit, offset } });
+
 export const getUsers = ({ limit, offset } = {}) =>
   client.get('/admin/users', { params: { limit, offset } });
 

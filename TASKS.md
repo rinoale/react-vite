@@ -344,6 +344,25 @@ Both font-specific models (mabinogi_classic, nanum_gothic_bold) training with ne
 
 ---
 
+## Background Jobs
+
+Jobs are registered in `backend/jobs/__init__.py` and manageable from the admin page (Jobs tab). Uses FastAPI `BackgroundTasks` + `job_runs` DB table for execution history.
+
+### Implemented
+- [x] **cleanup_zero_weight_tags** — Delete user-created tags with weight 0 (not searchable, varied text)
+
+### Planned
+- [ ] **run_v3_pipeline** — Offload V3 OCR pipeline to background worker (heavy compute, frees web server for API serving)
+- [ ] **gather_discord_images** — Collect item screenshots uploaded to connected Discord channels (better UX for users)
+- [ ] **create_recommendation_data** — Generate recommendation model data (TF-IDF vectors, similarity matrices)
+- [ ] **get_horn_bugle** — Fetch in-game chat data every 2 minutes (scheduled, needs APScheduler or similar)
+
+### Tech Stack
+- **Current:** FastAPI `BackgroundTasks` + `job_runs` table (no new dependencies)
+- **Future (when scheduling needed):** Add APScheduler with PostgreSQL job store for periodic jobs (horn_bugle every 2 min, etc.)
+
+---
+
 ## Infrastructure
 
 ### Replace `sys.path` hacks with `PROJECT_ROOT` env var

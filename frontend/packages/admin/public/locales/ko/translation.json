@@ -21,6 +21,7 @@
     "listings": "Listings",
     "corrections": "Corrections",
     "tags": "Tags",
+    "jobs": "Jobs",
     "users": "사용자"
   },
   "corrections": {
@@ -119,6 +120,21 @@
     "saving": "저장 중...",
     "complete": "프로필 설정 완료!",
     "error": "프로필 저장에 실패했습니다. 다시 시도해주세요."
+  },
+  "jobs": {
+    "title": "BACKGROUND JOBS",
+    "run": "실행",
+    "refresh": "새로고침",
+    "noJobs": "등록된 작업이 없습니다.",
+    "history": "실행 이력",
+    "noHistory": "실행 이력이 없습니다.",
+    "prev": "이전",
+    "next": "다음",
+    "colStatus": "상태",
+    "colName": "작업명",
+    "colStarted": "시작",
+    "colFinished": "완료",
+    "colResult": "결과"
   },
   "enchants": {
     "title": "ENCHANT ENTRIES",

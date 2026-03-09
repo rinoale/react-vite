@@ -8,6 +8,7 @@ import TagBadge from '@mabi/shared/components/TagBadge';
 import { getTagColor } from '@mabi/shared/lib/tagColors';
 import { pillActive, pillInactive, btnSmEmerald, weightInputSm } from '@mabi/shared/styles';
 import { useAuth } from '@mabi/shared/hooks/useAuth';
+import JobsPanel from '../components/JobsPanel';
 import UsersPanel from '../components/UsersPanel';
 
 const toRankLabel = (rank) => {
@@ -1257,7 +1258,7 @@ const ListingsPanel = () => {
   );
 };
 
-const BASE_TABS = ['enchants', 'listings', 'corrections', 'tags'];
+const BASE_TABS = ['enchants', 'listings', 'corrections', 'tags', 'jobs'];
 
 const Admin = () => {
   const { t } = useTranslation();
@@ -1281,6 +1282,7 @@ const Admin = () => {
       { key: 'listings', label: t('tabs.listings') },
       { key: 'corrections', label: t('tabs.corrections') },
       { key: 'tags', label: t('tabs.tags') },
+      { key: 'jobs', label: t('tabs.jobs') },
     ];
     if (isMaster) {
       tabs.push({ key: 'users', label: t('tabs.users') });
@@ -1412,6 +1414,8 @@ const Admin = () => {
           <ListingsPanel />
         ) : activeTab === 'tags' ? (
           <TagsPanel />
+        ) : activeTab === 'jobs' ? (
+          <JobsPanel />
         ) : activeTab === 'users' && isMaster ? (
           <UsersPanel />
         ) : isLoading && !summary ? (

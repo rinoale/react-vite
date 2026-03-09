@@ -64,6 +64,40 @@ export const btnSmEmerald = 'text-[10px] font-bold uppercase px-1.5 py-0.5 round
 
 export const weightInputSm = 'text-[10px] font-bold bg-gray-800 border border-gray-600 rounded px-1.5 py-0.5 w-12 outline-none focus:border-emerald-500';
 
+// --- Panel sections ---
+
+export const panelOuter = 'bg-gray-800 rounded-2xl border border-gray-700 shadow-2xl overflow-hidden';
+export const panelHeader = 'bg-gray-700/50 px-6 py-4 flex justify-between items-center';
+export const panelTitle = 'text-xl font-bold text-white';
+export const panelEmpty = 'px-6 py-8 text-center text-xs text-gray-500 uppercase';
+
+// --- Common loading / empty ---
+
+export const loadingCenter = 'flex items-center justify-center py-20';
+export const loadingIcon = 'w-8 h-8 text-cyan-500 animate-spin';
+export const dividerY = 'divide-y divide-gray-700';
+export const metaRow = 'flex items-center gap-2 mt-1';
+export const hoverRow = 'hover:bg-gray-700/30 transition-colors';
+
+// --- Job styles ---
+
+export const jobRow = 'px-6 py-4 flex items-center justify-between hover:bg-gray-700/30 transition-colors';
+export const jobName = 'text-sm font-bold text-white';
+export const jobDesc = 'text-xs text-gray-400 mt-0.5';
+export const jobMeta = 'text-[10px] text-gray-500';
+export const jobMetaResult = 'text-[10px] text-gray-400';
+export const jobMetaError = 'text-[10px] text-red-400 truncate max-w-xs';
+export const iconSmSpin = 'w-3.5 h-3.5 animate-spin';
+export const iconSm = 'w-3.5 h-3.5';
+export const btnJobRun = 'flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold uppercase rounded bg-cyan-700 hover:bg-cyan-600 text-white disabled:opacity-50 transition-colors';
+export const btnPagGray = 'text-xs bg-gray-600 hover:bg-gray-500 px-3 py-1 rounded';
+export const thCell = 'px-6 py-2 text-left';
+export const tdCell = 'px-6 py-2';
+export const tdCellMono = 'px-6 py-2 text-xs font-mono text-gray-300';
+export const tdCellSub = 'px-6 py-2 text-xs text-gray-400';
+export const tdCellTrunc = 'px-6 py-2 text-xs text-gray-400 max-w-xs truncate';
+export const thRow = 'text-[10px] font-bold uppercase text-gray-500 border-b border-gray-700';
+
 // --- Layout ---
 
 export const groupRow = 'group flex justify-between items-center';

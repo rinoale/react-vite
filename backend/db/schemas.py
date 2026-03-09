@@ -152,6 +152,31 @@ class BulkWeightUpdate(BaseModel):
     ids: List[int]
     weight: int
 
+# --- Jobs ---
+
+class JobOut(BaseModel):
+    name: str
+    description: str
+    last_run: Optional['JobRunOut'] = None
+
+class JobRunOut(BaseModel):
+    id: int
+    job_name: str
+    status: str
+    result_summary: Optional[str] = None
+    error: Optional[str] = None
+    started_at: datetime
+    finished_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+class PaginatedJobRunResponse(BaseModel):
+    limit: int
+    offset: int
+    rows: List[JobRunOut]
+
+
 class SummarySchema(BaseModel):
     enchants: int
     effects: int
