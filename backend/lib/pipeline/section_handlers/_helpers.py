@@ -122,7 +122,7 @@ def skip_ocr_prefix(*prefix_types):
     """Decorator: mark matching-prefix groups to skip OCR.
 
     Lines stay in grouped_lines (unlike filter_prefix which removes them),
-    but ocr_grouped_lines() produces empty-text results for marked groups.
+    but ocr_grouped_lines() skips marked groups entirely.
     Must be applied after @detect_prefix.
     """
     skip = set(prefix_types)
@@ -132,6 +132,27 @@ def skip_ocr_prefix(*prefix_types):
         def wrapper(self, seg, grouped_lines, *args, **kw):
             for group in grouped_lines:
                 if (group[0].get('_prefix_info') or {}).get('type') in skip:
+                    for line_info in group:
+                        line_info['_skip_ocr'] = True
+            return fn(self, seg, grouped_lines, *args, **kw)
+        return wrapper
+    return decorator
+
+
+def ocr_only_prefix(*prefix_types):
+    """Decorator: OCR only groups with matching prefix; skip all others.
+
+    Inverse of skip_ocr_prefix — marks _skip_ocr on groups whose prefix
+    type is NOT in the allowed set. Must be applied after @detect_prefix.
+    """
+    allowed = set(prefix_types)
+
+    def decorator(fn):
+        @wraps(fn)
+        def wrapper(self, seg, grouped_lines, *args, **kw):
+            for group in grouped_lines:
+                prefix_type = (group[0].get('_prefix_info') or {}).get('type')
+                if prefix_type not in allowed:
                     for line_info in group:
                         line_info['_skip_ocr'] = True
             return fn(self, seg, grouped_lines, *args, **kw)

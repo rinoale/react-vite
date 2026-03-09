@@ -9,6 +9,14 @@ from ._helpers import (
 )
 
 
+def _has_any_prefix(grouped_lines):
+    """Check if any group has a detected prefix (bullet or subbullet)."""
+    for group in grouped_lines:
+        if (group[0].get('_prefix_info') or {}).get('type') is not None:
+            return True
+    return False
+
+
 class ReforgeHandler(BaseHandler):
     """Standard OCR, FM cutoff=0, continuation merge, build_reforge_structured."""
 
@@ -20,6 +28,12 @@ class ReforgeHandler(BaseHandler):
         parser = pipeline['parser']
         corrector = pipeline['corrector']
         section = seg['section']
+
+        # Guard: no prefixed lines → all grey descriptions, skip OCR
+        if not _has_any_prefix(grouped_lines):
+            section_data = {'lines': []}
+            prepend_header(seg, section, section_data)
+            return section_data
 
         ocr_results = ocr_lines(seg, grouped_lines, font_reader, section,
                                 attach_crops=attach_crops)
