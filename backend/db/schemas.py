@@ -250,6 +250,7 @@ class ListingOptionOut(BaseModel):
 
 class ListingOut(BaseModel):
     id: int
+    status: int = 0
     name: str
     description: Optional[str] = None
     price: Optional[int] = None
@@ -396,6 +397,7 @@ class ListingEnchantOut(BaseModel):
 
 class ListingDetailOut(BaseModel):
     id: int
+    status: int = 0
     name: str
     description: Optional[str] = None
     price: Optional[int] = None
@@ -421,3 +423,6 @@ class ListingDetailOut(BaseModel):
     suffix_enchant: Optional[ListingEnchantOut] = None
     listing_options: List[ListingOptionOut] = []
     tags: List[TagBadge] = []
+    seller_server: Optional[str] = None
+    seller_game_id: Optional[str] = None
+    seller_discord_id: Optional[str] = None

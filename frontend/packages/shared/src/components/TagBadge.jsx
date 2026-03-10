@@ -16,10 +16,10 @@ const SIZE = {
  * @param {function} [onRemove] - if provided, renders an X button
  * @param {string}   [className] - extra classes appended
  */
-const TagBadge = ({ name, weight = 0, size = 'xs', onRemove, className = '' }) => {
+const TagBadge = ({ name, weight = 0, size = 'xs', onRemove, onClick, className = '' }) => {
   const c = getTagColor(weight);
   return (
-    <span className={`inline-flex items-center gap-1 border rounded-full font-semibold whitespace-nowrap ${SIZE[size] || SIZE.xs} ${c.bg} ${c.text} ${c.border} ${className}`}>
+    <span onClick={onClick} className={`inline-flex items-center gap-1 border rounded-full font-semibold whitespace-nowrap ${onClick ? 'cursor-pointer' : 'cursor-default'} ${SIZE[size] || SIZE.xs} ${c.bg} ${c.text} ${c.border} ${className}`}>
       {name}
       {onRemove && (
         <button onClick={onRemove} className="hover:text-white">

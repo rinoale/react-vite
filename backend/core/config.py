@@ -40,6 +40,9 @@ class Settings(BaseSettings):
     mabinogi_open_api_url: str = ""
     mabinogi_open_api_key: str = ""
 
+    # --- SQL ---
+    sql_echo: bool = False
+
     # --- Redis ---
     redis_host: str = "localhost"
     redis_port: int = 6379

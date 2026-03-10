@@ -109,6 +109,7 @@ def get_listings(db: Session, limit: int = 100, offset: int = 0):
             """
             SELECT
                 l.id,
+                l.status,
                 l.name,
                 l.description,
                 l.price,
@@ -176,6 +177,11 @@ def get_listing_detail(db: Session, listing_id: int):
     if not listing:
         return None
 
+    # Resolve seller info
+    seller = None
+    if listing.user_id:
+        seller = db.query(models.User).filter(models.User.id == listing.user_id).first()
+
     game_item_name = None
     if listing.game_item_id:
         gi = db.query(models.GameItem).filter(models.GameItem.id == listing.game_item_id).first()
@@ -205,6 +211,7 @@ def get_listing_detail(db: Session, listing_id: int):
 
     return {
         "id": listing.id,
+        "status": listing.status,
         "name": listing.name,
         "description": listing.description,
         "price": listing.price,
@@ -230,6 +237,9 @@ def get_listing_detail(db: Session, listing_id: int):
         "suffix_enchant": suffix_enchant,
         "listing_options": [dict(r) for r in option_rows],
         "tags": resolve_listing_tags(db, listing_id),
+        "seller_server": seller.server if seller else None,
+        "seller_game_id": seller.game_id if seller else None,
+        "seller_discord_id": seller.discord_id if seller else None,
     }
 
 def get_game_items(db: Session, q: Optional[str] = None, limit: int = 20, offset: int = 0):

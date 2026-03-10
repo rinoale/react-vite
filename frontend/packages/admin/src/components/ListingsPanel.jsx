@@ -4,13 +4,7 @@ import { Loader2, ChevronDown, ChevronRight, Package, RefreshCw } from 'lucide-r
 import { getListings, getListingDetail } from '@mabi/shared/api/admin';
 import TagBadge from '@mabi/shared/components/TagBadge';
 import LevelBadge from '@mabi/shared/components/LevelBadge';
-
-const ATTR_LABELS = {
-  damage: '공격력', magic_damage: '마법공격력', additional_damage: '추가대미지',
-  balance: '밸런스', defense: '방어', protection: '보호',
-  magic_defense: '마법방어', magic_protection: '마법보호',
-  durability: '내구력', piercing_level: '관통 레벨',
-};
+import { ATTR_LABELS } from '@mabi/shared/lib/listingUtils';
 
 const toRankLabel = (rank) => {
   const n = Number(rank);

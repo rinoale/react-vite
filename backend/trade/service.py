@@ -202,6 +202,7 @@ def create_listing(payload, db, *, user_id=None):
 
     listing = Listing(
         user_id=user_id,
+        status=Listing.LISTED,
         name=payload.name,
         description=payload.description,
         price=price_int,
@@ -439,6 +440,7 @@ def get_listings(db, game_item_id=None, limit=50, offset=0):
     base_sql = """
         SELECT
             l.id,
+            l.status,
             l.name,
             l.description,
             l.price,
@@ -470,13 +472,14 @@ def get_listings(db, game_item_id=None, limit=50, offset=0):
         LEFT JOIN enchants pe ON pe.id = l.prefix_enchant_id
         LEFT JOIN enchants se ON se.id = l.suffix_enchant_id
         LEFT JOIN users u ON u.id = l.user_id
+        WHERE l.status = 1
     """
     params = {"limit": limit, "offset": offset}
     if game_item_id is not None:
         params["game_item_id"] = game_item_id
         rows = db.execute(
             text(base_sql + """
-                WHERE l.game_item_id = :game_item_id
+                AND l.game_item_id = :game_item_id
                 ORDER BY l.id DESC
                 LIMIT :limit OFFSET :offset
             """),
@@ -574,15 +577,16 @@ def search_listings(db, q, tags=None, limit=50, offset=0):
 
 
 _LISTING_RESOLVE_CTE = """
-    SELECT l.id, 'listing' AS ttype, l.id AS tid FROM listings l
+    SELECT l.id, 'listing' AS ttype, l.id AS tid FROM listings l WHERE l.status = 1
     UNION ALL
-    SELECT l.id, 'game_item', l.game_item_id FROM listings l WHERE l.game_item_id IS NOT NULL
+    SELECT l.id, 'game_item', l.game_item_id FROM listings l WHERE l.status = 1 AND l.game_item_id IS NOT NULL
     UNION ALL
-    SELECT lo.listing_id, lo.option_type, lo.option_id FROM listing_options lo WHERE lo.option_id IS NOT NULL
+    SELECT lo.listing_id, lo.option_type, lo.option_id FROM listing_options lo
+        JOIN listings l ON l.id = lo.listing_id WHERE l.status = 1 AND lo.option_id IS NOT NULL
     UNION ALL
-    SELECT l.id, 'enchant', l.prefix_enchant_id FROM listings l WHERE l.prefix_enchant_id IS NOT NULL
+    SELECT l.id, 'enchant', l.prefix_enchant_id FROM listings l WHERE l.status = 1 AND l.prefix_enchant_id IS NOT NULL
     UNION ALL
-    SELECT l.id, 'enchant', l.suffix_enchant_id FROM listings l WHERE l.suffix_enchant_id IS NOT NULL
+    SELECT l.id, 'enchant', l.suffix_enchant_id FROM listings l WHERE l.status = 1 AND l.suffix_enchant_id IS NOT NULL
 """
 
 
@@ -632,7 +636,7 @@ def _search_by_text(db, q):
             SELECT l.id
             FROM listings l
             JOIN game_items gi ON gi.id = l.game_item_id
-            WHERE gi.name ILIKE :q
+            WHERE l.status = 1 AND gi.name ILIKE :q
         """),
         {"q": like_q},
     ).scalars().all()
@@ -642,7 +646,7 @@ def _search_by_text(db, q):
     # Tier 3: listing name
     name_listing_ids = db.execute(
         text("""
-            SELECT l.id FROM listings l WHERE l.name ILIKE :q
+            SELECT l.id FROM listings l WHERE l.status = 1 AND l.name ILIKE :q
         """),
         {"q": like_q},
     ).scalars().all()
@@ -660,7 +664,7 @@ def _fetch_listings_by_ids(db, listing_ids, limit=50, offset=0):
     rows = db.execute(
         text(f"""
             SELECT
-                l.id, l.name, l.description, l.price, l.game_item_id,
+                l.id, l.status, l.name, l.description, l.price, l.game_item_id,
                 gi.name AS game_item_name,
                 pe.name AS prefix_enchant_name,
                 se.name AS suffix_enchant_name,

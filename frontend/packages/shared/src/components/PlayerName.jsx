@@ -1,3 +1,6 @@
+import { useState, useRef } from 'react';
+import { Clipboard, Check } from 'lucide-react';
+
 const SERVER_COLORS = {
   '류트': 'text-blue-400',
   '만돌린': 'text-orange-400',
@@ -13,7 +16,19 @@ const gameIdColor = (name) => {
 };
 
 const PlayerName = ({ server, gameId, className = 'text-xs' }) => {
+  const [copied, setCopied] = useState(false);
+  const timerRef = useRef(null);
+
   if (!server && !gameId) return null;
+
+  const handleCopy = (e) => {
+    e.stopPropagation();
+    navigator.clipboard?.writeText(gameId);
+    setCopied(true);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => setCopied(false), 1500);
+  };
+
   return (
     <span className={className}>
       {server && (
@@ -21,7 +36,17 @@ const PlayerName = ({ server, gameId, className = 'text-xs' }) => {
       )}
       {server && gameId && ' / '}
       {gameId && (
-        <span style={{ color: gameIdColor(gameId) }}>{gameId}</span>
+        <span
+          style={{ color: gameIdColor(gameId) }}
+          className="cursor-pointer hover:underline inline-flex items-center gap-1"
+          onClick={handleCopy}
+        >
+          {gameId}
+          {copied
+            ? <Check className="w-3 h-3 text-green-400" />
+            : <Clipboard className="w-3 h-3 opacity-40" />
+          }
+        </span>
       )}
     </span>
   );

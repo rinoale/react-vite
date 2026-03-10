@@ -170,10 +170,19 @@ class GameItem(Base):
 
 
 class Listing(Base):
+    """
+    status: 0=draft, 1=listed, 2=sold, 3=deleted
+    """
     __tablename__ = "listings"
+
+    DRAFT = 0
+    LISTED = 1
+    SOLD = 2
+    DELETED = 3
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    status = Column(SmallInteger, nullable=False, server_default='0', index=True)
     name = Column(Text, nullable=False, index=True)
     description = Column(Text, nullable=True)
     price = Column(Integer, nullable=True)
