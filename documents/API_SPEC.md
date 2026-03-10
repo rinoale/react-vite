@@ -10,14 +10,31 @@ This document serves as the contract between the Backend AI Agent and the Fronte
 
 ## 1. Item Examination (V3 Pipeline)
 
-**Endpoint:** `/examine-item`
-**Method:** `POST`
+### Upload
+
+**Endpoint:** `POST /examine-item`
 **Content-Type:** `multipart/form-data`
 
-### Request Parameters
 | Parameter | Type | Required | Description |
 | :--- | :--- | :--- | :--- |
 | `file` | `File` (Binary) | Yes | Original color screenshot of the item tooltip. |
+
+**Response:** `{ "job_id": "uuid" }`
+
+The backend uploads the image to file storage and enqueues a `run_v3_pipeline` job on the `gpu` queue. The web server does NOT run the pipeline — a worker process handles it.
+
+### SSE Stream
+
+**Endpoint:** `GET /examine-item/{job_id}/stream`
+**Content-Type:** `text/event-stream`
+
+Subscribes to Redis pub/sub for pipeline progress and result. Events:
+
+| Event | Data | Description |
+| :--- | :--- | :--- |
+| `progress` | `{ "step": "..." }` | Pipeline progress update |
+| `result` | `ExamineItemResponse` | Final OCR result (see below) |
+| `error` | `{ "message": "..." }` | Pipeline failure |
 
 ### Response Structure (JSON)
 The response follows a "Section-First" architecture. Internal pipeline fields (`bounds`, `ocr_model`, `fm_applied`, `section`, `sub_lines`, etc.) are stripped — the frontend receives only the fields it needs.
@@ -499,3 +516,41 @@ Approves a pending correction.
 - **Errors:**
   - `404` — Correction not found.
   - `400` — Correction is not in `pending` status.
+
+---
+
+## 4. Usage Monitoring
+
+### `GET /admin/usage/r2`
+Returns current-month Cloudflare R2 storage and operation counts vs free tier limits.
+
+**Response:**
+```json
+{
+  "period": "2026-03",
+  "storage": {
+    "used_bytes": 319024,
+    "used_gb": 0.0,
+    "limit_gb": 10,
+    "pct": 0.0,
+    "objects": 2
+  },
+  "class_a_ops": { "used": 201, "limit": 1000000, "pct": 0.0 },
+  "class_b_ops": { "used": 40, "limit": 10000000, "pct": 0.0 }
+}
+```
+
+### `GET /admin/usage/oci`
+Returns current-month OCI cost breakdown by service.
+
+**Response:**
+```json
+{
+  "period": "2026-03",
+  "currency": "SGD",
+  "total": 0.2847,
+  "services": [
+    { "service": "Block Storage", "cost": 0.2847, "currency": "SGD" }
+  ]
+}
+```

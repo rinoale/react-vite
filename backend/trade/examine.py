@@ -42,8 +42,9 @@ async def examine_item(file: UploadFile = File(...)):
         db.commit()
         db.refresh(run)
 
+        from jobs import get_queue
         broker = get_broker()
-        broker.enqueue("default", {
+        broker.enqueue(get_queue("run_v3_pipeline"), {
             "job_id": job_id,
             "job_name": "run_v3_pipeline",
             "run_id": run.id,

@@ -8,7 +8,7 @@ from auth.dependencies import require_role
 from db.connector import get_db
 from db.models import JobRun
 from db.schemas import JobOut, JobRunOut, PaginatedJobRunResponse
-from jobs import REGISTRY
+from jobs import REGISTRY, get_queue
 from jobs.connection import get_broker
 
 router = APIRouter(
@@ -53,7 +53,7 @@ def trigger_job(
     db.refresh(run)
 
     broker = get_broker()
-    broker.enqueue("default", {
+    broker.enqueue(get_queue(job_name), {
         "job_id": str(uuid4()),
         "job_name": job_name,
         "run_id": run.id,

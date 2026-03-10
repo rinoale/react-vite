@@ -25,8 +25,9 @@ cd frontend && npm run test:watch  # Watch mode
 
 ### Backend (Python FastAPI)
 ```bash
-pip install -r backend/requirements.txt
-cd backend && uvicorn main:app --reload --port 8000   # API at http://localhost:8000
+pip install -r backend/requirements.txt              # Web server only (no OCR/ML)
+pip install -r backend/requirements-worker.txt       # Worker (includes OCR/ML packages)
+cd backend && uvicorn main:app --reload --port 8000  # API at http://localhost:8000
 python -m pytest tests/ -v     # Run pytest (262 tests, from project root)
 ```
 
@@ -121,6 +122,12 @@ backend/lib/
 |   +-- easyocr_imgw.py          # EasyOCR inference patch (double-resize fix, fixed imgW)
 +-- legacy/
 |   +-- dual_reader.py           # DualReader (legacy, superseded by font-matched routing)
++-- storage/
+|   +-- __init__.py              # re-export FileStorage, get_storage
+|   +-- base.py                  # FileStorage ABC
+|   +-- local.py                 # LocalFileStorage (disk, dev)
+|   +-- r2.py                    # R2FileStorage (Cloudflare R2 via boto3)
+|   +-- connection.py            # get_storage() factory (keyed instance cache)
 +-- utils/
     +-- log.py                   # Logging + @timed decorator
 ```
@@ -295,11 +302,19 @@ cd frontend && npm test                   # Frontend (29 tests) — vitest
 
 ## Frontend
 
-### Routes
+### Routes (Trade)
 - `/` -> `Marketplace` -- item grid with recommendations
 - `/sell` -> `Sell` -- image upload + OCR item registration
+- `/listing/:id` -> `ListingDetail` -- single listing view
+- `/my-listings` -> `MyListings` -- user's own listings with status management
+- `/login` -> `Login` -- Discord OAuth login
 - `/navigate` -> `Navigate` -- Leaflet map (experimental)
 - `/image_process` -> `ImageProcess` -- OCR training data preparation tool
+
+### Routes (Admin)
+- `/source_of_truth/*` -- Enchants, Effects, Reforge/Echostone/Murias options, Game Items
+- `/trade/*` -- Listings, Corrections, Tags
+- `/system/*` -- Jobs, Users, Roles, Feature Flags, Usage (R2 + OCI)
 
 ### Monorepo Structure
 ```

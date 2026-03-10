@@ -2,11 +2,14 @@
 Standalone job worker. Runs separately from the web server.
 
 Usage:
-    python worker.py                         # local dev
+    python worker.py                         # all queues (default + gpu)
+    python worker.py --queues gpu            # GPU jobs only (local PC)
+    python worker.py --queues default        # lightweight jobs only
     APP_ENV=staging python worker.py         # staging
-    REDIS_HOST=64.110.116.116 python worker.py  # remote worker (e.g., local PC with GPU)
+    REDIS_HOST=64.110.116.116 python worker.py  # remote worker
 """
 
+import argparse
 import json
 import logging
 import signal
@@ -19,7 +22,7 @@ from uuid import uuid4
 from core.config import get_settings
 from db.connector import SessionLocal
 from db.models import JobRun
-from jobs import REGISTRY
+from jobs import REGISTRY, get_queue
 from jobs.broker import JobMessage
 from jobs.connection import get_broker
 
@@ -33,7 +36,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger("worker")
 
-QUEUE = "default"
 WORKER_ID = socket.gethostname()
 
 # ---------------------------------------------------------------------------
@@ -55,7 +57,7 @@ signal.signal(signal.SIGTERM, _handle_signal)
 # ---------------------------------------------------------------------------
 
 
-def execute_job(message: JobMessage) -> None:
+def execute_job(queue: str, message: JobMessage) -> None:
     broker = get_broker()
     job_name = message["job_name"]
     run_id = message["run_id"]
@@ -63,7 +65,7 @@ def execute_job(message: JobMessage) -> None:
     entry = REGISTRY.get(job_name)
     if not entry:
         logger.error("Unknown job: %s (run_id=%d)", job_name, run_id)
-        broker.ack(QUEUE, message)
+        broker.ack(queue, message)
         return
 
     db = SessionLocal()
@@ -71,7 +73,7 @@ def execute_job(message: JobMessage) -> None:
         run = db.get(JobRun, run_id)
         if not run:
             logger.error("JobRun not found: %d", run_id)
-            broker.ack(QUEUE, message)
+            broker.ack(queue, message)
             return
 
         payload = message.get("payload") or {}
@@ -79,14 +81,14 @@ def execute_job(message: JobMessage) -> None:
         run.worker_id = WORKER_ID
         run.payload = json.dumps(payload, ensure_ascii=False) if payload else None
         db.commit()
-        logger.info("Running %s (run_id=%d) payload=%s", job_name, run_id, payload)
+        logger.info("Running %s (run_id=%d) queue=%s payload=%s", job_name, run_id, queue, payload)
         result = entry["fn"](db, payload=payload)
 
         run.status = "completed"
         run.result_summary = str(result) if result else None
         run.finished_at = datetime.now(timezone.utc)
         db.commit()
-        broker.ack(QUEUE, message)
+        broker.ack(queue, message)
         logger.info("Completed %s (run_id=%d): %s", job_name, run_id, result)
     except Exception as exc:
         db.rollback()
@@ -96,7 +98,7 @@ def execute_job(message: JobMessage) -> None:
             run.error = str(exc)[:500]
             run.finished_at = datetime.now(timezone.utc)
             db.commit()
-        broker.fail(QUEUE, message, str(exc))
+        broker.fail(queue, message, str(exc))
         logger.exception("Failed %s (run_id=%d)", job_name, run_id)
     finally:
         db.close()
@@ -107,7 +109,7 @@ def execute_job(message: JobMessage) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _scheduler_loop() -> None:
+def _scheduler_loop(queues: set[str]) -> None:
     broker = get_broker()
     last_run: dict[str, float] = {}
 
@@ -116,6 +118,9 @@ def _scheduler_loop() -> None:
         for job_name, meta in REGISTRY.items():
             interval = meta.get("schedule_seconds")
             if not interval:
+                continue
+            queue = meta.get("queue", "default")
+            if queue not in queues:
                 continue
             if now - last_run.get(job_name, 0) < interval:
                 continue
@@ -127,7 +132,7 @@ def _scheduler_loop() -> None:
                 db.commit()
                 db.refresh(run)
 
-                broker.enqueue(QUEUE, {
+                broker.enqueue(queue, {
                     "job_id": str(uuid4()),
                     "job_name": job_name,
                     "run_id": run.id,
@@ -135,7 +140,7 @@ def _scheduler_loop() -> None:
                     "payload": {},
                 })
                 last_run[job_name] = now
-                logger.info("Scheduled %s (run_id=%d)", job_name, run.id)
+                logger.info("Scheduled %s (run_id=%d) queue=%s", job_name, run.id, queue)
             except Exception:
                 db.rollback()
                 logger.exception("Failed to schedule %s", job_name)
@@ -151,25 +156,53 @@ def _scheduler_loop() -> None:
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description="Job worker")
+    parser.add_argument(
+        "--queues",
+        nargs="+",
+        default=None,
+        help="Queue names to listen on (default: all queues from registry)",
+    )
+    args = parser.parse_args()
+
+    # Determine queues: CLI arg or all unique queues from registry
+    if args.queues:
+        queues = set(args.queues)
+    else:
+        queues = {meta.get("queue", "default") for meta in REGISTRY.values()}
+
     settings = get_settings()
     logger.info(
-        "Worker %s starting (redis=%s:%d, db=%s:%s/%s)",
+        "Worker %s starting (queues=%s, redis=%s:%d, db=%s:%s/%s)",
         WORKER_ID,
+        sorted(queues),
         settings.redis_host, settings.redis_port,
         settings.db_host, settings.db_port, settings.db_name,
     )
 
+    # Ensure DB schema is up to date (idempotent — no-op if already current)
+    from alembic.config import Config as AlembicConfig
+    from alembic import command as alembic_command
+    alembic_cfg = AlembicConfig("alembic.ini")
+    alembic_command.upgrade(alembic_cfg, "head")
+    logger.info("DB schema up to date")
+
     broker = get_broker()
 
-    scheduler_thread = threading.Thread(target=_scheduler_loop, daemon=True)
+    scheduler_thread = threading.Thread(target=_scheduler_loop, args=(queues,), daemon=True)
     scheduler_thread.start()
     logger.info("Scheduler thread started")
 
+    queue_list = sorted(queues)
     while not _shutdown.is_set():
-        message = broker.dequeue(QUEUE, timeout=5)
-        if message is None:
+        for queue in queue_list:
+            message = broker.dequeue(queue, timeout=1)
+            if message is not None:
+                execute_job(queue, message)
+                break
+        else:
+            # No message from any queue in this round
             continue
-        execute_job(message)
 
     logger.info("Worker stopped")
 

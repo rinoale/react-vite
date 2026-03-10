@@ -57,6 +57,7 @@ if $BUILD_BASE; then
   STAGING=$(mktemp -d)
   trap 'rm -rf "$STAGING"' EXIT
   cp "$PROJECT_ROOT/backend/requirements.txt" "$STAGING/requirements.txt"
+  cp "$PROJECT_ROOT/backend/requirements-worker.txt" "$STAGING/requirements-worker.txt"
   cp "$PROJECT_ROOT/infra/deploy/Dockerfile.base" "$STAGING/Dockerfile"
   docker buildx build --platform "$PLATFORM" --load -t mabi-base:latest "$STAGING"
   rm -rf "$STAGING"
