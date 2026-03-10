@@ -300,6 +300,7 @@ class JobRun(Base):
     id = Column(Integer, primary_key=True, index=True)
     job_name = Column(Text, nullable=False, index=True)
     status = Column(Text, nullable=False, server_default='pending')  # pending, running, completed, failed
+    payload = Column(Text, nullable=True)
     result_summary = Column(Text, nullable=True)
     error = Column(Text, nullable=True)
     worker_id = Column(Text, nullable=True)

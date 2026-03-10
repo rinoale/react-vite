@@ -44,6 +44,7 @@ const JobsPanel = () => {
   const [history, setHistory] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [runningJobs, setRunningJobs] = useState({});
+  const [expandedRow, setExpandedRow] = useState(null);
   const [historyPagination, setHistoryPagination] = useState({ limit: 20, offset: 0 });
 
   const fetchData = useCallback(async () => {
@@ -168,6 +169,7 @@ const JobsPanel = () => {
               <th className={thCell}>{t('jobs.colStatus')}</th>
               <th className={thCell}>{t('jobs.colName')}</th>
               <th className={thCell}>{t('jobs.colWorker')}</th>
+              <th className={thCell}>{t('jobs.colPayload')}</th>
               <th className={thCell}>{t('jobs.colStarted')}</th>
               <th className={thCell}>{t('jobs.colFinished')}</th>
               <th className={thCell}>{t('jobs.colResult')}</th>
@@ -175,20 +177,34 @@ const JobsPanel = () => {
           </thead>
           <tbody className="divide-y divide-gray-700/50">
             {history.map((run) => (
-              <tr key={run.id} className={hoverRow}>
-                <td className={tdCell}><StatusIcon status={run.status} /></td>
-                <td className={tdCellMono}>{run.job_name}</td>
-                <td className={tdCellSub}>{run.worker_id || '-'}</td>
-                <td className={tdCellSub}>{formatTime(run.started_at)}</td>
-                <td className={tdCellSub}>{formatTime(run.finished_at)}</td>
-                <td className={tdCellTrunc}>
-                  {run.error ? <span className="text-red-400">{run.error}</span> : (run.result_summary || '-')}
-                </td>
-              </tr>
+              <React.Fragment key={run.id}>
+                <tr className={`${hoverRow} cursor-pointer`} onClick={() => setExpandedRow(expandedRow === run.id ? null : run.id)}>
+                  <td className={tdCell}><StatusIcon status={run.status} /></td>
+                  <td className={tdCellMono}>{run.job_name}</td>
+                  <td className={tdCellSub}>{run.worker_id || '-'}</td>
+                  <td className={tdCellTrunc}>{run.payload || '-'}</td>
+                  <td className={tdCellSub}>{formatTime(run.started_at)}</td>
+                  <td className={tdCellSub}>{formatTime(run.finished_at)}</td>
+                  <td className={tdCellTrunc}>
+                    {run.error ? <span className="text-red-400">{run.error}</span> : (run.result_summary || '-')}
+                  </td>
+                </tr>
+                {expandedRow === run.id && (
+                  <tr>
+                    <td colSpan={7} className="px-4 py-3 bg-gray-800/50">
+                      <div className="space-y-1 text-xs font-mono text-gray-300 break-all whitespace-pre-wrap">
+                        {run.payload && <div><span className="text-gray-500">payload: </span>{run.payload}</div>}
+                        {run.result_summary && <div><span className="text-gray-500">result: </span>{run.result_summary}</div>}
+                        {run.error && <div><span className="text-gray-500">error: </span><span className="text-red-400">{run.error}</span></div>}
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </React.Fragment>
             ))}
             {history.length === 0 && (
               <tr>
-                <td colSpan={6} className={panelEmpty}>{t('jobs.noHistory')}</td>
+                <td colSpan={7} className={panelEmpty}>{t('jobs.noHistory')}</td>
               </tr>
             )}
           </tbody>

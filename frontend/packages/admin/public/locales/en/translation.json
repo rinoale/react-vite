@@ -161,6 +161,7 @@
     "colStarted": "Started",
     "colFinished": "Finished",
     "colWorker": "Worker",
+    "colPayload": "Payload",
     "colResult": "Result"
   },
   "enchants": {

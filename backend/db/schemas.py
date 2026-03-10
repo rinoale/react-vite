@@ -196,6 +196,7 @@ class JobRunOut(BaseModel):
     id: int
     job_name: str
     status: str
+    payload: Optional[str] = None
     result_summary: Optional[str] = None
     error: Optional[str] = None
     worker_id: Optional[str] = None

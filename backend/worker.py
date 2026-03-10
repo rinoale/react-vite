@@ -7,6 +7,7 @@ Usage:
     REDIS_HOST=64.110.116.116 python worker.py  # remote worker (e.g., local PC with GPU)
 """
 
+import json
 import logging
 import signal
 import socket
@@ -73,12 +74,12 @@ def execute_job(message: JobMessage) -> None:
             broker.ack(QUEUE, message)
             return
 
+        payload = message.get("payload") or {}
         run.status = "running"
         run.worker_id = WORKER_ID
+        run.payload = json.dumps(payload, ensure_ascii=False) if payload else None
         db.commit()
-        logger.info("Running %s (run_id=%d)", job_name, run_id)
-
-        payload = message.get("payload") or {}
+        logger.info("Running %s (run_id=%d) payload=%s", job_name, run_id, payload)
         result = entry["fn"](db, payload=payload)
 
         run.status = "completed"
