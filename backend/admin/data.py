@@ -75,3 +75,25 @@ def admin_reforge_options(
 ):
     rows = crud_admin.get_reforge_options(db, limit=limit, offset=offset)
     return {"limit": limit, "offset": offset, "rows": rows}
+
+
+@router.get("/echostone-options", response_model=schemas.PaginatedEchostoneResponse)
+def admin_echostone_options(
+    limit: int = Query(default=100, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+    _: User = _admin_required,
+):
+    rows = crud_admin.get_echostone_options(db, limit=limit, offset=offset)
+    return {"limit": limit, "offset": offset, "rows": rows}
+
+
+@router.get("/murias-relic-options", response_model=schemas.PaginatedMuriasRelicResponse)
+def admin_murias_relic_options(
+    limit: int = Query(default=100, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+    _: User = _admin_required,
+):
+    rows = crud_admin.get_murias_relic_options(db, limit=limit, offset=offset)
+    return {"limit": limit, "offset": offset, "rows": rows}

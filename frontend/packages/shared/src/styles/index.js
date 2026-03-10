@@ -22,13 +22,35 @@ export const cardSlot = 'bg-gray-900/50 p-3 rounded border border-gray-700';
 
 // --- Badges ---
 
-const badgeBase = 'text-xs px-2 py-0.5 rounded border';
+const badgeBase = 'text-xs leading-none px-2 pt-1 pb-0.5 rounded border';
 export const badgeCyan = `${badgeBase} bg-cyan-900/50 text-cyan-300 border-cyan-700/50`;
 export const badgePurple = `${badgeBase} bg-purple-900/50 text-purple-300 border-purple-700/50`;
 export const badgeOrange = `${badgeBase} bg-orange-900/50 text-orange-300 border-orange-700/50`;
 export const badgeYellow = `${badgeBase} bg-yellow-900/50 text-yellow-300 border-yellow-700/50`;
+export const badgeRed = `${badgeBase} bg-red-900/50 text-red-300 border-red-700/50`;
+export const badgeBlue = `${badgeBase} bg-blue-900/50 text-blue-300 border-blue-700/50`;
+export const badgeGreen = `${badgeBase} bg-green-900/50 text-green-300 border-green-700/50`;
 export const badgePink = `${badgeBase} bg-pink-900/50 text-pink-300 border-pink-700/50`;
+export const badgeTranscend = 'text-xs leading-none px-2 pt-1 pb-0.5 rounded border tag-rainbow text-black tag-border-rainbow font-bold';
 export const badgeClickable = 'cursor-pointer hover:border-current';
+
+/**
+ * Get badge style for a level value.
+ * Transcend (level > max) → rainbow, max → red, >=80% → orange, >=30% → blue, <30% → green.
+ */
+export function getLevelBadge(level, maxLevel, minLevel = 1) {
+  if (level == null || maxLevel == null) return badgeCyan;
+  const lv = +level;
+  const max = +maxLevel;
+  const min = +minLevel;
+  if (lv > max) return badgeTranscend;
+  if (lv === max) return badgeRed;
+  if (max <= min) return badgeCyan;
+  const pct = (lv - min) / (max - min);
+  if (pct >= 0.8) return badgeOrange;
+  if (pct >= 0.3) return badgeBlue;
+  return badgeGreen;
+}
 
 // --- Dashed add buttons ---
 
@@ -63,6 +85,40 @@ export const btnSmEmerald = 'text-[10px] font-bold uppercase px-1.5 py-0.5 round
 // --- Compact weight input ---
 
 export const weightInputSm = 'text-[10px] font-bold bg-gray-800 border border-gray-600 rounded px-1.5 py-0.5 w-12 outline-none focus:border-emerald-500';
+
+// --- Panel sections ---
+
+export const panelOuter = 'bg-gray-800 rounded-2xl border border-gray-700 shadow-2xl overflow-hidden';
+export const panelHeader = 'bg-gray-700/50 px-6 py-4 flex justify-between items-center';
+export const panelTitle = 'text-xl font-bold text-white';
+export const panelEmpty = 'px-6 py-8 text-center text-xs text-gray-500 uppercase';
+
+// --- Common loading / empty ---
+
+export const loadingCenter = 'flex items-center justify-center py-20';
+export const loadingIcon = 'w-8 h-8 text-cyan-500 animate-spin';
+export const dividerY = 'divide-y divide-gray-700';
+export const metaRow = 'flex items-center gap-2 mt-1';
+export const hoverRow = 'hover:bg-gray-700/30 transition-colors';
+
+// --- Job styles ---
+
+export const jobRow = 'px-6 py-4 flex items-center justify-between hover:bg-gray-700/30 transition-colors';
+export const jobName = 'text-sm font-bold text-white';
+export const jobDesc = 'text-xs text-gray-400 mt-0.5';
+export const jobMeta = 'text-[10px] text-gray-500';
+export const jobMetaResult = 'text-[10px] text-gray-400';
+export const jobMetaError = 'text-[10px] text-red-400 truncate max-w-xs';
+export const iconSmSpin = 'w-3.5 h-3.5 animate-spin';
+export const iconSm = 'w-3.5 h-3.5';
+export const btnJobRun = 'flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold uppercase rounded bg-cyan-700 hover:bg-cyan-600 text-white disabled:opacity-50 transition-colors';
+export const btnPagGray = 'text-xs bg-gray-600 hover:bg-gray-500 px-3 py-1 rounded';
+export const thCell = 'px-6 py-2 text-left';
+export const tdCell = 'px-6 py-2';
+export const tdCellMono = 'px-6 py-2 text-xs font-mono text-gray-300';
+export const tdCellSub = 'px-6 py-2 text-xs text-gray-400';
+export const tdCellTrunc = 'px-6 py-2 text-xs text-gray-400 max-w-xs truncate';
+export const thRow = 'text-[10px] font-bold uppercase text-gray-500 border-b border-gray-700';
 
 // --- Layout ---
 

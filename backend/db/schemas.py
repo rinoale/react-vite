@@ -79,6 +79,38 @@ class ReforgeOption(ReforgeOptionBase):
     class Config:
         from_attributes = True
 
+class EchostoneOptionOut(BaseModel):
+    id: int
+    option_name: str
+    type: str
+    max_level: Optional[int] = None
+    min_level: int = 1
+
+    class Config:
+        from_attributes = True
+
+class MuriasRelicOptionOut(BaseModel):
+    id: int
+    option_name: str
+    type: str
+    max_level: Optional[int] = None
+    min_level: int = 1
+    value_per_level: Optional[float] = None
+    option_unit: str = ''
+
+    class Config:
+        from_attributes = True
+
+class PaginatedEchostoneResponse(BaseModel):
+    limit: int
+    offset: int
+    rows: List[EchostoneOptionOut]
+
+class PaginatedMuriasRelicResponse(BaseModel):
+    limit: int
+    offset: int
+    rows: List[MuriasRelicOptionOut]
+
 class TagCreate(BaseModel):
     """Create a tag and attach to a single target."""
     target_type: str
@@ -152,11 +184,40 @@ class BulkWeightUpdate(BaseModel):
     ids: List[int]
     weight: int
 
+# --- Jobs ---
+
+class JobOut(BaseModel):
+    name: str
+    description: str
+    schedule_seconds: Optional[int] = None
+    last_run: Optional['JobRunOut'] = None
+
+class JobRunOut(BaseModel):
+    id: int
+    job_name: str
+    status: str
+    result_summary: Optional[str] = None
+    error: Optional[str] = None
+    worker_id: Optional[str] = None
+    started_at: datetime
+    finished_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+class PaginatedJobRunResponse(BaseModel):
+    limit: int
+    offset: int
+    rows: List[JobRunOut]
+
+
 class SummarySchema(BaseModel):
     enchants: int
     effects: int
     enchant_effects: int
     reforge_options: int
+    echostone_options: int = 0
+    murias_relic_options: int = 0
     listings: int
     game_items: int
     tags: int = 0
@@ -181,8 +242,15 @@ class PaginatedReforgeResponse(BaseModel):
     offset: int
     rows: List[ReforgeOption]
 
+class ListingOptionOut(BaseModel):
+    option_type: str
+    option_name: str
+    rolled_value: Optional[Decimal] = None
+    max_level: Optional[int] = None
+
 class ListingOut(BaseModel):
     id: int
+    status: int = 0
     name: str
     description: Optional[str] = None
     price: Optional[int] = None
@@ -210,6 +278,7 @@ class ListingOut(BaseModel):
     seller_server: Optional[str] = None
     seller_game_id: Optional[str] = None
     tags: List[TagBadge] = []
+    listing_options: List[ListingOptionOut] = []
 
     class Config:
         from_attributes = True
@@ -237,22 +306,16 @@ class PaginatedGameItemResponse(BaseModel):
 
 # --- Listing registration + implicit correction capture ---
 
-class RegisterEnchantEffect(BaseModel):
-    text: str
-    option_name: Optional[str] = None
-    option_level: Optional[Union[int, float]] = None
-    enchant_effect_id: Optional[int] = None
-
 class RegisterEnchantSlot(BaseModel):
     slot: int  # 0=prefix, 1=suffix
     name: str
     rank: str
-    effects: List[RegisterEnchantEffect] = []
 
-class RegisterReforgeOption(BaseModel):
-    name: str
-    reforge_option_id: Optional[int] = None
-    level: Optional[int] = None
+class RegisterListingOption(BaseModel):
+    option_type: str  # enchant_effects, reforge_options, echostone_options, murias_relic_options
+    option_name: str
+    option_id: Optional[int] = None
+    rolled_value: Optional[Union[int, float]] = None
     max_level: Optional[int] = None
 
 class RegisterListingLine(BaseModel):
@@ -276,7 +339,7 @@ class RegisterListingRequest(BaseModel):
     attrs: Optional[Dict[str, str]] = None
     lines: List[RegisterListingLine] = []
     enchants: List[RegisterEnchantSlot] = []
-    reforge_options: List[RegisterReforgeOption] = []
+    listing_options: List[RegisterListingOption] = []
     tags: List[str] = []
 
     @field_validator('name', 'description', mode='before')
@@ -332,13 +395,9 @@ class ListingEnchantOut(BaseModel):
     rank: int
     effects: List[ListingEnchantEffectOut] = []
 
-class ListingReforgeOptionOut(BaseModel):
-    option_name: str
-    level: Optional[int] = None
-    max_level: Optional[int] = None
-
 class ListingDetailOut(BaseModel):
     id: int
+    status: int = 0
     name: str
     description: Optional[str] = None
     price: Optional[int] = None
@@ -362,5 +421,8 @@ class ListingDetailOut(BaseModel):
     piercing_level: Optional[int] = None
     prefix_enchant: Optional[ListingEnchantOut] = None
     suffix_enchant: Optional[ListingEnchantOut] = None
-    reforge_options: List[ListingReforgeOptionOut] = []
+    listing_options: List[ListingOptionOut] = []
     tags: List[TagBadge] = []
+    seller_server: Optional[str] = None
+    seller_game_id: Optional[str] = None
+    seller_discord_id: Optional[str] = None

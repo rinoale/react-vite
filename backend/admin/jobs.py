@@ -1,0 +1,77 @@
+from datetime import datetime, timezone
+from uuid import uuid4
+
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+
+from auth.dependencies import require_role
+from db.connector import get_db
+from db.models import JobRun
+from db.schemas import JobOut, JobRunOut, PaginatedJobRunResponse
+from jobs import REGISTRY
+from jobs.connection import get_broker
+
+router = APIRouter(
+    dependencies=[Depends(require_role("admin"))],
+)
+
+
+def _last_run(db: Session, job_name: str) -> JobRunOut | None:
+    row = (
+        db.query(JobRun)
+        .filter(JobRun.job_name == job_name)
+        .order_by(JobRun.id.desc())
+        .first()
+    )
+    return JobRunOut.model_validate(row) if row else None
+
+
+@router.get("/jobs")
+def list_jobs(db: Session = Depends(get_db)) -> list[JobOut]:
+    return [
+        JobOut(
+            name=name,
+            description=meta["description"],
+            schedule_seconds=meta.get("schedule_seconds"),
+            last_run=_last_run(db, name),
+        )
+        for name, meta in REGISTRY.items()
+    ]
+
+
+@router.post("/jobs/{job_name}/run")
+def trigger_job(
+    job_name: str,
+    db: Session = Depends(get_db),
+) -> JobRunOut:
+    if job_name not in REGISTRY:
+        raise HTTPException(status_code=404, detail=f"Unknown job: {job_name}")
+
+    run = JobRun(job_name=job_name, status="pending")
+    db.add(run)
+    db.commit()
+    db.refresh(run)
+
+    broker = get_broker()
+    broker.enqueue("default", {
+        "job_id": str(uuid4()),
+        "job_name": job_name,
+        "run_id": run.id,
+        "enqueued_at": datetime.now(timezone.utc).isoformat(),
+        "payload": {},
+    })
+    return JobRunOut.model_validate(run)
+
+
+@router.get("/jobs/history")
+def job_history(
+    job_name: str | None = None,
+    limit: int = 20,
+    offset: int = 0,
+    db: Session = Depends(get_db),
+) -> PaginatedJobRunResponse:
+    q = db.query(JobRun)
+    if job_name:
+        q = q.filter(JobRun.job_name == job_name)
+    rows = q.order_by(JobRun.id.desc()).limit(limit).offset(offset).all()
+    return PaginatedJobRunResponse(limit=limit, offset=offset, rows=rows)

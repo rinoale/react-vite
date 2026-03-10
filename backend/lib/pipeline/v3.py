@@ -211,7 +211,7 @@ def _step_resolve_enchant(sections, corrector):
                 p3_name = line['enchant_name']
                 p3_score = line.get('_dullahan_score', 0)
 
-        # Priority: P1 > P2 > P3
+        # Priority: P1 > P2 > P3 (fall through if DB lookup fails)
         winner = None
         winner_entry = None
         winner_source = None
@@ -220,11 +220,11 @@ def _step_resolve_enchant(sections, corrector):
             winner = p1_name
             winner_entry = p1_entry
             winner_source = 'P1_item_name'
-        elif p2_name:
+        if not winner_entry and p2_name:
             winner = p2_name
             winner_entry = corrector.lookup_enchant_by_name(p2_name, slot_type=slot_type)
             winner_source = 'P2_header_ocr'
-        elif p3_name:
+        if not winner_entry and p3_name:
             winner = p3_name
             winner_entry = corrector.lookup_enchant_by_name(p3_name, slot_type=slot_type)
             winner_source = 'P3_dullahan'

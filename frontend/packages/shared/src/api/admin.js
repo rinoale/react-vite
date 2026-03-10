@@ -62,6 +62,30 @@ export const updateTagTargetWeight = (tagTargetId, weight) =>
 export const bulkUpdateTagTargetWeights = (ids, weight) =>
   client.patch('/admin/tags/targets/bulk', { ids, weight });
 
+export const getEchostoneOptions = ({ limit, offset } = {}) =>
+  client.get('/admin/echostone-options', { params: { limit, offset } });
+
+export const getMuriasRelicOptions = ({ limit, offset } = {}) =>
+  client.get('/admin/murias-relic-options', { params: { limit, offset } });
+
+export const getReforgeOptions = ({ limit, offset } = {}) =>
+  client.get('/admin/reforge-options', { params: { limit, offset } });
+
+export const getEffects = ({ limit, offset } = {}) =>
+  client.get('/admin/effects', { params: { limit, offset } });
+
+export const getGameItems = ({ limit, offset } = {}) =>
+  client.get('/admin/game-items', { params: { limit, offset } });
+
+export const getJobs = () =>
+  client.get('/admin/jobs');
+
+export const triggerJob = (jobName) =>
+  client.post(`/admin/jobs/${jobName}/run`);
+
+export const getJobHistory = ({ jobName, limit, offset } = {}) =>
+  client.get('/admin/jobs/history', { params: { job_name: jobName || '', limit, offset } });
+
 export const getUsers = ({ limit, offset } = {}) =>
   client.get('/admin/users', { params: { limit, offset } });
 

@@ -3,8 +3,8 @@ import { X } from 'lucide-react';
 import { getTagColor } from '../lib/tagColors.js';
 
 const SIZE = {
-  xs: 'text-xs px-2 py-0.5',
-  sm: 'text-sm px-2 py-0.5',
+  xs: 'text-xs leading-none px-2 pt-1 pb-0.5',
+  sm: 'text-sm leading-none px-2 pt-1 pb-0.5',
 };
 
 /**
@@ -16,10 +16,10 @@ const SIZE = {
  * @param {function} [onRemove] - if provided, renders an X button
  * @param {string}   [className] - extra classes appended
  */
-const TagBadge = ({ name, weight = 0, size = 'xs', onRemove, className = '' }) => {
+const TagBadge = ({ name, weight = 0, size = 'xs', onRemove, onClick, className = '' }) => {
   const c = getTagColor(weight);
   return (
-    <span className={`inline-flex items-center gap-1 border rounded-full font-semibold whitespace-nowrap ${SIZE[size] || SIZE.xs} ${c.bg} ${c.text} ${c.border} ${className}`}>
+    <span onClick={onClick} className={`inline-flex items-center gap-1 border rounded-full font-semibold whitespace-nowrap ${onClick ? 'cursor-pointer' : 'cursor-default'} ${SIZE[size] || SIZE.xs} ${c.bg} ${c.text} ${c.border} ${className}`}>
       {name}
       {onRemove && (
         <button onClick={onRemove} className="hover:text-white">

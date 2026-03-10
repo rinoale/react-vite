@@ -1032,7 +1032,7 @@ const V3PipelineViewer = () => {
 
                 {/* Single segment step display */}
                 {segStep.id === 'segLineCrops' ? (
-                  <div className="w-full max-h-[500px] overflow-y-auto space-y-1 bg-gray-900 rounded p-2">
+                  <div className="w-full max-h-[500px] overflow-y-auto scrollbar-thin space-y-1 bg-gray-900 rounded p-2">
                     {segStep.lineCrops && segStep.lineCrops.length > 0 ? (
                       segStep.lineCrops.map((crop, i) => (
                         <div key={i} className="flex items-center gap-2">
@@ -1217,7 +1217,7 @@ const V3PipelineViewer = () => {
                   <h3 className="text-sm font-medium text-cyan-400 mb-2">
                     {t('v3Pipeline.server.ocrLines', { count: Object.values(serverResult.sections || {}).flatMap(s => s.lines || []).length })}
                   </h3>
-                  <div className="space-y-1 max-h-[400px] overflow-y-auto">
+                  <div className="space-y-1 max-h-[400px] overflow-y-auto scrollbar-thin">
                     {Object.values(serverResult.sections || {}).flatMap(s => s.lines || []).map((line, i) => (
                       <div key={i} className="flex items-start gap-2 text-sm font-mono">
                         <span className="text-gray-600 w-6 text-right shrink-0">{i + 1}</span>

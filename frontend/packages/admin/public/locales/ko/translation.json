@@ -8,6 +8,26 @@
     "subtitle": "Database Validation & Maintenance",
     "initializing": "Initializing Database..."
   },
+  "nav": {
+    "source_of_truth": "원본 데이터",
+    "trade": "거래",
+    "system": "시스템",
+    "items": {
+      "enchants": "인챈트",
+      "effects": "효과",
+      "reforge_options": "세공 옵션",
+      "echostone_options": "에코스톤 옵션",
+      "murias_relic_options": "무리아스 유물 옵션",
+      "game_items": "게임 아이템",
+      "listings": "등록 매물",
+      "corrections": "OCR 교정",
+      "tags": "태그",
+      "jobs": "백그라운드 작업",
+      "users": "사용자",
+      "roles": "역할",
+      "feature_flags": "기능 플래그"
+    }
+  },
   "stats": {
     "enchants": "Enchants",
     "effects": "Effects",
@@ -15,13 +35,6 @@
     "listings": "Listings",
     "gameItems": "Game Items",
     "tags": "Tags"
-  },
-  "tabs": {
-    "enchants": "Enchants",
-    "listings": "Listings",
-    "corrections": "Corrections",
-    "tags": "Tags",
-    "users": "사용자"
   },
   "corrections": {
     "title": "OCR CORRECTIONS",
@@ -46,9 +59,9 @@
     "prefix": "Prefix",
     "suffix": "Suffix",
     "rank": "Rank {{rank}}",
-    "reforgeOptions": "Reforge Options",
+    "options": "매물 옵션",
     "level": "Lv. {{level}}",
-    "noEnchantReforge": "No enchant or reforge data for this listing.",
+    "noEnchantReforge": "인챈트 및 옵션 데이터가 없습니다.",
     "unnamed": "(unnamed)",
     "refresh": "Refresh",
     "enchantCount": "{{count}} ENCHANT",
@@ -108,6 +121,19 @@
     "next": "다음",
     "refresh": "새로고침"
   },
+  "roles": {
+    "title": "역할 및 기능",
+    "noRoles": "역할이 없습니다.",
+    "refresh": "새로고침"
+  },
+  "featureFlags": {
+    "title": "기능 플래그",
+    "name": "이름",
+    "assignedRoles": "할당된 역할",
+    "noRoles": "역할 없음",
+    "noFlags": "기능 플래그가 없습니다.",
+    "refresh": "새로고침"
+  },
   "onboarding": {
     "welcome": "환영합니다, {{name}}님!",
     "subtitle": "서버와 캐릭터명을 설정해주세요.",
@@ -119,6 +145,23 @@
     "saving": "저장 중...",
     "complete": "프로필 설정 완료!",
     "error": "프로필 저장에 실패했습니다. 다시 시도해주세요."
+  },
+  "jobs": {
+    "title": "BACKGROUND JOBS",
+    "run": "실행",
+    "every": "{{interval}} 마다",
+    "refresh": "새로고침",
+    "noJobs": "등록된 작업이 없습니다.",
+    "history": "실행 이력",
+    "noHistory": "실행 이력이 없습니다.",
+    "prev": "이전",
+    "next": "다음",
+    "colStatus": "상태",
+    "colName": "작업명",
+    "colStarted": "시작",
+    "colFinished": "완료",
+    "colWorker": "워커",
+    "colResult": "결과"
   },
   "enchants": {
     "title": "ENCHANT ENTRIES",

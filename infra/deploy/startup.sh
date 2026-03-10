@@ -2,6 +2,7 @@
 set -e
 
 # Link OCR models from separate volume into backend
+rm -rf /app/backend/ocr
 mkdir -p /app/backend/ocr
 ln -sfn /models /app/backend/ocr/models
 

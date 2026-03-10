@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Index, Integer, String, SmallInteger, Boolean, Numeric, ForeignKey, Text, DateTime, UniqueConstraint
+from sqlalchemy import Column, Float, Index, Integer, String, SmallInteger, Boolean, Numeric, ForeignKey, Text, DateTime, UniqueConstraint
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 
@@ -170,10 +170,19 @@ class GameItem(Base):
 
 
 class Listing(Base):
+    """
+    status: 0=draft, 1=listed, 2=sold, 3=deleted
+    """
     __tablename__ = "listings"
+
+    DRAFT = 0
+    LISTED = 1
+    SOLD = 2
+    DELETED = 3
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    status = Column(SmallInteger, nullable=False, server_default='0', index=True)
     name = Column(Text, nullable=False, index=True)
     description = Column(Text, nullable=True)
     price = Column(Integer, nullable=True)
@@ -203,34 +212,52 @@ class Listing(Base):
     game_item = relationship("GameItem")
     prefix_enchant = relationship("Enchant", foreign_keys=[prefix_enchant_id])
     suffix_enchant = relationship("Enchant", foreign_keys=[suffix_enchant_id])
-    enchant_effects = relationship("ListingEnchantEffect", back_populates="listing", cascade="all, delete-orphan")
-    reforge_options = relationship("ListingReforgeOption", back_populates="listing", cascade="all, delete-orphan")
+    listing_options = relationship("ListingOption", back_populates="listing", cascade="all, delete-orphan")
 
-class ListingEnchantEffect(Base):
-    __tablename__ = "listing_enchant_effects"
-
-    id = Column(Integer, primary_key=True, index=True)
-    listing_id = Column(Integer, ForeignKey("listings.id", ondelete="CASCADE"), nullable=False)
-    enchant_effect_id = Column(Integer, ForeignKey("enchant_effects.id", ondelete="RESTRICT"), nullable=False)
-    value = Column(Numeric, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-
-    listing = relationship("Listing", back_populates="enchant_effects")
-    enchant_effect = relationship("EnchantEffect")
-
-class ListingReforgeOption(Base):
-    __tablename__ = "listing_reforge_options"
+class ListingOption(Base):
+    __tablename__ = "listing_options"
 
     id = Column(Integer, primary_key=True, index=True)
     listing_id = Column(Integer, ForeignKey("listings.id", ondelete="CASCADE"), nullable=False)
-    reforge_option_id = Column(Integer, ForeignKey("reforge_options.id", ondelete="RESTRICT"), nullable=True)
+    option_type = Column(Text, nullable=False)  # reforge_options, echostone_options, murias_relic_options, enchant_effects
+    option_id = Column(Integer, nullable=True)
     option_name = Column(Text, nullable=False)
-    level = Column(Integer, nullable=True)
+    rolled_value = Column(Numeric, nullable=True)
     max_level = Column(Integer, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    listing = relationship("Listing", back_populates="reforge_options")
-    reforge_option = relationship("ReforgeOption")
+    listing = relationship("Listing", back_populates="listing_options")
+
+    __table_args__ = (
+        Index('ix_listing_options_listing_id', 'listing_id'),
+        Index('ix_listing_options_target', 'option_type', 'option_id'),
+    )
+
+
+class EchostoneOption(Base):
+    __tablename__ = "echostone_options"
+
+    id = Column(Integer, primary_key=True, index=True)
+    option_name = Column(Text, nullable=False, unique=True)
+    type = Column(Text, nullable=False)  # red, blue, yellow, silver, black
+    max_level = Column(Integer, nullable=True)
+    min_level = Column(Integer, nullable=False, server_default='1')
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class MuriasRelicOption(Base):
+    __tablename__ = "murias_relic_options"
+
+    id = Column(Integer, primary_key=True, index=True)
+    option_name = Column(Text, nullable=False, unique=True)
+    type = Column(Text, nullable=False)  # elemental_knight, saint_bard, etc.
+    max_level = Column(Integer, nullable=True)
+    min_level = Column(Integer, nullable=False, server_default='1')
+    value_per_level = Column(Float, nullable=True)
+    option_unit = Column(Text, nullable=False, server_default='')
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
 class Tag(Base):
@@ -265,3 +292,16 @@ class TagTarget(Base):
         Index('ix_tag_targets_target', 'target_type', 'target_id'),
         Index('ix_tag_targets_tag_id', 'tag_id'),
     )
+
+
+class JobRun(Base):
+    __tablename__ = "job_runs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    job_name = Column(Text, nullable=False, index=True)
+    status = Column(Text, nullable=False, server_default='pending')  # pending, running, completed, failed
+    result_summary = Column(Text, nullable=True)
+    error = Column(Text, nullable=True)
+    worker_id = Column(Text, nullable=True)
+    started_at = Column(DateTime(timezone=True), server_default=func.now())
+    finished_at = Column(DateTime(timezone=True), nullable=True)

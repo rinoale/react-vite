@@ -2,7 +2,8 @@ import React, { useState, useMemo } from 'react';
 import { Pencil, Plus, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import ConfigSearchInput from '../ConfigSearchInput';
-import { cardItem, groupRow, flexCenter, iconBtnEdit, iconBtnRemove, editLevelCyan, badgeCyan, badgeOrange, badgeClickable, addBtnCyan, inputCompact } from '../../styles';
+import { cardItem, groupRow, flexCenter, iconBtnEdit, iconBtnRemove, editLevelCyan, badgeClickable, addBtnCyan, inputCompact, getLevelBadge } from '../../styles';
+import LevelBadge from '../LevelBadge';
 
 const ReforgeOption = ({ opt, optIdx, lineIdx, onLineChange, onRemove }) => {
   const { t } = useTranslation();
@@ -12,18 +13,20 @@ const ReforgeOption = ({ opt, optIdx, lineIdx, onLineChange, onRemove }) => {
 
   const reforgeItems = useMemo(() => window.REFORGES_CONFIG || [], []);
   const cfgEntry = useMemo(() => reforgeItems.find(r => r.option_name === opt.name), [reforgeItems, opt.name]);
-  const isTranscend = opt.level != null && cfgEntry?.max_level != null && opt.level > cfgEntry.max_level;
+  const maxLvl = opt.max_level || cfgEntry?.max_level;
+  const hasLevel = !NO_LEVEL_OPTIONS.includes(opt.name);
 
   const commitLevel = (value) => {
     setEditingLevel(false);
     if (value === '' || value === String(opt.level)) return;
     const numLevel = parseInt(value, 10);
     if (isNaN(numLevel)) return;
-    const newText = `${opt.name} (${numLevel}/${opt.max_level} 레벨)`;
+    const maxLevel = opt.max_level || cfgEntry?.max_level || 20;
+    const newText = `${opt.name} (${numLevel}/${maxLevel} 레벨)`;
     onLineChange(lineIdx, newText, (sec) => {
       if (sec.options) {
         const opts = [...sec.options];
-        opts[optIdx] = { ...opts[optIdx], level: numLevel, option_level: numLevel };
+        opts[optIdx] = { ...opts[optIdx], level: numLevel, max_level: maxLevel, option_level: numLevel };
         sec.options = opts;
       }
     });
@@ -75,7 +78,7 @@ const ReforgeOption = ({ opt, optIdx, lineIdx, onLineChange, onRemove }) => {
               <X className="w-3 h-3" />
             </button>
           </div>
-          {opt.level != null && (
+          {hasLevel && (
             editingLevel ? (
               <input
                 type="text"
@@ -89,14 +92,23 @@ const ReforgeOption = ({ opt, optIdx, lineIdx, onLineChange, onRemove }) => {
                 }}
                 className={editLevelCyan}
               />
-            ) : (
+            ) : opt.level == null ? (
               <span
-                className={`${badgeClickable} ${isTranscend ? badgeOrange : badgeCyan}`}
+                className={`${badgeClickable} bg-gray-600 text-gray-300`}
+                onClick={() => { setLevelDraft(''); setEditingLevel(true); }}
+                title={t('sections.reforge.clickToEditLevel')}
+              >
+                {t('sections.reforge.setLevel')}
+              </span>
+            ) : (
+              <LevelBadge
+                level={opt.level} maxLevel={maxLvl}
+                className={badgeClickable}
                 onClick={() => { setLevelDraft(String(opt.level)); setEditingLevel(true); }}
                 title={t('sections.reforge.clickToEditLevel')}
               >
                 Level {opt.level} / {opt.max_level}
-              </span>
+              </LevelBadge>
             )
           )}
         </div>

@@ -9,7 +9,7 @@ settings = get_settings()
 
 DATABASE_URL = settings.effective_database_url
 
-engine = create_engine(DATABASE_URL, pool_pre_ping=True)
+engine = create_engine(DATABASE_URL, pool_pre_ping=True, echo=settings.sql_echo)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 

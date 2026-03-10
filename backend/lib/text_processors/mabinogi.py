@@ -31,6 +31,42 @@ _ENCHANT_FILE_HDR  = re.compile(r'^\[(접두|접미)\]\s+(.+?)\s*\(랭크\s*([A-
 # Display-only: DB already has ranges, and other parenthesized text is noise for matching.
 _PAREN_PAT = re.compile(r'\s*\([^)]*\)')
 
+# ---------------------------------------------------------------------------
+# Jamo-level fuzzy matching: decompose Korean syllables into consonant/vowel
+# components so fuzz.ratio operates on sub-character granularity.
+# This prevents short-string inflation (e.g. "나이트" beating "나이트폴"
+# when matching OCR garble "나이트폼").
+# ---------------------------------------------------------------------------
+_CHOSEONG = 'ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ'
+_JUNGSEONG = 'ㅏㅐㅑㅒㅓㅔㅕㅖㅗㅘㅙㅚㅛㅜㅝㅞㅟㅠㅡㅢㅣ'
+_JONGSEONG = (
+    '', 'ㄱ', 'ㄲ', 'ㄳ', 'ㄴ', 'ㄵ', 'ㄶ', 'ㄷ', 'ㄹ', 'ㄺ', 'ㄻ', 'ㄼ',
+    'ㄽ', 'ㄾ', 'ㄿ', 'ㅀ', 'ㅁ', 'ㅂ', 'ㅄ', 'ㅅ', 'ㅆ', 'ㅇ', 'ㅈ',
+    'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ',
+)
+
+
+def _decompose_jamo(text):
+    """Decompose Korean syllables into jamo (consonant/vowel) sequences."""
+    result = []
+    for ch in text:
+        cp = ord(ch)
+        if 0xAC00 <= cp <= 0xD7A3:
+            idx = cp - 0xAC00
+            result.append(_CHOSEONG[idx // (21 * 28)])
+            result.append(_JUNGSEONG[(idx % (21 * 28)) // 28])
+            jong = idx % 28
+            if jong > 0:
+                result.append(_JONGSEONG[jong])
+        else:
+            result.append(ch)
+    return ''.join(result)
+
+
+def _jamo_ratio(s1, s2, *, score_cutoff=0, **kwargs):
+    """fuzz.ratio on jamo-decomposed strings."""
+    return fuzz.ratio(_decompose_jamo(s1), _decompose_jamo(s2), score_cutoff=score_cutoff)
+
 
 class MabinogiTextCorrector(TextCorrector):
     """Section-aware text correction with enchant DB, Dullahan, and item name parsing."""
@@ -688,13 +724,8 @@ class MabinogiTextCorrector(TextCorrector):
                     best_used_full = score_full > score
 
             if best_score < 50 or best_db_idx < 0:
-                # No DB match — keep OCR text as-is
-                eff = {'text': ocr_core, 'line_index': gi}
-                opt_name, opt_level = _parse_effect_number(ocr_core)
-                if opt_name is not None:
-                    eff['option_name'] = opt_name
-                    eff['option_level'] = opt_level
-                result.append(eff)
+                # No DB match — drop unmatched OCR lines (noise, holywater, etc.)
+                # DB entry is the source of truth; unmatched lines are not effects.
                 continue
 
             used_db.add(best_db_idx)
@@ -764,6 +795,34 @@ class MabinogiTextCorrector(TextCorrector):
                 eff['option_name'] = opt_name
                 eff['option_level'] = eff.get('rolled_value')
 
+            result.append(eff)
+
+        # Append unmatched DB effects as empty templates so the frontend
+        # shows all expected effects (user can fill in rolled values).
+        for db_idx, (norm_db, raw_db) in enumerate(effects_norm):
+            if db_idx in used_db:
+                continue
+            raw_effect_only = effects[db_idx]
+            opt_name, _ = _parse_effect_number(raw_effect_only)
+            # Build display text from DB template with numbers stripped
+            norm_abbrev = re.sub(r'N\s*~\s*N', 'N', norm_db)
+            db_numbers = _NUM_PAT.findall(raw_effect_only)
+            eff = {
+                'text': norm_abbrev.replace('N', '').strip(),
+                'db_effect': raw_effect_only,
+            }
+            if db_numbers:
+                if len(db_numbers) >= 2:
+                    n1, n2 = db_numbers[0], db_numbers[1]
+                    eff['min_value'] = float(n1) if '.' in n1 else int(n1)
+                    eff['max_value'] = float(n2) if '.' in n2 else int(n2)
+                else:
+                    n1 = db_numbers[0]
+                    val = float(n1) if '.' in n1 else int(n1)
+                    eff['min_value'] = val
+                    eff['max_value'] = val
+            if opt_name is not None:
+                eff['option_name'] = opt_name
             result.append(eff)
 
         return result
@@ -992,14 +1051,14 @@ class MabinogiTextCorrector(TextCorrector):
 
             if p_text and self._enchant_prefixes:
                 pm = process.extractOne(
-                    p_text, self._enchant_prefixes, scorer=fuzz.ratio,
+                    p_text, self._enchant_prefixes, scorer=_jamo_ratio,
                     score_cutoff=60)
                 if pm:
                     p_match, p_score = pm[0], pm[1]
 
             if s_text and self._enchant_suffixes:
                 sm = process.extractOne(
-                    s_text, self._enchant_suffixes, scorer=fuzz.ratio,
+                    s_text, self._enchant_suffixes, scorer=_jamo_ratio,
                     score_cutoff=60)
                 if sm:
                     s_match, s_score = sm[0], sm[1]

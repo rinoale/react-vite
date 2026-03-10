@@ -47,6 +47,11 @@ def ocr_grouped_lines(img, grouped_lines, reader,
     """
     results = []
     for group in grouped_lines:
+        # Skip OCR for groups marked by @skip_ocr_prefix decorator.
+        # No result emitted — these lines are excluded from OCR output entirely.
+        if group[0].get('_skip_ocr'):
+            continue
+
         sub_texts = []
         sub_confs = []
         sub_details = []

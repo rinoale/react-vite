@@ -344,6 +344,97 @@ Both font-specific models (mabinogi_classic, nanum_gothic_bold) training with ne
 
 ---
 
+## Background Jobs
+
+Jobs are registered in `backend/jobs/__init__.py` and manageable from the admin page (Jobs tab). Uses FastAPI `BackgroundTasks` + `job_runs` DB table for execution history.
+
+### Implemented
+- [x] **cleanup_zero_weight_tags** — Delete user-created tags with weight 0 (not searchable, varied text)
+
+### Planned
+- [ ] **run_v3_pipeline** — Offload V3 OCR pipeline to background worker (heavy compute, frees web server for API serving)
+- [ ] **gather_discord_images** — Collect item screenshots uploaded to connected Discord channels (better UX for users)
+- [ ] **create_recommendation_data** — Generate recommendation model data (TF-IDF vectors, similarity matrices)
+- [ ] **get_horn_bugle** — Fetch in-game chat data every 2 minutes (scheduled, needs APScheduler or similar)
+
+### Tech Stack
+- **Current:** FastAPI `BackgroundTasks` + `job_runs` table (no new dependencies)
+- **Future (when scheduling needed):** Add APScheduler with PostgreSQL job store for periodic jobs (horn_bugle every 2 min, etc.)
+
+---
+
+## Product Features
+
+### Subscribe / Regular Listing
+
+Listings have an expiration model. Sellers can keep a listing active until:
+- The listing reaches its end date, OR
+- The seller manually finishes (marks as sold/deletes)
+
+**Evaluation:** This is a core marketplace feature. Requires listing status (see below), a `expires_at` column on listings, and a background job to expire stale listings. Medium complexity — mostly backend + minor frontend for date picker and status display.
+
+### User Activity Logs (for Recommendation)
+
+Log user actions to feed the recommendation algorithm:
+- **Search history** — what terms users search for
+- **Listing detail views** — which listings users click into
+- **Contact events** — when a user initiates contact with a seller
+- **Transaction done** — when a deal completes
+
+**Evaluation:** Requires a new `user_activity_logs` table (`user_id, action_type, target_id, metadata, created_at`). Low insert cost (append-only). The recommendation engine (`backend/lib/recommendation.py`) currently uses a mock `ITEMS_DB` with TF-IDF — these logs would replace it with real collaborative filtering signals. Backend-only, no frontend changes needed except wiring `onClick`/`onContact` to POST endpoints.
+
+### Discord Image Scan
+
+Can we save image upload traffic by scanning Discord channels for item screenshots?
+- Users paste screenshots in a connected Discord channel
+- A bot/webhook collects them and feeds into the OCR pipeline
+- Reduces friction (no manual upload step)
+
+**Evaluation:** Feasible via Discord bot API (`discord.py`). The bot watches specific channels, downloads images, and queues them for the V3 pipeline. Saves user effort but adds complexity: bot hosting, channel permissions, mapping Discord user → app user. Already have a planned `gather_discord_images` background job. Medium-high complexity — needs Discord bot setup + user linking.
+
+### Listing Status
+
+Listings need a lifecycle status:
+- **draft** — saved but not publicly visible
+- **listed** — active and searchable
+- **sold** — transaction completed, kept for history
+- **deleted** — soft-deleted, not visible
+
+**Evaluation:** Add a `status` column (text or smallint) to the `listings` table. Filter by `status = 'listed'` in all public queries (search, get_listings). Admin can see all statuses. Low complexity — one column, update queries to add WHERE filter, frontend status badge.
+
+### Background Jobs (Extended)
+
+Expand the existing job system:
+- **gather_discord_images** — already planned, see above
+- **recommendation data creation** — build TF-IDF vectors / similarity matrices from activity logs
+- **horn bugle collect** — fetch in-game megaphone chat every ~2 min for market price signals
+
+**Evaluation:** Already have job infrastructure (`backend/jobs/`, `job_runs` table, admin Jobs tab). Discord + recommendation are one-shot jobs triggered manually or on schedule. Horn bugle needs periodic scheduling (APScheduler). The jobs themselves are independent — can be built incrementally.
+
+### Tagging System Documentation
+
+Document the tagging system for internal reference:
+- Tag creation flow (user tags vs auto tags)
+- Weight system (tag weight + positional weight)
+- Multi-target resolution (CTE: listing → game_item → options → enchants)
+- Search behavior (cascading tiers, intersection)
+- Admin management (bulk create, weight editing, legends)
+
+**Evaluation:** Pure documentation task. The system is already built — this is about writing it down for onboarding and maintenance. Can reference the code walkthrough from this conversation.
+
+### Set Item: Show Rolled Value
+
+Currently `set_item` section only shows existence in `item_name`. Should show actual rolled/computed values for set bonuses (e.g. `최종 대미지 증가 +5`).
+
+**Evaluation:** Requires OCR pipeline changes — `SetItemHandler` currently uses `@filter_prefix('bullet')` + FM against set names, but doesn't extract numeric values. Need to:
+1. Parse the numeric suffix from FM-corrected text (e.g. `최종대미지(강화) +5`)
+2. Store as `rolled_value` in listing_options
+3. Display in frontend set_item section with level badge
+
+Medium complexity — touches pipeline handler, listing creation, and frontend display.
+
+---
+
 ## Infrastructure
 
 ### Replace `sys.path` hacks with `PROJECT_ROOT` env var

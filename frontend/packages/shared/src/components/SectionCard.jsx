@@ -1,7 +1,7 @@
 import React from 'react';
 import { ChevronDown, ChevronRight, X } from 'lucide-react';
 
-const SectionCard = ({ title, children, isOpen = true, onToggle, onRemove }) => (
+const SectionCard = ({ title, icon, children, isOpen = true, onToggle, onRemove }) => (
   <div className="bg-gray-800/50 rounded-xl border border-gray-700 mb-4">
     <div
       className="bg-gray-700/50 px-4 py-2 flex justify-between items-center cursor-pointer hover:bg-gray-700 transition-colors rounded-t-xl"
@@ -9,6 +9,7 @@ const SectionCard = ({ title, children, isOpen = true, onToggle, onRemove }) => 
     >
       <h3 className="text-sm font-bold text-orange-400 uppercase tracking-wider flex items-center gap-2">
         {isOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+        {icon}
         {title}
       </h3>
       {onRemove && (

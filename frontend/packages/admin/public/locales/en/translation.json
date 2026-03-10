@@ -8,6 +8,26 @@
     "subtitle": "Database Validation & Maintenance",
     "initializing": "Initializing Database..."
   },
+  "nav": {
+    "source_of_truth": "Source of Truth",
+    "trade": "Trade",
+    "system": "System",
+    "items": {
+      "enchants": "Enchants",
+      "effects": "Effects",
+      "reforge_options": "Reforge Options",
+      "echostone_options": "Echostone Options",
+      "murias_relic_options": "Murias Relic Options",
+      "game_items": "Game Items",
+      "listings": "Listings",
+      "corrections": "Corrections",
+      "tags": "Tags",
+      "jobs": "Jobs",
+      "users": "Users",
+      "roles": "Roles",
+      "feature_flags": "Feature Flags"
+    }
+  },
   "stats": {
     "enchants": "Enchants",
     "effects": "Effects",
@@ -15,13 +35,6 @@
     "listings": "Listings",
     "gameItems": "Game Items",
     "tags": "Tags"
-  },
-  "tabs": {
-    "enchants": "Enchants",
-    "listings": "Listings",
-    "corrections": "Corrections",
-    "tags": "Tags",
-    "users": "Users"
   },
   "corrections": {
     "title": "OCR CORRECTIONS",
@@ -46,9 +59,9 @@
     "prefix": "Prefix",
     "suffix": "Suffix",
     "rank": "Rank {{rank}}",
-    "reforgeOptions": "Reforge Options",
+    "options": "Listing Options",
     "level": "Lv. {{level}}",
-    "noEnchantReforge": "No enchant or reforge data for this listing.",
+    "noEnchantReforge": "No enchant or option data for this listing.",
     "unnamed": "(unnamed)",
     "refresh": "Refresh",
     "enchantCount": "{{count}} ENCHANT",
@@ -108,6 +121,19 @@
     "next": "NEXT",
     "refresh": "Refresh"
   },
+  "roles": {
+    "title": "ROLES & FEATURES",
+    "noRoles": "No roles found.",
+    "refresh": "Refresh"
+  },
+  "featureFlags": {
+    "title": "FEATURE FLAGS",
+    "name": "Name",
+    "assignedRoles": "Assigned Roles",
+    "noRoles": "No roles assigned",
+    "noFlags": "No feature flags found.",
+    "refresh": "Refresh"
+  },
   "onboarding": {
     "welcome": "Welcome, {{name}}!",
     "subtitle": "Set your game server and character name to get started.",
@@ -119,6 +145,23 @@
     "saving": "Saving...",
     "complete": "Profile set up successfully!",
     "error": "Failed to save profile. Please try again."
+  },
+  "jobs": {
+    "title": "BACKGROUND JOBS",
+    "run": "Run",
+    "every": "every {{interval}}",
+    "refresh": "Refresh",
+    "noJobs": "No jobs found.",
+    "history": "Job History",
+    "noHistory": "No history found.",
+    "prev": "PREV",
+    "next": "NEXT",
+    "colStatus": "Status",
+    "colName": "Name",
+    "colStarted": "Started",
+    "colFinished": "Finished",
+    "colWorker": "Worker",
+    "colResult": "Result"
   },
   "enchants": {
     "title": "ENCHANT ENTRIES",

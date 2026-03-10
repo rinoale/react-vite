@@ -17,7 +17,7 @@ function App() {
   return (
     <div className="flex h-screen">
       <Sidebar />
-      <main className="flex-1 overflow-y-auto">
+      <main className="flex-1 overflow-y-auto scrollbar-thin">
         <Routes>
           <Route path="/" element={<SearchPage />} />
           <Route path="/market" element={<Marketplace />} />

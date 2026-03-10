@@ -17,3 +17,4 @@ python-jose[cryptography]
 authlib
 httpx
 pyyaml
+redis

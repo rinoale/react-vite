@@ -19,6 +19,8 @@ SCRIPTS = [
     os.path.join(SCRIPT_DIR, 'export_enchant_config.py'),
     os.path.join(SCRIPT_DIR, 'export_reforge_config.py'),
     os.path.join(SCRIPT_DIR, 'export_game_items_config.py'),
+    os.path.join(SCRIPT_DIR, 'export_echostone_config.py'),
+    os.path.join(SCRIPT_DIR, 'export_murias_relic_config.py'),
 ]
 
 

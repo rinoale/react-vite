@@ -9,7 +9,7 @@ export default defineConfig({
   envDir: path.resolve(import.meta.dirname, '../..'),
   envPrefix: 'MABINOGI_',
   server: {
-    allowedHosts: ['.mabitra.local'],
+    allowedHosts: true,
     watch: {
       followSymlinks: true,
     },

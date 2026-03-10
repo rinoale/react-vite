@@ -37,7 +37,14 @@ for name in ('uvicorn', 'uvicorn.access', 'uvicorn.error'):
 
 settings = get_settings()
 
+
 app = FastAPI()
+
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
 
 _FRONTEND_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'frontend')
 _ADMIN_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'frontend-admin')
