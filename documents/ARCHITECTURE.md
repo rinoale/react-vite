@@ -614,12 +614,37 @@ All models: TPS-ResNet-BiLSTM-CTC architecture, imgH=32, `sensitive=true`, `PAD=
 
 | Endpoint | Input | Pipeline |
 |----------|-------|----------|
-| `POST /upload-item-v3` | Original color screenshot (multipart) | Full V3 pipeline (Stages 1-8) |
+| `POST /examine-item` | Original color screenshot (multipart) | Start async V3 pipeline job, return `{job_id}` |
+| `GET /examine-item/{job_id}/stream` | — | SSE stream: progress events + final result |
 | `POST /upload-item-v2` | Browser-preprocessed binary PNG | Legacy pipeline (line split → OCR → FM, no segmentation) |
 
-V3 response: `{sections: {section_name: OcrSectionResponse}, tagged_segments, abbreviated, session_id?}`
+V3 response (via SSE `result` event): `{filename, sections: {section_name: OcrSectionResponse}, abbreviated, session_id?}`
 
 See `documents/API_SPEC.md` for full response schema.
+
+### Async Examine-Item (SSE)
+
+The examine-item endpoint runs the V3 pipeline asynchronously and streams progress via Server-Sent Events.
+
+```
+Browser                             Backend
+  │                                   │
+  ├── POST /examine-item ────────────►│  decode image, create job_id
+  │◄── { job_id } ───────────────────┤  start pipeline in background thread
+  │                                   │
+  ├── GET /examine-item/{id}/stream ─►│  SSE connection
+  │◄── event: progress {SEGMENTING} ─┤  Stage 1: segment tooltip
+  │◄── event: progress {RECOGNIZING} ┤  Stages 2-4: OCR all sections
+  │◄── event: progress {RESOLVING} ──┤  Stage 6: enchant P1/P2/P3
+  │◄── event: result {data} ─────────┤  final ExamineItemResponse
+  │    (stream closes)                │
+```
+
+**Pipeline progress callback:** `run_v3_pipeline()` accepts an optional `on_progress(step: str)` callback, invoked at each major stage boundary. The examine endpoint feeds these into a `queue.Queue` consumed by the SSE `StreamingResponse`.
+
+**Thread safety:** The pipeline singleton (`_pipeline`) contains shared EasyOCR readers with GPU state. Concurrent inference is not safe. Current mitigation: low traffic (single user). For production scale, use `ThreadPoolExecutor(max_workers=1)` or move to the distributed worker architecture (see below).
+
+**Frontend:** `examineItemStream(file, {onProgress, onResult, onError})` in `shared/src/api/items.js` posts the file, opens an `EventSource`, and routes SSE events to callbacks. The `useImageUpload` hook maps server-pushed `step` values directly to `loadingStep` state — progress display reflects real pipeline stages, not client-side timers.
 
 ---
 
@@ -771,6 +796,93 @@ backend/
 └── db/
     └── models.py              # JobRun model
 ```
+
+---
+
+## File Storage
+
+### Overview
+
+File storage abstracts where binary artifacts (uploaded images, OCR crop PNGs, `ocr_results.json`) are persisted. A strategy pattern allows swapping storage backends without changing calling code.
+
+```
+FileStorage (ABC)
+  ├── R2FileStorage      ← Cloudflare R2 (current)
+  ├── S3FileStorage      ← AWS S3 (future, same boto3 SDK)
+  └── LocalFileStorage   ← Local disk (dev/testing)
+```
+
+### Interface
+
+```python
+class FileStorage(ABC):
+    def upload(self, key: str, data: bytes, content_type: str) -> str: ...
+    def download(self, key: str) -> bytes: ...
+    def delete(self, key: str) -> None: ...
+```
+
+- `key` — storage path (e.g. `ocr_crops/{session_id}/original.png`)
+- `upload` returns the storage key/path for the uploaded object
+- Implementations handle auth, bucket selection, and SDK specifics internally
+
+### File Layout
+
+```
+backend/lib/storage/
+├── __init__.py       # re-export FileStorage, LocalFileStorage, get_storage
+├── base.py           # FileStorage ABC
+├── local.py          # LocalFileStorage (disk-based, dev)
+├── r2.py             # R2FileStorage (Cloudflare R2 via boto3)
+└── connection.py     # get_storage() factory singleton from settings
+```
+
+### Why Cloudflare R2
+
+| | Cloudflare R2 | GCS | OCI | AWS S3 |
+|---|---|---|---|---|
+| **Free storage** | 10 GB | 5 GB | 20 GB | 5 GB (12mo only) |
+| **Free ops/mo** | 1M class A, 10M class B | 5K / 50K | 50K / 50K | 2K / 20K |
+| **Egress** | Free, unlimited | 100 GB/mo | 10 TB/mo | 100 GB/mo |
+| **Always free** | Yes | Yes | Yes | No |
+
+R2 chosen for: zero egress fees (critical for distributed worker), generous free ops, S3-compatible API (boto3), and future use as frontend CDN origin.
+
+### Configuration
+
+```env
+STORAGE_BACKEND=r2
+R2_ACCOUNT_ID=<cloudflare account id>
+R2_ACCESS_KEY_ID=<r2 api token>
+R2_SECRET_ACCESS_KEY=<r2 api secret>
+R2_BUCKET=mabinogi-ocr
+R2_PREFIX=                    # optional key prefix
+```
+
+R2 API tokens are created in Cloudflare dashboard → R2 → Manage R2 API Tokens.
+
+### Motivation: Distributed OCR Worker
+
+The V3 pipeline is GPU-heavy (~3s per image). To offload this from the web server, the pipeline can run on a separate worker (e.g. a local PC with a GPU). Shared file storage bridges the gap:
+
+```
+POST /examine-item
+  → upload image to R2 (key: ocr_jobs/{job_id}/input.png)
+  → push job to Redis queue
+  → return {job_id}
+
+Worker (local PC)
+  ← pull job from Redis
+  ← download image from R2
+  → run V3 pipeline
+  → upload crops to R2 (key: ocr_crops/{session_id}/*.png)
+  → publish result via Redis pub/sub
+
+GET /examine-item/{job_id}/stream
+  ← subscribe Redis channel
+  → forward SSE events to browser
+```
+
+The web server never touches the GPU. The worker can be anywhere with network access to Redis and R2.
 
 ---
 

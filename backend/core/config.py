@@ -54,6 +54,15 @@ class Settings(BaseSettings):
         auth = f":{self.redis_password}@" if self.redis_password else ""
         return f"redis://{auth}{self.redis_host}:{self.redis_port}/{self.redis_db}"
 
+    # --- Storage ---
+    storage_backend: str = "local"  # "local" or "r2"
+    storage_local_dir: str = ""  # base dir for local storage (defaults to tmp/ocr_crops)
+    r2_account_id: str = ""
+    r2_access_key_id: str = ""
+    r2_secret_access_key: str = ""
+    r2_bucket: str = ""
+    r2_prefix: str = ""
+
     # --- Cookie ---
     cookie_domain: str = ".mabitra.local"
     cookie_secure: bool = False

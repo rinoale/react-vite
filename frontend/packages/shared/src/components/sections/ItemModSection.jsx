@@ -72,7 +72,7 @@ const SpecialUpgradeRow = ({ type, level, onLineChange }) => {
           <p className="text-xs text-amber-300">{t('sections.item_mod.unrecognized')}</p>
         </div>
       )}
-      <p className={`text-sm font-medium ${textColor}`}>
+      <div className={`text-sm font-medium ${textColor}`}>
         {t('sections.item_mod.label') + ' '}
         <CustomSelect
           value={type || ''}
@@ -92,7 +92,7 @@ const SpecialUpgradeRow = ({ type, level, onLineChange }) => {
           placeholder="—"
         />
         {t('sections.item_mod.levelSuffix') + ')'}
-      </p>
+      </div>
     </div>
   );
 };

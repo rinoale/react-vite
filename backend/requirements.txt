@@ -18,3 +18,4 @@ authlib
 httpx
 pyyaml
 redis
+boto3

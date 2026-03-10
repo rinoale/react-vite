@@ -14,6 +14,7 @@
     "detectingSections": "DETECTING SECTIONS...",
     "readingText": "READING TEXT STATS...",
     "processing": "PROCESSING...",
+    "resolving": "MATCHING DATA...",
     "pipelineVersion": "Attempt 17 (V3 Pipeline)",
     "ocrMetrics": "OCR METRICS",
     "totalLines": "Total Lines",

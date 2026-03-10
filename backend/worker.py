@@ -78,7 +78,8 @@ def execute_job(message: JobMessage) -> None:
         db.commit()
         logger.info("Running %s (run_id=%d)", job_name, run_id)
 
-        result = entry["fn"](db)
+        payload = message.get("payload") or {}
+        result = entry["fn"](db, payload=payload)
 
         run.status = "completed"
         run.result_summary = str(result) if result else None

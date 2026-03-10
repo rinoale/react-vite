@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { examineItem } from '@mabi/shared/api/items';
+import { useState, useEffect, useRef } from 'react';
+import { examineItemStream } from '@mabi/shared/api/items';
 import { parseExamineResult } from '@mabi/shared/lib/examineResult';
 
 export function useImageUpload({ onScanComplete, onScanError } = {}) {
@@ -10,6 +10,7 @@ export function useImageUpload({ onScanComplete, onScanError } = {}) {
   const [ocrResult, setOcrResult] = useState(null);
   const [detectedLines, setDetectedLines] = useState([]);
   const [sessionId, setSessionId] = useState(null);
+  const streamRef = useRef(null);
 
   const loadFile = (f) => {
     setFile(f);
@@ -40,37 +41,50 @@ export function useImageUpload({ onScanComplete, onScanError } = {}) {
     return () => document.removeEventListener('paste', handlePaste);
   }, []);
 
+  // Clean up stream on unmount
+  useEffect(() => {
+    return () => streamRef.current?.close();
+  }, []);
+
   const handleScan = async () => {
     if (!file) return;
 
     setIsLoading(true);
     setLoadingStep('SEGMENTING');
 
-    try {
-      setLoadingStep('RECOGNIZING');
-      const { data } = await examineItem(file);
-      setOcrResult(data);
+    streamRef.current = await examineItemStream(file, {
+      onProgress: ({ step }) => {
+        setLoadingStep(step);
+      },
+      onResult: (data) => {
+        streamRef.current = null;
+        setOcrResult(data);
 
-      const result = parseExamineResult(data);
-      setDetectedLines(
-        Object.values(result.sections).flatMap(s => s.lines || [])
-      );
-      setSessionId(result.sessionId);
+        const result = parseExamineResult(data);
+        setDetectedLines(
+          Object.values(result.sections).flatMap(s => s.lines || [])
+        );
+        setSessionId(result.sessionId);
 
-      onScanComplete?.(result);
+        onScanComplete?.(result);
 
-      setLoadingStep('COMPLETE');
-      setTimeout(() => setLoadingStep(''), 2000);
-    } catch (error) {
-      console.error('Error processing image:', error);
-      onScanError?.(error);
-      setLoadingStep('ERROR');
-    } finally {
-      setIsLoading(false);
-    }
+        setLoadingStep('COMPLETE');
+        setIsLoading(false);
+        setTimeout(() => setLoadingStep(''), 2000);
+      },
+      onError: (error) => {
+        streamRef.current = null;
+        console.error('Error processing image:', error);
+        onScanError?.(error);
+        setLoadingStep('ERROR');
+        setIsLoading(false);
+      },
+    });
   };
 
   const clearImage = () => {
+    streamRef.current?.close();
+    streamRef.current = null;
     setFile(null);
     setPreviewUrl(null);
     setOcrResult(null);

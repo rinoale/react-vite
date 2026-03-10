@@ -168,7 +168,8 @@ const Sell = () => {
                     <Loader2 className="w-5 h-5 text-orange-500 animate-spin" />
                     <span className="text-xs font-bold tracking-wide">
                       {upload.loadingStep === 'SEGMENTING' ? t('sell.detectingSections') :
-                       upload.loadingStep === 'RECOGNIZING' ? t('sell.readingText') : t('sell.processing')}
+                       upload.loadingStep === 'RECOGNIZING' ? t('sell.readingText') :
+                       upload.loadingStep === 'RESOLVING' ? t('sell.resolving') : t('sell.processing')}
                     </span>
                   </div>
                 )}
