@@ -7,6 +7,23 @@ from db import models
 from lib.utils.log import logger
 
 
+_VALID_STATUS_TRANSITIONS = {0, 1, 2, 3}
+
+
+def update_listing_status(db, listing_id, status, user_id):
+    """Update listing status. Only the owner can change status."""
+    if status not in _VALID_STATUS_TRANSITIONS:
+        raise HTTPException(status_code=400, detail="Invalid status")
+    listing = db.query(Listing).filter(Listing.id == listing_id).first()
+    if not listing:
+        raise HTTPException(status_code=404, detail="Listing not found")
+    if listing.user_id != user_id:
+        raise HTTPException(status_code=403, detail="Not your listing")
+    listing.status = status
+    db.commit()
+    return {"id": listing.id, "status": listing.status}
+
+
 _ATTR_COLUMNS = {
     'damage', 'magic_damage', 'additional_damage', 'balance',
     'defense', 'protection', 'magic_defense', 'magic_protection',
@@ -248,6 +265,44 @@ def get_listings(db, game_item_id=None, limit=50, offset=0):
     listings = [dict(r) for r in rows]
 
     # Batch-resolve tags and options
+    listing_ids = [l['id'] for l in listings]
+    tags_map = _batch_resolve_tags(db, listing_ids)
+    options_map = _batch_resolve_options(db, listing_ids)
+    for l in listings:
+        l['tags'] = tags_map.get(l['id'], [])
+        l['listing_options'] = options_map.get(l['id'], [])
+
+    return listings
+
+
+def get_my_listings(db, user_id, limit=50, offset=0):
+    """Fetch listings owned by a user (all statuses)."""
+    rows = db.execute(
+        text("""
+            SELECT
+                l.id, l.status, l.name, l.description, l.price, l.game_item_id,
+                gi.name AS game_item_name,
+                pe.name AS prefix_enchant_name,
+                se.name AS suffix_enchant_name,
+                l.item_type, l.item_grade,
+                l.erg_grade, l.erg_level,
+                l.special_upgrade_type, l.special_upgrade_level,
+                l.damage, l.magic_damage, l.additional_damage, l.balance,
+                l.defense, l.protection, l.magic_defense, l.magic_protection,
+                l.durability, l.piercing_level,
+                l.created_at
+            FROM listings l
+            LEFT JOIN game_items gi ON gi.id = l.game_item_id
+            LEFT JOIN enchants pe ON pe.id = l.prefix_enchant_id
+            LEFT JOIN enchants se ON se.id = l.suffix_enchant_id
+            WHERE l.user_id = :user_id AND l.status != 3
+            ORDER BY l.id DESC
+            LIMIT :limit OFFSET :offset
+        """),
+        {"user_id": user_id, "limit": limit, "offset": offset},
+    ).mappings()
+    listings = [dict(r) for r in rows]
+
     listing_ids = [l['id'] for l in listings]
     tags_map = _batch_resolve_tags(db, listing_ids)
     options_map = _batch_resolve_options(db, listing_ids)

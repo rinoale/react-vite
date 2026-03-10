@@ -439,3 +439,24 @@ Medium complexity — touches pipeline handler, listing creation, and frontend d
 
 ### Replace `sys.path` hacks with `PROJECT_ROOT` env var
 (See Backend section above — affects both backend and scripts infrastructure.)
+
+### pg_trgm for ILIKE Search Optimization
+
+**Trigger:** When slow queries are observed on listing search (ILIKE `%keyword%`).
+
+**Problem:** `ILIKE '%keyword%'` performs a full sequential scan — B-tree indexes only help prefix matches (`LIKE 'keyword%'`). As the `listings` table grows, search queries on `listings.name` will degrade linearly.
+
+**Solution:** PostgreSQL's `pg_trgm` extension with a GIN index:
+
+```sql
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+CREATE INDEX idx_listings_name_trgm ON listings USING GIN (name gin_trgm_ops);
+```
+
+After this, `ILIKE '%keyword%'` automatically uses the trigram index — **no application code changes needed**. The planner picks the GIN index over a sequential scan when it's faster.
+
+**How it works:** `pg_trgm` decomposes text into 3-character subsequences (trigrams). For `"검색"`, trigrams are `"  검"`, `" 검색"`, `"검색 "`. The GIN index maps each trigram to the rows containing it. On query, PostgreSQL intersects the trigram posting lists to find candidate rows, then verifies with the full pattern.
+
+**Korean text note:** Korean characters are multi-byte but `pg_trgm` operates on characters (not bytes), so trigrams work correctly for Korean. Short keywords (1-2 chars) produce fewer trigrams and may fall back to sequential scan — this is expected and acceptable.
+
+**When to implement:** Monitor query performance via `pg_stat_statements` or application-level logging. When median search latency exceeds acceptable thresholds (e.g. >100ms), enable this. Current table size does not warrant it.

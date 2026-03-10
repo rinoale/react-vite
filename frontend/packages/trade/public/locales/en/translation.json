@@ -87,7 +87,29 @@
     "specialUpgradeLevel": "Lv.{{level}}",
     "ergLabel": "Erg",
     "ergGrade": "Grade {{grade}}",
-    "addMoreTags": "Add more tags..."
+    "addMoreTags": "Add more tags...",
+    "backToList": "Back"
+  },
+  "myListings": {
+    "title": "My Listings",
+    "empty": "You haven't listed any items yet.",
+    "createFirst": "Create your first listing",
+    "newListing": "New Listing",
+    "selectListing": "Select a listing to view details",
+    "statusDraft": "Draft",
+    "statusListed": "Listed",
+    "statusSold": "Sold",
+    "statusDeleted": "Delete",
+    "tabAll": "All",
+    "noResults": "No listings in this category.",
+    "confirmStatusChange": "Change \"{{name}}\" to {{status}}?",
+    "confirm": "Confirm"
+  },
+  "listing": {
+    "share": "Share",
+    "copied": "Copied!",
+    "notFound": "Listing not found",
+    "browseMarketplace": "Browse Marketplace"
   },
   "search": {
     "title": "Item Search",
@@ -120,7 +142,8 @@
     "home": "matrade",
     "search": "Search",
     "marketplace": "Marketplace",
-    "sellItem": "Sell Item"
+    "sellItem": "Sell Item",
+    "myListings": "My Listings"
   },
   "sections": {
     "lowConfidence": "Low Confidence: {{pct}}%",

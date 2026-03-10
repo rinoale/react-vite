@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { OnboardingModal } from '@mabi/shared/components/OnboardingModal'
+import { useAuth } from '@mabi/shared/hooks/useAuth'
 import AdminLayout from './layouts/AdminLayout'
 
 const EnchantPanel = lazy(() => import('./components/EnchantPanel'))
@@ -24,12 +25,36 @@ const Fallback = () => (
   </div>
 )
 
+function AdminGuard({ children }) {
+  const { user, isAuthenticated, loading } = useAuth()
+
+  if (loading) return <Fallback />
+
+  if (!isAuthenticated) {
+    window.location.href = '/login'
+    return null
+  }
+
+  const hasAccess = user?.roles?.includes('admin') || user?.roles?.includes('master')
+  if (!hasAccess) {
+    return (
+      <div className="min-h-screen bg-gray-900 text-gray-100 flex flex-col items-center justify-center gap-2">
+        <p className="text-lg font-semibold text-gray-400">Unauthorized</p>
+        <p className="text-sm text-gray-600">Admin access required.</p>
+      </div>
+    )
+  }
+
+  return children
+}
+
 function App() {
   const { t } = useTranslation()
   useEffect(() => { document.title = t('app.title') }, [t])
 
   return (
     <BrowserRouter basename={import.meta.env.BASE_URL}>
+      <AdminGuard>
       <Routes>
         <Route element={<AdminLayout />}>
           {/* Source of Truth */}
@@ -66,6 +91,7 @@ function App() {
         </Route>
       </Routes>
       <OnboardingModal />
+      </AdminGuard>
     </BrowserRouter>
   )
 }

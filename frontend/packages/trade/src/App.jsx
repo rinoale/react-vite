@@ -9,6 +9,8 @@ import Marketplace from './pages/marketplace'
 import Sell from './pages/sell'
 
 const LoginPage = lazy(() => import('./pages/login'))
+const ListingPage = lazy(() => import('./pages/listing'))
+const MyListings = lazy(() => import('./pages/my-listings'))
 
 function App() {
   const { t } = useTranslation()
@@ -22,6 +24,8 @@ function App() {
           <Route path="/" element={<SearchPage />} />
           <Route path="/market" element={<Marketplace />} />
           <Route path="/sell" element={<RequireAuth><Sell /></RequireAuth>} />
+          <Route path="/my-listings" element={<Suspense fallback=""><RequireAuth><MyListings /></RequireAuth></Suspense>} />
+          <Route path="/l/:code" element={<Suspense fallback=""><ListingPage /></Suspense>} />
           <Route path="/login" element={<Suspense fallback=""><LoginPage /></Suspense>} />
           <Route path="*" element={<h1>404 Not Found</h1>} />
         </Routes>
