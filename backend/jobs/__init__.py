@@ -1,5 +1,10 @@
 from jobs.cleanup_tags import cleanup_zero_weight_tags
-from jobs.run_pipeline import run_v3_pipeline_job
+
+
+def _lazy_run_v3_pipeline_job(db, **kwargs):
+    from jobs.run_pipeline import run_v3_pipeline_job
+    return run_v3_pipeline_job(db, **kwargs)
+
 
 REGISTRY = {
     "cleanup_zero_weight_tags": {
@@ -8,7 +13,7 @@ REGISTRY = {
         "schedule_seconds": 12 * 3600,
     },
     "run_v3_pipeline": {
-        "fn": run_v3_pipeline_job,
+        "fn": _lazy_run_v3_pipeline_job,
         "description": "Run V3 OCR pipeline on uploaded image (GPU-heavy)",
     },
 }

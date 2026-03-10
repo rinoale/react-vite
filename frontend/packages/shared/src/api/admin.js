@@ -106,3 +106,9 @@ export const assignFeatureToRole = (roleName, flagName) =>
 
 export const removeFeatureFromRole = (roleName, flagName) =>
   client.delete(`/admin/roles/${roleName}/features/${flagName}`);
+
+export const getR2Usage = () =>
+  client.get('/admin/usage/r2');
+
+export const getOciUsage = () =>
+  client.get('/admin/usage/oci');

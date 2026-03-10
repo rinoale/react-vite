@@ -18,6 +18,7 @@ const JobsPanel = lazy(() => import('./components/JobsPanel'))
 const UsersPanel = lazy(() => import('./components/UsersPanel'))
 const RolesPanel = lazy(() => import('./components/RolesPanel'))
 const FeatureFlagsPanel = lazy(() => import('./components/FeatureFlagsPanel'))
+const UsagePanel = lazy(() => import('./components/UsagePanel'))
 
 const Fallback = () => (
   <div className="flex items-center justify-center py-20">
@@ -78,6 +79,7 @@ function App() {
           <Route path="/system/users" element={<Suspense fallback={<Fallback />}><UsersPanel /></Suspense>} />
           <Route path="/system/roles" element={<Suspense fallback={<Fallback />}><RolesPanel /></Suspense>} />
           <Route path="/system/feature_flags" element={<Suspense fallback={<Fallback />}><FeatureFlagsPanel /></Suspense>} />
+          <Route path="/system/usage" element={<Suspense fallback={<Fallback />}><UsagePanel /></Suspense>} />
 
           {/* Default */}
           <Route path="/" element={<Navigate to="/source_of_truth/enchants" replace />} />

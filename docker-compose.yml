@@ -116,7 +116,13 @@ services:
     restart: unless-stopped
 
   worker:
-    image: react-vite-backend
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      args:
+        UID: ${UID:-1000}
+        GID: ${GID:-1000}
+        REQUIREMENTS: requirements-worker.txt
     container_name: mabinogi-worker
     logging:
       driver: json-file

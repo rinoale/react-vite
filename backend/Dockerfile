@@ -2,11 +2,12 @@ FROM python:3.14.2-slim
 
 ARG UID=1000
 ARG GID=1000
+ARG REQUIREMENTS=requirements.txt
 
 WORKDIR /app
 
-# System deps commonly needed by OCR stack (opencv/easyocr/pillow)
-# and source builds when wheels are unavailable on Python 3.14.
+# System deps for source builds when wheels are unavailable on Python 3.14,
+# and runtime libs for opencv/pillow (worker image).
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     gcc \
@@ -18,8 +19,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
-COPY backend/requirements.txt /app/requirements.txt
-RUN pip install --no-cache-dir -r /app/requirements.txt
+COPY backend/requirements*.txt /app/
+RUN pip install --no-cache-dir -r /app/${REQUIREMENTS}
 
 # Mount source at runtime, but keep a baseline copy for image completeness.
 COPY backend /app/backend

@@ -62,6 +62,14 @@ class Settings(BaseSettings):
     r2_secret_access_key: str = ""
     r2_bucket: str = ""
     r2_prefix: str = ""
+    cloudflare_api_token: str = ""  # for GraphQL analytics (R2 usage)
+
+    # --- OCI ---
+    oci_tenancy_ocid: str = ""
+    oci_user_ocid: str = ""
+    oci_fingerprint: str = ""
+    oci_private_key: str = ""  # PEM content (newlines as \n)
+    oci_region: str = ""
 
     # --- Cookie ---
     cookie_domain: str = ".mabitra.local"
