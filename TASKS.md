@@ -346,19 +346,20 @@ Both font-specific models (mabinogi_classic, nanum_gothic_bold) training with ne
 
 ## Background Jobs
 
-Jobs are registered in `backend/jobs/__init__.py` and manageable from the admin page (Jobs tab). Uses FastAPI `BackgroundTasks` + `job_runs` DB table for execution history.
+Jobs are registered in `backend/jobs/__init__.py` and manageable from the admin page (Jobs tab). Redis-based broker with queue routing (`default`, `gpu`). Worker process (`worker.py`) dequeues and executes jobs, records payload/result in `job_runs` table.
 
 ### Implemented
-- [x] **cleanup_zero_weight_tags** — Delete user-created tags with weight 0 (not searchable, varied text)
+- [x] **cleanup_zero_weight_tags** — Delete user-created tags with weight 0 (queue: `default`)
+- [x] **run_v3_pipeline** — Run V3 OCR pipeline on uploaded image (queue: `gpu`, lazy import)
 
 ### Planned
-- [ ] **run_v3_pipeline** — Offload V3 OCR pipeline to background worker (heavy compute, frees web server for API serving)
 - [ ] **gather_discord_images** — Collect item screenshots uploaded to connected Discord channels (better UX for users)
 - [ ] **create_recommendation_data** — Generate recommendation model data (TF-IDF vectors, similarity matrices)
 - [ ] **get_horn_bugle** — Fetch in-game chat data every 2 minutes (scheduled, needs APScheduler or similar)
 
 ### Tech Stack
-- **Current:** FastAPI `BackgroundTasks` + `job_runs` table (no new dependencies)
+- **Current:** Redis broker + standalone worker process (`worker.py --queues ...`), `job_runs` DB table
+- **Queue routing:** `default` (lightweight), `gpu` (OCR pipeline). Worker accepts `--queues` to select which queues to handle.
 - **Future (when scheduling needed):** Add APScheduler with PostgreSQL job store for periodic jobs (horn_bugle every 2 min, etc.)
 
 ---
@@ -439,3 +440,24 @@ Medium complexity — touches pipeline handler, listing creation, and frontend d
 
 ### Replace `sys.path` hacks with `PROJECT_ROOT` env var
 (See Backend section above — affects both backend and scripts infrastructure.)
+
+### pg_trgm for ILIKE Search Optimization
+
+**Trigger:** When slow queries are observed on listing search (ILIKE `%keyword%`).
+
+**Problem:** `ILIKE '%keyword%'` performs a full sequential scan — B-tree indexes only help prefix matches (`LIKE 'keyword%'`). As the `listings` table grows, search queries on `listings.name` will degrade linearly.
+
+**Solution:** PostgreSQL's `pg_trgm` extension with a GIN index:
+
+```sql
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+CREATE INDEX idx_listings_name_trgm ON listings USING GIN (name gin_trgm_ops);
+```
+
+After this, `ILIKE '%keyword%'` automatically uses the trigram index — **no application code changes needed**. The planner picks the GIN index over a sequential scan when it's faster.
+
+**How it works:** `pg_trgm` decomposes text into 3-character subsequences (trigrams). For `"검색"`, trigrams are `"  검"`, `" 검색"`, `"검색 "`. The GIN index maps each trigram to the rows containing it. On query, PostgreSQL intersects the trigram posting lists to find candidate rows, then verifies with the full pattern.
+
+**Korean text note:** Korean characters are multi-byte but `pg_trgm` operates on characters (not bytes), so trigrams work correctly for Korean. Short keywords (1-2 chars) produce fewer trigrams and may fall back to sequential scan — this is expected and acceptable.
+
+**When to implement:** Monitor query performance via `pg_stat_statements` or application-level logging. When median search latency exceeds acceptable thresholds (e.g. >100ms), enable this. Current table size does not warrant it.

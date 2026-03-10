@@ -5,6 +5,7 @@ from db.connector import get_db
 from db import schemas
 from db.models import User
 from crud import admin as crud_admin
+from trade.services import get_listing_detail as svc_get_listing_detail
 from auth.dependencies import require_role
 
 router = APIRouter()
@@ -29,7 +30,7 @@ def admin_listing_detail(
     db: Session = Depends(get_db),
     _: User = _admin_required,
 ):
-    result = crud_admin.get_listing_detail(db, listing_id)
+    result = svc_get_listing_detail(db, listing_id)
     if result is None:
         raise HTTPException(status_code=404, detail="Listing not found")
     return result

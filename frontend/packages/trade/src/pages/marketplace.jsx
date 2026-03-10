@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
-import { ShoppingBag, Loader2 } from 'lucide-react';
+import { ShoppingBag, Loader2, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { getListings, getListingDetail, searchListings } from '@mabi/shared/api/recommend';
 import { useListingSearch } from '@mabi/shared/hooks/useListingSearch';
@@ -94,6 +94,10 @@ const Marketplace = () => {
     setSelectedListing(listing);
   }, []);
 
+  const handleCloseMobileDetail = useCallback(() => {
+    setSelectedListing(null);
+  }, []);
+
   const search = useListingSearch({
     onResults: handleSearchResults,
     onSelectListing: handleSelectListing,
@@ -179,8 +183,8 @@ const Marketplace = () => {
             )}
           </div>
 
-          {/* Sidebar: Listing Detail */}
-          <div id="listing-detail-panel" className="lg:col-span-1 sticky top-20 max-h-[calc(100vh-6rem)] overflow-y-auto">
+          {/* Sidebar: Listing Detail (desktop) */}
+          <div id="listing-detail-panel" className="hidden lg:block lg:col-span-1 sticky top-20 max-h-[calc(100vh-6rem)] overflow-y-auto">
             {selectedListing && listingDetail ? (
               <ListingDetail
                 detail={listingDetail}
@@ -193,6 +197,29 @@ const Marketplace = () => {
               </div>
             )}
           </div>
+
+          {/* Mobile slide-over detail */}
+          {selectedListing && listingDetail && (
+            <div id="listing-detail-mobile" className="lg:hidden fixed inset-0 z-40 flex">
+              <div className="absolute inset-0 bg-black/60" onClick={handleCloseMobileDetail} />
+              <div className="relative ml-auto w-full max-w-md bg-gray-900 overflow-y-auto">
+                <button
+                  type="button"
+                  className="sticky top-0 z-10 w-full flex items-center gap-2 px-4 py-3 bg-gray-900 border-b border-gray-700 text-sm text-gray-400 hover:text-gray-200 transition-colors"
+                  onClick={handleCloseMobileDetail}
+                >
+                  <X className="w-4 h-4" />
+                  {t('marketplace.backToList', 'Back')}
+                </button>
+                <div className="p-4">
+                  <ListingDetail
+                    detail={listingDetail}
+                    onTagClick={search.handleSelectTag}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

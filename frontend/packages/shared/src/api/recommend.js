@@ -5,6 +5,14 @@ export const getListings = ({ limit, offset, ...rest } = {}) =>
 
 export const getListingDetail = (listingId) => client.get(`/listings/${listingId}`);
 
+export const getListingByCode = (code) => client.get(`/listings/s/${code}`);
+
+export const getMyListings = ({ limit, offset } = {}) =>
+  client.get('/listings/mine', { params: { limit, offset } });
+
+export const updateListingStatus = (listingId, status) =>
+  client.patch(`/listings/${listingId}/status`, { status });
+
 export const getListingsByGameItem = (gameItemId) =>
   client.get('/listings', { params: { game_item_id: gameItemId } });
 

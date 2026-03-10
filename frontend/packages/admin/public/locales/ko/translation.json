@@ -25,8 +25,20 @@
       "jobs": "백그라운드 작업",
       "users": "사용자",
       "roles": "역할",
-      "feature_flags": "기능 플래그"
+      "feature_flags": "기능 플래그",
+      "usage": "사용량"
     }
+  },
+  "usage": {
+    "r2Title": "R2 스토리지 사용량",
+    "refresh": "새로고침",
+    "storage": "스토리지",
+    "classA": "Class A 작업 (PUT, LIST, ...)",
+    "classB": "Class B 작업 (GET, HEAD, ...)",
+    "objects": "오브젝트",
+    "ociTitle": "OCI 비용",
+    "ociTotal": "예상 총액",
+    "ociNoUsage": "이번 달 사용량이 없습니다."
   },
   "stats": {
     "enchants": "Enchants",
@@ -161,7 +173,9 @@
     "colStarted": "시작",
     "colFinished": "완료",
     "colWorker": "워커",
-    "colResult": "결과"
+    "colPayload": "페이로드",
+    "colResult": "결과",
+    "workers": "워커 {{count}}개"
   },
   "enchants": {
     "title": "ENCHANT ENTRIES",

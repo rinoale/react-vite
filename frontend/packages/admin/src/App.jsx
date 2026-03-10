@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { OnboardingModal } from '@mabi/shared/components/OnboardingModal'
+import { useAuth } from '@mabi/shared/hooks/useAuth'
 import AdminLayout from './layouts/AdminLayout'
 
 const EnchantPanel = lazy(() => import('./components/EnchantPanel'))
@@ -17,6 +18,7 @@ const JobsPanel = lazy(() => import('./components/JobsPanel'))
 const UsersPanel = lazy(() => import('./components/UsersPanel'))
 const RolesPanel = lazy(() => import('./components/RolesPanel'))
 const FeatureFlagsPanel = lazy(() => import('./components/FeatureFlagsPanel'))
+const UsagePanel = lazy(() => import('./components/UsagePanel'))
 
 const Fallback = () => (
   <div className="flex items-center justify-center py-20">
@@ -24,12 +26,36 @@ const Fallback = () => (
   </div>
 )
 
+function AdminGuard({ children }) {
+  const { user, isAuthenticated, loading } = useAuth()
+
+  if (loading) return <Fallback />
+
+  if (!isAuthenticated) {
+    window.location.href = '/login'
+    return null
+  }
+
+  const hasAccess = user?.roles?.includes('admin') || user?.roles?.includes('master')
+  if (!hasAccess) {
+    return (
+      <div className="min-h-screen bg-gray-900 text-gray-100 flex flex-col items-center justify-center gap-2">
+        <p className="text-lg font-semibold text-gray-400">Unauthorized</p>
+        <p className="text-sm text-gray-600">Admin access required.</p>
+      </div>
+    )
+  }
+
+  return children
+}
+
 function App() {
   const { t } = useTranslation()
   useEffect(() => { document.title = t('app.title') }, [t])
 
   return (
     <BrowserRouter basename={import.meta.env.BASE_URL}>
+      <AdminGuard>
       <Routes>
         <Route element={<AdminLayout />}>
           {/* Source of Truth */}
@@ -53,6 +79,7 @@ function App() {
           <Route path="/system/users" element={<Suspense fallback={<Fallback />}><UsersPanel /></Suspense>} />
           <Route path="/system/roles" element={<Suspense fallback={<Fallback />}><RolesPanel /></Suspense>} />
           <Route path="/system/feature_flags" element={<Suspense fallback={<Fallback />}><FeatureFlagsPanel /></Suspense>} />
+          <Route path="/system/usage" element={<Suspense fallback={<Fallback />}><UsagePanel /></Suspense>} />
 
           {/* Default */}
           <Route path="/" element={<Navigate to="/source_of_truth/enchants" replace />} />
@@ -66,6 +93,7 @@ function App() {
         </Route>
       </Routes>
       <OnboardingModal />
+      </AdminGuard>
     </BrowserRouter>
   )
 }

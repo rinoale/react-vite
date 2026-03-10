@@ -25,8 +25,20 @@
       "jobs": "Jobs",
       "users": "Users",
       "roles": "Roles",
-      "feature_flags": "Feature Flags"
+      "feature_flags": "Feature Flags",
+      "usage": "Usage"
     }
+  },
+  "usage": {
+    "r2Title": "R2 STORAGE USAGE",
+    "refresh": "Refresh",
+    "storage": "Storage",
+    "classA": "Class A Ops (PUT, LIST, ...)",
+    "classB": "Class B Ops (GET, HEAD, ...)",
+    "objects": "Objects",
+    "ociTitle": "OCI COST",
+    "ociTotal": "Estimated Total",
+    "ociNoUsage": "No usage recorded this month."
   },
   "stats": {
     "enchants": "Enchants",
@@ -161,7 +173,10 @@
     "colStarted": "Started",
     "colFinished": "Finished",
     "colWorker": "Worker",
-    "colResult": "Result"
+    "colPayload": "Payload",
+    "colResult": "Result",
+    "workers": "{{count}} worker",
+    "workers_plural": "{{count}} workers"
   },
   "enchants": {
     "title": "ENCHANT ENTRIES",

@@ -2,32 +2,36 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 # Load target-specific config (gitignored)
-ENV_CONF="$SCRIPT_DIR/deploy.env"
+ENV_CONF="$SCRIPT_DIR/deploy.staging.env"
 if [ ! -f "$ENV_CONF" ]; then
-  echo "Error: $ENV_CONF not found. Copy deploy.env.example and fill in your values."
+  echo "Error: $ENV_CONF not found. Copy deploy.staging.env.example and fill in your values."
   exit 1
 fi
 source "$ENV_CONF"
 
 SSH="ssh -i $PK"
 SCP="scp -i $PK"
-RSYNC="rsync -az --delete --exclude='__pycache__' --exclude='logs' --exclude='backend/ocr' --exclude='tmp' --exclude='data/corrections' -e 'ssh -i $PK'"
+RSYNC="rsync -az --delete --exclude='__pycache__' --exclude='logs' --exclude='backend/ocr' --exclude='tmp' --exclude='data/' -e 'ssh -i $PK'"
 
 # ---------------------------------------------------------------------------
-# Usage:  ./deploy.sh [--base] [--models]
-#   --base     Rebuild and transfer the base image (Python deps + OCR models).
-#              Only needed when requirements.txt or models change.
+# Usage:  ./deploy.sh [--backend] [--worker] [--models]
+#   --backend  Rebuild and transfer the backend image (slim Python deps).
+#              Only needed when requirements.txt changes.
+#   --worker   Rebuild and transfer the worker image (full OCR/ML deps + models).
+#              Only needed when requirements-worker.txt or models change.
 #   --models   Rebuild and transfer the OCR models image first.
-#   Default    Rsync source code + frontend dist, restart container.
+#   Default    Rsync source code + frontend dist, restart containers.
 # ---------------------------------------------------------------------------
-BUILD_BASE=false
+BUILD_BACKEND=false
+BUILD_WORKER=false
 PUSH_MODELS=false
 for arg in "$@"; do
   case $arg in
-    --base) BUILD_BASE=true ;;
+    --backend) BUILD_BACKEND=true ;;
+    --worker) BUILD_WORKER=true ;;
     --models) PUSH_MODELS=true ;;
   esac
 done
@@ -48,24 +52,45 @@ if $PUSH_MODELS; then
   echo "==> Saving and transferring models image (~1.3GB)..."
   docker save mabi-ocr-models | gzip | \
     $SSH "$TARGET" "cat > /tmp/mabi-ocr-models.tar.gz && docker load < /tmp/mabi-ocr-models.tar.gz && rm /tmp/mabi-ocr-models.tar.gz"
-  echo "==> Models image transferred."
+
+  echo "==> Extracting data files from models image..."
+  $SSH "$TARGET" "mkdir -p $REMOTE_DIR/app/data && CID=\$(docker create mabi-ocr-models) && docker cp \$CID:/data/. $REMOTE_DIR/app/data/ && docker rm \$CID"
+  echo "==> Models image + data transferred."
 fi
 
-# --- 3. Optionally build & push base image ---
-if $BUILD_BASE; then
-  echo "==> Building base image (${PLATFORM})..."
+# --- 3. Optionally build & push backend image (slim) ---
+if $BUILD_BACKEND; then
+  echo "==> Building backend image (${PLATFORM})..."
   STAGING=$(mktemp -d)
   trap 'rm -rf "$STAGING"' EXIT
   cp "$PROJECT_ROOT/backend/requirements.txt" "$STAGING/requirements.txt"
-  cp "$PROJECT_ROOT/infra/deploy/Dockerfile.base" "$STAGING/Dockerfile"
-  docker buildx build --platform "$PLATFORM" --load -t mabi-base:latest "$STAGING"
+  cp "$PROJECT_ROOT/infra/deploy/Dockerfile.backend" "$STAGING/Dockerfile"
+  docker buildx build --platform "$PLATFORM" --load -t mabi-backend:latest "$STAGING"
   rm -rf "$STAGING"
   trap - EXIT
 
-  echo "==> Saving and transferring base image..."
-  docker save mabi-base:latest | gzip | \
-    $SSH "$TARGET" "cat > /tmp/mabi-base.tar.gz && docker load < /tmp/mabi-base.tar.gz && rm /tmp/mabi-base.tar.gz"
-  echo "==> Base image transferred."
+  echo "==> Saving and transferring backend image..."
+  docker save mabi-backend:latest | gzip | \
+    $SSH "$TARGET" "cat > /tmp/mabi-backend.tar.gz && docker load < /tmp/mabi-backend.tar.gz && rm /tmp/mabi-backend.tar.gz"
+  echo "==> Backend image transferred."
+fi
+
+# --- 3b. Optionally build & push worker image (full OCR/ML deps) ---
+if $BUILD_WORKER; then
+  echo "==> Building worker image (${PLATFORM})..."
+  STAGING=$(mktemp -d)
+  trap 'rm -rf "$STAGING"' EXIT
+  cp "$PROJECT_ROOT/backend/requirements.txt" "$STAGING/requirements.txt"
+  cp "$PROJECT_ROOT/backend/requirements-worker.txt" "$STAGING/requirements-worker.txt"
+  cp "$PROJECT_ROOT/infra/deploy/Dockerfile.base" "$STAGING/Dockerfile"
+  docker buildx build --platform "$PLATFORM" --load -t mabi-worker:latest "$STAGING"
+  rm -rf "$STAGING"
+  trap - EXIT
+
+  echo "==> Saving and transferring worker image..."
+  docker save mabi-worker:latest | gzip | \
+    $SSH "$TARGET" "cat > /tmp/mabi-worker.tar.gz && docker load < /tmp/mabi-worker.tar.gz && rm /tmp/mabi-worker.tar.gz"
+  echo "==> Worker image transferred."
 fi
 
 # --- 4. Stage app directory ---
@@ -83,11 +108,6 @@ rsync -a \
 
 # Configs
 cp -r "$PROJECT_ROOT/configs" "$STAGING/configs"
-
-# Data (dictionary + source_of_truth only)
-mkdir -p "$STAGING/data/dictionary" "$STAGING/data/source_of_truth"
-cp -r "$PROJECT_ROOT/data/dictionary/"* "$STAGING/data/dictionary/" 2>/dev/null || true
-cp -r "$PROJECT_ROOT/data/source_of_truth/"* "$STAGING/data/source_of_truth/" 2>/dev/null || true
 
 # Frontend dist (remove stale configs — startup.sh generates them from server DB)
 cp -r "$PROJECT_ROOT/frontend/packages/trade/dist" "$STAGING/frontend"

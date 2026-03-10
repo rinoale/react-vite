@@ -15,7 +15,7 @@ const gameIdColor = (name) => {
   return '#' + c.map(v => ((v * 101) % 97 + 159).toString(16).toUpperCase()).join('');
 };
 
-const PlayerName = ({ server, gameId, className = 'text-xs' }) => {
+const PlayerName = ({ server, gameId, className = 'text-xs', copyable = true }) => {
   const [copied, setCopied] = useState(false);
   const timerRef = useRef(null);
 
@@ -36,17 +36,21 @@ const PlayerName = ({ server, gameId, className = 'text-xs' }) => {
       )}
       {server && gameId && ' / '}
       {gameId && (
-        <span
-          style={{ color: gameIdColor(gameId) }}
-          className="cursor-pointer hover:underline inline-flex items-center gap-1"
-          onClick={handleCopy}
-        >
-          {gameId}
-          {copied
-            ? <Check className="w-3 h-3 text-green-400" />
-            : <Clipboard className="w-3 h-3 opacity-40" />
-          }
-        </span>
+        copyable ? (
+          <span
+            style={{ color: gameIdColor(gameId) }}
+            className="cursor-pointer hover:underline inline-flex items-center gap-1"
+            onClick={handleCopy}
+          >
+            {gameId}
+            {copied
+              ? <Check className="w-3 h-3 text-green-400" />
+              : <Clipboard className="w-3 h-3 opacity-40" />
+            }
+          </span>
+        ) : (
+          <span style={{ color: gameIdColor(gameId) }}>{gameId}</span>
+        )
       )}
     </span>
   );

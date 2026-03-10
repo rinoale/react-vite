@@ -1,8 +1,9 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useCallback } from 'react';
 import { Outlet, useLocation, useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { ChevronDown, ChevronRight, Database, ShoppingCart, Settings } from 'lucide-react';
+import { ChevronDown, ChevronRight, Database, ShoppingCart, Settings, LogOut } from 'lucide-react';
 import { useAuth } from '@mabi/shared/hooks/useAuth';
+import PlayerName from '@mabi/shared/components/PlayerName';
 import { getSummary } from '@mabi/shared/api/admin';
 
 const NAV_GROUPS = [
@@ -35,6 +36,7 @@ const NAV_GROUPS = [
       { key: 'users' },
       { key: 'roles' },
       { key: 'feature_flags' },
+      { key: 'usage' },
     ],
   },
 ];
@@ -50,11 +52,14 @@ const SUMMARY_KEYS = {
   tags: 'tags',
 };
 
+const userInfoBox = 'px-4 py-3 border-t border-gray-800';
+const logoutBtn = 'flex items-center gap-2 text-xs text-gray-500 hover:text-red-400 transition-colors cursor-pointer mt-1.5';
+
 const AdminLayout = () => {
   const { t } = useTranslation();
   const location = useLocation();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const isMaster = user?.roles?.includes('master');
   const [summary, setSummary] = useState(null);
 
@@ -86,6 +91,11 @@ const AdminLayout = () => {
   const handleGroupClick = (groupKey) => {
     navigate(`/${groupKey}`);
   };
+
+  const handleLogout = useCallback(async () => {
+    await logout();
+    navigate('/');
+  }, [logout, navigate]);
 
   return (
     <div className="min-h-screen bg-gray-900 text-gray-100 flex">
@@ -148,6 +158,17 @@ const AdminLayout = () => {
             );
           })}
         </div>
+
+        {/* user-info */}
+        {user && (
+          <div className={userInfoBox}>
+            <PlayerName server={user.server} gameId={user.game_id} className="text-xs text-gray-300 truncate" copyable={false} />
+            <button type="button" className={logoutBtn} onClick={handleLogout}>
+              <LogOut className="w-3.5 h-3.5" />
+              {t('auth.logout')}
+            </button>
+          </div>
+        )}
       </nav>
 
       {/* content */}

@@ -1,140 +1,27 @@
-import json
-import os
-import shutil
-
 from fastapi import HTTPException
 from sqlalchemy import text
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from db.models import (
-    OcrCorrection, Listing, ListingOption,
-    Enchant, GameItem, Tag, TagTarget,
-)
+from db.models import Listing, ListingOption, Enchant, GameItem
+from db import models
 from lib.utils.log import logger
 
-# --- Correction capture constants ---
-_BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-_CROPS_DIR = os.path.join(_BASE_DIR, '..', 'tmp', 'ocr_crops')
-_CORRECTIONS_DIR = os.path.join(_BASE_DIR, '..', 'data', 'corrections')
-_MODELS_DIR = os.path.join(_BASE_DIR, 'ocr', 'models')
+
+_VALID_STATUS_TRANSITIONS = {0, 1, 2, 3}
 
 
-def _load_charsets():
-    """Load per-model charsets for mismatch detection."""
-    charsets = {}
-    # Content models
-    for yaml_prefix in ('custom_mabinogi_classic', 'custom_nanum_gothic_bold'):
-        yaml_path = os.path.join(_MODELS_DIR, f'{yaml_prefix}.yaml')
-        if not os.path.exists(yaml_path):
-            continue
-        real_path = os.path.realpath(yaml_path)
-        version_dir = os.path.dirname(real_path)
-        chars_file = os.path.join(version_dir, 'unique_chars.txt')
-        if os.path.exists(chars_file):
-            with open(chars_file, 'r', encoding='utf-8') as f:
-                charsets[yaml_prefix] = set(f.read().strip())
-    # Enchant header model
-    enchant_hdr_dir = os.path.join(_MODELS_DIR, 'custom_enchant_header.yaml')
-    if os.path.exists(enchant_hdr_dir):
-        real_path = os.path.realpath(enchant_hdr_dir)
-        version_dir = os.path.dirname(real_path)
-        for fname in ('enchant_header_chars.txt', 'unique_chars.txt'):
-            chars_file = os.path.join(version_dir, fname)
-            if os.path.exists(chars_file):
-                with open(chars_file, 'r', encoding='utf-8') as f:
-                    charsets['enchant_header'] = set(f.read().strip())
-                break
-    return charsets
-
-
-_CHARSETS = _load_charsets()
-
-
-def capture_corrections(session_id, lines, db):
-    """Diff submitted lines against stored OCR results and save corrections.
-
-    Returns the number of corrections saved.
-    """
-    if not session_id or not lines:
-        return 0
-
-    session_dir = os.path.join(_CROPS_DIR, session_id)
-    results_path = os.path.join(session_dir, 'ocr_results.json')
-
-    if not os.path.isfile(results_path):
-        return 0
-
-    with open(results_path, 'r', encoding='utf-8') as f:
-        originals = json.load(f)
-
-    # Build lookup: (section, line_index) → original line data
-    orig_by_key = {(o['section'], o['line_index']): o for o in originals}
-
-    dest_dir = os.path.join(_CORRECTIONS_DIR, session_id)
-    corrections_saved = 0
-
-    for line in lines:
-        orig = orig_by_key.get((line.section, line.line_index))
-        if orig is None:
-            continue
-
-        submitted = line.text.strip()
-        original = orig['text'].strip()
-
-        if submitted == original:
-            continue  # No change
-
-        # Check charset mismatch against the model that produced this line
-        charset_mismatch = None
-        if _CHARSETS:
-            ocr_model = orig.get('ocr_model', '')
-            # Pick the right charset for this line's model
-            if ocr_model == 'enchant_header':
-                model_charset = _CHARSETS.get('enchant_header')
-            else:
-                # Content models — check union of both
-                model_charset = _CHARSETS.get('custom_mabinogi_classic', set()) | _CHARSETS.get('custom_nanum_gothic_bold', set())
-            if model_charset:
-                bad = set(line.text) - model_charset - {' '}
-                if bad:
-                    charset_mismatch = ''.join(sorted(bad))
-
-        # Copy crop image
-        crop_name = f"{line.line_index:03d}.png"
-        src_path = os.path.join(session_dir, line.section, crop_name)
-        if not os.path.isfile(src_path):
-            continue
-
-        os.makedirs(dest_dir, exist_ok=True)
-        shutil.copy2(src_path, os.path.join(dest_dir, f"{line.section}_{crop_name}"))
-
-        db.add(OcrCorrection(
-            session_id=session_id,
-            line_index=line.line_index,
-            original_text=orig.get('raw_text', orig['text']),
-            corrected_text=submitted,
-            confidence=orig.get('confidence'),
-            section=line.section,
-            ocr_model=orig.get('ocr_model', ''),
-            fm_applied=orig.get('fm_applied', False),
-            status='pending',
-            charset_mismatch=charset_mismatch,
-            image_filename=f"{line.section}_{crop_name}",
-            is_stitched=orig.get('_is_stitched', False),
-        ))
-        corrections_saved += 1
-
-    if corrections_saved:
-        try:
-            db.commit()
-            logger.info("register-listing  saved %d correction(s)", corrections_saved)
-        except Exception:
-            db.rollback()
-            logger.exception("register-listing  DB commit failed for %d correction(s)", corrections_saved)
-            corrections_saved = 0
-
-    return corrections_saved
+def update_listing_status(db, listing_id, status, user_id):
+    """Update listing status. Only the owner can change status."""
+    if status not in _VALID_STATUS_TRANSITIONS:
+        raise HTTPException(status_code=400, detail="Invalid status")
+    listing = db.query(Listing).filter(Listing.id == listing_id).first()
+    if not listing:
+        raise HTTPException(status_code=404, detail="Listing not found")
+    if listing.user_id != user_id:
+        raise HTTPException(status_code=403, detail="Not your listing")
+    listing.status = status
+    db.commit()
+    return {"id": listing.id, "status": listing.status}
 
 
 _ATTR_COLUMNS = {
@@ -244,124 +131,6 @@ def create_listing(payload, db, *, user_id=None):
         raise HTTPException(status_code=500, detail="Failed to persist listing")
 
     return listing
-
-
-_TAG_POSITION_WEIGHTS = [80, 60, 30]
-_SPECIAL_UPGRADE_NAMES = {'R': '붉개', 'S': '푸개'}
-
-
-def _get_or_create_tag(db, name, weight=0):
-    """Get existing tag or create a new one. Handles concurrent insert race."""
-    tag = db.query(Tag).filter(Tag.name == name).first()
-    if tag:
-        return tag
-    sp = db.begin_nested()
-    tag = Tag(name=name, weight=weight)
-    db.add(tag)
-    try:
-        sp.commit()
-    except IntegrityError:
-        sp.rollback()
-        tag = db.query(Tag).filter(Tag.name == name).first()
-    return tag
-
-
-def _attach_tag(db, tag, target_type, target_id, weight):
-    """Attach a tag to a target. Silently skips duplicates."""
-    sp = db.begin_nested()
-    db.add(TagTarget(
-        tag_id=tag.id,
-        target_type=target_type,
-        target_id=target_id,
-        weight=weight,
-    ))
-    try:
-        sp.commit()
-    except IntegrityError:
-        sp.rollback()
-
-
-def create_listing_tags(listing, payload, db):
-    """Create user-submitted and auto-generated tags for a listing.
-
-    User tags use positional weights [80, 60, 30].
-    Auto tags (enchant, erg, special upgrade) use weight 0.
-    Deduplicates: auto tags already attached by user tags are skipped.
-    """
-    try:
-        attached = set()
-
-        # --- User-submitted tags (positional weights) ---
-        for i, tag_name in enumerate(payload.tags[:3]):
-            tag_name = tag_name.strip()
-            if not tag_name:
-                continue
-            pos_weight = _TAG_POSITION_WEIGHTS[i] if i < len(_TAG_POSITION_WEIGHTS) else 0
-            tag = _get_or_create_tag(db, tag_name)
-            weight = max(0, pos_weight - tag.weight)
-            _attach_tag(db, tag, 'listing', listing.id, weight)
-            attached.add(tag_name)
-
-        # --- Auto tags (skip if already attached by user) ---
-        auto_tags = _build_auto_tags(payload, db)
-        for name in auto_tags:
-            if name in attached:
-                continue
-            tag = _get_or_create_tag(db, name)
-            _attach_tag(db, tag, 'listing', listing.id, 0)
-
-        db.commit()
-        logger.info("register-listing  tags created for listing id=%d user=%d auto=%d",
-                     listing.id, min(len(payload.tags), 3), len(auto_tags))
-    except Exception:
-        db.rollback()
-        logger.exception("register-listing  tag creation failed for listing id=%d", listing.id)
-
-
-def _build_auto_tags(payload, db):
-    """Build list of auto-generated tag names from structured listing data."""
-    tags = []
-    _tag_enchant_names(tags, payload)
-    _tag_erg(tags, payload)
-    _tag_special_upgrade(tags, payload)
-    _tag_piercing_maxroll(tags, payload, db)
-    return tags
-
-
-def _tag_enchant_names(tags, payload):
-    for enc in payload.enchants:
-        if enc.name:
-            tags.append(enc.name)
-
-
-def _tag_erg(tags, payload):
-    if payload.erg_grade and payload.erg_level == 50:
-        tags.append(f'{payload.erg_grade}르그50')
-
-
-def _tag_special_upgrade(tags, payload):
-    if not payload.special_upgrade_type:
-        return
-    upgrade_name = _SPECIAL_UPGRADE_NAMES.get(payload.special_upgrade_type)
-    if upgrade_name:
-        tags.append(upgrade_name)
-    if payload.special_upgrade_level in (7, 8):
-        tags.append(f'{payload.special_upgrade_level}강')
-
-
-def _tag_piercing_maxroll(tags, payload, db):
-    for opt in payload.listing_options:
-        if opt.option_type != 'enchant_effects' or opt.option_name != '피어싱 레벨':
-            continue
-        if opt.rolled_value is None or not opt.option_id:
-            continue
-        row = db.execute(
-            text("SELECT max_value FROM enchant_effects WHERE id = :id"),
-            {"id": opt.option_id},
-        ).mappings().first()
-        if row and row['max_value'] is not None and float(opt.rolled_value) >= float(row['max_value']):
-            tags.append('풀피어싱')
-            return
 
 
 def _batch_resolve_tags(db, listing_ids):
@@ -496,6 +265,44 @@ def get_listings(db, game_item_id=None, limit=50, offset=0):
     listings = [dict(r) for r in rows]
 
     # Batch-resolve tags and options
+    listing_ids = [l['id'] for l in listings]
+    tags_map = _batch_resolve_tags(db, listing_ids)
+    options_map = _batch_resolve_options(db, listing_ids)
+    for l in listings:
+        l['tags'] = tags_map.get(l['id'], [])
+        l['listing_options'] = options_map.get(l['id'], [])
+
+    return listings
+
+
+def get_my_listings(db, user_id, limit=50, offset=0):
+    """Fetch listings owned by a user (all statuses)."""
+    rows = db.execute(
+        text("""
+            SELECT
+                l.id, l.status, l.name, l.description, l.price, l.game_item_id,
+                gi.name AS game_item_name,
+                pe.name AS prefix_enchant_name,
+                se.name AS suffix_enchant_name,
+                l.item_type, l.item_grade,
+                l.erg_grade, l.erg_level,
+                l.special_upgrade_type, l.special_upgrade_level,
+                l.damage, l.magic_damage, l.additional_damage, l.balance,
+                l.defense, l.protection, l.magic_defense, l.magic_protection,
+                l.durability, l.piercing_level,
+                l.created_at
+            FROM listings l
+            LEFT JOIN game_items gi ON gi.id = l.game_item_id
+            LEFT JOIN enchants pe ON pe.id = l.prefix_enchant_id
+            LEFT JOIN enchants se ON se.id = l.suffix_enchant_id
+            WHERE l.user_id = :user_id AND l.status != 3
+            ORDER BY l.id DESC
+            LIMIT :limit OFFSET :offset
+        """),
+        {"user_id": user_id, "limit": limit, "offset": offset},
+    ).mappings()
+    listings = [dict(r) for r in rows]
+
     listing_ids = [l['id'] for l in listings]
     tags_map = _batch_resolve_tags(db, listing_ids)
     options_map = _batch_resolve_options(db, listing_ids)
@@ -698,3 +505,128 @@ def _fetch_listings_by_ids(db, listing_ids, limit=50, offset=0):
         l['listing_options'] = options_map.get(l['id'], [])
 
     return listings
+
+
+def _resolve_listing_tags(db: Session, listing_id: int):
+    """Resolve all tags for a single listing (used by detail view)."""
+    rows = db.execute(
+        text("""
+            SELECT DISTINCT t.name, (t.weight + tt.weight) AS weight
+            FROM (
+                SELECT 'listing' AS ttype, :lid AS tid
+                UNION ALL
+                SELECT 'game_item', l.game_item_id FROM listings l WHERE l.id = :lid AND l.game_item_id IS NOT NULL
+                UNION ALL
+                SELECT lo.option_type, lo.option_id FROM listing_options lo WHERE lo.listing_id = :lid AND lo.option_id IS NOT NULL
+                UNION ALL
+                SELECT 'enchant', l.prefix_enchant_id FROM listings l WHERE l.id = :lid AND l.prefix_enchant_id IS NOT NULL
+                UNION ALL
+                SELECT 'enchant', l.suffix_enchant_id FROM listings l WHERE l.id = :lid AND l.suffix_enchant_id IS NOT NULL
+            ) AS sub(ttype, tid)
+            JOIN tag_targets tt ON tt.target_type = sub.ttype AND tt.target_id = sub.tid
+            JOIN tags t ON t.id = tt.tag_id
+            ORDER BY (t.weight + tt.weight) DESC, t.name
+        """),
+        {"lid": listing_id},
+    ).mappings()
+    return [{"name": r["name"], "weight": r["weight"]} for r in rows]
+
+
+def _build_enchant_detail(db: Session, listing_id: int, enchant_id: int, slot: int):
+    """Build enchant detail dict with all effects for a single enchant slot."""
+    enc = db.query(models.Enchant).filter(models.Enchant.id == enchant_id).first()
+    if not enc:
+        return None
+    effect_rows = db.execute(
+        text(
+            """
+            SELECT ee.raw_text, ee.min_value, ee.max_value, lo.rolled_value AS value
+            FROM enchant_effects ee
+            LEFT JOIN listing_options lo
+              ON lo.option_type = 'enchant_effects'
+              AND lo.option_id = ee.id
+              AND lo.listing_id = :listing_id
+            WHERE ee.enchant_id = :enchant_id
+            ORDER BY ee.effect_order
+            """
+        ),
+        {"listing_id": listing_id, "enchant_id": enchant_id},
+    ).mappings()
+    return {
+        "slot": slot,
+        "enchant_name": enc.name,
+        "rank": enc.rank,
+        "effects": [dict(e) for e in effect_rows],
+    }
+
+
+def get_listing_detail(db: Session, listing_id: int):
+    """Fetch full listing detail including enchants, options, tags, and seller info."""
+    listing = db.query(models.Listing).filter(models.Listing.id == listing_id).first()
+    if not listing:
+        return None
+
+    # Resolve seller info
+    seller = None
+    if listing.user_id:
+        seller = db.query(models.User).filter(models.User.id == listing.user_id).first()
+
+    game_item_name = None
+    if listing.game_item_id:
+        gi = db.query(models.GameItem).filter(models.GameItem.id == listing.game_item_id).first()
+        if gi:
+            game_item_name = gi.name
+
+    prefix_enchant = None
+    if listing.prefix_enchant_id:
+        prefix_enchant = _build_enchant_detail(db, listing_id, listing.prefix_enchant_id, 0)
+
+    suffix_enchant = None
+    if listing.suffix_enchant_id:
+        suffix_enchant = _build_enchant_detail(db, listing_id, listing.suffix_enchant_id, 1)
+
+    # All listing options (reforge, echostone, murias_relic, enchant_effect)
+    option_rows = db.execute(
+        text(
+            """
+            SELECT option_type, option_name, rolled_value, max_level
+            FROM listing_options
+            WHERE listing_id = :listing_id
+            ORDER BY id
+            """
+        ),
+        {"listing_id": listing_id},
+    ).mappings()
+
+    return {
+        "id": listing.id,
+        "status": listing.status,
+        "name": listing.name,
+        "description": listing.description,
+        "price": listing.price,
+        "game_item_id": listing.game_item_id,
+        "game_item_name": game_item_name,
+        "item_type": listing.item_type,
+        "item_grade": listing.item_grade,
+        "erg_grade": listing.erg_grade,
+        "erg_level": listing.erg_level,
+        "special_upgrade_type": listing.special_upgrade_type,
+        "special_upgrade_level": listing.special_upgrade_level,
+        "damage": listing.damage,
+        "magic_damage": listing.magic_damage,
+        "additional_damage": listing.additional_damage,
+        "balance": listing.balance,
+        "defense": listing.defense,
+        "protection": listing.protection,
+        "magic_defense": listing.magic_defense,
+        "magic_protection": listing.magic_protection,
+        "durability": listing.durability,
+        "piercing_level": listing.piercing_level,
+        "prefix_enchant": prefix_enchant,
+        "suffix_enchant": suffix_enchant,
+        "listing_options": [dict(r) for r in option_rows],
+        "tags": _resolve_listing_tags(db, listing_id),
+        "seller_server": seller.server if seller else None,
+        "seller_game_id": seller.game_id if seller else None,
+        "seller_discord_id": seller.discord_id if seller else None,
+    }

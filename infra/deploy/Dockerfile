@@ -15,8 +15,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
-COPY backend/requirements.txt /app/requirements.txt
-RUN pip install --no-cache-dir -r /app/requirements.txt
+COPY backend/requirements*.txt /app/
+RUN pip install --no-cache-dir -r /app/requirements-worker.txt
 
 COPY backend/ /app/backend/
 COPY configs/ /app/configs/

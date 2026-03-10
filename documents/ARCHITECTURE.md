@@ -614,12 +614,37 @@ All models: TPS-ResNet-BiLSTM-CTC architecture, imgH=32, `sensitive=true`, `PAD=
 
 | Endpoint | Input | Pipeline |
 |----------|-------|----------|
-| `POST /upload-item-v3` | Original color screenshot (multipart) | Full V3 pipeline (Stages 1-8) |
+| `POST /examine-item` | Original color screenshot (multipart) | Start async V3 pipeline job, return `{job_id}` |
+| `GET /examine-item/{job_id}/stream` | — | SSE stream: progress events + final result |
 | `POST /upload-item-v2` | Browser-preprocessed binary PNG | Legacy pipeline (line split → OCR → FM, no segmentation) |
 
-V3 response: `{sections: {section_name: OcrSectionResponse}, tagged_segments, abbreviated, session_id?}`
+V3 response (via SSE `result` event): `{filename, sections: {section_name: OcrSectionResponse}, abbreviated, session_id?}`
 
 See `documents/API_SPEC.md` for full response schema.
+
+### Async Examine-Item (SSE)
+
+The examine-item endpoint runs the V3 pipeline asynchronously and streams progress via Server-Sent Events.
+
+```
+Browser                             Backend
+  │                                   │
+  ├── POST /examine-item ────────────►│  decode image, create job_id
+  │◄── { job_id } ───────────────────┤  start pipeline in background thread
+  │                                   │
+  ├── GET /examine-item/{id}/stream ─►│  SSE connection
+  │◄── event: progress {SEGMENTING} ─┤  Stage 1: segment tooltip
+  │◄── event: progress {RECOGNIZING} ┤  Stages 2-4: OCR all sections
+  │◄── event: progress {RESOLVING} ──┤  Stage 6: enchant P1/P2/P3
+  │◄── event: result {data} ─────────┤  final ExamineItemResponse
+  │    (stream closes)                │
+```
+
+**Pipeline progress callback:** `run_v3_pipeline()` accepts an optional `on_progress(step: str)` callback, invoked at each major stage boundary. The examine endpoint feeds these into a `queue.Queue` consumed by the SSE `StreamingResponse`.
+
+**Thread safety:** The pipeline singleton (`_pipeline`) contains shared EasyOCR readers with GPU state. Concurrent inference is not safe. Current mitigation: low traffic (single user). For production scale, use `ThreadPoolExecutor(max_workers=1)` or move to the distributed worker architecture (see below).
+
+**Frontend:** `examineItemStream(file, {onProgress, onResult, onError})` in `shared/src/api/items.js` posts the file, opens an `EventSource`, and routes SSE events to callbacks. The `useImageUpload` hook maps server-pushed `step` values directly to `loadingStep` state — progress display reflects real pipeline stages, not client-side timers.
 
 ---
 
@@ -682,11 +707,19 @@ REGISTRY = {
         "fn": cleanup_zero_weight_tags,
         "description": "Delete user-created tags with weight 0",
         "schedule_seconds": 12 * 3600,
+        "queue": "default",
+    },
+    "run_v3_pipeline": {
+        "fn": _lazy_run_v3_pipeline_job,    # deferred import (cv2/numpy not on backend)
+        "description": "Run V3 OCR pipeline on uploaded image (GPU-heavy)",
+        "queue": "gpu",
     },
 }
 ```
 
-Each entry: a Python function `fn(db: Session) -> str`, a description, and an optional schedule interval. Adding a new job = write a function + add it here.
+Each entry: a Python function `fn(db: Session, *, payload: dict) -> str`, a description, an optional schedule interval, and a `queue` name. Adding a new job = write a function + add it here.
+
+`get_queue(job_name)` returns the queue for a given job. Enqueue call sites use this to route jobs to the correct queue.
 
 ### Worker
 
@@ -694,18 +727,29 @@ Each entry: a Python function `fn(db: Session) -> str`, a description, and an op
 
 Standalone process with two responsibilities:
 
-1. **Dequeue loop** — `BRPOP` with 5-second timeout, execute job, update `job_runs` row, ack/fail
-2. **Scheduler thread** — daemon thread that enqueues scheduled jobs at their configured intervals
+1. **Dequeue loop** — round-robin poll across subscribed queues (1s timeout per queue), execute job, update `job_runs` row, ack/fail
+2. **Scheduler thread** — daemon thread that enqueues scheduled jobs at their configured intervals (only for queues this worker handles)
 
 ```bash
-# Local dev
-cd backend && python worker.py
+# All queues (default for Docker worker)
+python worker.py --queues default gpu
 
-# Remote worker (e.g., local PC with GPU connecting to OCI)
-REDIS_HOST=64.110.116.116 REDIS_PASSWORD=pass DB_HOST=64.110.116.116 python worker.py
+# GPU pipeline only (local PC with GPU)
+python worker.py --queues gpu
+
+# Lightweight jobs only (deployed server without GPU)
+python worker.py --queues default
+
+# No args = all queues from registry
+python worker.py
+
+# Remote worker (e.g., local PC connecting to OCI)
+REDIS_HOST=64.110.116.116 REDIS_PASSWORD=pass DB_HOST=64.110.116.116 python worker.py --queues gpu
 ```
 
-The worker records `worker_id` (hostname) on each `job_runs` row — visible in the admin dashboard to track which machine processed a job.
+**Queue routing:** Jobs are routed to queues by the `queue` field in `REGISTRY`. The `gpu` queue isolates GPU-heavy OCR pipeline jobs so they can be processed by a dedicated worker (e.g. a local PC with a GPU) while the deployed server handles only lightweight `default` queue jobs.
+
+The worker records `worker_id` (hostname) and `payload` (JSON) on each `job_runs` row — visible in the admin dashboard to track which machine processed a job and with what arguments.
 
 Handles `SIGINT`/`SIGTERM` for graceful shutdown.
 
@@ -730,6 +774,7 @@ Triggering a job via admin inserts a `pending` row into `job_runs` and calls `br
 | `id` | int (PK) | Auto-increment |
 | `job_name` | text | Registry key |
 | `status` | text | `pending` → `running` → `completed` / `failed` |
+| `payload` | text | Job arguments as JSON (set when worker picks up job) |
 | `result_summary` | text | Return value of job function |
 | `error` | text | Exception message (truncated to 500 chars) |
 | `worker_id` | text | Hostname of the worker that executed the job |
@@ -749,28 +794,126 @@ redis:
     - "6379:6379"
 
 worker:
-  image: mabi-base:latest
-  command: ["python", "worker.py"]
+  build:
+    context: .
+    dockerfile: backend/Dockerfile
+    args:
+      REQUIREMENTS: requirements-worker.txt   # includes OCR/ML packages
+  command: python worker.py --queues default gpu
   depends_on: [db, redis]
 ```
 
 Staging exposes Redis on port 6379 (password-protected) so remote workers (local PC) can connect.
 
+All Docker services have logging configured with `json-file` driver, `max-size: 10m`, `max-file: 3`.
+
 ### File Layout
 
 ```
 backend/
-├── worker.py                  # Standalone worker entry point
+├── worker.py                  # Standalone worker entry point (--queues arg)
 ├── jobs/
-│   ├── __init__.py            # REGISTRY — job definitions + schedule config
+│   ├── __init__.py            # REGISTRY — job definitions, queue routing, get_queue()
 │   ├── broker.py              # JobBroker protocol + RedisBroker implementation
 │   ├── connection.py          # get_broker() factory (Redis connection from settings)
-│   └── cleanup_tags.py        # Job: delete zero-weight tags
+│   ├── cleanup_tags.py        # Job: delete zero-weight tags (queue: default)
+│   └── run_pipeline.py        # Job: V3 OCR pipeline (queue: gpu)
 ├── admin/
 │   └── jobs.py                # Admin API: list, trigger, history
 └── db/
     └── models.py              # JobRun model
 ```
+
+---
+
+## File Storage
+
+### Overview
+
+File storage abstracts where binary artifacts (uploaded images, OCR crop PNGs, `ocr_results.json`) are persisted. A strategy pattern allows swapping storage backends without changing calling code.
+
+```
+FileStorage (ABC)
+  ├── R2FileStorage      ← Cloudflare R2 (staging/production)
+  ├── S3FileStorage      ← AWS S3 (future, same boto3 SDK)
+  └── LocalFileStorage   ← Local disk (dev — shared via ./tmp:/app/tmp volume)
+```
+
+### Interface
+
+```python
+class FileStorage(ABC):
+    def upload(self, key: str, data: bytes, content_type: str) -> str: ...
+    def download(self, key: str) -> bytes: ...
+    def delete(self, key: str) -> None: ...
+```
+
+- `key` — storage path (e.g. `ocr_crops/{session_id}/original.png`)
+- `upload` returns the storage key/path for the uploaded object
+- Implementations handle auth, bucket selection, and SDK specifics internally
+- `get_storage(backend=None)` accepts an optional backend override; defaults to `STORAGE_BACKEND` env var
+- Instance cache keyed by backend name — multiple backends can coexist
+
+**Storage backend coordination:** The backend passes `storage_backend` in the job payload so the worker uses the same storage the image was uploaded to. This prevents mismatches when backend and worker have different default storage settings.
+
+### File Layout
+
+```
+backend/lib/storage/
+├── __init__.py       # re-export FileStorage, LocalFileStorage, get_storage
+├── base.py           # FileStorage ABC
+├── local.py          # LocalFileStorage (disk-based, dev)
+├── r2.py             # R2FileStorage (Cloudflare R2 via boto3)
+└── connection.py     # get_storage() factory singleton from settings
+```
+
+### Why Cloudflare R2
+
+| | Cloudflare R2 | GCS | OCI | AWS S3 |
+|---|---|---|---|---|
+| **Free storage** | 10 GB | 5 GB | 20 GB | 5 GB (12mo only) |
+| **Free ops/mo** | 1M class A, 10M class B | 5K / 50K | 50K / 50K | 2K / 20K |
+| **Egress** | Free, unlimited | 100 GB/mo | 10 TB/mo | 100 GB/mo |
+| **Always free** | Yes | Yes | Yes | No |
+
+R2 chosen for: zero egress fees (critical for distributed worker), generous free ops, S3-compatible API (boto3), and future use as frontend CDN origin.
+
+### Configuration
+
+```env
+STORAGE_BACKEND=r2
+R2_ACCOUNT_ID=<cloudflare account id>
+R2_ACCESS_KEY_ID=<r2 api token>
+R2_SECRET_ACCESS_KEY=<r2 api secret>
+R2_BUCKET=mabinogi-ocr
+R2_PREFIX=                    # optional key prefix
+```
+
+R2 API tokens are created in Cloudflare dashboard → R2 → Manage R2 API Tokens.
+
+### Motivation: Distributed OCR Worker
+
+The V3 pipeline is GPU-heavy (~3s per image). To offload this from the web server, the pipeline can run on a separate worker (e.g. a local PC with a GPU). Shared file storage bridges the gap:
+
+```
+POST /examine-item
+  → upload image to R2 (key: ocr_jobs/{job_id}/input.png)
+  → push job to Redis queue
+  → return {job_id}
+
+Worker (local PC)
+  ← pull job from Redis
+  ← download image from R2
+  → run V3 pipeline
+  → upload crops to R2 (key: ocr_crops/{session_id}/*.png)
+  → publish result via Redis pub/sub
+
+GET /examine-item/{job_id}/stream
+  ← subscribe Redis channel
+  → forward SSE events to browser
+```
+
+The web server never touches the GPU. The worker can be anywhere with network access to Redis and R2.
 
 ---
 
@@ -969,6 +1112,54 @@ For development, `/etc/hosts` (both WSL and Windows) maps subdomains to `127.0.0
 
 ```
 127.0.0.1  dev.trade.mabitra.com dev.admin.mabitra.com dev.misc.mabitra.com dev.api.mabitra.com
+```
+
+### Package Split
+
+Backend and worker have separate requirements files to avoid installing GPU/ML packages on the web server:
+
+| File | Purpose | Installs |
+|------|---------|----------|
+| `requirements.txt` | Web server (FastAPI) | fastapi, SQLAlchemy, httpx, boto3, oci, etc. |
+| `requirements-worker.txt` | Worker (OCR pipeline) | `-r requirements.txt` + easyocr, opencv, numpy, Pillow, scikit-learn, rapidfuzz |
+
+The Dockerfile accepts `ARG REQUIREMENTS=requirements.txt` (defaults to slim). Worker overrides via docker-compose build arg:
+```yaml
+worker:
+  build:
+    args:
+      REQUIREMENTS: requirements-worker.txt
+```
+
+Jobs that need OCR packages use lazy imports (e.g. `_lazy_run_v3_pipeline_job`) so the backend can register them in `REGISTRY` without importing `cv2`/`numpy` at startup.
+
+### Usage Monitoring
+
+**Files:**
+- `backend/admin/usage.py` — Cloudflare R2 usage (GraphQL Analytics API)
+- `backend/admin/usage_oci.py` — OCI cost breakdown (Cost Analysis API)
+- `frontend/packages/admin/src/components/UsagePanel.jsx` — Admin dashboard panel
+
+**R2 Usage** (`GET /admin/usage/r2`):
+
+Queries Cloudflare GraphQL Analytics API (`r2StorageAdaptiveGroups` + `r2OperationsAdaptiveGroups`) for current month. Returns storage bytes, object count, Class A/B operation counts, and percentages vs free tier limits (10GB storage, 1M Class A, 10M Class B).
+
+Note: Storage dataset uses `Date!` type with `date_geq`/`date_leq` filters. Operations dataset uses `DateTime!` type with `datetime_geq`/`datetime_leq` filters. Storage does not support `orderBy`.
+
+**OCI Cost** (`GET /admin/usage/oci`):
+
+Uses OCI Python SDK `UsageapiClient.request_summarized_usages()` for current month cost breakdown by service. Returns total estimated cost and per-service breakdown in account currency.
+
+Note: OCI Cost API requires date parameters at midnight UTC precision (zero hours/minutes/seconds). End date is set to tomorrow midnight.
+
+**Config:**
+```env
+CLOUDFLARE_API_TOKEN=<token>   # Cloudflare API token with Account Analytics Read
+OCI_TENANCY_OCID=ocid1.tenancy.oc1..xxx
+OCI_USER_OCID=ocid1.user.oc1..xxx
+OCI_FINGERPRINT=xx:xx:xx:...
+OCI_PRIVATE_KEY=-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----
+OCI_REGION=ap-chuncheon-1
 ```
 
 ### Docker Environment

@@ -33,8 +33,10 @@ export function OnboardingModal() {
       await updateProfile({ server, game_id: gameId.trim() });
       await loadUser();
       showToast({ type: 'success', message: t('onboarding.complete') });
-    } catch {
-      showToast({ type: 'error', message: t('onboarding.error') });
+    } catch (err) {
+      const detail = err?.response?.data?.detail;
+      const msg = detail === 'game_id_taken' ? t('onboarding.gameIdTaken') : t('onboarding.error');
+      showToast({ type: 'error', message: msg });
     } finally {
       setSubmitting(false);
     }

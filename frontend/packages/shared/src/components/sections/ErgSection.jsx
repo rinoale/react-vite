@@ -78,7 +78,7 @@ const ErgGradeRow = ({ grade, level, maxLevel, hasLines, onLineChange }) => {
           <p className="text-xs text-amber-300">{t('sections.erg.unrecognized')}</p>
         </div>
       )}
-      <p className={`text-sm font-medium ${textColor}`}>
+      <div className={`text-sm font-medium ${textColor}`}>
         {t('sections.erg.gradeLabel') + ' '}
         <CustomSelect
           value={grade || ''}
@@ -107,7 +107,7 @@ const ErgGradeRow = ({ grade, level, maxLevel, hasLines, onLineChange }) => {
           placeholder="—"
         />
         {' ' + t('sections.erg.levelLabel') + ')'}
-      </p>
+      </div>
     </div>
   );
 };

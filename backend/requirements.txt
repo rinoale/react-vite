@@ -1,12 +1,6 @@
 fastapi
 uvicorn
 python-multipart
-easyocr
-opencv-python
-numpy
-Pillow
-scikit-learn
-rapidfuzz
 SQLAlchemy
 alembic
 psycopg2-binary
@@ -18,3 +12,5 @@ authlib
 httpx
 pyyaml
 redis
+boto3
+oci

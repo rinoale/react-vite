@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { Search, ShoppingBag, Upload, LogIn, LogOut, Menu, ChevronsLeft } from 'lucide-react'
+import { Search, ShoppingBag, Upload, Package, LogIn, LogOut, Menu, ChevronsLeft } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '@mabi/shared/hooks/useAuth'
 import PlayerName from '@mabi/shared/components/PlayerName'
@@ -75,6 +75,9 @@ const Sidebar = () => {
       <NavLink to="/" icon={Search} collapsed={collapsed}>{t('sidebar.search', 'Search')}</NavLink>
       <NavLink to="/market" icon={ShoppingBag} collapsed={collapsed}>{t('sidebar.marketplace')}</NavLink>
       <NavLink to="/sell" icon={Upload} collapsed={collapsed}>{t('sidebar.sellItem')}</NavLink>
+      {isAuthenticated && (
+        <NavLink to="/my-listings" icon={Package} collapsed={collapsed}>{t('sidebar.myListings')}</NavLink>
+      )}
 
       {/* user-info */}
       <div className={collapsed ? userInfoBoxCollapsed : userInfoBox}>
@@ -85,7 +88,7 @@ const Sidebar = () => {
             </button>
           ) : (
             <>
-              <PlayerName server={user?.server} gameId={user?.game_id} className={userName} />
+              <PlayerName server={user?.server} gameId={user?.game_id} className={userName} copyable={false} />
               <button type="button" className={logoutBtn} onClick={handleLogout}>
                 <LogOut className="w-4 h-4" />
                 {t('auth.logout')}

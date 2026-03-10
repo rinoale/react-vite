@@ -2,6 +2,11 @@ services:
   db:
     image: postgres:16-alpine
     container_name: mabi-db
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     environment:
       POSTGRES_DB: mabinogi
       POSTGRES_USER: mabinogi
@@ -15,6 +20,11 @@ services:
   redis:
     image: redis:7-alpine
     container_name: mabi-redis
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     command: redis-server --requirepass ${REDIS_PASSWORD}
     ports:
       - "6379:6379"
@@ -23,8 +33,13 @@ services:
     restart: unless-stopped
 
   backend:
-    image: mabi-base:latest
+    image: mabi-backend:latest
     container_name: mabi-backend
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     env_file: .env
     environment:
       DB_HOST: db
@@ -37,7 +52,6 @@ services:
       REDIS_PASSWORD: ${REDIS_PASSWORD}
     volumes:
       - ./app:/app
-      - ocr_models:/models
     depends_on:
       - db
       - redis
@@ -50,8 +64,13 @@ services:
     restart: unless-stopped
 
   worker:
-    image: mabi-base:latest
+    image: mabi-worker:latest
     container_name: mabi-worker
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     env_file: .env
     working_dir: /app/backend
     environment:
@@ -63,7 +82,7 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_PASSWORD: ${REDIS_PASSWORD}
-    command: ["python", "worker.py"]
+    command: ["python", "worker.py", "--queues", "default", "gpu"]
     volumes:
       - ./app:/app
       - ocr_models:/models
@@ -75,6 +94,11 @@ services:
   nginx:
     image: nginx:alpine
     container_name: mabi-nginx
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     ports:
       - "80:80"
       - "443:443"
@@ -89,6 +113,11 @@ services:
   certbot:
     image: certbot/certbot
     container_name: mabi-certbot
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     volumes:
       - certbot_www:/var/www/certbot
       - certbot_certs:/etc/letsencrypt

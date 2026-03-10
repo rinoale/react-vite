@@ -37,7 +37,7 @@ backend/__pycache__/
 split_output/
 scripts/__pycache__/
 scripts/hidden/
-scripts/deploy.env
+scripts/deploy/deploy.*.env
 saved_models
 tmp/
 

@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from db.connector import get_db
-from trade.service import search_game_items as svc_search_game_items
+from trade.services import search_game_items as svc_search_game_items
 
 router = APIRouter()
 

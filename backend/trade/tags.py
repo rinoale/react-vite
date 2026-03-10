@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from db.connector import get_db
-from trade.service import search_tags as svc_search_tags
+from trade.services import search_tags as svc_search_tags
 
 router = APIRouter()
 

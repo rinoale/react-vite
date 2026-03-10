@@ -1,0 +1,21 @@
+FROM python:3.14.2-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    gcc \
+    g++ \
+    pkg-config \
+    rustc \
+    cargo \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt /app/
+RUN pip install --no-cache-dir -r /app/requirements.txt
+
+WORKDIR /app/backend
+
+EXPOSE 8000
+
+CMD ["/app/startup.sh"]

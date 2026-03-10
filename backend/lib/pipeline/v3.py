@@ -305,7 +305,8 @@ def _save_crops_by_section(sections, crop_session_dir, session_id):
 
 
 @timed("v3 pipeline total")
-def run_v3_pipeline(img_bgr, *, save_crops=False, save_crops_dir=None):
+def run_v3_pipeline(img_bgr, *, save_crops=False, save_crops_dir=None,
+                    on_progress=None):
     """Run the full v3 pipeline on a color screenshot.
 
     Uses the module-level pipeline singleton (initialized by init_pipeline()).
@@ -314,11 +315,15 @@ def run_v3_pipeline(img_bgr, *, save_crops=False, save_crops_dir=None):
         img_bgr: Original color screenshot (BGR numpy array).
         save_crops: Whether to persist per-line crop images.
         save_crops_dir: Base directory for crop sessions.
+        on_progress: Optional callback ``(step: str) -> None`` invoked at
+            each major pipeline stage for real-time progress reporting.
 
     Returns:
         dict with 'sections', 'tagged_segments', 'abbreviated',
         and optionally 'session_id'
     """
+    _notify = on_progress or (lambda _step: None)
+
     parser = _pipeline['parser']
     corrector = _pipeline['corrector']
 
@@ -334,6 +339,7 @@ def run_v3_pipeline(img_bgr, *, save_crops=False, save_crops_dir=None):
         os.makedirs(crop_session_dir, exist_ok=True)
 
     # Step 1: Detect orange headers → segment into pre_header + tagged sections
+    _notify('SEGMENTING')
     pre_header_seg, content_segments, tagged = _step_segment(
         img_bgr, _pipeline['header_reader'], _pipeline['section_patterns'],
         _pipeline['config'])
@@ -342,6 +348,7 @@ def run_v3_pipeline(img_bgr, *, save_crops=False, save_crops_dir=None):
     attach = crop_session_dir is not None
 
     # Step 2: Pre-header — must run first (produces parsed_item_name for enchant)
+    _notify('RECOGNIZING')
     ph_handler = PreHeaderHandler()
     section_data, detected_font = ph_handler.process(
         pre_header_seg, crop_session_dir=crop_session_dir)
@@ -394,6 +401,7 @@ def run_v3_pipeline(img_bgr, *, save_crops=False, save_crops_dir=None):
         _save_crops_by_section(sections, crop_session_dir, session_id)
 
     # Step 6: Final enchant header competition (P1/P2/P3)
+    _notify('RESOLVING')
     _step_resolve_enchant(sections, corrector)
 
     # Log FM stats

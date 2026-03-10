@@ -1,5 +1,5 @@
-import React from 'react';
-import { Wand2, MessageCircle } from 'lucide-react';
+import React, { useState, useCallback, useRef } from 'react';
+import { Wand2, MessageCircle, Share2, Check } from 'lucide-react';
 import { badgeYellow, badgePink, cardSlot } from '../styles';
 import { useTranslation } from 'react-i18next';
 import LevelBadge from './LevelBadge';
@@ -9,10 +9,28 @@ import { ATTR_LABELS, SLOT_LABELS, getOptionIcon, getListingOptionDisplay, rende
 
 const ListingDetail = ({ detail, onTagClick }) => {
   const { t } = useTranslation();
+  const [copied, setCopied] = useState(false);
+  const timerRef = useRef(null);
+
+  const handleShare = useCallback(() => {
+    if (!detail.short_code) return;
+    const url = `${window.location.origin}/l/${detail.short_code}`;
+    navigator.clipboard?.writeText(url);
+    setCopied(true);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => setCopied(false), 1500);
+  }, [detail.short_code]);
 
   return (
     <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
-      <h2 className="text-2xl font-bold mb-1">{detail.name}</h2>
+      <div className="flex items-start justify-between gap-2 mb-1">
+        <h2 className="text-2xl font-bold">{detail.name}</h2>
+        {detail.short_code && (
+          <button type="button" onClick={handleShare} className="shrink-0 mt-1 p-1.5 rounded text-gray-500 hover:text-gray-300 hover:bg-gray-700 transition-colors" title={t('listing.share', 'Share')}>
+            {copied ? <Check className="w-4 h-4 text-green-400" /> : <Share2 className="w-4 h-4" />}
+          </button>
+        )}
+      </div>
       {detail.game_item_name && (
         <p className="text-sm text-gray-400 mb-2">{detail.game_item_name}</p>
       )}
