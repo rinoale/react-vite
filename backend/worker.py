@@ -5,8 +5,7 @@ Usage:
     python worker.py                         # all queues (default + gpu)
     python worker.py --queues gpu            # GPU jobs only (local PC)
     python worker.py --queues default        # lightweight jobs only
-    APP_ENV=staging python worker.py         # staging
-    REDIS_HOST=64.110.116.116 python worker.py  # remote worker
+    bash scripts/worker/run-remote.sh        # remote GPU worker via SSH tunnel
 """
 
 import argparse
@@ -199,6 +198,10 @@ def main() -> None:
     from alembic import command as alembic_command
     alembic_cfg = AlembicConfig("alembic.ini")
     alembic_command.upgrade(alembic_cfg, "head")
+
+    # Alembic's fileConfig() disables pre-existing loggers and sets root to WARNING
+    logger.disabled = False
+    logging.getLogger().setLevel(logging.INFO)
     logger.info("DB schema up to date")
 
     broker = get_broker()

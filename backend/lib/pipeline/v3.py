@@ -49,6 +49,8 @@ def init_pipeline():
     run_v3_pipeline() use the singleton directly.
     """
     global _pipeline
+    if _pipeline is not None:
+        return
 
     header_reader = init_header_reader(models_dir=MODELS_DIR)
     enchant_header_reader = init_enchant_header_reader(models_dir=MODELS_DIR)
