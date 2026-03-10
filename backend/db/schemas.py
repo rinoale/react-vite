@@ -190,6 +190,8 @@ class JobOut(BaseModel):
     name: str
     description: str
     schedule_seconds: Optional[int] = None
+    queue: str = "default"
+    workers: int = 0
     last_run: Optional['JobRunOut'] = None
 
 class JobRunOut(BaseModel):

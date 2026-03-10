@@ -105,6 +105,20 @@ def execute_job(queue: str, message: JobMessage) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Heartbeat (runs in a daemon thread)
+# ---------------------------------------------------------------------------
+
+
+def _heartbeat_loop(broker, worker_id: str, queues: set[str]) -> None:
+    while not _shutdown.is_set():
+        try:
+            broker.register_worker(worker_id, queues)
+        except Exception:
+            logger.exception("Heartbeat refresh failed")
+        _shutdown.wait(30)
+
+
+# ---------------------------------------------------------------------------
 # Scheduler (runs in a daemon thread)
 # ---------------------------------------------------------------------------
 
@@ -189,6 +203,14 @@ def main() -> None:
 
     broker = get_broker()
 
+    # Register heartbeat and start refresh thread
+    broker.register_worker(WORKER_ID, queues)
+    heartbeat_thread = threading.Thread(
+        target=_heartbeat_loop, args=(broker, WORKER_ID, queues), daemon=True,
+    )
+    heartbeat_thread.start()
+    logger.info("Heartbeat registered (queues=%s)", sorted(queues))
+
     scheduler_thread = threading.Thread(target=_scheduler_loop, args=(queues,), daemon=True)
     scheduler_thread.start()
     logger.info("Scheduler thread started")
@@ -204,6 +226,7 @@ def main() -> None:
             # No message from any queue in this round
             continue
 
+    broker.unregister_worker(WORKER_ID, queues)
     logger.info("Worker stopped")
 
 

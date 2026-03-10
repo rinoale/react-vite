@@ -7,6 +7,7 @@ import {
   loadingCenter, loadingIcon, dividerY, metaRow, hoverRow,
   jobRow, jobName, jobDesc, jobMeta, jobMetaResult, jobMetaError, badgeCyan,
   iconSmSpin, iconSm, btnJobRun, btnPagGray, thRow, thCell, tdCell, tdCellMono, tdCellSub, tdCellTrunc,
+  badgeGreen, badgeRed,
 } from '@mabi/shared/styles';
 
 const statusConfig = {
@@ -104,6 +105,9 @@ const JobsPanel = () => {
                 <div className="flex-1">
                   <div className={metaRow}>
                     <p className={jobName}>{job.name}</p>
+                    <span className={job.workers > 0 ? badgeGreen : badgeRed}>
+                      {job.queue} · {t('jobs.workers', { count: job.workers })}
+                    </span>
                     {job.schedule_seconds && (
                       <span className={badgeCyan}>{t('jobs.every', { interval: formatInterval(job.schedule_seconds) })}</span>
                     )}

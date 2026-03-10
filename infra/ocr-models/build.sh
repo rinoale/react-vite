@@ -17,9 +17,14 @@ trap 'rm -rf "$STAGING"' EXIT
 echo "==> Staging model files (resolving symlinks)..."
 # cp -L follows symlinks, copies real files
 cp -rL "$MODELS_SRC" "$STAGING/models"
-
-# Remove unnecessary files
 rm -rf "$STAGING/models/__pycache__"
+
+echo "==> Staging data files..."
+DATA_SRC="$PROJECT_ROOT/data"
+mkdir -p "$STAGING/data"
+cp -r "$DATA_SRC/dictionary" "$STAGING/data/"
+cp -r "$DATA_SRC/source_of_truth" "$STAGING/data/"
+cp -r "$DATA_SRC/fonts" "$STAGING/data/"
 
 echo "==> Building mabi-ocr-models image..."
 if [ -n "$PLATFORM" ]; then

@@ -174,7 +174,8 @@
     "colFinished": "완료",
     "colWorker": "워커",
     "colPayload": "페이로드",
-    "colResult": "결과"
+    "colResult": "결과",
+    "workers": "워커 {{count}}개"
   },
   "enchants": {
     "title": "ENCHANT ENTRIES",

@@ -33,7 +33,7 @@ services:
     restart: unless-stopped
 
   backend:
-    image: mabi-base:latest
+    image: mabi-backend:latest
     container_name: mabi-backend
     logging:
       driver: json-file
@@ -52,7 +52,6 @@ services:
       REDIS_PASSWORD: ${REDIS_PASSWORD}
     volumes:
       - ./app:/app
-      - ocr_models:/models
     depends_on:
       - db
       - redis
@@ -65,7 +64,7 @@ services:
     restart: unless-stopped
 
   worker:
-    image: mabi-base:latest
+    image: mabi-worker:latest
     container_name: mabi-worker
     logging:
       driver: json-file

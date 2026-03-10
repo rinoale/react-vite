@@ -15,14 +15,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements*.txt /app/
+COPY requirements.txt requirements-worker.txt /app/
 RUN pip install --no-cache-dir -r /app/requirements-worker.txt
 
-# OCR models stored separately so app volume mount doesn't hide them
+# OCR models + data stored outside /app so volume mount doesn't hide them
 COPY --from=models /models/ /models/
+COPY --from=models /data/ /data/
 
 WORKDIR /app/backend
 
-EXPOSE 8000
-
-CMD ["/app/startup.sh"]
+CMD ["python", "worker.py", "--queues", "default", "gpu"]

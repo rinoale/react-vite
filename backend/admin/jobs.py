@@ -9,6 +9,7 @@ from db.connector import get_db
 from db.models import JobRun
 from db.schemas import JobOut, JobRunOut, PaginatedJobRunResponse
 from jobs import REGISTRY, get_queue
+from jobs.broker import NoWorkerError
 from jobs.connection import get_broker
 
 router = APIRouter(
@@ -28,11 +29,14 @@ def _last_run(db: Session, job_name: str) -> JobRunOut | None:
 
 @router.get("/jobs")
 def list_jobs(db: Session = Depends(get_db)) -> list[JobOut]:
+    broker = get_broker()
     return [
         JobOut(
             name=name,
             description=meta["description"],
             schedule_seconds=meta.get("schedule_seconds"),
+            queue=meta.get("queue", "default"),
+            workers=broker.worker_count(meta.get("queue", "default")),
             last_run=_last_run(db, name),
         )
         for name, meta in REGISTRY.items()
@@ -53,13 +57,19 @@ def trigger_job(
     db.refresh(run)
 
     broker = get_broker()
-    broker.enqueue(get_queue(job_name), {
-        "job_id": str(uuid4()),
-        "job_name": job_name,
-        "run_id": run.id,
-        "enqueued_at": datetime.now(timezone.utc).isoformat(),
-        "payload": {},
-    })
+    try:
+        broker.enqueue(get_queue(job_name), {
+            "job_id": str(uuid4()),
+            "job_name": job_name,
+            "run_id": run.id,
+            "enqueued_at": datetime.now(timezone.utc).isoformat(),
+            "payload": {},
+        })
+    except NoWorkerError as e:
+        run.status = "failed"
+        run.error = str(e)
+        db.commit()
+        raise HTTPException(status_code=503, detail=str(e))
     return JobRunOut.model_validate(run)
 
 

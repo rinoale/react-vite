@@ -43,18 +43,26 @@ async def examine_item(file: UploadFile = File(...)):
         db.refresh(run)
 
         from jobs import get_queue
+        from jobs.broker import NoWorkerError
         broker = get_broker()
-        broker.enqueue(get_queue("run_v3_pipeline"), {
-            "job_id": job_id,
-            "job_name": "run_v3_pipeline",
-            "run_id": run.id,
-            "enqueued_at": datetime.now(timezone.utc).isoformat(),
-            "payload": {
+        try:
+            broker.enqueue(get_queue("run_v3_pipeline"), {
                 "job_id": job_id,
-                "filename": file.filename,
-                "storage_backend": get_settings().storage_backend,
-            },
-        })
+                "job_name": "run_v3_pipeline",
+                "run_id": run.id,
+                "enqueued_at": datetime.now(timezone.utc).isoformat(),
+                "payload": {
+                    "job_id": job_id,
+                    "filename": file.filename,
+                    "storage_backend": get_settings().storage_backend,
+                },
+            })
+        except NoWorkerError:
+            run.status = "failed"
+            run.error = "No worker available for OCR pipeline"
+            run.finished_at = datetime.now(timezone.utc)
+            db.commit()
+            raise HTTPException(status_code=503, detail="No OCR worker available")
     finally:
         db.close()
 
