@@ -54,7 +54,7 @@ if $PUSH_MODELS; then
     $SSH "$TARGET" "cat > /tmp/mabi-ocr-models.tar.gz && docker load < /tmp/mabi-ocr-models.tar.gz && rm /tmp/mabi-ocr-models.tar.gz"
 
   echo "==> Extracting data files from models image..."
-  $SSH "$TARGET" "mkdir -p $REMOTE_DIR/app/data && CID=\$(docker create mabi-ocr-models) && docker cp \$CID:/data/. $REMOTE_DIR/app/data/ && docker rm \$CID"
+  $SSH "$TARGET" "mkdir -p $REMOTE_DIR/app/data && CID=\$(docker create mabi-ocr-models true) && docker cp \$CID:/data/. $REMOTE_DIR/app/data/ && docker rm \$CID"
   echo "==> Models image + data transferred."
 fi
 

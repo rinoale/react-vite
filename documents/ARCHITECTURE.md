@@ -743,8 +743,8 @@ python worker.py --queues default
 # No args = all queues from registry
 python worker.py
 
-# Remote worker (e.g., local PC connecting to OCI)
-REDIS_HOST=64.110.116.116 REDIS_PASSWORD=pass DB_HOST=64.110.116.116 python worker.py --queues gpu
+# Remote worker via SSH tunnel (e.g., local PC with GPU)
+bash scripts/worker/run-remote.sh gpu
 ```
 
 **Queue routing:** Jobs are routed to queues by the `queue` field in `REGISTRY`. The `gpu` queue isolates GPU-heavy OCR pipeline jobs so they can be processed by a dedicated worker (e.g. a local PC with a GPU) while the deployed server handles only lightweight `default` queue jobs.

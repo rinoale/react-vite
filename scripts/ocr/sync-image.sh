@@ -39,7 +39,7 @@ case "${1:-}" in
 
   extract)
     echo "==> Extracting data from ${IMAGE_NAME} image..."
-    CID=$(docker create "$IMAGE_NAME")
+    CID=$(docker create "$IMAGE_NAME" true)
     docker cp "$CID:/data/." "$PROJECT_ROOT/data/"
     docker cp "$CID:/models/." "$PROJECT_ROOT/backend/ocr/models/"
     docker rm "$CID" > /dev/null

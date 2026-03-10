@@ -12,7 +12,7 @@
 | **SSL** | Self-signed cert | Let's Encrypt (certbot) | Cloudflare |
 | **Reverse proxy** | Nginx (Docker, local) | Nginx (Docker, server) | Cloudflare / Nginx |
 
-**Server:** OCI `ubuntu@64.110.116.116`
+**Server:** OCI `ubuntu@<server-ip>` (see `deploy.staging.env`)
 **Remote dir:** `/home/ubuntu/mabinogi`
 
 ## Architecture: Single-Domain, Path-Based Routing
@@ -50,7 +50,7 @@ Create `scripts/deploy.env` (gitignored) from `scripts/deploy.env.example`:
 
 ```bash
 PK=~/.ssh/your_key           # SSH private key
-TARGET=ubuntu@64.110.116.116  # SSH target
+TARGET=ubuntu@<server-ip>     # SSH target
 REMOTE_DIR=/home/ubuntu/mabinogi
 PLATFORM=linux/amd64          # Docker buildx platform
 ENV_FILE=~/workspace/ocr_training_data/env/.env.staging
