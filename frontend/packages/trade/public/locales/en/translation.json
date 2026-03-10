@@ -113,7 +113,8 @@
     "submit": "Get Started",
     "saving": "Saving...",
     "complete": "Profile set up successfully!",
-    "error": "Failed to save profile. Please try again."
+    "error": "Failed to save profile. Please try again.",
+    "gameIdTaken": "This character name is already registered."
   },
   "sidebar": {
     "home": "matrade",

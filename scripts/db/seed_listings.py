@@ -62,6 +62,7 @@ def _generate_listing(game_items, enchants_prefix, enchants_suffix, reforges,
 
     listing = {
         "user_id": random.choice(user_ids) if user_ids else None,
+        "status": 1,
         "name": name,
         "price": random.choice([None, random.randint(10000, 500000000)]),
         "game_item_id": gi["id"],

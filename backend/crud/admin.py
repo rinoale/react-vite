@@ -140,107 +140,6 @@ def get_listings(db: Session, limit: int = 100, offset: int = 0):
 def get_listing_count(db: Session):
     return db.query(models.Listing).count()
 
-def _build_enchant_detail(db: Session, listing_id: int, enchant_id: int, slot: int):
-    """Build enchant detail dict with all effects for a single enchant slot.
-
-    LEFT JOINs listing_options (enchant_effects) so fixed effects (no rolled value)
-    also appear. Returns min_value/max_value from enchant_effects for display.
-    """
-    enc = db.query(models.Enchant).filter(models.Enchant.id == enchant_id).first()
-    if not enc:
-        return None
-    effect_rows = db.execute(
-        text(
-            """
-            SELECT ee.raw_text, ee.min_value, ee.max_value, lo.rolled_value AS value
-            FROM enchant_effects ee
-            LEFT JOIN listing_options lo
-              ON lo.option_type = 'enchant_effects'
-              AND lo.option_id = ee.id
-              AND lo.listing_id = :listing_id
-            WHERE ee.enchant_id = :enchant_id
-            ORDER BY ee.effect_order
-            """
-        ),
-        {"listing_id": listing_id, "enchant_id": enchant_id},
-    ).mappings()
-    return {
-        "slot": slot,
-        "enchant_name": enc.name,
-        "rank": enc.rank,
-        "effects": [dict(e) for e in effect_rows],
-    }
-
-
-def get_listing_detail(db: Session, listing_id: int):
-    listing = db.query(models.Listing).filter(models.Listing.id == listing_id).first()
-    if not listing:
-        return None
-
-    # Resolve seller info
-    seller = None
-    if listing.user_id:
-        seller = db.query(models.User).filter(models.User.id == listing.user_id).first()
-
-    game_item_name = None
-    if listing.game_item_id:
-        gi = db.query(models.GameItem).filter(models.GameItem.id == listing.game_item_id).first()
-        if gi:
-            game_item_name = gi.name
-
-    prefix_enchant = None
-    if listing.prefix_enchant_id:
-        prefix_enchant = _build_enchant_detail(db, listing_id, listing.prefix_enchant_id, 0)
-
-    suffix_enchant = None
-    if listing.suffix_enchant_id:
-        suffix_enchant = _build_enchant_detail(db, listing_id, listing.suffix_enchant_id, 1)
-
-    # All listing options (reforge, echostone, murias_relic, enchant_effect)
-    option_rows = db.execute(
-        text(
-            """
-            SELECT option_type, option_name, rolled_value, max_level
-            FROM listing_options
-            WHERE listing_id = :listing_id
-            ORDER BY id
-            """
-        ),
-        {"listing_id": listing_id},
-    ).mappings()
-
-    return {
-        "id": listing.id,
-        "status": listing.status,
-        "name": listing.name,
-        "description": listing.description,
-        "price": listing.price,
-        "game_item_id": listing.game_item_id,
-        "game_item_name": game_item_name,
-        "item_type": listing.item_type,
-        "item_grade": listing.item_grade,
-        "erg_grade": listing.erg_grade,
-        "erg_level": listing.erg_level,
-        "special_upgrade_type": listing.special_upgrade_type,
-        "special_upgrade_level": listing.special_upgrade_level,
-        "damage": listing.damage,
-        "magic_damage": listing.magic_damage,
-        "additional_damage": listing.additional_damage,
-        "balance": listing.balance,
-        "defense": listing.defense,
-        "protection": listing.protection,
-        "magic_defense": listing.magic_defense,
-        "magic_protection": listing.magic_protection,
-        "durability": listing.durability,
-        "piercing_level": listing.piercing_level,
-        "prefix_enchant": prefix_enchant,
-        "suffix_enchant": suffix_enchant,
-        "listing_options": [dict(r) for r in option_rows],
-        "tags": resolve_listing_tags(db, listing_id),
-        "seller_server": seller.server if seller else None,
-        "seller_game_id": seller.game_id if seller else None,
-        "seller_discord_id": seller.discord_id if seller else None,
-    }
 
 def get_game_items(db: Session, q: Optional[str] = None, limit: int = 20, offset: int = 0):
     if q:
@@ -456,30 +355,6 @@ def delete_tag_by_id(db: Session, tag_id: int):
     db.delete(tag)
     db.commit()
     return True
-
-
-def resolve_listing_tags(db: Session, listing_id: int):
-    rows = db.execute(
-        text("""
-            SELECT DISTINCT t.name, (t.weight + tt.weight) AS weight
-            FROM (
-                SELECT 'listing' AS ttype, :lid AS tid
-                UNION ALL
-                SELECT 'game_item', l.game_item_id FROM listings l WHERE l.id = :lid AND l.game_item_id IS NOT NULL
-                UNION ALL
-                SELECT lo.option_type, lo.option_id FROM listing_options lo WHERE lo.listing_id = :lid AND lo.option_id IS NOT NULL
-                UNION ALL
-                SELECT 'enchant', l.prefix_enchant_id FROM listings l WHERE l.id = :lid AND l.prefix_enchant_id IS NOT NULL
-                UNION ALL
-                SELECT 'enchant', l.suffix_enchant_id FROM listings l WHERE l.id = :lid AND l.suffix_enchant_id IS NOT NULL
-            ) AS sub(ttype, tid)
-            JOIN tag_targets tt ON tt.target_type = sub.ttype AND tt.target_id = sub.tid
-            JOIN tags t ON t.id = tt.tag_id
-            ORDER BY (t.weight + tt.weight) DESC, t.name
-        """),
-        {"lid": listing_id},
-    ).mappings()
-    return [{"name": r["name"], "weight": r["weight"]} for r in rows]
 
 
 def get_tag_detail(db: Session, tag_id: int):

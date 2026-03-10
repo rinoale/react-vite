@@ -2,12 +2,12 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 # Load target-specific config (gitignored)
-ENV_CONF="$SCRIPT_DIR/deploy.env"
+ENV_CONF="$SCRIPT_DIR/deploy.staging.env"
 if [ ! -f "$ENV_CONF" ]; then
-  echo "Error: $ENV_CONF not found. Copy deploy.env.example and fill in your values."
+  echo "Error: $ENV_CONF not found. Copy deploy.staging.env.example and fill in your values."
   exit 1
 fi
 source "$ENV_CONF"

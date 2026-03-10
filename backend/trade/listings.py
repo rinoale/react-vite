@@ -4,9 +4,8 @@ from sqlalchemy.orm import Session
 from db.connector import get_db
 from db.models import User
 from db.schemas import RegisterListingRequest
-from trade.service import capture_corrections, create_listing, create_listing_tags, get_listings as svc_get_listings, search_listings as svc_search_listings
+from trade.services import capture_corrections, create_listing, create_listing_tags, get_listings as svc_get_listings, search_listings as svc_search_listings, get_listing_detail
 from lib.utils.log import logger
-from crud.admin import get_listing_detail
 from auth.dependencies import get_current_user
 
 router = APIRouter()

@@ -1,5 +1,6 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 
 from db.connector import get_db
 from db import schemas
@@ -40,5 +41,9 @@ def update_me(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    update_user_profile(db, current_user, server=body.server, game_id=body.game_id)
+    try:
+        update_user_profile(db, current_user, server=body.server, game_id=body.game_id)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="game_id_taken")
     return _build_user_out(db, current_user)
