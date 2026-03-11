@@ -1,4 +1,5 @@
 from sqlalchemy import Column, Float, Index, Integer, String, SmallInteger, Boolean, Numeric, ForeignKey, Text, DateTime, UniqueConstraint
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 
@@ -306,3 +307,22 @@ class JobRun(Base):
     worker_id = Column(Text, nullable=True)
     started_at = Column(DateTime(timezone=True), server_default=func.now())
     finished_at = Column(DateTime(timezone=True), nullable=True)
+
+
+class UserActivityLog(Base):
+    __tablename__ = "user_activity_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    action = Column(Text, nullable=False)
+    target_type = Column(Text, nullable=True)
+    target_id = Column(Integer, nullable=True)
+    metadata_ = Column("metadata", JSONB, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        Index('ix_activity_user_id', 'user_id'),
+        Index('ix_activity_action', 'action'),
+        Index('ix_activity_target', 'target_type', 'target_id'),
+        Index('ix_activity_created_at', 'created_at'),
+    )

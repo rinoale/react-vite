@@ -26,7 +26,8 @@
       "users": "사용자",
       "roles": "역할",
       "feature_flags": "기능 플래그",
-      "usage": "사용량"
+      "usage": "사용량",
+      "activity_logs": "활동 로그"
     }
   },
   "usage": {
@@ -176,6 +177,21 @@
     "colPayload": "페이로드",
     "colResult": "결과",
     "workers": "워커 {{count}}개"
+  },
+  "activity": {
+    "title": "활동 로그",
+    "total": "건",
+    "refresh": "새로고침",
+    "allActions": "전체 액션",
+    "userIdPlaceholder": "User ID",
+    "colAction": "액션",
+    "colUser": "사용자",
+    "colTarget": "대상",
+    "colMetadata": "메타데이터",
+    "colTime": "시간",
+    "noLogs": "활동 로그가 없습니다.",
+    "prev": "이전",
+    "next": "다음"
   },
   "enchants": {
     "title": "ENCHANT ENTRIES",

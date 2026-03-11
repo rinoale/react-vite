@@ -125,3 +125,13 @@ export const thRow = 'text-[10px] font-bold uppercase text-gray-500 border-b bor
 export const groupRow = 'group flex justify-between items-center';
 export const flexCenter = 'flex items-center gap-1';
 export const effectRow = 'group flex items-center gap-1 text-xs text-gray-400';
+
+// --- Activity logs ---
+
+export const metaLabel = 'text-xs text-gray-400 font-mono';
+export const totalLabel = 'text-xs text-gray-500 font-mono';
+export const filterBar = 'px-6 py-3 border-b border-gray-700 flex flex-wrap items-center gap-3';
+export const filterSelect = 'bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-gray-300 outline-none focus:border-cyan-500';
+export const filterInput = 'bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-gray-300 outline-none focus:border-cyan-500 w-24';
+export const paginationBar = 'px-6 py-3 border-t border-gray-700 flex justify-between items-center';
+export const paginationInfo = 'text-xs text-gray-500';

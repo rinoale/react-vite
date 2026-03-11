@@ -37,6 +37,7 @@ const NAV_GROUPS = [
       { key: 'roles' },
       { key: 'feature_flags' },
       { key: 'usage' },
+      { key: 'activity_logs' },
     ],
   },
 ];
