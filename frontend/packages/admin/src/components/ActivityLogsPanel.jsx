@@ -7,7 +7,7 @@ import {
   loadingCenter, loadingIcon, hoverRow, metaRow, flexCenter,
   thRow, thCell, tdCell, tdCellMono, tdCellSub, tdCellTrunc,
   btnPagGray, badgeCyan, badgeGreen, badgeOrange, badgeRed, badgeBlue, badgePurple,
-  metaLabel, totalLabel, filterBar, filterSelect, filterInput,
+  metaLabel, totalLabel, filterBar, logFilterSelect, filterInput,
   paginationBar, paginationInfo, iconSm,
 } from '@mabi/shared/styles';
 
@@ -111,7 +111,7 @@ const ActivityLogsPanel = () => {
         <select
           value={filterAction}
           onChange={(e) => handleFilterChange(e.target.value)}
-          className={filterSelect}
+          className={logFilterSelect}
         >
           <option value="">{t('activity.allActions')}</option>
           {actions.map((a) => (

@@ -89,7 +89,15 @@
     "ergLabel": "Erg",
     "ergGrade": "Grade {{grade}}",
     "addMoreTags": "Add more tags...",
-    "backToList": "Back"
+    "backToList": "Back",
+    "filter": {
+      "specialUpgrade": "Special Upgrade",
+      "ergLevel": "Erg",
+      "reforgeCount": "Reforge Count",
+      "piercingLevel": "Piercing",
+      "attrGroup": "Attributes",
+      "addFilter": "Add Filter"
+    }
   },
   "myListings": {
     "title": "My Listings",
@@ -145,6 +153,18 @@
     "marketplace": "Marketplace",
     "sellItem": "Sell Item",
     "myListings": "My Listings"
+  },
+  "attrs": {
+    "damage": "Damage",
+    "magic_damage": "Magic Damage",
+    "additional_damage": "Additional Damage",
+    "balance": "Balance",
+    "defense": "Defense",
+    "protection": "Protection",
+    "magic_defense": "Magic Defense",
+    "magic_protection": "Magic Protection",
+    "durability": "Durability",
+    "piercing_level": "Piercing Level"
   },
   "sections": {
     "lowConfidence": "Low Confidence: {{pct}}%",

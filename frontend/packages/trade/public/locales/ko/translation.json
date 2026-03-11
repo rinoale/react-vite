@@ -89,7 +89,15 @@
     "ergLabel": "에르그",
     "ergGrade": "{{grade}}등급",
     "addMoreTags": "태그 추가",
-    "backToList": "뒤로"
+    "backToList": "뒤로",
+    "filter": {
+      "specialUpgrade": "특별개조",
+      "ergLevel": "에르그",
+      "reforgeCount": "세공 횟수",
+      "piercingLevel": "피어싱",
+      "attrGroup": "아이템 속성",
+      "addFilter": "필터 추가"
+    }
   },
   "myListings": {
     "title": "내 매물",

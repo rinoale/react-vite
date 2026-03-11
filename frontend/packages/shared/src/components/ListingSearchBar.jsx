@@ -1,17 +1,88 @@
 import React, { useState, useCallback } from 'react';
-import { Search, X, MoreHorizontal, Package } from 'lucide-react';
+import { Search, X, MoreHorizontal, Package, ChevronDown } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { dropdownFull, clearBtnAbsolute } from '../styles/index.js';
+import {
+  dropdownFull, clearBtnAbsolute, chevronSm,
+  filterRow, filterSelect, filterOpBtn,
+  filterValueInput, filterRemoveBtn, filterAddSelect, filterBadgeSm,
+  searchBarIcon, searchBarInput, suggestionBtn, suggestionIconOrange,
+  suggestionTagsWrap, suggestionExpandBtn, suggestionMetaSm,
+  gameItemChip, gameItemChipExpanded, chipHeaderRow, chipFilterContent,
+} from '../styles/index.js';
 import TagBadge from './TagBadge.jsx';
 
-const suggestionBtnBase = 'w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 transition-colors';
-const gameItemChip = 'inline-flex items-center gap-1 text-xs leading-none px-2 pt-1 pb-0.5 rounded border bg-orange-900/50 text-orange-300 border-orange-700/50 cursor-default';
+const stopPropagation = (e) => e.stopPropagation();
 const MAX_VISIBLE_TAGS = 3;
+
+/* ── Filter category config ── */
+
+const FILTER_CATEGORIES = [
+  { key: 'erg_level', i18nKey: 'marketplace.filter.ergLevel', abbr: 'E', group: 'main' },
+  { key: 'special_upgrade_level', i18nKey: 'marketplace.filter.specialUpgrade', abbr: 'S', group: 'main' },
+  { key: 'reforge_count', i18nKey: 'marketplace.filter.reforgeCount', abbr: 'R', group: 'main' },
+  { key: 'damage', i18nKey: 'attrs.damage', abbr: 'Atk', group: 'attrs' },
+  { key: 'magic_damage', i18nKey: 'attrs.magic_damage', abbr: 'MA', group: 'attrs' },
+  { key: 'balance', i18nKey: 'attrs.balance', abbr: 'Bal', group: 'attrs' },
+  { key: 'defense', i18nKey: 'attrs.defense', abbr: 'Def', group: 'attrs' },
+  { key: 'protection', i18nKey: 'attrs.protection', abbr: 'Pro', group: 'attrs' },
+  { key: 'durability', i18nKey: 'attrs.durability', abbr: 'Dur', group: 'attrs' },
+  { key: 'piercing_level', i18nKey: 'attrs.piercing_level', abbr: 'Prc', group: 'attrs' },
+];
+
+const MAIN_FILTERS = FILTER_CATEGORIES.filter((c) => c.group === 'main');
+const ATTR_FILTERS = FILTER_CATEGORIES.filter((c) => c.group === 'attrs');
+const CATEGORY_MAP = Object.fromEntries(FILTER_CATEGORIES.map((c) => [c.key, c]));
+
+const OPS = ['gte', 'lte', 'eq'];
+const OP_SYMBOLS = { gte: '\u2265', lte: '\u2264', eq: '=' };
+
+/* ── Sub-components ── */
+
+const FilterRowItem = ({ filter, index, onUpdate, onRemove, t }) => {
+  const handleCategory = useCallback((e) => onUpdate(index, { key: e.target.value }), [index, onUpdate]);
+  const handleOp = useCallback(() => {
+    const next = OPS[(OPS.indexOf(filter.op) + 1) % OPS.length];
+    onUpdate(index, { op: next });
+  }, [filter.op, index, onUpdate]);
+  const handleValue = useCallback((e) => onUpdate(index, { value: e.target.value }), [index, onUpdate]);
+  const handleRemove = useCallback(() => onRemove(index), [index, onRemove]);
+
+  return (
+    <div className={filterRow}>
+      <select value={filter.key} onChange={handleCategory} className={filterSelect}>
+        {MAIN_FILTERS.map(({ key, i18nKey }) => (
+          <option key={key} value={key}>{t(i18nKey)}</option>
+        ))}
+        <optgroup label={t('marketplace.filter.attrGroup')}>
+          {ATTR_FILTERS.map(({ key, i18nKey }) => (
+            <option key={key} value={key}>{t(i18nKey)}</option>
+          ))}
+        </optgroup>
+      </select>
+      <button type="button" onClick={handleOp} className={filterOpBtn}>
+        <span key={filter.op} className="inline-block animate-op-spin">
+          {OP_SYMBOLS[filter.op]}
+        </span>
+      </button>
+      <input
+        type="number"
+        min="0"
+        value={filter.value}
+        onChange={handleValue}
+        placeholder="0"
+        className={filterValueInput}
+      />
+      <button type="button" onClick={handleRemove} className={filterRemoveBtn}>
+        <X className="w-3 h-3" />
+      </button>
+    </div>
+  );
+};
 
 const TagSuggestion = ({ item, isFocused, onClick }) => (
   <button
     onClick={onClick}
-    className={`${suggestionBtnBase} ${isFocused ? 'bg-gray-700' : 'hover:bg-gray-700/50'}`}
+    className={`${suggestionBtn} ${isFocused ? 'bg-gray-700' : 'hover:bg-gray-700/50'}`}
   >
     <TagBadge name={item.label} weight={item.weight} />
   </button>
@@ -20,9 +91,9 @@ const TagSuggestion = ({ item, isFocused, onClick }) => (
 const GameItemSuggestion = ({ item, isFocused, onClick }) => (
   <button
     onClick={onClick}
-    className={`${suggestionBtnBase} ${isFocused ? 'bg-gray-700' : 'hover:bg-gray-700/50'}`}
+    className={`${suggestionBtn} ${isFocused ? 'bg-gray-700' : 'hover:bg-gray-700/50'}`}
   >
-    <Package className="w-3.5 h-3.5 text-orange-400 shrink-0" />
+    <Package className={suggestionIconOrange} />
     <span className="text-orange-300 truncate">{item.label}</span>
   </button>
 );
@@ -34,12 +105,12 @@ const ListingTags = ({ tags }) => {
   const visible = expanded ? tags : tags.slice(0, MAX_VISIBLE_TAGS);
   const hasMore = tags.length > MAX_VISIBLE_TAGS && !expanded;
   return (
-    <span className="inline-flex items-center gap-1 ml-auto shrink-0">
+    <span className={suggestionTagsWrap}>
       {visible.map((tag, i) => (
         <TagBadge key={i} name={tag.name} weight={tag.weight} />
       ))}
       {hasMore && (
-        <button onClick={handleExpand} className="p-0.5 text-gray-500 hover:text-gray-300">
+        <button onClick={handleExpand} className={suggestionExpandBtn}>
           <MoreHorizontal className="w-3.5 h-3.5" />
         </button>
       )}
@@ -50,11 +121,11 @@ const ListingTags = ({ tags }) => {
 const ListingSuggestion = ({ item, isFocused, onClick }) => (
   <button
     onClick={onClick}
-    className={`${suggestionBtnBase} ${isFocused ? 'bg-gray-700' : 'hover:bg-gray-700/50'}`}
+    className={`${suggestionBtn} ${isFocused ? 'bg-gray-700' : 'hover:bg-gray-700/50'}`}
   >
     <span className="text-gray-300 truncate">{item.label}</span>
     {item.data?.game_item_name && (
-      <span className="text-[10px] text-gray-500 shrink-0">{item.data.game_item_name}</span>
+      <span className={suggestionMetaSm}>{item.data.game_item_name}</span>
     )}
     <ListingTags tags={item.data?.tags} />
   </button>
@@ -65,6 +136,8 @@ const SUGGESTION_RENDERERS = {
   game_item: GameItemSuggestion,
   listing: ListingSuggestion,
 };
+
+/* ── Main component ── */
 
 /**
  * Shared search bar with tag chips + game item chip + suggestion dropdown.
@@ -78,13 +151,18 @@ const ListingSearchBar = ({
   addMorePlaceholder,
 }) => {
   const { t } = useTranslation();
+  const [panelOpen, setPanelOpen] = useState(false);
 
   const {
     searchText, selectedTags, tagWeights, selectedGameItem, suggestions, showSuggestions, focusIdx, hasFilters,
-    containerRef, inputRef,
+    attrFilters, containerRef, inputRef,
     handleTextChange, handleSelectItem, handleRemoveTag, handleRemoveGameItem,
-    handleClear, handleKeyDown, handleInputFocus,
+    handleAddAttrFilter, handleUpdateAttrFilter, handleRemoveAttrFilter,
+    handleClear, handleKeyDown, handleInputFocus, executeSearch,
   } = search;
+
+  const isExpanded = panelOpen && !!selectedGameItem;
+  const activeFilters = attrFilters.filter((f) => f.value !== '' && f.value != null);
 
   const resolvedPlaceholder = (selectedTags.length > 0 || selectedGameItem)
     ? (addMorePlaceholder || t('marketplace.addMoreTags'))
@@ -92,23 +170,99 @@ const ListingSearchBar = ({
 
   const onRemoveTag = useCallback((tag) => () => handleRemoveTag(tag), [handleRemoveTag]);
   const onSelectItem = useCallback((item) => () => handleSelectItem(item), [handleSelectItem]);
+  const handleChipClick = useCallback(() => {
+    setPanelOpen((prev) => {
+      if (prev) executeSearch(selectedTags, searchText, selectedGameItem);
+      return !prev;
+    });
+  }, [executeSearch, selectedTags, searchText, selectedGameItem]);
+  const onRemoveGameItemClick = useCallback((e) => { e.stopPropagation(); handleRemoveGameItem(); }, [handleRemoveGameItem]);
+
+  const handleAddFilterSelect = useCallback((e) => {
+    const key = e.target.value;
+    if (key) handleAddAttrFilter(key);
+    e.target.value = '';
+  }, [handleAddAttrFilter]);
 
   return (
     <div ref={containerRef} className={wrapperClassName}>
       <div className={barClassName}>
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+        {/* search-icon */}
+        <Search className={searchBarIcon} />
+
+        {/* game-item-chip — ONE element that expands */}
         {selectedGameItem && (
-          <span className={gameItemChip}>
-            <Package className="w-3 h-3" />
-            {selectedGameItem.name}
-            <button onClick={handleRemoveGameItem} className="cursor-pointer hover:text-orange-100">
-              <X className="w-3 h-3" />
-            </button>
-          </span>
+          <div
+            onClick={handleChipClick}
+            className={`${gameItemChip} ${isExpanded ? gameItemChipExpanded : ''}`}
+          >
+            {/* header row — always visible */}
+            <div className={chipHeaderRow}>
+              <Package className="w-3 h-3" />
+              {selectedGameItem.name}
+              {/* collapsed filter badges */}
+              {!isExpanded && activeFilters.map((f, i) => {
+                const cat = CATEGORY_MAP[f.key];
+                return (
+                  <span key={i} className={filterBadgeSm}>
+                    {cat?.abbr}{OP_SYMBOLS[f.op]}{f.value}
+                  </span>
+                );
+              })}
+              <ChevronDown className={isExpanded ? `${chevronSm} rotate-180` : chevronSm} />
+              <button onClick={onRemoveGameItemClick} className="cursor-pointer hover:text-orange-100">
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+            {/* expanding content — same element, revealed by grid animation */}
+            <div
+              className="grid"
+              onClick={stopPropagation}
+              style={{
+                gridTemplateRows: isExpanded ? '1fr' : '0fr',
+                transition: 'grid-template-rows 300ms cubic-bezier(0.4, 0, 0.2, 1)',
+              }}
+            >
+              <div className="overflow-hidden">
+                <div className={`${chipFilterContent} ${isExpanded ? 'opacity-100' : 'opacity-0 -translate-y-1'}`}>
+                  {attrFilters.map((filter, idx) => (
+                    <FilterRowItem
+                      key={idx}
+                      filter={filter}
+                      index={idx}
+                      onUpdate={handleUpdateAttrFilter}
+                      onRemove={handleRemoveAttrFilter}
+                      t={t}
+                    />
+                  ))}
+                  {/* add-filter */}
+                  <div className={filterRow}>
+                    <select value="" onChange={handleAddFilterSelect} className={filterAddSelect}>
+                      <option value="" disabled>
+                        + {t('marketplace.filter.addFilter')}
+                      </option>
+                      {MAIN_FILTERS.map(({ key, i18nKey }) => (
+                        <option key={key} value={key}>{t(i18nKey)}</option>
+                      ))}
+                      <optgroup label={t('marketplace.filter.attrGroup')}>
+                        {ATTR_FILTERS.map(({ key, i18nKey }) => (
+                          <option key={key} value={key}>{t(i18nKey)}</option>
+                        ))}
+                      </optgroup>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
+
+        {/* tag-chips */}
         {selectedTags.map((tag) => (
           <TagBadge key={tag} name={tag} weight={tagWeights[tag] || 0} onRemove={onRemoveTag(tag)} />
         ))}
+
+        {/* text-input */}
         <input
           ref={inputRef}
           type="text"
@@ -117,8 +271,10 @@ const ListingSearchBar = ({
           onChange={handleTextChange}
           onKeyDown={handleKeyDown}
           onFocus={handleInputFocus}
-          className="flex-1 min-w-[80px] bg-transparent text-gray-100 outline-none text-sm"
+          className={searchBarInput}
         />
+
+        {/* clear-btn */}
         {hasFilters && (
           <button onClick={handleClear} className={clearBtnAbsolute}>
             <X className="w-4 h-4" />
@@ -126,6 +282,7 @@ const ListingSearchBar = ({
         )}
       </div>
 
+      {/* suggestions-dropdown */}
       {showSuggestions && suggestions.length > 0 && (
         <div className={`${dropdownFull} max-h-60 rounded-lg`}>
           {suggestions.map((item, idx) => {

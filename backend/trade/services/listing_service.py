@@ -30,6 +30,34 @@ _ATTR_COLUMNS = {
     'durability', 'piercing_level',
 }
 
+_FILTERABLE_COLUMNS = frozenset({
+    'special_upgrade_level', 'erg_level', 'piercing_level',
+    'damage', 'magic_damage', 'additional_damage', 'balance',
+    'defense', 'protection', 'magic_defense', 'magic_protection',
+    'durability',
+})
+
+
+_OP_PREFIXES = {'min_': '>=', 'max_': '<=', 'eq_': '='}
+
+
+def parse_attr_filters(query_params):
+    """Extract min_/max_/eq_{col} query params as numeric attribute filters.
+
+    Only columns in _FILTERABLE_COLUMNS are accepted.
+    Returns list of (col, op_sql, value) tuples, or None if no valid filters found.
+    """
+    result = []
+    for prefix, op_sql in _OP_PREFIXES.items():
+        for col in _FILTERABLE_COLUMNS:
+            val = query_params.get(f"{prefix}{col}")
+            if val is not None:
+                try:
+                    result.append((col, op_sql, int(val)))
+                except (ValueError, TypeError):
+                    pass
+    return result or None
+
 
 def _parse_attrs(attrs_dict):
     """Convert attrs dict (string values) to int kwargs for known Listing columns.
@@ -345,12 +373,13 @@ def search_tags(db, q, limit=10):
     return [dict(r) for r in rows]
 
 
-def search_listings(db, q, tags=None, game_item_id=None, limit=50, offset=0):
-    """Search listings by tags (AND) and/or text query (cascading) and/or game item.
+def search_listings(db, q, tags=None, game_item_id=None, attr_filters=None, limit=50, offset=0):
+    """Search listings by tags (AND) and/or text query (cascading) and/or game item and/or attr ranges.
 
     - tags: list of exact tag names — intersection (listings matching ALL)
     - q: text query — cascading tier search (tag ILIKE → game_item → listing name)
     - game_item_id: exact game item filter
+    - attr_filters: list of (col, op_sql, value) tuples for numeric range filters
     All provided filters are intersected (AND).
     """
     id_sets = []
@@ -383,6 +412,27 @@ def search_listings(db, q, tags=None, game_item_id=None, limit=50, offset=0):
         if not gi_ids:
             return []
         id_sets.append(gi_ids)
+
+    # --- Attribute range filters (>=, <=, = conditions) ---
+    if attr_filters:
+        conds = []
+        af_params = {}
+        for i, (col, op_sql, val) in enumerate(attr_filters):
+            if col in _FILTERABLE_COLUMNS:
+                param_key = f"af_{i}_{col}"
+                conds.append(f"l.{col} {op_sql} :{param_key}")
+                af_params[param_key] = val
+        if conds:
+            where = " AND ".join(conds)
+            af_ids = set(
+                db.execute(
+                    text(f"SELECT l.id FROM listings l WHERE l.status = 1 AND {where}"),
+                    af_params,
+                ).scalars().all()
+            )
+            if not af_ids:
+                return []
+            id_sets.append(af_ids)
 
     if not id_sets:
         return []

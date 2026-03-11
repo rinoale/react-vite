@@ -11,9 +11,10 @@ const upgradeBadge = 'text-xs px-1.5 py-0.5 rounded bg-pink-900/50 text-pink-300
 const ergBadge = 'text-xs px-1.5 py-0.5 rounded bg-yellow-900/50 text-yellow-300 border border-yellow-700/50';
 
 const ListingCard = ({ listing, selected = false, onClick }) => {
+  const handleClick = React.useCallback(() => onClick(listing), [onClick, listing]);
   return (
     <div
-      onClick={onClick}
+      onClick={handleClick}
       className={`bg-gray-800 p-4 rounded-xl border cursor-pointer transition-all hover:scale-[1.02] ${selected ? 'border-cyan-500 shadow-[0_0_15px_rgba(6,182,212,0.3)]' : 'border-gray-700 hover:border-gray-600'}`}
     >
       {/* listing-title */}
@@ -76,4 +77,4 @@ const ListingCard = ({ listing, selected = false, onClick }) => {
   );
 };
 
-export default ListingCard;
+export default React.memo(ListingCard);

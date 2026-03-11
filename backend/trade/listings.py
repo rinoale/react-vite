@@ -1,4 +1,4 @@
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
 from db.connector import get_db
@@ -6,6 +6,7 @@ from db.models import User
 from pydantic import BaseModel
 from db.schemas import RegisterListingRequest
 from trade.services import capture_corrections, create_listing, create_listing_tags, get_listings as svc_get_listings, get_my_listings as svc_get_my_listings, search_listings as svc_search_listings, get_listing_detail, update_listing_status as svc_update_status
+from trade.services.listing_service import parse_attr_filters
 from trade.services.short_code import encode, decode
 from lib.utils.log import logger
 from auth.dependencies import get_current_user, optional_user
@@ -31,6 +32,7 @@ def get_listings(
 
 @router.get("/listings/search")
 def search_listings(
+    request: Request,
     q: str = Query(default=""),
     tags: list[str] = Query(default=[]),
     game_item_id: int | None = Query(default=None),
@@ -40,9 +42,10 @@ def search_listings(
     current_user: User | None = Depends(optional_user),
     bg: BackgroundTasks = None,
 ):
-    if not q.strip() and not tags and game_item_id is None:
+    attr_filters = parse_attr_filters(request.query_params)
+    if not q.strip() and not tags and game_item_id is None and not attr_filters:
         return svc_get_listings(db, limit=limit, offset=offset)
-    result = svc_search_listings(db, q.strip() or None, tags=tags or None, game_item_id=game_item_id, limit=limit, offset=offset)
+    result = svc_search_listings(db, q.strip() or None, tags=tags or None, game_item_id=game_item_id, attr_filters=attr_filters, limit=limit, offset=offset)
     bg.add_task(log_activity, action="search", user_id=current_user.id if current_user else None,
                 target_type="search_query", metadata={"query": q.strip(), "tags": tags, "game_item_id": game_item_id, "results": len(result) if isinstance(result, list) else 0})
     return result

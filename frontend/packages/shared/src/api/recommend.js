@@ -19,8 +19,22 @@ export const getListingsByGameItem = (gameItemId) =>
 export const searchGameItems = (q) =>
   client.get('/game-items', { params: { q } });
 
-export const searchListings = (q, tags, { limit, offset, gameItemId } = {}) =>
-  client.get('/listings/search', { params: { q, tags, limit, offset, ...(gameItemId ? { game_item_id: gameItemId } : {}) } });
+const _OP_PREFIX = { gte: 'min_', lte: 'max_', eq: 'eq_' };
+
+export const searchListings = (q, tags, { limit, offset, gameItemId, attrFilters } = {}) => {
+  const attrParams = {};
+  if (attrFilters) {
+    for (const f of attrFilters) {
+      if (f.key && f.value != null && f.value !== '') {
+        const prefix = _OP_PREFIX[f.op] || 'min_';
+        attrParams[`${prefix}${f.key}`] = parseInt(f.value, 10);
+      }
+    }
+  }
+  return client.get('/listings/search', {
+    params: { q, tags, limit, offset, ...(gameItemId ? { game_item_id: gameItemId } : {}), ...attrParams },
+  });
+};
 
 export const searchTags = (q) =>
   client.get('/tags/search', { params: { q } });

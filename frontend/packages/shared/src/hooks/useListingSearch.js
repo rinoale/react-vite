@@ -20,10 +20,12 @@ export function useListingSearch({ onResults, onSelectListing, onSubmit, onClear
   const [suggestions, setSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [focusIdx, setFocusIdx] = useState(-1);
+  const [attrFilters, setAttrFilters] = useState([]);
 
   const debounceRef = useRef(null);
   const containerRef = useRef(null);
   const inputRef = useRef(null);
+  const attrFiltersRef = useRef([]);
 
   // --- Close on outside click ---
   useEffect(() => {
@@ -38,17 +40,20 @@ export function useListingSearch({ onResults, onSelectListing, onSubmit, onClear
   }, [showSuggestions]);
 
   // --- Cleanup debounce ---
-  useEffect(() => () => { if (debounceRef.current) clearTimeout(debounceRef.current); }, []);
+  useEffect(() => () => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+  }, []);
 
   // --- Execute search ---
   const executeSearch = useCallback(async (tags, text, gameItem) => {
+    const validFilters = attrFiltersRef.current.filter((f) => f.key && f.value !== '' && f.value != null);
     try {
       const { data } = await searchListings(
         text?.trim() || '',
         tags.length > 0 ? tags : undefined,
-        { gameItemId: gameItem?.id },
+        { gameItemId: gameItem?.id, ...(validFilters.length ? { attrFilters: validFilters } : {}) },
       );
-      onResults?.(data, { tags, text: text?.trim() || '', gameItem });
+      onResults?.(data, { tags, text: text?.trim() || '', gameItem, attrFilters: validFilters });
     } catch (error) {
       console.error('Search failed:', error);
     }
@@ -132,6 +137,8 @@ export function useListingSearch({ onResults, onSelectListing, onSubmit, onClear
   // --- Remove game item ---
   const handleRemoveGameItem = useCallback(() => {
     setSelectedGameItem(null);
+    attrFiltersRef.current = [];
+    setAttrFilters([]);
     executeSearch(selectedTags, searchText, null);
   }, [executeSearch, selectedTags, searchText]);
 
@@ -169,6 +176,25 @@ export function useListingSearch({ onResults, onSelectListing, onSubmit, onClear
     }
   }, [selectedTags, searchText, selectedGameItem, executeSearch, onSubmit]);
 
+  // --- Attribute filter CRUD ---
+  const handleAddAttrFilter = useCallback((key) => {
+    const next = [...attrFiltersRef.current, { key, op: 'gte', value: '' }];
+    attrFiltersRef.current = next;
+    setAttrFilters(next);
+  }, []);
+
+  const handleUpdateAttrFilter = useCallback((index, updates) => {
+    const next = attrFiltersRef.current.map((f, i) => (i === index ? { ...f, ...updates } : f));
+    attrFiltersRef.current = next;
+    setAttrFilters(next);
+  }, []);
+
+  const handleRemoveAttrFilter = useCallback((index) => {
+    const next = attrFiltersRef.current.filter((_, i) => i !== index);
+    attrFiltersRef.current = next;
+    setAttrFilters(next);
+  }, []);
+
   // --- Clear all ---
   const handleClear = useCallback(() => {
     setSearchText('');
@@ -177,6 +203,8 @@ export function useListingSearch({ onResults, onSelectListing, onSubmit, onClear
     setSelectedGameItem(null);
     setSuggestions([]);
     setShowSuggestions(false);
+    attrFiltersRef.current = [];
+    setAttrFilters([]);
     onClear?.();
   }, [onClear]);
 
@@ -218,18 +246,19 @@ export function useListingSearch({ onResults, onSelectListing, onSubmit, onClear
         handleRemoveGameItem();
       }
     }
-  }, [showSuggestions, suggestions, focusIdx, searchText, selectedTags, handleSelectItem, handleSubmitSearch, handleRemoveTag]);
+  }, [showSuggestions, suggestions, focusIdx, searchText, selectedTags, selectedGameItem, handleSelectItem, handleSubmitSearch, handleRemoveTag, handleRemoveGameItem]);
 
   // --- Focus handler ---
   const handleInputFocus = useCallback(() => {
     if (suggestions.length > 0) setShowSuggestions(true);
   }, [suggestions]);
 
-  const hasFilters = selectedTags.length > 0 || selectedGameItem != null || searchText.trim().length > 0;
+  const hasFilters = selectedTags.length > 0 || selectedGameItem != null || searchText.trim().length > 0 || attrFilters.some((f) => f.value !== '' && f.value != null);
 
   return {
     // State
     searchText, selectedTags, tagWeights, selectedGameItem, suggestions, showSuggestions, focusIdx, hasFilters,
+    attrFilters,
     // Refs
     containerRef, inputRef,
     // Setters (for external init like URL params)
@@ -237,6 +266,7 @@ export function useListingSearch({ onResults, onSelectListing, onSubmit, onClear
     // Handlers
     handleTextChange, handleSelectTag, handleSelectGameItem, handleSelectItem,
     handleRemoveTag, handleRemoveGameItem,
+    handleAddAttrFilter, handleUpdateAttrFilter, handleRemoveAttrFilter,
     handleSubmitSearch, handleClear, handleKeyDown, handleInputFocus,
     // Direct execute
     executeSearch,

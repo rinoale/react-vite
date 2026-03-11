@@ -187,6 +187,17 @@
   &::after { content: ''; position: absolute; inset: -1px; border-radius: inherit; z-index: -1; background: linear-gradient(90deg, #b8860b, #daa520, #ffd700, #fff8dc, #ffd700, #daa520, #b8860b); background-size: 200% 100%; animation: tag-gold-shift 3s ease-in-out infinite; }
 }
 
+/* --- Operator button spin (one-shot 360° rotation) --- */
+
+@keyframes op-spin {
+  from { transform: rotateY(0deg); }
+  to { transform: rotateY(360deg); }
+}
+
+@utility animate-op-spin {
+  animation: op-spin 0.25s ease-out;
+}
+
 /* Thin modern scrollbar — use class "scrollbar-thin" on any scrollable element */
 @utility scrollbar-thin {
   scrollbar-width: thin;
