@@ -6,7 +6,7 @@ from db.models import User
 from pydantic import BaseModel
 from db.schemas import RegisterListingRequest
 from trade.services import capture_corrections, create_listing, create_listing_tags, get_listings as svc_get_listings, get_my_listings as svc_get_my_listings, search_listings as svc_search_listings, get_listing_detail, update_listing_status as svc_update_status
-from trade.services.listing_service import parse_attr_filters
+from trade.services.listing_service import parse_attr_filters, parse_reforge_filters, parse_enchant_filters
 from trade.services.short_code import encode, decode
 from lib.utils.log import logger
 from auth.dependencies import get_current_user, optional_user
@@ -36,6 +36,8 @@ def search_listings(
     q: str = Query(default=""),
     tags: list[str] = Query(default=[]),
     game_item_id: int | None = Query(default=None),
+    reforge_filters: str | None = Query(default=None),
+    enchant_filters: str | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
@@ -43,9 +45,15 @@ def search_listings(
     bg: BackgroundTasks = None,
 ):
     attr_filters = parse_attr_filters(request.query_params)
-    if not q.strip() and not tags and game_item_id is None and not attr_filters:
+    parsed_reforge = parse_reforge_filters(reforge_filters)
+    parsed_enchant = parse_enchant_filters(enchant_filters)
+    if not q.strip() and not tags and game_item_id is None and not attr_filters and not parsed_reforge and not parsed_enchant:
         return svc_get_listings(db, limit=limit, offset=offset)
-    result = svc_search_listings(db, q.strip() or None, tags=tags or None, game_item_id=game_item_id, attr_filters=attr_filters, limit=limit, offset=offset)
+    result = svc_search_listings(
+        db, q.strip() or None, tags=tags or None, game_item_id=game_item_id,
+        attr_filters=attr_filters, reforge_filters=parsed_reforge, enchant_filters=parsed_enchant,
+        limit=limit, offset=offset,
+    )
     bg.add_task(log_activity, action="search", user_id=current_user.id if current_user else None,
                 target_type="search_query", metadata={"query": q.strip(), "tags": tags, "game_item_id": game_item_id, "results": len(result) if isinstance(result, list) else 0})
     return result

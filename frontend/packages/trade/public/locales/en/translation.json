@@ -93,10 +93,19 @@
     "filter": {
       "specialUpgrade": "Special Upgrade",
       "ergLevel": "Erg",
-      "reforgeCount": "Reforge Count",
       "piercingLevel": "Piercing",
       "attrGroup": "Attributes",
-      "addFilter": "Add Filter"
+      "addFilter": "Add Filter",
+      "addReforge": "Add Reforge Option",
+      "searchReforge": "Search reforge option...",
+      "addEnchant": "Add Enchant",
+      "searchEnchant": "Search enchant...",
+      "prefix": "Prefix",
+      "suffix": "Suffix",
+      "specialUpgradeType": {
+        "R": "R",
+        "S": "S"
+      }
     }
   },
   "myListings": {

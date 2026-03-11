@@ -93,10 +93,19 @@
     "filter": {
       "specialUpgrade": "특별개조",
       "ergLevel": "에르그",
-      "reforgeCount": "세공 횟수",
       "piercingLevel": "피어싱",
       "attrGroup": "아이템 속성",
-      "addFilter": "필터 추가"
+      "addFilter": "필터 추가",
+      "addReforge": "세공 옵션 추가",
+      "searchReforge": "세공 옵션 검색...",
+      "addEnchant": "인챈트 추가",
+      "searchEnchant": "인챈트 검색...",
+      "prefix": "접두",
+      "suffix": "접미",
+      "specialUpgradeType": {
+        "R": "R",
+        "S": "S"
+      }
     }
   },
   "myListings": {

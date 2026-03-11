@@ -18,7 +18,7 @@ const Marketplace = () => {
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const sentinelRef = useRef(null);
-  const searchStateRef = useRef({ tags: [], text: '', gameItemId: null, attrFilters: [] });
+  const searchStateRef = useRef({ tags: [], text: '', gameItemId: null, attrFilters: [], reforgeFilters: [], enchantFilters: [] });
 
   // --- Fetch a page of listings, returns the fetched data ---
   const fetchPage = useCallback(async (offset, tags, text, gameItemId, attrFilters) => {
@@ -76,15 +76,18 @@ const Marketplace = () => {
     }
   }, []);
 
-  const handleSearchResults = useCallback((data, { tags, text, gameItem, attrFilters } = {}) => {
+  const handleSearchResults = useCallback((data, { tags, text, gameItem, attrFilters, reforgeFilters, enchantFilters } = {}) => {
     setListings(data);
     setHasMore(data.length >= PAGE_SIZE);
-    searchStateRef.current = { tags: tags || [], text: text || '', gameItemId: gameItem?.id || null, attrFilters: attrFilters || [] };
+    searchStateRef.current = {
+      tags: tags || [], text: text || '', gameItemId: gameItem?.id || null,
+      attrFilters: attrFilters || [], reforgeFilters: reforgeFilters || [], enchantFilters: enchantFilters || [],
+    };
   }, []);
 
   const handleSearchClear = useCallback(async () => {
     setSelectedListing(null);
-    searchStateRef.current = { tags: [], text: '', gameItemId: null, attrFilters: [] };
+    searchStateRef.current = { tags: [], text: '', gameItemId: null, attrFilters: [], reforgeFilters: [], enchantFilters: [] };
     const data = await fetchPage(0, [], '', null, []);
     setListings(data);
   }, [fetchPage]);
@@ -119,7 +122,7 @@ const Marketplace = () => {
         if (st.tagWeights) search.setTagWeights(st.tagWeights);
       }
 
-      searchStateRef.current = { tags, text: name, gameItemId: null, attrFilters: [] };
+      searchStateRef.current = { tags, text: name, gameItemId: null, attrFilters: [], reforgeFilters: [], enchantFilters: [] };
       const data = await fetchPage(0, tags.length ? tags : [], name, null, []);
       setListings(data);
 

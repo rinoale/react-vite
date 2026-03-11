@@ -21,11 +21,15 @@ export function useListingSearch({ onResults, onSelectListing, onSubmit, onClear
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [focusIdx, setFocusIdx] = useState(-1);
   const [attrFilters, setAttrFilters] = useState([]);
+  const [reforgeFilters, setReforgeFilters] = useState([]);
+  const [enchantFilters, setEnchantFilters] = useState([]);
 
   const debounceRef = useRef(null);
   const containerRef = useRef(null);
   const inputRef = useRef(null);
   const attrFiltersRef = useRef([]);
+  const reforgeFiltersRef = useRef([]);
+  const enchantFiltersRef = useRef([]);
 
   // --- Close on outside click ---
   useEffect(() => {
@@ -46,14 +50,24 @@ export function useListingSearch({ onResults, onSelectListing, onSubmit, onClear
 
   // --- Execute search ---
   const executeSearch = useCallback(async (tags, text, gameItem) => {
-    const validFilters = attrFiltersRef.current.filter((f) => f.key && f.value !== '' && f.value != null);
+    const validAttr = attrFiltersRef.current.filter((f) => f.key && ((f.value !== '' && f.value != null) || f.grade || f.type));
+    const validReforge = reforgeFiltersRef.current.filter((f) => f.option_name);
+    const validEnchant = enchantFiltersRef.current.filter((f) => f.name);
     try {
       const { data } = await searchListings(
         text?.trim() || '',
         tags.length > 0 ? tags : undefined,
-        { gameItemId: gameItem?.id, ...(validFilters.length ? { attrFilters: validFilters } : {}) },
+        {
+          gameItemId: gameItem?.id,
+          ...(validAttr.length ? { attrFilters: validAttr } : {}),
+          ...(validReforge.length ? { reforgeFilters: validReforge } : {}),
+          ...(validEnchant.length ? { enchantFilters: validEnchant } : {}),
+        },
       );
-      onResults?.(data, { tags, text: text?.trim() || '', gameItem, attrFilters: validFilters });
+      onResults?.(data, {
+        tags, text: text?.trim() || '', gameItem,
+        attrFilters: validAttr, reforgeFilters: validReforge, enchantFilters: validEnchant,
+      });
     } catch (error) {
       console.error('Search failed:', error);
     }
@@ -139,6 +153,10 @@ export function useListingSearch({ onResults, onSelectListing, onSubmit, onClear
     setSelectedGameItem(null);
     attrFiltersRef.current = [];
     setAttrFilters([]);
+    reforgeFiltersRef.current = [];
+    setReforgeFilters([]);
+    enchantFiltersRef.current = [];
+    setEnchantFilters([]);
     executeSearch(selectedTags, searchText, null);
   }, [executeSearch, selectedTags, searchText]);
 
@@ -178,7 +196,10 @@ export function useListingSearch({ onResults, onSelectListing, onSubmit, onClear
 
   // --- Attribute filter CRUD ---
   const handleAddAttrFilter = useCallback((key) => {
-    const next = [...attrFiltersRef.current, { key, op: 'gte', value: '' }];
+    const extra = {};
+    if (key === 'erg_level') extra.grade = '';
+    if (key === 'special_upgrade_level') extra.type = '';
+    const next = [...attrFiltersRef.current, { key, op: 'gte', value: '', ...extra }];
     attrFiltersRef.current = next;
     setAttrFilters(next);
   }, []);
@@ -195,6 +216,48 @@ export function useListingSearch({ onResults, onSelectListing, onSubmit, onClear
     setAttrFilters(next);
   }, []);
 
+  // --- Reforge filter CRUD ---
+  const handleAddReforgeFilter = useCallback((filter) => {
+    const next = [...reforgeFiltersRef.current, filter];
+    reforgeFiltersRef.current = next;
+    setReforgeFilters(next);
+  }, []);
+
+  const handleUpdateReforgeFilter = useCallback((index, updates) => {
+    const next = reforgeFiltersRef.current.map((f, i) => (i === index ? { ...f, ...updates } : f));
+    reforgeFiltersRef.current = next;
+    setReforgeFilters(next);
+  }, []);
+
+  const handleRemoveReforgeFilter = useCallback((index) => {
+    const next = reforgeFiltersRef.current.filter((_, i) => i !== index);
+    reforgeFiltersRef.current = next;
+    setReforgeFilters(next);
+  }, []);
+
+  // --- Enchant filter CRUD ---
+  const handleAddEnchantFilter = useCallback((filter) => {
+    const next = [...enchantFiltersRef.current, filter];
+    enchantFiltersRef.current = next;
+    setEnchantFilters(next);
+  }, []);
+
+  const handleRemoveEnchantFilter = useCallback((index) => {
+    const next = enchantFiltersRef.current.filter((_, i) => i !== index);
+    enchantFiltersRef.current = next;
+    setEnchantFilters(next);
+  }, []);
+
+  const handleUpdateEnchantEffect = useCallback((enchantIdx, effectIdx, updates) => {
+    const next = enchantFiltersRef.current.map((f, i) => {
+      if (i !== enchantIdx) return f;
+      const effectFilters = f.effectFilters.map((ef, j) => (j === effectIdx ? { ...ef, ...updates } : ef));
+      return { ...f, effectFilters };
+    });
+    enchantFiltersRef.current = next;
+    setEnchantFilters(next);
+  }, []);
+
   // --- Clear all ---
   const handleClear = useCallback(() => {
     setSearchText('');
@@ -205,6 +268,10 @@ export function useListingSearch({ onResults, onSelectListing, onSubmit, onClear
     setShowSuggestions(false);
     attrFiltersRef.current = [];
     setAttrFilters([]);
+    reforgeFiltersRef.current = [];
+    setReforgeFilters([]);
+    enchantFiltersRef.current = [];
+    setEnchantFilters([]);
     onClear?.();
   }, [onClear]);
 
@@ -253,12 +320,15 @@ export function useListingSearch({ onResults, onSelectListing, onSubmit, onClear
     if (suggestions.length > 0) setShowSuggestions(true);
   }, [suggestions]);
 
-  const hasFilters = selectedTags.length > 0 || selectedGameItem != null || searchText.trim().length > 0 || attrFilters.some((f) => f.value !== '' && f.value != null);
+  const hasFilters = selectedTags.length > 0 || selectedGameItem != null || searchText.trim().length > 0
+    || attrFilters.some((f) => (f.value !== '' && f.value != null) || f.grade || f.type)
+    || reforgeFilters.length > 0
+    || enchantFilters.length > 0;
 
   return {
     // State
     searchText, selectedTags, tagWeights, selectedGameItem, suggestions, showSuggestions, focusIdx, hasFilters,
-    attrFilters,
+    attrFilters, reforgeFilters, enchantFilters,
     // Refs
     containerRef, inputRef,
     // Setters (for external init like URL params)
@@ -267,6 +337,8 @@ export function useListingSearch({ onResults, onSelectListing, onSubmit, onClear
     handleTextChange, handleSelectTag, handleSelectGameItem, handleSelectItem,
     handleRemoveTag, handleRemoveGameItem,
     handleAddAttrFilter, handleUpdateAttrFilter, handleRemoveAttrFilter,
+    handleAddReforgeFilter, handleUpdateReforgeFilter, handleRemoveReforgeFilter,
+    handleAddEnchantFilter, handleRemoveEnchantFilter, handleUpdateEnchantEffect,
     handleSubmitSearch, handleClear, handleKeyDown, handleInputFocus,
     // Direct execute
     executeSearch,
