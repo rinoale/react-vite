@@ -345,37 +345,51 @@ def search_tags(db, q, limit=10):
     return [dict(r) for r in rows]
 
 
-def search_listings(db, q, tags=None, limit=50, offset=0):
-    """Search listings by tags (AND) and/or text query (cascading).
+def search_listings(db, q, tags=None, game_item_id=None, limit=50, offset=0):
+    """Search listings by tags (AND) and/or text query (cascading) and/or game item.
 
     - tags: list of exact tag names — intersection (listings matching ALL)
     - q: text query — cascading tier search (tag ILIKE → game_item → listing name)
-    When both are provided, intersect the results.
+    - game_item_id: exact game item filter
+    All provided filters are intersected (AND).
     """
-    tag_ids = set()
-    text_ids = set()
+    id_sets = []
 
     # --- Multi-tag filter (AND / intersection) ---
     if tags:
         tag_ids = _search_by_exact_tags(db, tags)
         if not tag_ids:
             return []
+        id_sets.append(tag_ids)
 
     # --- Text query (cascading) ---
     q = (q or '').strip()
     if q:
         text_ids = _search_by_text(db, q)
         if not text_ids:
-            if not tags:
+            if not id_sets:
                 return []
+        else:
+            id_sets.append(text_ids)
 
-    # Combine
-    if tags and q:
-        result_ids = tag_ids & text_ids
-    elif tags:
-        result_ids = tag_ids
-    else:
-        result_ids = text_ids
+    # --- Game item filter ---
+    if game_item_id is not None:
+        gi_ids = set(
+            db.execute(
+                text("SELECT id FROM listings WHERE status = 1 AND game_item_id = :gi"),
+                {"gi": game_item_id},
+            ).scalars().all()
+        )
+        if not gi_ids:
+            return []
+        id_sets.append(gi_ids)
+
+    if not id_sets:
+        return []
+
+    result_ids = id_sets[0]
+    for s in id_sets[1:]:
+        result_ids = result_ids & s
 
     if not result_ids:
         return []

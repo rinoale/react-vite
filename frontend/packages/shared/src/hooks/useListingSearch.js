@@ -1,13 +1,14 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { searchListings, searchTags } from '../api/recommend';
+import { searchGameItemsLocal } from '../lib/gameItems';
 
 /**
- * Shared search logic for tag-chip + text listing search.
+ * Shared search logic for tag-chip + game-item + text listing search.
  *
  * @param {Object} options
  * @param {function} options.onResults - called with listing results array
  * @param {function} options.onSelectListing - called when a listing suggestion is clicked
- * @param {function} options.onSubmit - called on Enter/submit with ({ tags, text }). If provided, replaces default executeSearch.
+ * @param {function} options.onSubmit - called on Enter/submit with ({ tags, text, gameItem }). If provided, replaces default executeSearch.
  * @param {function} options.onClear - called after search state is cleared
  * @param {number}   options.debounceMs - debounce delay (default 200)
  */
@@ -15,6 +16,7 @@ export function useListingSearch({ onResults, onSelectListing, onSubmit, onClear
   const [searchText, setSearchText] = useState('');
   const [selectedTags, setSelectedTags] = useState([]);
   const [tagWeights, setTagWeights] = useState({});
+  const [selectedGameItem, setSelectedGameItem] = useState(null);
   const [suggestions, setSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [focusIdx, setFocusIdx] = useState(-1);
@@ -39,16 +41,20 @@ export function useListingSearch({ onResults, onSelectListing, onSubmit, onClear
   useEffect(() => () => { if (debounceRef.current) clearTimeout(debounceRef.current); }, []);
 
   // --- Execute search ---
-  const executeSearch = useCallback(async (tags, text) => {
+  const executeSearch = useCallback(async (tags, text, gameItem) => {
     try {
-      const { data } = await searchListings(text?.trim() || '', tags.length > 0 ? tags : undefined);
-      onResults?.(data, { tags, text: text?.trim() || '' });
+      const { data } = await searchListings(
+        text?.trim() || '',
+        tags.length > 0 ? tags : undefined,
+        { gameItemId: gameItem?.id },
+      );
+      onResults?.(data, { tags, text: text?.trim() || '', gameItem });
     } catch (error) {
       console.error('Search failed:', error);
     }
   }, [onResults]);
 
-  // --- Fetch suggestions (tags first, then listings) ---
+  // --- Fetch suggestions (tags + game items + listings) ---
   const fetchSuggestions = useCallback(async (text) => {
     if (!text.trim()) {
       setSuggestions([]);
@@ -56,6 +62,7 @@ export function useListingSearch({ onResults, onSelectListing, onSubmit, onClear
       return;
     }
     try {
+      const gameItems = searchGameItemsLocal(text.trim(), 3);
       const [{ data: tags }, { data: listings }] = await Promise.all([
         searchTags(text.trim()),
         searchListings(text.trim()),
@@ -66,6 +73,12 @@ export function useListingSearch({ onResults, onSelectListing, onSubmit, onClear
           value: tg.name,
           label: tg.name,
           weight: tg.weight,
+        })),
+        ...gameItems.map((gi) => ({
+          type: 'game_item',
+          value: gi.id,
+          label: gi.name,
+          data: gi,
         })),
         ...listings.map((l) => ({
           type: 'listing',
@@ -96,7 +109,7 @@ export function useListingSearch({ onResults, onSelectListing, onSubmit, onClear
     setSelectedTags((prev) => {
       if (prev.includes(tagName)) return prev;
       const next = [...prev, tagName];
-      executeSearch(next, '');
+      executeSearch(next, '', selectedGameItem);
       return next;
     });
     if (weight != null) setTagWeights((prev) => ({ ...prev, [tagName]: weight }));
@@ -104,45 +117,64 @@ export function useListingSearch({ onResults, onSelectListing, onSubmit, onClear
     setSuggestions([]);
     setShowSuggestions(false);
     inputRef.current?.focus();
-  }, [executeSearch]);
+  }, [executeSearch, selectedGameItem]);
 
-  // --- Select suggestion item (tag or listing) ---
+  // --- Select game item ---
+  const handleSelectGameItem = useCallback((gameItem) => {
+    setSelectedGameItem(gameItem);
+    executeSearch(selectedTags, '', gameItem);
+    setSearchText('');
+    setSuggestions([]);
+    setShowSuggestions(false);
+    inputRef.current?.focus();
+  }, [executeSearch, selectedTags]);
+
+  // --- Remove game item ---
+  const handleRemoveGameItem = useCallback(() => {
+    setSelectedGameItem(null);
+    executeSearch(selectedTags, searchText, null);
+  }, [executeSearch, selectedTags, searchText]);
+
+  // --- Select suggestion item (tag, game_item, or listing) ---
   const handleSelectItem = useCallback((item) => {
     if (item.type === 'tag') {
       handleSelectTag(item.value, item.weight);
+    } else if (item.type === 'game_item') {
+      handleSelectGameItem(item.data);
     } else {
       onSelectListing?.(item.data);
       setSearchText('');
       setSuggestions([]);
       setShowSuggestions(false);
     }
-  }, [handleSelectTag, onSelectListing]);
+  }, [handleSelectTag, handleSelectGameItem, onSelectListing]);
 
   // --- Remove tag ---
   const handleRemoveTag = useCallback((tagName) => {
     setSelectedTags((prev) => {
       const next = prev.filter((t) => t !== tagName);
-      executeSearch(next, searchText);
+      executeSearch(next, searchText, selectedGameItem);
       return next;
     });
     setTagWeights((prev) => { const n = { ...prev }; delete n[tagName]; return n; });
-  }, [executeSearch, searchText]);
+  }, [executeSearch, searchText, selectedGameItem]);
 
   // --- Submit search (Enter / button) ---
   const handleSubmitSearch = useCallback(() => {
     setShowSuggestions(false);
     if (onSubmit) {
-      onSubmit({ tags: selectedTags, text: searchText });
+      onSubmit({ tags: selectedTags, text: searchText, gameItem: selectedGameItem });
     } else {
-      executeSearch(selectedTags, searchText);
+      executeSearch(selectedTags, searchText, selectedGameItem);
     }
-  }, [selectedTags, searchText, executeSearch, onSubmit]);
+  }, [selectedTags, searchText, selectedGameItem, executeSearch, onSubmit]);
 
   // --- Clear all ---
   const handleClear = useCallback(() => {
     setSearchText('');
     setSelectedTags([]);
     setTagWeights({});
+    setSelectedGameItem(null);
     setSuggestions([]);
     setShowSuggestions(false);
     onClear?.();
@@ -179,8 +211,12 @@ export function useListingSearch({ onResults, onSelectListing, onSubmit, onClear
       handleSubmitSearch();
       return;
     }
-    if (e.key === 'Backspace' && !searchText && selectedTags.length > 0) {
-      handleRemoveTag(selectedTags[selectedTags.length - 1]);
+    if (e.key === 'Backspace' && !searchText) {
+      if (selectedTags.length > 0) {
+        handleRemoveTag(selectedTags[selectedTags.length - 1]);
+      } else if (selectedGameItem) {
+        handleRemoveGameItem();
+      }
     }
   }, [showSuggestions, suggestions, focusIdx, searchText, selectedTags, handleSelectItem, handleSubmitSearch, handleRemoveTag]);
 
@@ -189,17 +225,18 @@ export function useListingSearch({ onResults, onSelectListing, onSubmit, onClear
     if (suggestions.length > 0) setShowSuggestions(true);
   }, [suggestions]);
 
-  const hasFilters = selectedTags.length > 0 || searchText.trim().length > 0;
+  const hasFilters = selectedTags.length > 0 || selectedGameItem != null || searchText.trim().length > 0;
 
   return {
     // State
-    searchText, selectedTags, tagWeights, suggestions, showSuggestions, focusIdx, hasFilters,
+    searchText, selectedTags, tagWeights, selectedGameItem, suggestions, showSuggestions, focusIdx, hasFilters,
     // Refs
     containerRef, inputRef,
     // Setters (for external init like URL params)
-    setSearchText, setSelectedTags, setTagWeights,
+    setSearchText, setSelectedTags, setTagWeights, setSelectedGameItem,
     // Handlers
-    handleTextChange, handleSelectTag, handleSelectItem, handleRemoveTag,
+    handleTextChange, handleSelectTag, handleSelectGameItem, handleSelectItem,
+    handleRemoveTag, handleRemoveGameItem,
     handleSubmitSearch, handleClear, handleKeyDown, handleInputFocus,
     // Direct execute
     executeSearch,

@@ -22,7 +22,7 @@ const TagBadge = ({ name, weight = 0, size = 'xs', onRemove, onClick, className 
     <span onClick={onClick} className={`inline-flex items-center gap-1 border rounded-full font-semibold whitespace-nowrap ${onClick ? 'cursor-pointer' : 'cursor-default'} ${SIZE[size] || SIZE.xs} ${c.bg} ${c.text} ${c.border} ${className}`}>
       {name}
       {onRemove && (
-        <button onClick={onRemove} className="hover:text-white">
+        <button onClick={onRemove} className="cursor-pointer hover:text-white">
           <X className="w-3 h-3" />
         </button>
       )}

@@ -33,17 +33,18 @@ def get_listings(
 def search_listings(
     q: str = Query(default=""),
     tags: list[str] = Query(default=[]),
+    game_item_id: int | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
     current_user: User | None = Depends(optional_user),
     bg: BackgroundTasks = None,
 ):
-    if not q.strip() and not tags:
+    if not q.strip() and not tags and game_item_id is None:
         return svc_get_listings(db, limit=limit, offset=offset)
-    result = svc_search_listings(db, q.strip() or None, tags=tags or None, limit=limit, offset=offset)
+    result = svc_search_listings(db, q.strip() or None, tags=tags or None, game_item_id=game_item_id, limit=limit, offset=offset)
     bg.add_task(log_activity, action="search", user_id=current_user.id if current_user else None,
-                target_type="search_query", metadata={"query": q.strip(), "tags": tags, "results": len(result) if isinstance(result, list) else 0})
+                target_type="search_query", metadata={"query": q.strip(), "tags": tags, "game_item_id": game_item_id, "results": len(result) if isinstance(result, list) else 0})
     return result
 
 

@@ -1,10 +1,11 @@
 import React, { useState, useCallback } from 'react';
-import { Search, X, MoreHorizontal } from 'lucide-react';
+import { Search, X, MoreHorizontal, Package } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { dropdownFull, clearBtnAbsolute } from '../styles/index.js';
 import TagBadge from './TagBadge.jsx';
 
 const suggestionBtnBase = 'w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 transition-colors';
+const gameItemChip = 'inline-flex items-center gap-1 text-xs leading-none px-2 pt-1 pb-0.5 rounded border bg-orange-900/50 text-orange-300 border-orange-700/50 cursor-default';
 const MAX_VISIBLE_TAGS = 3;
 
 const TagSuggestion = ({ item, isFocused, onClick }) => (
@@ -16,12 +17,22 @@ const TagSuggestion = ({ item, isFocused, onClick }) => (
   </button>
 );
 
+const GameItemSuggestion = ({ item, isFocused, onClick }) => (
+  <button
+    onClick={onClick}
+    className={`${suggestionBtnBase} ${isFocused ? 'bg-gray-700' : 'hover:bg-gray-700/50'}`}
+  >
+    <Package className="w-3.5 h-3.5 text-orange-400 shrink-0" />
+    <span className="text-orange-300 truncate">{item.label}</span>
+  </button>
+);
+
 const ListingTags = ({ tags }) => {
   const [expanded, setExpanded] = useState(false);
+  const handleExpand = useCallback((e) => { e.stopPropagation(); setExpanded(true); }, []);
   if (!tags?.length) return null;
   const visible = expanded ? tags : tags.slice(0, MAX_VISIBLE_TAGS);
   const hasMore = tags.length > MAX_VISIBLE_TAGS && !expanded;
-  const handleExpand = useCallback((e) => { e.stopPropagation(); setExpanded(true); }, []);
   return (
     <span className="inline-flex items-center gap-1 ml-auto shrink-0">
       {visible.map((tag, i) => (
@@ -49,8 +60,14 @@ const ListingSuggestion = ({ item, isFocused, onClick }) => (
   </button>
 );
 
+const SUGGESTION_RENDERERS = {
+  tag: TagSuggestion,
+  game_item: GameItemSuggestion,
+  listing: ListingSuggestion,
+};
+
 /**
- * Shared search bar with tag chips + suggestion dropdown.
+ * Shared search bar with tag chips + game item chip + suggestion dropdown.
  * Must be driven by useListingSearch() hook.
  */
 const ListingSearchBar = ({
@@ -63,13 +80,13 @@ const ListingSearchBar = ({
   const { t } = useTranslation();
 
   const {
-    searchText, selectedTags, tagWeights, suggestions, showSuggestions, focusIdx, hasFilters,
+    searchText, selectedTags, tagWeights, selectedGameItem, suggestions, showSuggestions, focusIdx, hasFilters,
     containerRef, inputRef,
-    handleTextChange, handleSelectItem, handleRemoveTag,
+    handleTextChange, handleSelectItem, handleRemoveTag, handleRemoveGameItem,
     handleClear, handleKeyDown, handleInputFocus,
   } = search;
 
-  const resolvedPlaceholder = selectedTags.length > 0
+  const resolvedPlaceholder = (selectedTags.length > 0 || selectedGameItem)
     ? (addMorePlaceholder || t('marketplace.addMoreTags'))
     : (placeholder || t('marketplace.searchPlaceholder'));
 
@@ -80,6 +97,15 @@ const ListingSearchBar = ({
     <div ref={containerRef} className={wrapperClassName}>
       <div className={barClassName}>
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+        {selectedGameItem && (
+          <span className={gameItemChip}>
+            <Package className="w-3 h-3" />
+            {selectedGameItem.name}
+            <button onClick={handleRemoveGameItem} className="cursor-pointer hover:text-orange-100">
+              <X className="w-3 h-3" />
+            </button>
+          </span>
+        )}
         {selectedTags.map((tag) => (
           <TagBadge key={tag} name={tag} weight={tagWeights[tag] || 0} onRemove={onRemoveTag(tag)} />
         ))}
@@ -102,23 +128,17 @@ const ListingSearchBar = ({
 
       {showSuggestions && suggestions.length > 0 && (
         <div className={`${dropdownFull} max-h-60 rounded-lg`}>
-          {suggestions.map((item, idx) => (
-            item.type === 'tag' ? (
-              <TagSuggestion
-                key={`tag:${item.value}`}
+          {suggestions.map((item, idx) => {
+            const Renderer = SUGGESTION_RENDERERS[item.type] || ListingSuggestion;
+            return (
+              <Renderer
+                key={`${item.type}:${item.value}`}
                 item={item}
                 isFocused={idx === focusIdx}
                 onClick={onSelectItem(item)}
               />
-            ) : (
-              <ListingSuggestion
-                key={`listing:${item.value}`}
-                item={item}
-                isFocused={idx === focusIdx}
-                onClick={onSelectItem(item)}
-              />
-            )
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

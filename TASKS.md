@@ -461,3 +461,115 @@ After this, `ILIKE '%keyword%'` automatically uses the trigram index — **no ap
 **Korean text note:** Korean characters are multi-byte but `pg_trgm` operates on characters (not bytes), so trigrams work correctly for Korean. Short keywords (1-2 chars) produce fewer trigrams and may fall back to sequential scan — this is expected and acceptable.
 
 **When to implement:** Monitor query performance via `pg_stat_statements` or application-level logging. When median search latency exceeds acceptable thresholds (e.g. >100ms), enable this. Current table size does not warrant it.
+
+---
+
+## Marketplace Search — Architecture & Future Design
+
+### Completed: Search Architecture (2026-03-11)
+
+#### Frontend Search Flow (`useListingSearch` hook)
+
+User types in `ListingSearchBar` → debounced `fetchSuggestions()` fires 3 parallel lookups:
+1. **Tags** — `GET /tags/search?q=...` (backend cascading ILIKE)
+2. **Game items** — `searchGameItemsLocal()` (in-memory from `window.GAME_ITEMS_CONFIG`, no API, capped at 3)
+3. **Listings** — `GET /listings/search?q=...` (backend text search)
+
+Results merged into a single suggestion dropdown with type-specific renderers:
+- `TagSuggestion` — `TagBadge` chip with weight color
+- `GameItemSuggestion` — orange `Package` icon + name
+- `ListingSuggestion` — name + game item label + tag badges
+
+On selection:
+- **Tag** → added as a chip (AND filter), triggers `executeSearch` with all selected tags
+- **Game item** → added as orange chip (AND filter), triggers `executeSearch` with `gameItemId`
+- **Listing** → navigates directly to listing detail
+
+Chips removable by: X button click, or Backspace on empty input (tags first, then game item).
+
+#### Backend Search Logic (`listing_service.py::search_listings`)
+
+Three independent AND-intersected filter sets:
+
+1. **Tag filter** (`_search_by_exact_tags`):
+   - Uses `_LISTING_RESOLVE_CTE` to map tags → listings through polymorphic relations
+   - CTE resolves: `listing_tags` (direct) + `game_item_tags` (via `listings.game_item_id`) + `listing_option_tags` (via `listing_options`)
+   - AND intersection: `HAVING COUNT(DISTINCT tag_id) = :tag_count` ensures all tags match
+
+2. **Text filter** (cascading 3-tier ILIKE):
+   - Tier 1: Tag name ILIKE → resolve to listings via CTE
+   - Tier 2: Game item name ILIKE → `listings.game_item_id`
+   - Tier 3: Listing name ILIKE → direct match
+   - Stops at first tier that returns results
+
+3. **Game item filter**: `WHERE game_item_id = :gi` direct match
+
+Final: `id_sets[0] & id_sets[1] & ...` Python set intersection across all non-empty filter sets.
+
+#### CTE (`_LISTING_RESOLVE_CTE`)
+
+```sql
+WITH listing_resolve AS (
+    SELECT listing_id, tag_id FROM listing_tags
+    UNION ALL
+    SELECT l.id, gt.tag_id FROM listings l JOIN game_item_tags gt ON gt.game_item_id = l.game_item_id
+    UNION ALL
+    SELECT lo.listing_id, ot.tag_id FROM listing_options lo JOIN listing_option_tags ot ON ot.listing_option_id = lo.id
+)
+```
+
+Adding a new entity relation to listings requires only adding one more `UNION ALL` line.
+
+#### Files Changed
+- `backend/trade/services/listing_service.py` — `id_sets` refactor, `game_item_id` filter
+- `backend/trade/listings.py` — `game_item_id` query param, `BackgroundTasks` for logging
+- `frontend/packages/shared/src/hooks/useListingSearch.js` — game item state, handlers, Backspace removal
+- `frontend/packages/shared/src/components/ListingSearchBar.jsx` — `GameItemSuggestion`, orange chip, renderers
+- `frontend/packages/shared/src/api/recommend.js` — `gameItemId` param
+- `frontend/packages/trade/src/pages/marketplace.jsx` — `gameItemId` in search state + pagination
+- `documents/ARCHITECTURE.md` — Marketplace Search section
+- `documents/API_SPEC.md` — `GET /listings/search`, `GET /tags/search` specs
+
+### Completed: Activity Logs Monitoring (2026-03-11)
+
+- Admin page at `/system/activity_logs` showing paginated activity logs with action/user_id filters
+- Backend: `GET /admin/activity-logs` (paginated, filterable), `GET /admin/activity-logs/actions` (distinct actions with counts)
+- Activity logging moved to `BackgroundTasks` — own `SessionLocal()` session, doesn't block HTTP response
+- Files: `backend/admin/activity.py`, `backend/trade/services/activity_service.py`, `frontend/packages/admin/src/components/ActivityLogsPanel.jsx`
+
+### Completed: UI Polish (2026-03-11)
+
+- `cursor-default` on tag and game item chips, `cursor-pointer` on their X remove buttons
+- `TagBadge.jsx`: `cursor-pointer` on remove button, `cursor-default`/`cursor-pointer` on span based on `onClick` prop
+- `ListingSearchBar.jsx`: game item chip uses `cursor-default`, X button uses `cursor-pointer`
+
+### Design Decision: Numeric Range Filters vs Tag System
+
+#### Tag System (current — name-based search)
+- Works well for **enchant names**, **option names**, **game item names** — any name-based entity
+- Admin controls searchability via tag weight (weight 0 = hidden, weight > 0 = searchable)
+- Auto-tagging at listing creation generates tags for enchants, options, etc.
+- No code deploy needed to make new tags searchable — just bump weight in admin
+- Example: enchant "크리티컬" tag → finds all listings with that enchant
+
+#### Limitation: Numeric Values
+- Tag system cannot express ranges like "erg level >= 50" or "special upgrade >= 7"
+- Game thresholds change unpredictably (erg max level may increase to 60, special upgrade to 9)
+- Hardcoding thresholds into tags (e.g. "high rolled erg") requires code updates when limits change
+
+#### Future: Direct Numeric Input for Attributes
+- For numeric attributes (erg level, special upgrade, rolled values), let users specify ranges directly
+- Approach: when user selects a game item chip, expand to a form showing relevant numeric fields
+  - Essential fields derived from `listings` columns + `item_attrs` segment handler
+  - Echostone/murias options appear only for eligible items (from frontend constants)
+  - User fills desired minimums → backend adds WHERE clauses to search query
+
+#### CTE Compatibility
+- CTE stays unchanged — it resolves tag-to-listing relationships (name-based)
+- Numeric range filters are independent WHERE clauses on `listing_options` or `listings` columns
+- Both can coexist: tag intersection + numeric range filters in the same query
+
+#### Rolled Value Tiers (existing UI concept)
+- Frontend already uses `getLevelBadge()` to color-code rolled values: `transcend` / `max` / `high` / `mid` / `low`
+- This tier visualization could double as a search filter — "show me max-rolled listings"
+- The tier boundaries are game-knowledge-specific and may need admin configurability rather than hardcoded thresholds

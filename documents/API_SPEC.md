@@ -328,6 +328,54 @@ Returns full detail for a single listing, including enchant effects and reforge 
 - `value` is null for fixed effects where `min_value == max_value` — the client displays `min_value` as the fixed value
 - All effects are returned (via LEFT JOIN from `enchant_effects`), not just rolled ones
 
+### `GET /listings/search`
+Search listings by text query, tag chips, and/or game item. All provided filters are intersected (AND).
+
+**Query params:**
+
+| Parameter | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `q` | `string` | `""` | Text query. Triggers cascading ILIKE search (see below). |
+| `tags` | `string[]` | `[]` | Tag names. Multiple values = AND (all must match). |
+| `game_item_id` | `int` | (none) | Exact game item filter. |
+| `limit` | `int` | `50` | Max results (1-200). |
+| `offset` | `int` | `0` | Pagination offset. |
+
+**Search logic:**
+
+Three independent filters are computed, then **intersected** (`∩`):
+
+1. **Tag filter** (`tags` param) — Exact match on `tags.name`, AND across all selected tags. Uses a CTE to resolve listings to all related entities (game_item, enchants, listing_options), so a tag on an enchant matches listings with that enchant.
+   ```sql
+   WHERE t.name IN (:tags) GROUP BY listing_id HAVING COUNT(DISTINCT t.name) = :tag_count
+   ```
+
+2. **Text filter** (`q` param) — Cascading 3-tier search, stops at first tier with results:
+   - Tier 1: `tags.name ILIKE '%q%'` → resolve to listing IDs via CTE (same polymorphic tag resolution)
+   - Tier 2: `game_items.name ILIKE '%q%'` → direct JOIN to listings (no CTE)
+   - Tier 3: `listings.name ILIKE '%q%'` → direct WHERE (no CTE)
+
+3. **Game item filter** (`game_item_id` param) — Direct exact match (no CTE):
+   ```sql
+   WHERE status = 1 AND game_item_id = :gi
+   ```
+
+When no filters are provided (`q` empty, no `tags`, no `game_item_id`), falls back to `GET /listings` (returns all listed items).
+
+**Response:** `Array<ListingSummary>` — same structure as `GET /listings`, plus `tags` and `listing_options` arrays.
+
+### `GET /tags/search`
+Search tag names by substring. Used for search bar autocomplete.
+
+**Query params:**
+
+| Parameter | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `q` | `string` | `""` | Search query (ILIKE match). |
+| `limit` | `int` | `10` | Max results (1-50). |
+
+**Response:** `Array<{name, weight}>`
+
 ### `GET /game-items`
 Search game items by name substring.
 
