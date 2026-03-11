@@ -54,7 +54,7 @@ function App() {
   useEffect(() => { document.title = t('app.title') }, [t])
 
   return (
-    <BrowserRouter basename={import.meta.env.BASE_URL}>
+    <BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/+$/, '')}>
       <AdminGuard>
       <Routes>
         <Route element={<AdminLayout />}>
@@ -82,7 +82,7 @@ function App() {
           <Route path="/system/usage" element={<Suspense fallback={<Fallback />}><UsagePanel /></Suspense>} />
 
           {/* Default */}
-          <Route path="/" element={<Navigate to="/source_of_truth/enchants" replace />} />
+          <Route path="/" element={null} />
           {/* Legacy redirects */}
           <Route path="/enchants" element={<Navigate to="/source_of_truth/enchants" replace />} />
           <Route path="/listings" element={<Navigate to="/trade/listings" replace />} />

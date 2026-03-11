@@ -100,14 +100,14 @@ const AdminLayout = () => {
   return (
     <div className="min-h-screen bg-gray-900 text-gray-100 flex">
       {/* sidebar */}
-      <nav className="w-56 flex-shrink-0 bg-gray-950 border-r border-gray-800 flex flex-col">
+      <nav className="w-56 flex-shrink-0 bg-gray-950 border-r border-gray-800 flex flex-col h-screen sticky top-0">
         <div className="px-4 py-5 border-b border-gray-800">
           <h1 className="text-lg font-black text-white tracking-tight uppercase">
             {t('admin.title')} <span className="text-cyan-500">{t('admin.titleHighlight')}</span>
           </h1>
         </div>
 
-        <div className="flex-1 overflow-y-auto scrollbar-thin py-2">
+        <div className="flex-1 overflow-y-auto scrollbar-thin py-2 min-h-0">
           {visibleGroups.map((group) => {
             const isOpen = activeGroup === group.key;
             const Icon = group.icon;
