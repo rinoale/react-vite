@@ -48,9 +48,9 @@ const ListingTags = ({ tags }) => {
         <TagBadge key={i} name={tag.name} weight={tag.weight} />
       ))}
       {hasMore && (
-        <button onClick={handleExpand} className={suggestionExpandBtn}>
+        <span role="button" tabIndex={0} onClick={handleExpand} onKeyDown={(e) => e.key === 'Enter' && handleExpand(e)} className={suggestionExpandBtn}>
           <MoreHorizontal className="w-3.5 h-3.5" />
-        </button>
+        </span>
       )}
     </span>
   );

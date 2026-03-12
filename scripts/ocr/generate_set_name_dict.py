@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Generate set_name.txt from item_name.txt (source of truth).
+"""Generate set_name.txt from game_item.yaml (source of truth).
 
-Extracts set names from lines matching '세트 효과 {name} (강화|증가) +N 주문서'
+Extracts set names from items matching '세트 효과 {name} (강화|증가) +N 주문서'
 and outputs '{name} (강화|증가)' per line.
 
 Outputs:
@@ -14,21 +14,23 @@ Run from project root:
 import os
 import re
 
+import yaml
+
 _PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-ITEM_NAME_TXT = os.path.join(_PROJECT_ROOT, 'data', 'source_of_truth', 'item_name.txt')
+GAME_ITEM_YAML = os.path.join(_PROJECT_ROOT, 'data', 'source_of_truth', 'game_item.yaml')
 SET_NAME_TXT = os.path.join(_PROJECT_ROOT, 'data', 'dictionary', 'set_name.txt')
 
 _SET_EFFECT_RE = re.compile(r'^세트 효과\s+(.+(?:강화|증가))\s+\+\d+\s+주문서$')
 
 
 def main():
-    with open(ITEM_NAME_TXT, 'r', encoding='utf-8') as f:
-        lines = f.readlines()
+    with open(GAME_ITEM_YAML, 'r', encoding='utf-8') as f:
+        items = yaml.safe_load(f) or []
 
     seen = set()
     names = []
-    for line in lines:
-        m = _SET_EFFECT_RE.match(line.strip())
+    for item in items:
+        m = _SET_EFFECT_RE.match(item['name'].strip())
         if m:
             name = m.group(1).strip()
             if name not in seen:

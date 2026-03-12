@@ -157,14 +157,10 @@ ln -sfn /models /app/backend/ocr/models
 # 2. Run database migrations
 alembic upgrade head
 
-# 3. Import dictionaries (enchant, effects, reforge, item names)
+# 3. Import dictionaries (all defaults point to data/source_of_truth/*.yaml)
 python /app/scripts/db/import_dictionaries.py \
   --db-host "$DB_HOST" --db-port "$DB_PORT" --db-name "$DB_NAME" \
-  --db-user "$DB_USER" --db-password "$DB_PASSWORD" \
-  --enchant-path /app/data/source_of_truth/enchant.yaml \
-  --effects-path /app/data/source_of_truth/effects.txt \
-  --reforge-path /app/data/dictionary/reforge.txt \
-  --item-names-path /app/data/dictionary/item_name.txt
+  --db-user "$DB_USER" --db-password "$DB_PASSWORD"
 
 # 4. Export frontend configs (generated JS files from DB data)
 export FRONTEND_DIST_DIR=/app/frontend
