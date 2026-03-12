@@ -11,6 +11,7 @@ python-jose[cryptography]
 authlib
 httpx
 pyyaml
+uuid-utils
 redis
 boto3
 oci

@@ -204,6 +204,13 @@ def main() -> None:
     logging.getLogger().setLevel(logging.INFO)
     logger.info("DB schema up to date")
 
+    # Pre-load OCR models if GPU queue is active
+    if 'gpu' in queues:
+        logger.info("Pre-loading OCR pipeline...")
+        from lib.pipeline.v3 import init_pipeline
+        init_pipeline()
+        logger.info("OCR pipeline ready")
+
     broker = get_broker()
 
     # Register heartbeat and start refresh thread

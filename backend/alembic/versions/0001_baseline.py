@@ -78,7 +78,7 @@ def upgrade() -> None:
         sa.Column("slot", sa.SmallInteger(), nullable=False),
         sa.Column("name", sa.Text(), nullable=False),
         sa.Column("rank", sa.SmallInteger(), nullable=False),
-        sa.Column("header_text", sa.Text(), nullable=False, unique=True),
+        sa.Column("header_text", sa.Text(), nullable=False),
         sa.Column("restriction", sa.Text(), nullable=True),
         sa.Column("binding", sa.Boolean(), nullable=False, server_default="false"),
         sa.Column("guaranteed_success", sa.Boolean(), nullable=False, server_default="false"),
@@ -86,7 +86,6 @@ def upgrade() -> None:
         sa.Column("credit", sa.Text(), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
-        sa.UniqueConstraint("name", "rank", "slot", name="_enchant_name_rank_slot_uc"),
     )
 
     op.create_table(
@@ -141,7 +140,7 @@ def upgrade() -> None:
         sa.Column("max_level", sa.Integer(), nullable=True),
         sa.Column("min_level", sa.Integer(), nullable=False, server_default="1"),
         sa.Column("value_per_level", sa.Float(), nullable=True),
-        sa.Column("option_unit", sa.Text(), nullable=False, server_default=""),
+        sa.Column("option_unit", sa.Text(), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
     )

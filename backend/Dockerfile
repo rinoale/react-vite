@@ -3,6 +3,7 @@ FROM python:3.14.2-slim
 ARG UID=1000
 ARG GID=1000
 ARG REQUIREMENTS=requirements.txt
+ENV REQUIREMENTS=${REQUIREMENTS}
 
 WORKDIR /app
 
@@ -39,4 +40,4 @@ USER appuser
 
 EXPOSE 8000
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--reload", "--port", "8000"]
+CMD ["sh", "-c", "pip install -q -r /app/${REQUIREMENTS} && uvicorn main:app --host 0.0.0.0 --reload --port 8000"]

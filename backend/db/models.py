@@ -2,7 +2,11 @@ from sqlalchemy import Column, Float, Index, Integer, String, SmallInteger, Bool
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PG_UUID
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
-from uuid_utils import uuid7
+import uuid as _uuid
+from uuid_utils import uuid7 as _uuid7
+
+def uuid7() -> _uuid.UUID:
+    return _uuid.UUID(str(_uuid7()))
 
 from .connector import Base
 
@@ -88,7 +92,7 @@ class Enchant(Base):
     slot = Column(SmallInteger, nullable=False)  # 0=접두, 1=접미
     name = Column(Text, nullable=False)
     rank = Column(SmallInteger, nullable=False)  # 1..15
-    header_text = Column(Text, nullable=False, unique=True)
+    header_text = Column(Text, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     restriction = Column(Text, nullable=True)
@@ -98,10 +102,6 @@ class Enchant(Base):
     credit = Column(Text, nullable=True)
 
     effects = relationship("EnchantEffect", back_populates="enchant", cascade="all, delete-orphan")
-
-    __table_args__ = (
-        UniqueConstraint('name', 'rank', 'slot', name='_enchant_name_rank_slot_uc'),
-    )
 
 class Effect(Base):
     __tablename__ = "effects"
@@ -260,7 +260,7 @@ class MuriasRelicOption(Base):
     max_level = Column(Integer, nullable=True)
     min_level = Column(Integer, nullable=False, server_default='1')
     value_per_level = Column(Float, nullable=True)
-    option_unit = Column(Text, nullable=False, server_default='')
+    option_unit = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 

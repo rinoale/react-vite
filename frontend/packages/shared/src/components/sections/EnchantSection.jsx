@@ -182,6 +182,7 @@ const EffectRow = ({ eff, lineIdx, onLineChange, configEffects, abbreviated }) =
       )}
       {isRanged && (
         <button
+          type="button"
           onClick={() => setEditingName(true)}
           className={`ml-auto ${iconBtnEditOrange}`}
           title={t('sections.enchant.correctEffect')}
@@ -237,6 +238,7 @@ const EnchantSlot = ({ slot, slotLabel, headerLineIdx, lines, slotLines, onLineC
           <div className={`group ${flexCenter}`}>
             <span className="text-sm font-medium text-purple-300">{slot.name}</span>
             <button
+              type="button"
               onClick={() => setEditingHeader(true)}
               className={iconBtnEditPurple}
               title={t('sections.enchant.correctEnchant')}
@@ -244,6 +246,7 @@ const EnchantSlot = ({ slot, slotLabel, headerLineIdx, lines, slotLines, onLineC
               <Pencil className="w-3 h-3" />
             </button>
             <button
+              type="button"
               onClick={onRemove}
               className={iconBtnRemove}
               title={t('sections.enchant.remove')}

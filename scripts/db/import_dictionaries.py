@@ -184,8 +184,6 @@ def import_effects(conn, effects: list[dict]) -> dict[str, str]:
                 """
                 INSERT INTO effects (id, name, is_pct)
                 VALUES (:id, :name, :is_pct)
-                ON CONFLICT (name)
-                DO UPDATE SET is_pct = EXCLUDED.is_pct
                 """
             ),
             {"id": eff["id"], "name": eff["name"], "is_pct": eff["is_pct"]},
@@ -224,17 +222,6 @@ def import_enchant(
                 VALUES (:id, :slot, :name, :rank, :header_text,
                         :restriction, :binding, :guaranteed_success,
                         :activation, :credit)
-                ON CONFLICT (header_text)
-                DO UPDATE SET
-                    id = EXCLUDED.id,
-                    slot = EXCLUDED.slot,
-                    name = EXCLUDED.name,
-                    rank = EXCLUDED.rank,
-                    restriction = EXCLUDED.restriction,
-                    binding = EXCLUDED.binding,
-                    guaranteed_success = EXCLUDED.guaranteed_success,
-                    activation = EXCLUDED.activation,
-                    credit = EXCLUDED.credit
                 """
             ),
             {
@@ -278,13 +265,6 @@ def import_enchant(
                     VALUES
                     (:id, :enchant_id, :effect_id, :effect_order, :condition_text,
                      :min_value, :max_value, :raw_text)
-                    ON CONFLICT (enchant_id, effect_order)
-                    DO UPDATE SET
-                        effect_id = EXCLUDED.effect_id,
-                        condition_text = EXCLUDED.condition_text,
-                        min_value = EXCLUDED.min_value,
-                        max_value = EXCLUDED.max_value,
-                        raw_text = EXCLUDED.raw_text
                     """
                 ),
                 {
@@ -300,15 +280,6 @@ def import_enchant(
             )
             link_count += 1
 
-        # Remove orphan effects if enchant now has fewer effects
-        num_effects = len(entry["effects"])
-        conn.execute(
-            text(
-                "DELETE FROM enchant_effects "
-                "WHERE enchant_id = :eid AND effect_order > :max_order"
-            ),
-            {"eid": enchant_id, "max_order": num_effects},
-        )
 
     return entry_count, link_count
 
@@ -322,8 +293,6 @@ def import_reforge(conn, reforge_options: list[dict]) -> int:
                     """
                     INSERT INTO reforge_options (id, option_name)
                     VALUES (:id, :option_name)
-                    ON CONFLICT (option_name)
-                    DO UPDATE SET id = EXCLUDED.id
                     """
                 ),
                 {"id": option["id"], "option_name": option["option_name"]},
@@ -342,12 +311,6 @@ def import_game_items(conn, items: list[dict]) -> int:
                     """
                     INSERT INTO game_items (id, name, type, searchable, tradable)
                     VALUES (:id, :name, :type, :searchable, :tradable)
-                    ON CONFLICT (name)
-                    DO UPDATE SET
-                        id = EXCLUDED.id,
-                        type = EXCLUDED.type,
-                        searchable = EXCLUDED.searchable,
-                        tradable = EXCLUDED.tradable
                     """
                 ),
                 {
@@ -382,12 +345,6 @@ def import_echostone(conn, entries: list[dict]) -> int:
                 """
                 INSERT INTO echostone_options (id, option_name, type, max_level, min_level)
                 VALUES (:id, :option_name, :type, :max_level, :min_level)
-                ON CONFLICT (option_name)
-                DO UPDATE SET
-                    id = EXCLUDED.id,
-                    type = EXCLUDED.type,
-                    max_level = EXCLUDED.max_level,
-                    min_level = EXCLUDED.min_level
                 """
             ),
             {
@@ -412,14 +369,6 @@ def import_murias_relic(conn, entries: list[dict]) -> int:
                     (id, option_name, type, max_level, min_level, value_per_level, option_unit)
                 VALUES
                     (:id, :option_name, :type, :max_level, :min_level, :value_per_level, :option_unit)
-                ON CONFLICT (option_name)
-                DO UPDATE SET
-                    id = EXCLUDED.id,
-                    type = EXCLUDED.type,
-                    max_level = EXCLUDED.max_level,
-                    min_level = EXCLUDED.min_level,
-                    value_per_level = EXCLUDED.value_per_level,
-                    option_unit = EXCLUDED.option_unit
                 """
             ),
             {
@@ -429,7 +378,7 @@ def import_murias_relic(conn, entries: list[dict]) -> int:
                 "max_level": entry.get("max_level"),
                 "min_level": entry.get("min_level", 1),
                 "value_per_level": entry.get("value_per_level"),
-                "option_unit": entry.get("option_unit", ""),
+                "option_unit": entry.get("option_unit"),
             },
         )
         count += 1

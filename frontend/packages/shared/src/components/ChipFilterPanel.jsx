@@ -388,7 +388,7 @@ const ChipFilterPanel = ({
   const { t } = useTranslation();
   const [addMode, setAddMode] = useState(null);
 
-  const reforgeItems = useMemo(() => window.REFORGES_CONFIG || [], []);
+  const reforgeItems = useMemo(() => window.REFORGE_OPTIONS_CONFIG || [], []);
   const allEnchantItems = useMemo(() => window.ENCHANTS_CONFIG || [], []);
 
   // Determine available filters based on item type
