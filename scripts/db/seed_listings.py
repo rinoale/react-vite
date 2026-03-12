@@ -11,8 +11,14 @@ random listings with options and tags.
 import argparse
 import random
 import time
+import uuid as _uuid
 
 from sqlalchemy import create_engine, text
+from uuid_utils import uuid7 as _raw_uuid7
+
+
+def _uuid7() -> _uuid.UUID:
+    return _uuid.UUID(str(_raw_uuid7()))
 
 
 ERG_GRADES = ["S", "A", "B"]
@@ -173,20 +179,26 @@ def main():
     # Pre-create tags
     tag_name_to_id = {}
     with engine.begin() as conn:
+        # Load existing tags first
+        for row in conn.execute(text("SELECT id, name FROM tags")).fetchall():
+            tag_name_to_id[row[1]] = row[0]
+        # Insert missing tags
         for name in TAG_POOL:
-            row = conn.execute(
-                text("INSERT INTO tags (name, weight) VALUES (:n, :w) ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name RETURNING id"),
-                {"n": name, "w": random.randint(0, 170)},
-            ).fetchone()
-            tag_name_to_id[name] = row[0]
-        # Also pre-create enchant name tags
+            if name not in tag_name_to_id:
+                tid = _uuid7()
+                conn.execute(
+                    text("INSERT INTO tags (id, name, weight) VALUES (:id, :n, :w)"),
+                    {"id": tid, "n": name, "w": random.randint(0, 170)},
+                )
+                tag_name_to_id[name] = tid
         for e in enchants_all:
             if e["name"] not in tag_name_to_id:
-                row = conn.execute(
-                    text("INSERT INTO tags (name, weight) VALUES (:n, 0) ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name RETURNING id"),
-                    {"n": e["name"]},
-                ).fetchone()
-                tag_name_to_id[e["name"]] = row[0]
+                tid = _uuid7()
+                conn.execute(
+                    text("INSERT INTO tags (id, name, weight) VALUES (:id, :n, 0)"),
+                    {"id": tid, "n": e["name"]},
+                )
+                tag_name_to_id[e["name"]] = tid
 
     print(f"Pre-created {len(tag_name_to_id)} tags")
 
@@ -205,39 +217,41 @@ def main():
                 )
 
                 # Insert listing
-                cols = [k for k, v in listing.items() if v is not None]
+                listing_id = _uuid7()
+                cols = ["id"] + [k for k, v in listing.items() if v is not None]
+                vals = {"id": listing_id, **{c: listing[c] for c in cols if c != "id"}}
                 placeholders = ", ".join(f":{c}" for c in cols)
                 col_names = ", ".join(cols)
-                row = conn.execute(
-                    text(f"INSERT INTO listings ({col_names}) VALUES ({placeholders}) RETURNING id"),
-                    {c: listing[c] for c in cols},
-                ).fetchone()
-                listing_id = row[0]
+                conn.execute(
+                    text(f"INSERT INTO listings ({col_names}) VALUES ({placeholders})"),
+                    vals,
+                )
 
                 # Insert options
                 for opt in options:
                     conn.execute(
                         text(
-                            "INSERT INTO listing_options (listing_id, option_type, option_id, option_name, rolled_value, max_level) "
-                            "VALUES (:lid, :otype, :oid, :oname, :rv, :ml)"
+                            "INSERT INTO listing_options (id, listing_id, option_type, option_id, option_name, rolled_value, max_level) "
+                            "VALUES (:id, :lid, :otype, :oid, :oname, :rv, :ml)"
                         ),
-                        {"lid": listing_id, "otype": opt["option_type"], "oid": opt["option_id"],
+                        {"id": _uuid7(), "lid": listing_id, "otype": opt["option_type"], "oid": opt["option_id"],
                          "oname": opt["option_name"], "rv": opt["rolled_value"], "ml": opt["max_level"]},
                     )
 
                 # Insert tag targets
+                seen_tags = set()
                 for i, tname in enumerate(tag_names[:5]):
                     tag_id = tag_name_to_id.get(tname)
-                    if not tag_id:
+                    if not tag_id or tag_id in seen_tags:
                         continue
+                    seen_tags.add(tag_id)
                     w = TAG_POSITION_WEIGHTS[i] if i < len(TAG_POSITION_WEIGHTS) else 0
                     conn.execute(
                         text(
-                            "INSERT INTO tag_targets (tag_id, target_type, target_id, weight) "
-                            "VALUES (:tid, 'listing', :lid, :w) "
-                            "ON CONFLICT (tag_id, target_type, target_id) DO NOTHING"
+                            "INSERT INTO tag_targets (id, tag_id, target_type, target_id, weight) "
+                            "VALUES (:id, :tid, 'listing', :lid, :w)"
                         ),
-                        {"tid": tag_id, "lid": listing_id, "w": w},
+                        {"id": _uuid7(), "tid": tag_id, "lid": listing_id, "w": w},
                     )
 
         total += batch_size
