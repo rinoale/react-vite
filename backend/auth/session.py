@@ -20,7 +20,7 @@ def refresh(
     payload = decode_token(refresh_token)
     if not payload or payload.get("type") != "refresh":
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
-    user = get_user_by_id(db, int(payload["sub"]))
+    user = get_user_by_id(db, payload["sub"])
     if not user or user.status != 0:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User inactive or not found")
     tokens = create_token_pair(user.id)
