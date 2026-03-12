@@ -14,9 +14,10 @@ import {
 } from '../styles/index.js';
 import {
   FILTER_OPTIONS, FILTER_MAP, ERG_GRADES, SPECIAL_UPGRADE_TYPES,
-  OPS, OP_SYMBOLS,
+  OPS, OP_SYMBOLS, getFiltersForItemType, ECHOSTONE_TYPE_TO_COLOR,
 } from '../lib/filterConstants.js';
 import ConfigSearchInput from './ConfigSearchInput.jsx';
+import { filterEnchantsByRestriction } from '../lib/gameItems.js';
 
 const MAX_REFORGES = 3;
 const DEFAULT_REFORGE_MAX = 20;
@@ -299,6 +300,66 @@ const EnchantFilterItem = ({ filter, index, onRemove, onUpdateEffect }) => {
   );
 };
 
+/* ── Echostone/Murias Option Filter (folded on add, same as reforge) ── */
+
+const OptionFilterItem = ({ filter, index, onUpdate, onRemove, badgeClass }) => {
+  const hasLevel = filter.level !== '' && filter.level != null;
+  const [isOpen, setIsOpen] = useState(false);
+  const maxLvl = filter.max_level || 20;
+  const levelColor = getFilterLevelColor(filter.level, maxLvl, filter.min_level || 1);
+
+  const handleOp = useCallback(() => {
+    const next = OPS[(OPS.indexOf(filter.op) + 1) % OPS.length];
+    onUpdate(index, { op: next });
+  }, [filter.op, index, onUpdate]);
+  const handleLevel = useCallback((e) => {
+    const v = e.target.value.replace(/[^0-9]/g, '');
+    onUpdate(index, { level: v });
+  }, [index, onUpdate]);
+  const handleRemove = useCallback((e) => { e.stopPropagation(); onRemove(index); }, [index, onRemove]);
+  const toggle = useCallback(() => setIsOpen((v) => !v), []);
+
+  if (!isOpen) {
+    return (
+      <div className={filterBadgeRow} onClick={toggle}>
+        <span className={badgeClass}>
+          {filter.option_name.slice(0, 8)}{hasLevel ? `${OP_SYMBOLS[filter.op]}${filter.level}` : ''}
+        </span>
+        <button type="button" onClick={handleRemove} className={filterRemoveBtn}>
+          <X className="w-3 h-3" />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className={filterRow}>
+      <span className={reforgeNameLabel} title={filter.option_name}>
+        {filter.option_name}
+      </span>
+      <button type="button" onClick={handleOp} className={filterOpBtn}>
+        <span key={filter.op} className="inline-block animate-op-spin">
+          {OP_SYMBOLS[filter.op]}
+        </span>
+      </button>
+      <input
+        type="text"
+        inputMode="numeric"
+        value={filter.level}
+        onChange={handleLevel}
+        placeholder=""
+        className={`${filterLevelInput} ${levelColor}`}
+      />
+      <button type="button" onClick={toggle} className={filterRemoveBtn}>
+        <ChevronUp className="w-3 h-3" />
+      </button>
+      <button type="button" onClick={handleRemove} className={filterRemoveBtn}>
+        <X className="w-3 h-3" />
+      </button>
+    </div>
+  );
+};
+
 /* ── Attr filter item dispatcher ── */
 
 const AttrFilterDispatch = ({ filter, index, onUpdate, onRemove, t }) => {
@@ -311,41 +372,86 @@ const AttrFilterDispatch = ({ filter, index, onUpdate, onRemove, t }) => {
 
 /* ── Main panel ── */
 
+const MAX_ECHOSTONE = 4;
+const MAX_MURIAS = 4;
+
 const ChipFilterPanel = ({
   isExpanded,
+  itemName,
+  itemType,
   attrFilters, onAddAttrFilter, onUpdateAttrFilter, onRemoveAttrFilter,
   reforgeFilters, onAddReforgeFilter, onUpdateReforgeFilter, onRemoveReforgeFilter,
   enchantFilters, onAddEnchantFilter, onRemoveEnchantFilter, onUpdateEnchantEffect,
+  echostoneFilters, onAddEchostoneFilter, onUpdateEchostoneFilter, onRemoveEchostoneFilter,
+  muriasFilters, onAddMuriasFilter, onUpdateMuriasFilter, onRemoveMuriasFilter,
 }) => {
   const { t } = useTranslation();
-  // null = button, 'pick' = unified list, 'reforge' = reforge search, 'enchant' = enchant search
   const [addMode, setAddMode] = useState(null);
 
   const reforgeItems = useMemo(() => window.REFORGES_CONFIG || [], []);
   const allEnchantItems = useMemo(() => window.ENCHANTS_CONFIG || [], []);
+
+  // Determine available filters based on item type
+  const allowed = useMemo(() => getFiltersForItemType(itemType), [itemType]);
+
+  // Echostone items filtered by color from leaf type
+  const echostoneItems = useMemo(() => {
+    if (!allowed.echostone) return [];
+    const config = window.ECHOSTONE_CONFIG || [];
+    const color = ECHOSTONE_TYPE_TO_COLOR[itemType];
+    return color ? config.filter((e) => e.type === color) : config;
+  }, [allowed.echostone, itemType]);
+
+  // Murias relic items
+  const muriasItems = useMemo(() => {
+    if (!allowed.murias) return [];
+    return window.MURIAS_RELIC_CONFIG || [];
+  }, [allowed.murias]);
 
   const usedKeys = useMemo(() => new Set(attrFilters.map((f) => f.key)), [attrFilters]);
   const reforgesFull = reforgeFilters.length >= MAX_REFORGES;
   const hasPrefix = enchantFilters.some((f) => f.slot === 0);
   const hasSuffix = enchantFilters.some((f) => f.slot === 1);
   const enchantsFull = hasPrefix && hasSuffix;
+  const echostoneFull = (echostoneFilters?.length || 0) >= MAX_ECHOSTONE;
+  const muriasFull = (muriasFilters?.length || 0) >= MAX_MURIAS;
 
-  // Unified items list for the "Add Filter" picker
-  // Order: enchant → reforge → erg → SU → rest
+  // Unified items list for "Add Filter" picker
   const unifiedItems = useMemo(() => {
     const items = [];
-    if (!enchantsFull) items.push({ key: '_enchant', i18nKey: 'marketplace.filter.addEnchant', _action: 'enchant' });
-    if (!reforgesFull) items.push({ key: '_reforge', i18nKey: 'marketplace.filter.addReforge', _action: 'reforge' });
+    if (allowed.enchant && !enchantsFull) {
+      items.push({ key: '_enchant', i18nKey: 'marketplace.filter.addEnchant', _action: 'enchant' });
+    }
+    if (allowed.reforge && !reforgesFull) {
+      items.push({ key: '_reforge', i18nKey: 'marketplace.filter.addReforge', _action: 'reforge' });
+    }
+    if (allowed.echostone && !echostoneFull) {
+      items.push({ key: '_echostone', i18nKey: 'marketplace.filter.addEchostone', _action: 'echostone' });
+    }
+    if (allowed.murias && !muriasFull) {
+      items.push({ key: '_murias', i18nKey: 'marketplace.filter.addMurias', _action: 'murias' });
+    }
+    // erg + SU
+    if (allowed.erg && !usedKeys.has('erg_level')) {
+      items.push({ ...FILTER_MAP['erg_level'], _action: 'attr' });
+    }
+    if (allowed.su && !usedKeys.has('special_upgrade_level')) {
+      items.push({ ...FILTER_MAP['special_upgrade_level'], _action: 'attr' });
+    }
+    // Attrs restricted by item type
     for (const opt of FILTER_OPTIONS) {
-      if (!usedKeys.has(opt.key)) items.push({ ...opt, _action: 'attr' });
+      if (opt.kind !== 'attr') continue;
+      if (!allowed.attrs.includes(opt.key)) continue;
+      if (usedKeys.has(opt.key)) continue;
+      items.push({ ...opt, _action: 'attr' });
     }
     return items;
-  }, [usedKeys, reforgesFull, enchantsFull]);
+  }, [usedKeys, reforgesFull, enchantsFull, echostoneFull, muriasFull, allowed]);
 
-  const availableEnchants = useMemo(
-    () => allEnchantItems.filter((e) => (e.slot === 0 && !hasPrefix) || (e.slot === 1 && !hasSuffix)),
-    [allEnchantItems, hasPrefix, hasSuffix],
-  );
+  const availableEnchants = useMemo(() => {
+    const byRestriction = filterEnchantsByRestriction(allEnchantItems, itemName, itemType);
+    return byRestriction.filter((e) => (e.slot === 0 && !hasPrefix) || (e.slot === 1 && !hasSuffix));
+  }, [allEnchantItems, itemName, itemType, hasPrefix, hasSuffix]);
 
   const handleSelectReforge = useCallback((item) => {
     onAddReforgeFilter({ option_name: item.option_name, op: 'gte', level: '', max_level: item.max_level || DEFAULT_REFORGE_MAX });
@@ -367,6 +473,22 @@ const ChipFilterPanel = ({
     setAddMode(null);
   }, [onAddEnchantFilter]);
 
+  const handleSelectEchostone = useCallback((item) => {
+    onAddEchostoneFilter({
+      option_name: item.option_name, option_id: item.id, op: 'gte', level: '',
+      max_level: item.max_level || 20, min_level: item.min_level || 1,
+    });
+    setAddMode(null);
+  }, [onAddEchostoneFilter]);
+
+  const handleSelectMurias = useCallback((item) => {
+    onAddMuriasFilter({
+      option_name: item.option_name, option_id: item.id, op: 'gte', level: '',
+      max_level: item.max_level || 10, min_level: item.min_level || 1,
+    });
+    setAddMode(null);
+  }, [onAddMuriasFilter]);
+
   const handlePickSelect = useCallback((e) => {
     const key = e.target.value;
     if (!key) return;
@@ -374,6 +496,8 @@ const ChipFilterPanel = ({
     if (!item) return;
     if (item._action === 'reforge') { setAddMode('reforge'); }
     else if (item._action === 'enchant') { setAddMode('enchant'); }
+    else if (item._action === 'echostone') { setAddMode('echostone'); }
+    else if (item._action === 'murias') { setAddMode('murias'); }
     else { onAddAttrFilter(item.key); setAddMode(null); }
   }, [unifiedItems, onAddAttrFilter]);
 
@@ -382,9 +506,14 @@ const ChipFilterPanel = ({
     const slot = item.slot === 0 ? t('marketplace.filter.prefix') : t('marketplace.filter.suffix');
     return `[${slot}] ${item.name}`;
   }, [t]);
+  const getEchostoneLabel = useCallback((item) => item.option_name, []);
+  const getMuriasLabel = useCallback((item) => item.option_name, []);
   const cancelAdd = useCallback(() => setAddMode(null), []);
 
   const nothingToAdd = unifiedItems.length === 0;
+
+  const echoBadge = 'text-[10px] font-mono leading-none px-1 py-0.5 rounded bg-cyan-800/50 text-cyan-300';
+  const muriasBadge = 'text-[10px] font-mono leading-none px-1 py-0.5 rounded bg-green-800/50 text-green-300';
 
   return (
     <div className={`${chipFilterContent} ${isExpanded ? 'opacity-100' : 'opacity-0 -translate-y-1'}`}>
@@ -419,6 +548,28 @@ const ChipFilterPanel = ({
           onUpdateEffect={onUpdateEnchantEffect}
         />
       ))}
+      {/* echostone filters */}
+      {echostoneFilters?.map((filter, idx) => (
+        <OptionFilterItem
+          key={`echo-${idx}`}
+          filter={filter}
+          index={idx}
+          onUpdate={onUpdateEchostoneFilter}
+          onRemove={onRemoveEchostoneFilter}
+          badgeClass={echoBadge}
+        />
+      ))}
+      {/* murias filters */}
+      {muriasFilters?.map((filter, idx) => (
+        <OptionFilterItem
+          key={`murias-${idx}`}
+          filter={filter}
+          index={idx}
+          onUpdate={onUpdateMuriasFilter}
+          onRemove={onRemoveMuriasFilter}
+          badgeClass={muriasBadge}
+        />
+      ))}
       {/* unified add-filter */}
       {!nothingToAdd && (
         <div className={filterRow}>
@@ -446,6 +597,24 @@ const ChipFilterPanel = ({
               onSelect={handleSelectEnchant}
               onCancel={cancelAdd}
               placeholder={t('marketplace.filter.searchEnchant')}
+            />
+          )}
+          {addMode === 'echostone' && (
+            <ConfigSearchInput
+              items={echostoneItems}
+              getLabel={getEchostoneLabel}
+              onSelect={handleSelectEchostone}
+              onCancel={cancelAdd}
+              placeholder={t('marketplace.filter.searchEchostone')}
+            />
+          )}
+          {addMode === 'murias' && (
+            <ConfigSearchInput
+              items={muriasItems}
+              getLabel={getMuriasLabel}
+              onSelect={handleSelectMurias}
+              onCancel={cancelAdd}
+              placeholder={t('marketplace.filter.searchMurias')}
             />
           )}
         </div>

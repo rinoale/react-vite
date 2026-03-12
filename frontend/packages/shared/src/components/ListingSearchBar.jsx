@@ -78,6 +78,8 @@ const SUGGESTION_RENDERERS = {
 /* ── Collapsed badge helpers ── */
 
 const enchantBadgeSm = 'text-[10px] font-mono leading-none px-1 py-0.5 rounded bg-purple-800/50 text-purple-300';
+const echostoneBadgeSm = 'text-[10px] font-mono leading-none px-1 py-0.5 rounded bg-cyan-800/50 text-cyan-300';
+const muriasBadgeSm = 'text-[10px] font-mono leading-none px-1 py-0.5 rounded bg-green-800/50 text-green-300';
 
 /* ── Main component ── */
 
@@ -93,11 +95,13 @@ const ListingSearchBar = ({
 
   const {
     searchText, selectedTags, tagWeights, selectedGameItem, suggestions, showSuggestions, focusIdx, hasFilters,
-    attrFilters, reforgeFilters, enchantFilters, containerRef, inputRef,
+    attrFilters, reforgeFilters, enchantFilters, echostoneFilters, muriasFilters, containerRef, inputRef,
     handleTextChange, handleSelectItem, handleRemoveTag, handleRemoveGameItem,
     handleAddAttrFilter, handleUpdateAttrFilter, handleRemoveAttrFilter,
     handleAddReforgeFilter, handleUpdateReforgeFilter, handleRemoveReforgeFilter,
     handleAddEnchantFilter, handleRemoveEnchantFilter, handleUpdateEnchantEffect,
+    handleAddEchostoneFilter, handleUpdateEchostoneFilter, handleRemoveEchostoneFilter,
+    handleAddMuriasFilter, handleUpdateMuriasFilter, handleRemoveMuriasFilter,
     handleClear, handleKeyDown, handleInputFocus, executeSearch,
   } = search;
 
@@ -163,6 +167,18 @@ const ListingSearchBar = ({
                   {f.name}
                 </span>
               ))}
+              {/* collapsed echostone badges */}
+              {!isExpanded && echostoneFilters.map((f, i) => (
+                <span key={`es${i}`} className={echostoneBadgeSm}>
+                  {f.option_name.slice(0, 6)}{f.level ? `${OP_SYMBOLS[f.op]}${f.level}` : ''}
+                </span>
+              ))}
+              {/* collapsed murias badges */}
+              {!isExpanded && muriasFilters.map((f, i) => (
+                <span key={`m${i}`} className={muriasBadgeSm}>
+                  {f.option_name.slice(0, 6)}{f.level ? `${OP_SYMBOLS[f.op]}${f.level}` : ''}
+                </span>
+              ))}
               <ChevronDown className={isExpanded ? `${chevronSm} rotate-180` : chevronSm} />
               <button onClick={onRemoveGameItemClick} className="cursor-pointer hover:text-orange-100">
                 <X className="w-3 h-3" />
@@ -180,6 +196,8 @@ const ListingSearchBar = ({
               <div className={isExpanded ? 'overflow-visible' : 'overflow-hidden'}>
                 <ChipFilterPanel
                   isExpanded={isExpanded}
+                  itemName={selectedGameItem?.name}
+                  itemType={selectedGameItem?.type}
                   attrFilters={attrFilters}
                   onAddAttrFilter={handleAddAttrFilter}
                   onUpdateAttrFilter={handleUpdateAttrFilter}
@@ -192,6 +210,14 @@ const ListingSearchBar = ({
                   onAddEnchantFilter={handleAddEnchantFilter}
                   onRemoveEnchantFilter={handleRemoveEnchantFilter}
                   onUpdateEnchantEffect={handleUpdateEnchantEffect}
+                  echostoneFilters={echostoneFilters}
+                  onAddEchostoneFilter={handleAddEchostoneFilter}
+                  onUpdateEchostoneFilter={handleUpdateEchostoneFilter}
+                  onRemoveEchostoneFilter={handleRemoveEchostoneFilter}
+                  muriasFilters={muriasFilters}
+                  onAddMuriasFilter={handleAddMuriasFilter}
+                  onUpdateMuriasFilter={handleUpdateMuriasFilter}
+                  onRemoveMuriasFilter={handleRemoveMuriasFilter}
                 />
               </div>
             </div>

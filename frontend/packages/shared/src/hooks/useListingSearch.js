@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { searchListings, searchTags } from '../api/recommend';
-import { searchGameItemsLocal } from '../lib/gameItems';
+import { searchTypedItems } from '../lib/gameItems';
 
 /**
  * Shared search logic for tag-chip + game-item + text listing search.
@@ -23,6 +23,8 @@ export function useListingSearch({ onResults, onSelectListing, onSubmit, onClear
   const [attrFilters, setAttrFilters] = useState([]);
   const [reforgeFilters, setReforgeFilters] = useState([]);
   const [enchantFilters, setEnchantFilters] = useState([]);
+  const [echostoneFilters, setEchostoneFilters] = useState([]);
+  const [muriasFilters, setMuriasFilters] = useState([]);
 
   const debounceRef = useRef(null);
   const containerRef = useRef(null);
@@ -30,6 +32,8 @@ export function useListingSearch({ onResults, onSelectListing, onSubmit, onClear
   const attrFiltersRef = useRef([]);
   const reforgeFiltersRef = useRef([]);
   const enchantFiltersRef = useRef([]);
+  const echostoneFiltersRef = useRef([]);
+  const muriasFiltersRef = useRef([]);
 
   // --- Close on outside click ---
   useEffect(() => {
@@ -53,6 +57,8 @@ export function useListingSearch({ onResults, onSelectListing, onSubmit, onClear
     const validAttr = attrFiltersRef.current.filter((f) => f.key && ((f.value !== '' && f.value != null) || f.grade || f.type));
     const validReforge = reforgeFiltersRef.current.filter((f) => f.option_name);
     const validEnchant = enchantFiltersRef.current.filter((f) => f.name);
+    const validEchostone = echostoneFiltersRef.current.filter((f) => f.option_name);
+    const validMurias = muriasFiltersRef.current.filter((f) => f.option_name);
     try {
       const { data } = await searchListings(
         text?.trim() || '',
@@ -62,11 +68,14 @@ export function useListingSearch({ onResults, onSelectListing, onSubmit, onClear
           ...(validAttr.length ? { attrFilters: validAttr } : {}),
           ...(validReforge.length ? { reforgeFilters: validReforge } : {}),
           ...(validEnchant.length ? { enchantFilters: validEnchant } : {}),
+          ...(validEchostone.length ? { echostoneFilters: validEchostone } : {}),
+          ...(validMurias.length ? { muriasFilters: validMurias } : {}),
         },
       );
       onResults?.(data, {
         tags, text: text?.trim() || '', gameItem,
         attrFilters: validAttr, reforgeFilters: validReforge, enchantFilters: validEnchant,
+        echostoneFilters: validEchostone, muriasFilters: validMurias,
       });
     } catch (error) {
       console.error('Search failed:', error);
@@ -81,7 +90,7 @@ export function useListingSearch({ onResults, onSelectListing, onSubmit, onClear
       return;
     }
     try {
-      const gameItems = searchGameItemsLocal(text.trim(), 3);
+      const gameItems = searchTypedItems(text.trim(), 3);
       const [{ data: tags }, { data: listings }] = await Promise.all([
         searchTags(text.trim()),
         searchListings(text.trim()),
@@ -141,6 +150,17 @@ export function useListingSearch({ onResults, onSelectListing, onSubmit, onClear
   // --- Select game item ---
   const handleSelectGameItem = useCallback((gameItem) => {
     setSelectedGameItem(gameItem);
+    // Clear filters that don't apply to new item type
+    attrFiltersRef.current = [];
+    setAttrFilters([]);
+    reforgeFiltersRef.current = [];
+    setReforgeFilters([]);
+    enchantFiltersRef.current = [];
+    setEnchantFilters([]);
+    echostoneFiltersRef.current = [];
+    setEchostoneFilters([]);
+    muriasFiltersRef.current = [];
+    setMuriasFilters([]);
     executeSearch(selectedTags, '', gameItem);
     setSearchText('');
     setSuggestions([]);
@@ -157,6 +177,10 @@ export function useListingSearch({ onResults, onSelectListing, onSubmit, onClear
     setReforgeFilters([]);
     enchantFiltersRef.current = [];
     setEnchantFilters([]);
+    echostoneFiltersRef.current = [];
+    setEchostoneFilters([]);
+    muriasFiltersRef.current = [];
+    setMuriasFilters([]);
     executeSearch(selectedTags, searchText, null);
   }, [executeSearch, selectedTags, searchText]);
 
@@ -258,6 +282,44 @@ export function useListingSearch({ onResults, onSelectListing, onSubmit, onClear
     setEnchantFilters(next);
   }, []);
 
+  // --- Echostone filter CRUD ---
+  const handleAddEchostoneFilter = useCallback((filter) => {
+    const next = [...echostoneFiltersRef.current, filter];
+    echostoneFiltersRef.current = next;
+    setEchostoneFilters(next);
+  }, []);
+
+  const handleUpdateEchostoneFilter = useCallback((index, updates) => {
+    const next = echostoneFiltersRef.current.map((f, i) => (i === index ? { ...f, ...updates } : f));
+    echostoneFiltersRef.current = next;
+    setEchostoneFilters(next);
+  }, []);
+
+  const handleRemoveEchostoneFilter = useCallback((index) => {
+    const next = echostoneFiltersRef.current.filter((_, i) => i !== index);
+    echostoneFiltersRef.current = next;
+    setEchostoneFilters(next);
+  }, []);
+
+  // --- Murias filter CRUD ---
+  const handleAddMuriasFilter = useCallback((filter) => {
+    const next = [...muriasFiltersRef.current, filter];
+    muriasFiltersRef.current = next;
+    setMuriasFilters(next);
+  }, []);
+
+  const handleUpdateMuriasFilter = useCallback((index, updates) => {
+    const next = muriasFiltersRef.current.map((f, i) => (i === index ? { ...f, ...updates } : f));
+    muriasFiltersRef.current = next;
+    setMuriasFilters(next);
+  }, []);
+
+  const handleRemoveMuriasFilter = useCallback((index) => {
+    const next = muriasFiltersRef.current.filter((_, i) => i !== index);
+    muriasFiltersRef.current = next;
+    setMuriasFilters(next);
+  }, []);
+
   // --- Clear all ---
   const handleClear = useCallback(() => {
     setSearchText('');
@@ -272,6 +334,10 @@ export function useListingSearch({ onResults, onSelectListing, onSubmit, onClear
     setReforgeFilters([]);
     enchantFiltersRef.current = [];
     setEnchantFilters([]);
+    echostoneFiltersRef.current = [];
+    setEchostoneFilters([]);
+    muriasFiltersRef.current = [];
+    setMuriasFilters([]);
     onClear?.();
   }, [onClear]);
 
@@ -323,12 +389,14 @@ export function useListingSearch({ onResults, onSelectListing, onSubmit, onClear
   const hasFilters = selectedTags.length > 0 || selectedGameItem != null || searchText.trim().length > 0
     || attrFilters.some((f) => (f.value !== '' && f.value != null) || f.grade || f.type)
     || reforgeFilters.length > 0
-    || enchantFilters.length > 0;
+    || enchantFilters.length > 0
+    || echostoneFilters.length > 0
+    || muriasFilters.length > 0;
 
   return {
     // State
     searchText, selectedTags, tagWeights, selectedGameItem, suggestions, showSuggestions, focusIdx, hasFilters,
-    attrFilters, reforgeFilters, enchantFilters,
+    attrFilters, reforgeFilters, enchantFilters, echostoneFilters, muriasFilters,
     // Refs
     containerRef, inputRef,
     // Setters (for external init like URL params)
@@ -339,6 +407,8 @@ export function useListingSearch({ onResults, onSelectListing, onSubmit, onClear
     handleAddAttrFilter, handleUpdateAttrFilter, handleRemoveAttrFilter,
     handleAddReforgeFilter, handleUpdateReforgeFilter, handleRemoveReforgeFilter,
     handleAddEnchantFilter, handleRemoveEnchantFilter, handleUpdateEnchantEffect,
+    handleAddEchostoneFilter, handleUpdateEchostoneFilter, handleRemoveEchostoneFilter,
+    handleAddMuriasFilter, handleUpdateMuriasFilter, handleRemoveMuriasFilter,
     handleSubmitSearch, handleClear, handleKeyDown, handleInputFocus,
     // Direct execute
     executeSearch,

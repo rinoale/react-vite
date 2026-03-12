@@ -21,6 +21,9 @@ SCRIPTS = [
     os.path.join(SCRIPT_DIR, 'export_game_items_config.py'),
     os.path.join(SCRIPT_DIR, 'export_echostone_config.py'),
     os.path.join(SCRIPT_DIR, 'export_murias_relic_config.py'),
+    os.path.join(SCRIPT_DIR, 'export_typed_items_config.py'),
+    os.path.join(SCRIPT_DIR, 'export_type_hierarchy_config.py'),
+    os.path.join(SCRIPT_DIR, 'export_enchant_restriction_map_config.py'),
 ]
 
 

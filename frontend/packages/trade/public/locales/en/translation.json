@@ -100,6 +100,10 @@
       "searchReforge": "Search reforge option...",
       "addEnchant": "Add Enchant",
       "searchEnchant": "Search enchant...",
+      "addEchostone": "Add Echostone Option",
+      "searchEchostone": "Search echostone option...",
+      "addMurias": "Add Murias Option",
+      "searchMurias": "Search murias option...",
       "prefix": "Prefix",
       "suffix": "Suffix",
       "specialUpgradeType": {

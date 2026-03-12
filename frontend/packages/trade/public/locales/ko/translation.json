@@ -100,6 +100,10 @@
       "searchReforge": "세공 옵션 검색...",
       "addEnchant": "인챈트 추가",
       "searchEnchant": "인챈트 검색...",
+      "addEchostone": "에코스톤 옵션 추가",
+      "searchEchostone": "에코스톤 옵션 검색...",
+      "addMurias": "무리아스 옵션 추가",
+      "searchMurias": "무리아스 옵션 검색...",
       "prefix": "접두",
       "suffix": "접미",
       "specialUpgradeType": {
