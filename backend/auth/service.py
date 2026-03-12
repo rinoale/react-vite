@@ -23,7 +23,7 @@ def verify_password(plain: str, hashed: str) -> bool:
     return pwd_context.verify(plain, hashed)
 
 
-def create_access_token(user_id: int) -> str:
+def create_access_token(user_id) -> str:
     expire = datetime.now(timezone.utc) + timedelta(minutes=settings.access_token_expire_minutes)
     return jwt.encode(
         {"sub": str(user_id), "type": "access", "exp": expire},
@@ -31,7 +31,7 @@ def create_access_token(user_id: int) -> str:
     )
 
 
-def create_refresh_token(user_id: int) -> str:
+def create_refresh_token(user_id) -> str:
     expire = datetime.now(timezone.utc) + timedelta(days=settings.refresh_token_expire_days)
     return jwt.encode(
         {"sub": str(user_id), "type": "refresh", "exp": expire},
@@ -39,7 +39,7 @@ def create_refresh_token(user_id: int) -> str:
     )
 
 
-def create_token_pair(user_id: int) -> dict:
+def create_token_pair(user_id) -> dict:
     return {
         "access_token": create_access_token(user_id),
         "refresh_token": create_refresh_token(user_id),

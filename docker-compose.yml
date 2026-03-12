@@ -141,7 +141,7 @@ services:
       REDIS_PASSWORD: ${REDIS_PASSWORD:-devredis}
     command: >
       sh -lc "ln -sf /app/env/.env.development /app/backend/.env.development &&
-      python worker.py --queues default gpu"
+      python worker.py --queues default"
     volumes:
       - ./backend:/app/backend
       - /home/gbsong/workspace/ocr_training_data/mabinogi/ocr:/app/backend/ocr

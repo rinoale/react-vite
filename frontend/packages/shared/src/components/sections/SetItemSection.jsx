@@ -66,6 +66,7 @@ const SetEffect = ({ eff, idx, onLineChange, onRemove }) => {
           <div className={flexCenter}>
             <span className="text-sm font-medium text-cyan-300">{displayName}</span>
             <button
+              type="button"
               onClick={() => setEditingName(true)}
               className={iconBtnEdit}
               title={t('sections.set_item.correct')}
@@ -73,6 +74,7 @@ const SetEffect = ({ eff, idx, onLineChange, onRemove }) => {
               <Pencil className="w-3 h-3" />
             </button>
             <button
+              type="button"
               onClick={() => onRemove(idx)}
               className={iconBtnRemove}
               title={t('sections.set_item.remove')}

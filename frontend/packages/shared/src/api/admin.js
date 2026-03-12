@@ -112,3 +112,9 @@ export const getR2Usage = () =>
 
 export const getOciUsage = () =>
   client.get('/admin/usage/oci');
+
+export const getActivityLogs = ({ action, userId, limit, offset } = {}) =>
+  client.get('/admin/activity-logs', { params: { action: action || '', ...(userId ? { user_id: userId } : {}), limit, offset } });
+
+export const getActivityActions = () =>
+  client.get('/admin/activity-logs/actions');

@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 
+from admin.activity import router as activity_router
 from admin.data import router as data_router
 from admin.jobs import router as jobs_router
 from admin.listings import router as listings_router
@@ -10,6 +11,7 @@ from admin.users import router as users_router
 from admin.validate import router as validate_router
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+router.include_router(activity_router)
 router.include_router(data_router)
 router.include_router(jobs_router)
 router.include_router(listings_router)

@@ -5,7 +5,7 @@ from typing import Protocol, TypedDict
 class JobMessage(TypedDict):
     job_id: str
     job_name: str
-    run_id: int
+    run_id: str  # UUID serialized as string
     enqueued_at: str
     payload: dict
 

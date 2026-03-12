@@ -11,7 +11,7 @@ const ReforgeOption = ({ opt, optIdx, lineIdx, onLineChange, onRemove }) => {
   const [editingLevel, setEditingLevel] = useState(false);
   const [levelDraft, setLevelDraft] = useState('');
 
-  const reforgeItems = useMemo(() => window.REFORGES_CONFIG || [], []);
+  const reforgeItems = useMemo(() => window.REFORGE_OPTIONS_CONFIG || [], []);
   const cfgEntry = useMemo(() => reforgeItems.find(r => r.option_name === opt.name), [reforgeItems, opt.name]);
   const maxLvl = opt.max_level || cfgEntry?.max_level;
   const hasLevel = !NO_LEVEL_OPTIONS.includes(opt.name);
@@ -64,6 +64,7 @@ const ReforgeOption = ({ opt, optIdx, lineIdx, onLineChange, onRemove }) => {
           <div className={flexCenter}>
             <span className="text-sm font-medium text-cyan-300">{opt.name}</span>
             <button
+              type="button"
               onClick={() => setEditingName(true)}
               className={iconBtnEdit}
               title={t('sections.reforge.correct')}
@@ -71,6 +72,7 @@ const ReforgeOption = ({ opt, optIdx, lineIdx, onLineChange, onRemove }) => {
               <Pencil className="w-3 h-3" />
             </button>
             <button
+              type="button"
               onClick={() => onRemove(optIdx)}
               className={iconBtnRemove}
               title={t('sections.reforge.remove')}
@@ -124,7 +126,7 @@ const NO_LEVEL_OPTIONS = ['돌진 인간 및 엘프일 때 방패 없이 사용 
 const AddReforgeOption = ({ onLineChange, existingCount }) => {
   const { t } = useTranslation();
   const [searching, setSearching] = useState(false);
-  const reforgeItems = useMemo(() => window.REFORGES_CONFIG || [], []);
+  const reforgeItems = useMemo(() => window.REFORGE_OPTIONS_CONFIG || [], []);
 
   if (existingCount >= MAX_REFORGE_OPTIONS) return null;
 

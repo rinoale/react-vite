@@ -1,4 +1,5 @@
 from typing import List
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
@@ -37,7 +38,7 @@ def admin_enchant_entries(
 
 @router.get("/enchant-entries/{enchant_id}/effects", response_model=List[schemas.EnchantEffect])
 def admin_enchant_effects_by_id(
-    enchant_id: int,
+    enchant_id: UUID,
     db: Session = Depends(get_db),
     _: User = _admin_required,
 ):

@@ -125,3 +125,73 @@ export const thRow = 'text-[10px] font-bold uppercase text-gray-500 border-b bor
 export const groupRow = 'group flex justify-between items-center';
 export const flexCenter = 'flex items-center gap-1';
 export const effectRow = 'group flex items-center gap-1 text-xs text-gray-400';
+
+// --- Attr filter panel (orange expandable) ---
+
+export const chevronSm = 'w-3 h-3 transition-transform';
+export const filterPanelInner = 'overflow-hidden';
+export const filterPanelContent = 'mt-1 px-3 py-2 flex flex-col gap-1.5 rounded-lg bg-orange-950/40 border border-orange-800/40';
+export const filterRow = 'flex items-center gap-1.5';
+export const filterSelect = 'bg-gray-900/80 border border-orange-800/40 rounded px-1.5 py-1 text-xs text-orange-300 outline-none cursor-pointer';
+export const filterOpBtn = 'w-6 h-6 flex items-center justify-center bg-gray-900/80 border border-orange-800/40 rounded text-orange-300 text-xs font-bold cursor-pointer hover:border-orange-500/60';
+export const filterValueInput = 'w-14 bg-gray-900/80 border border-orange-800/40 rounded px-1.5 py-1 text-xs text-orange-200 outline-none focus:border-orange-500/60';
+export const filterRemoveBtn = 'text-orange-600 hover:text-orange-300 cursor-pointer';
+export const filterAddSelect = 'border border-dashed border-orange-700/30 rounded px-1.5 py-1 text-xs text-orange-500/70 cursor-pointer outline-none bg-transparent';
+export const filterBadgeSm = 'text-[10px] font-mono leading-none px-1 py-0.5 rounded bg-orange-800/50 text-orange-300';
+
+// --- Search bar ---
+
+export const searchBarIcon = 'absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5';
+export const searchBarInput = 'flex-1 min-w-[80px] bg-transparent text-gray-100 outline-none text-sm';
+export const suggestionBtn = 'w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 transition-colors';
+export const suggestionIconOrange = 'w-3.5 h-3.5 text-orange-400 shrink-0';
+export const suggestionTagsWrap = 'inline-flex items-center gap-1 ml-auto shrink-0';
+export const suggestionExpandBtn = 'p-0.5 text-gray-500 hover:text-gray-300';
+export const suggestionMetaSm = 'text-[10px] text-gray-500 shrink-0';
+export const gameItemChip = 'inline-flex flex-col text-xs leading-none rounded border bg-orange-900/50 text-orange-300 border-orange-700/50 cursor-pointer transition-all duration-300';
+export const gameItemChipExpanded = 'rounded-lg shadow-lg shadow-black/20';
+export const chipHeaderRow = 'flex items-center gap-1 px-2 pt-1 pb-0.5';
+export const chipFilterContent = 'px-2 py-1.5 flex flex-col gap-1.5 border-t border-orange-800/30 transition-[opacity,transform] duration-300';
+
+// --- ChipFilterPanel (expandable filter items) ---
+
+export const filterBadgeRow = 'flex items-center gap-1 cursor-pointer';
+export const filterBadgePurple = 'text-[10px] font-mono leading-none px-1 py-0.5 rounded bg-purple-800/50 text-purple-300';
+export const reforgeNameLabel = 'text-xs text-orange-300 truncate max-w-[8rem]';
+export const filterEffectRow = 'flex items-center gap-1.5 pl-2 text-[10px]';
+export const filterEffectLabel = 'text-purple-300/80 truncate max-w-[7rem]';
+export const filterEffectRange = 'text-[10px] text-gray-500 shrink-0';
+export const filterItemCol = 'flex flex-col gap-1';
+export const filterChevronPurple = 'w-3 h-3 text-purple-400';
+export const filterOpBtnSm = 'w-5 h-5 flex items-center justify-center bg-gray-900/80 border border-purple-800/40 rounded text-purple-300 text-[10px] font-bold cursor-pointer hover:border-purple-500/60';
+export const filterLevelInput = 'w-12 bg-gray-900 border rounded px-1 py-0.5 text-xs text-center outline-none';
+export const filterTypeBtn = 'px-1.5 py-0.5 text-[10px] font-bold rounded border border-orange-800/40 bg-gray-900/80 text-orange-400/60 cursor-pointer hover:border-orange-500/60';
+export const filterTypeBtnActive = 'px-1.5 py-0.5 text-[10px] font-bold rounded border border-orange-500 bg-orange-900/60 text-orange-200 cursor-pointer';
+
+/**
+ * Dynamic input color based on value relative to min/max range.
+ * Empty→gray, low→green, mid→blue, high→orange, max→red.
+ */
+export function getFilterLevelColor(value, max, min = 0) {
+  if (value === '' || value == null || max == null) return 'border-gray-600 text-gray-300';
+  const lv = +value;
+  const mx = +max;
+  const mn = +min;
+  if (isNaN(lv)) return 'border-gray-600 text-gray-300';
+  if (mx <= mn) return 'border-cyan-500 text-cyan-300';
+  if (lv >= mx) return 'border-red-500 text-red-300';
+  const pct = (lv - mn) / (mx - mn);
+  if (pct >= 0.8) return 'border-orange-500 text-orange-300';
+  if (pct >= 0.3) return 'border-blue-500 text-blue-300';
+  return 'border-green-500 text-green-300';
+}
+
+// --- Activity logs ---
+
+export const metaLabel = 'text-xs text-gray-400 font-mono';
+export const totalLabel = 'text-xs text-gray-500 font-mono';
+export const filterBar = 'px-6 py-3 border-b border-gray-700 flex flex-wrap items-center gap-3';
+export const logFilterSelect = 'bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-gray-300 outline-none focus:border-cyan-500';
+export const filterInput = 'bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-gray-300 outline-none focus:border-cyan-500 w-24';
+export const paginationBar = 'px-6 py-3 border-t border-gray-700 flex justify-between items-center';
+export const paginationInfo = 'text-xs text-gray-500';

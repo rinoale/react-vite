@@ -7,6 +7,7 @@ from typing import Iterable
 
 import yaml
 from sqlalchemy import create_engine, text
+from uuid_utils import uuid7
 
 
 HEADER_RE = re.compile(r"^\[(접두|접미)\]\s+(.+?)\s+\(랭크\s+([^)]+)\)$")
@@ -59,6 +60,7 @@ def parse_enchant(path: Path) -> list[dict]:
         rank_str = str(item["rank"])
         header_text = f"[{slot_kr}] {item['name']} (랭크 {rank_str})"
         entry = {
+            "id": item["id"],
             "slot": slot,
             "name": item["name"],
             "rank": _rank_to_int(rank_str),
@@ -106,7 +108,7 @@ def _parse_valued_effect(
     sign = 1 if m.group("dir") == "증가" else -1
 
     # Match raw_name to a known effect name.
-    # effects.txt names may have " (%)" suffix for percentage effects.
+    # effects may have " (%)" suffix for percentage effects.
     # raw_name from yaml won't have that suffix.
     if raw_name in effect_name_set:
         return raw_name, sign * min_val, sign * max_val
@@ -120,40 +122,46 @@ def _parse_valued_effect(
 
 
 def parse_effects_file(path: Path) -> list[dict]:
-    """Parse effects.txt into list of {name, is_pct}."""
-    results = []
-    for line in path.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        is_pct = line.endswith("(%)")
-        results.append({"name": line, "is_pct": is_pct})
-    return results
+    """Parse effect.yaml into list of {id, name, is_pct}."""
+    with open(path, "r", encoding="utf-8") as f:
+        data = yaml.safe_load(f) or []
+    return [{"id": entry["id"], "name": entry["name"], "is_pct": entry["is_pct"]} for entry in data]
 
 
-def parse_reforge(path: Path) -> list[str]:
-    seen = set()
-    options: list[str] = []
-    for raw in path.read_text(encoding="utf-8").splitlines():
-        line = raw.strip()
-        if not line or line in seen:
-            continue
-        seen.add(line)
-        options.append(line)
+def parse_reforge(path: Path) -> list[dict]:
+    """Parse reforge.yaml (dict: {reforgeName: [{option_name, option_id, ...}]}).
+
+    Deduplicates by option_id. Returns list of {id, option_name} dicts.
+    """
+    with open(path, "r", encoding="utf-8") as f:
+        data = yaml.safe_load(f) or {}
+
+    seen: set[str] = set()
+    options: list[dict] = []
+    for entries in data.values():
+        for entry in entries:
+            oid = entry["option_id"]
+            if oid in seen:
+                continue
+            seen.add(oid)
+            options.append({"id": oid, "option_name": entry["option_name"]})
     return options
 
 
-def parse_game_items(path: Path) -> list[str]:
-    """Parse item_name.txt into deduplicated list of item names."""
-    seen = set()
-    names: list[str] = []
-    for raw in path.read_text(encoding="utf-8").splitlines():
-        line = raw.strip()
-        if not line or line in seen:
-            continue
-        seen.add(line)
-        names.append(line)
-    return names
+def parse_game_items(path: Path) -> list[dict]:
+    """Parse game_item.yaml into list of {id, name, type, searchable, tradable}."""
+    with open(path, "r", encoding="utf-8") as f:
+        data = yaml.safe_load(f) or []
+    return [
+        {
+            "id": entry["id"],
+            "name": entry["name"],
+            "type": entry.get("type"),
+            "searchable": entry.get("searchable", False),
+            "tradable": entry.get("tradable", True),
+        }
+        for entry in data
+    ]
 
 
 def chunked(items: Iterable, size: int) -> Iterable[list]:
@@ -167,28 +175,25 @@ def chunked(items: Iterable, size: int) -> Iterable[list]:
         yield buf
 
 
-def import_effects(conn, effects: list[dict]) -> dict[str, int]:
-    """Import effects.txt rows into effects table. Returns {name: id} map."""
-    name_to_id = {}
+def import_effects(conn, effects: list[dict]) -> dict[str, str]:
+    """Import effect.yaml rows into effects table. Returns {name: uuid_id} map."""
+    name_to_id: dict[str, str] = {}
     for eff in effects:
-        row = conn.execute(
+        conn.execute(
             text(
                 """
-                INSERT INTO effects (name, is_pct)
-                VALUES (:name, :is_pct)
-                ON CONFLICT (name)
-                DO UPDATE SET is_pct = EXCLUDED.is_pct
-                RETURNING id
+                INSERT INTO effects (id, name, is_pct)
+                VALUES (:id, :name, :is_pct)
                 """
             ),
-            {"name": eff["name"], "is_pct": eff["is_pct"]},
-        ).fetchone()
-        name_to_id[eff["name"]] = row[0]
+            {"id": eff["id"], "name": eff["name"], "is_pct": eff["is_pct"]},
+        )
+        name_to_id[eff["name"]] = eff["id"]
     return name_to_id
 
 
 def import_enchant(
-    conn, enchant_entries: list[dict], effect_name_to_id: dict[str, int]
+    conn, enchant_entries: list[dict], effect_name_to_id: dict[str, str]
 ) -> tuple[int, int]:
     """Import enchants and enchant_effects. Returns (enchant_count, link_count)."""
     effect_name_set = set(effect_name_to_id.keys())
@@ -207,29 +212,20 @@ def import_enchant(
     link_count = 0
 
     for entry in enchant_entries:
-        row = conn.execute(
+        enchant_id = entry["id"]
+        conn.execute(
             text(
                 """
-                INSERT INTO enchants (slot, name, rank, header_text,
+                INSERT INTO enchants (id, slot, name, rank, header_text,
                                       restriction, binding, guaranteed_success,
                                       activation, credit)
-                VALUES (:slot, :name, :rank, :header_text,
+                VALUES (:id, :slot, :name, :rank, :header_text,
                         :restriction, :binding, :guaranteed_success,
                         :activation, :credit)
-                ON CONFLICT (header_text)
-                DO UPDATE SET
-                    slot = EXCLUDED.slot,
-                    name = EXCLUDED.name,
-                    rank = EXCLUDED.rank,
-                    restriction = EXCLUDED.restriction,
-                    binding = EXCLUDED.binding,
-                    guaranteed_success = EXCLUDED.guaranteed_success,
-                    activation = EXCLUDED.activation,
-                    credit = EXCLUDED.credit
-                RETURNING id
                 """
             ),
             {
+                "id": enchant_id,
                 "slot": entry["slot"],
                 "name": entry["name"],
                 "rank": entry["rank"],
@@ -240,9 +236,8 @@ def import_enchant(
                 "activation": entry.get("activation"),
                 "credit": entry.get("credit"),
             },
-        ).fetchone()
+        )
 
-        enchant_id = row[0]
         entry_count += 1
 
         for idx, eff_item in enumerate(entry["effects"], start=1):
@@ -260,25 +255,20 @@ def import_enchant(
             )
             effect_id = effect_name_to_id.get(effect_name) if effect_name else None
 
+            ee_id = str(uuid7())
             conn.execute(
                 text(
                     """
                     INSERT INTO enchant_effects
-                    (enchant_id, effect_id, effect_order, condition_text,
+                    (id, enchant_id, effect_id, effect_order, condition_text,
                      min_value, max_value, raw_text)
                     VALUES
-                    (:enchant_id, :effect_id, :effect_order, :condition_text,
+                    (:id, :enchant_id, :effect_id, :effect_order, :condition_text,
                      :min_value, :max_value, :raw_text)
-                    ON CONFLICT (enchant_id, effect_order)
-                    DO UPDATE SET
-                        effect_id = EXCLUDED.effect_id,
-                        condition_text = EXCLUDED.condition_text,
-                        min_value = EXCLUDED.min_value,
-                        max_value = EXCLUDED.max_value,
-                        raw_text = EXCLUDED.raw_text
                     """
                 ),
                 {
+                    "id": ee_id,
                     "enchant_id": enchant_id,
                     "effect_id": effect_id,
                     "effect_order": idx,
@@ -290,65 +280,59 @@ def import_enchant(
             )
             link_count += 1
 
-        # Remove orphan effects if enchant now has fewer effects
-        num_effects = len(entry["effects"])
-        conn.execute(
-            text(
-                "DELETE FROM enchant_effects "
-                "WHERE enchant_id = :eid AND effect_order > :max_order"
-            ),
-            {"eid": enchant_id, "max_order": num_effects},
-        )
 
     return entry_count, link_count
 
 
-def import_reforge(conn, reforge_options: list[str]) -> int:
+def import_reforge(conn, reforge_options: list[dict]) -> int:
     count = 0
     for batch in chunked(reforge_options, 200):
         for option in batch:
             conn.execute(
                 text(
                     """
-                    INSERT INTO reforge_options (option_name)
-                    VALUES (:option_name)
-                    ON CONFLICT (option_name)
-                    DO UPDATE SET option_name = EXCLUDED.option_name
+                    INSERT INTO reforge_options (id, option_name)
+                    VALUES (:id, :option_name)
                     """
                 ),
-                {"option_name": option},
+                {"id": option["id"], "option_name": option["option_name"]},
             )
             count += 1
     return count
 
 
-def import_game_items(conn, names: list[str]) -> int:
-    """Import game item names into game_items table. Returns count."""
+def import_game_items(conn, items: list[dict]) -> int:
+    """Import game items from game_item.yaml into game_items table. Returns count."""
     count = 0
-    for batch in chunked(names, 500):
-        for name in batch:
+    for batch in chunked(items, 500):
+        for item in batch:
             conn.execute(
                 text(
                     """
-                    INSERT INTO game_items (name)
-                    VALUES (:name)
-                    ON CONFLICT (name) DO NOTHING
+                    INSERT INTO game_items (id, name, type, searchable, tradable)
+                    VALUES (:id, :name, :type, :searchable, :tradable)
                     """
                 ),
-                {"name": name},
+                {
+                    "id": item["id"],
+                    "name": item["name"],
+                    "type": item.get("type"),
+                    "searchable": item.get("searchable", False),
+                    "tradable": item.get("tradable", True),
+                },
             )
             count += 1
     return count
 
 
 def parse_echostone(path: Path) -> list[dict]:
-    """Parse echostone.yaml into list of {option_name, type, max_level, min_level}."""
+    """Parse echostone.yaml into list of {id, option_name, type, max_level, min_level}."""
     with open(path, "r", encoding="utf-8") as f:
         return yaml.safe_load(f) or []
 
 
 def parse_murias_relic(path: Path) -> list[dict]:
-    """Parse murias_relic.yaml into list of {option_name, type, max_level, min_level, value_per_level, option_unit}."""
+    """Parse murias_relic.yaml into list of {id, option_name, type, max_level, min_level, value_per_level, option_unit}."""
     with open(path, "r", encoding="utf-8") as f:
         return yaml.safe_load(f) or []
 
@@ -359,16 +343,12 @@ def import_echostone(conn, entries: list[dict]) -> int:
         conn.execute(
             text(
                 """
-                INSERT INTO echostone_options (option_name, type, max_level, min_level)
-                VALUES (:option_name, :type, :max_level, :min_level)
-                ON CONFLICT (option_name)
-                DO UPDATE SET
-                    type = EXCLUDED.type,
-                    max_level = EXCLUDED.max_level,
-                    min_level = EXCLUDED.min_level
+                INSERT INTO echostone_options (id, option_name, type, max_level, min_level)
+                VALUES (:id, :option_name, :type, :max_level, :min_level)
                 """
             ),
             {
+                "id": entry["id"],
                 "option_name": entry["option_name"],
                 "type": entry["type"],
                 "max_level": entry.get("max_level"),
@@ -386,25 +366,19 @@ def import_murias_relic(conn, entries: list[dict]) -> int:
             text(
                 """
                 INSERT INTO murias_relic_options
-                    (option_name, type, max_level, min_level, value_per_level, option_unit)
+                    (id, option_name, type, max_level, min_level, value_per_level, option_unit)
                 VALUES
-                    (:option_name, :type, :max_level, :min_level, :value_per_level, :option_unit)
-                ON CONFLICT (option_name)
-                DO UPDATE SET
-                    type = EXCLUDED.type,
-                    max_level = EXCLUDED.max_level,
-                    min_level = EXCLUDED.min_level,
-                    value_per_level = EXCLUDED.value_per_level,
-                    option_unit = EXCLUDED.option_unit
+                    (:id, :option_name, :type, :max_level, :min_level, :value_per_level, :option_unit)
                 """
             ),
             {
+                "id": entry["id"],
                 "option_name": entry["option_name"],
                 "type": entry["type"],
                 "max_level": entry.get("max_level"),
                 "min_level": entry.get("min_level", 1),
                 "value_per_level": entry.get("value_per_level"),
-                "option_unit": entry.get("option_unit", ""),
+                "option_unit": entry.get("option_unit"),
             },
         )
         count += 1
@@ -478,18 +452,18 @@ def main() -> None:
     )
     parser.add_argument(
         "--effects-path",
-        default="data/source_of_truth/effects.txt",
-        help="Path to effects list file.",
+        default="data/source_of_truth/effect.yaml",
+        help="Path to effects file (YAML).",
     )
     parser.add_argument(
         "--reforge-path",
-        default="data/dictionary/reforge.txt",
-        help="Path to reforge dictionary file.",
+        default="data/source_of_truth/reforge.yaml",
+        help="Path to reforge dictionary file (YAML).",
     )
     parser.add_argument(
         "--item-names-path",
-        default="data/dictionary/item_name.txt",
-        help="Path to game item names dictionary file.",
+        default="data/source_of_truth/game_item.yaml",
+        help="Path to game items file (YAML).",
     )
     parser.add_argument(
         "--echostone-path",
@@ -547,11 +521,11 @@ def main() -> None:
     reforge_options = parse_reforge(reforge_path)
 
     # Game items are optional (file may not exist yet)
-    game_item_names = []
+    game_items = []
     if item_names_path.exists():
-        game_item_names = parse_game_items(item_names_path)
+        game_items = parse_game_items(item_names_path)
     else:
-        print(f"Warning: Item names file not found: {item_names_path} — skipping game_items import")
+        print(f"Warning: Game items file not found: {item_names_path} — skipping game_items import")
 
     # Echostone and murias relic are optional
     echostone_entries = []
@@ -569,8 +543,8 @@ def main() -> None:
     with engine.begin() as conn:
         # Import game items first (no dependencies)
         game_items_count = 0
-        if game_item_names:
-            game_items_count = import_game_items(conn, game_item_names)
+        if game_items:
+            game_items_count = import_game_items(conn, game_items)
 
         effect_name_to_id = import_effects(conn, effects_data)
         enchant_count, link_count = import_enchant(

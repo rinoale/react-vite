@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
@@ -36,7 +38,7 @@ def list_corrections(
 
 
 @router.post("/approve/{correction_id}")
-def approve_correction(correction_id: int, db: Session = Depends(get_db), _: User = _manage_corrections):
+def approve_correction(correction_id: UUID, db: Session = Depends(get_db), _: User = _manage_corrections):
     row, error = svc_approve_correction(db, correction_id)
     if error:
         status_code = 404 if "not found" in error else 400
@@ -45,7 +47,7 @@ def approve_correction(correction_id: int, db: Session = Depends(get_db), _: Use
 
 
 @router.patch("/{correction_id}")
-def edit_correction(correction_id: int, body: CorrectionEdit, db: Session = Depends(get_db), _: User = _manage_corrections):
+def edit_correction(correction_id: UUID, body: CorrectionEdit, db: Session = Depends(get_db), _: User = _manage_corrections):
     row, error = svc_edit_correction(db, correction_id, body.corrected_text)
     if error:
         status_code = 404 if "not found" in error else 400

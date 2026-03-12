@@ -67,7 +67,7 @@ const MuriasRelicSection = ({ options, onOptionsChange }) => {
             <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-purple-900/40 text-purple-300">
               {t(`sections.murias_relic.types.${selectedType}`)}
             </span>
-            <button onClick={handleCancel} className="text-gray-500 hover:text-gray-300">
+            <button type="button" onClick={handleCancel} className="text-gray-500 hover:text-gray-300">
               <X className="w-3.5 h-3.5" />
             </button>
           </div>
@@ -105,7 +105,7 @@ const MuriasRelicSection = ({ options, onOptionsChange }) => {
           <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-purple-900/40 text-purple-300">
             {t(`sections.murias_relic.types.${opt.murias_type}`)}
           </span>
-          <button onClick={handleCancel} className="text-gray-500 hover:text-gray-300">
+          <button type="button" onClick={handleCancel} className="text-gray-500 hover:text-gray-300">
             <X className="w-3.5 h-3.5" />
           </button>
         </div>
@@ -137,7 +137,7 @@ const MuriasRelicSection = ({ options, onOptionsChange }) => {
             {t(`sections.murias_relic.types.${opt.murias_type}`)}
           </span>
           <span className="text-sm font-medium text-cyan-300">{valueText}</span>
-          <button onClick={() => setEditingName(true)} className={iconBtnEdit} title={t('sections.reforge.correct')}>
+          <button type="button" onClick={() => setEditingName(true)} className={iconBtnEdit} title={t('sections.reforge.correct')}>
             <Pencil className="w-3 h-3" />
           </button>
         </div>

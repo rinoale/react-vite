@@ -18,14 +18,15 @@ const Marketplace = () => {
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const sentinelRef = useRef(null);
-  const searchStateRef = useRef({ tags: [], text: '' });
+  const searchStateRef = useRef({ tags: [], text: '', gameItemId: null, attrFilters: [], reforgeFilters: [], enchantFilters: [] });
 
   // --- Fetch a page of listings, returns the fetched data ---
-  const fetchPage = useCallback(async (offset, tags, text) => {
-    const pagination = { limit: PAGE_SIZE, offset };
+  const fetchPage = useCallback(async (offset, tags, text, gameItemId, attrFilters) => {
+    const hasAttrFilters = attrFilters && attrFilters.length > 0;
+    const pagination = { limit: PAGE_SIZE, offset, ...(gameItemId ? { gameItemId } : {}), ...(hasAttrFilters ? { attrFilters } : {}) };
     try {
       let data;
-      if (text || tags?.length) {
+      if (text || tags?.length || gameItemId || hasAttrFilters) {
         const res = await searchListings(text || '', tags?.length ? tags : undefined, pagination);
         data = res.data;
       } else {
@@ -45,8 +46,8 @@ const Marketplace = () => {
   const loadMore = useCallback(async () => {
     if (loadingMore || !hasMore) return;
     setLoadingMore(true);
-    const { tags, text } = searchStateRef.current;
-    const data = await fetchPage(listings.length, tags, text);
+    const { tags, text, gameItemId, attrFilters } = searchStateRef.current;
+    const data = await fetchPage(listings.length, tags, text, gameItemId, attrFilters);
     if (data.length > 0) {
       setListings((prev) => [...prev, ...data]);
     }
@@ -75,18 +76,19 @@ const Marketplace = () => {
     }
   }, []);
 
-  const handleSearchResults = useCallback((data, { tags, text } = {}) => {
+  const handleSearchResults = useCallback((data, { tags, text, gameItem, attrFilters, reforgeFilters, enchantFilters } = {}) => {
     setListings(data);
     setHasMore(data.length >= PAGE_SIZE);
-    if (tags !== undefined || text !== undefined) {
-      searchStateRef.current = { tags: tags || [], text: text || '' };
-    }
+    searchStateRef.current = {
+      tags: tags || [], text: text || '', gameItemId: gameItem?.id || null,
+      attrFilters: attrFilters || [], reforgeFilters: reforgeFilters || [], enchantFilters: enchantFilters || [],
+    };
   }, []);
 
   const handleSearchClear = useCallback(async () => {
     setSelectedListing(null);
-    searchStateRef.current = { tags: [], text: '' };
-    const data = await fetchPage(0, [], '');
+    searchStateRef.current = { tags: [], text: '', gameItemId: null, attrFilters: [], reforgeFilters: [], enchantFilters: [] };
+    const data = await fetchPage(0, [], '', null, []);
     setListings(data);
   }, [fetchPage]);
 
@@ -120,8 +122,8 @@ const Marketplace = () => {
         if (st.tagWeights) search.setTagWeights(st.tagWeights);
       }
 
-      searchStateRef.current = { tags, text: name };
-      const data = await fetchPage(0, tags.length ? tags : [], name);
+      searchStateRef.current = { tags, text: name, gameItemId: null, attrFilters: [], reforgeFilters: [], enchantFilters: [] };
+      const data = await fetchPage(0, tags.length ? tags : [], name, null, []);
       setListings(data);
 
       if (targetId) {
@@ -166,7 +168,7 @@ const Marketplace = () => {
                   key={listing.id}
                   listing={listing}
                   selected={selectedListing?.id === listing.id}
-                  onClick={() => handleSelectListing(listing)}
+                  onClick={handleSelectListing}
                 />
               ))
             ) : (

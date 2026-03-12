@@ -5,7 +5,7 @@ import ReforgeSection from '../ReforgeSection';
 
 describe('ReforgeSection', () => {
   beforeEach(() => {
-    window.REFORGES_CONFIG = [];
+    window.REFORGE_OPTIONS_CONFIG = [];
   });
 
   it('renders option list', () => {

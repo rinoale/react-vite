@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
@@ -66,7 +68,7 @@ def admin_list_feature_flags(db: Session = Depends(get_db), _: User = _master_re
 
 @router.post("/users/{user_id}/roles/{role_name}")
 def admin_assign_role(
-    user_id: int, role_name: str,
+    user_id: UUID, role_name: str,
     db: Session = Depends(get_db),
     _: User = _master_required,
 ):
@@ -77,7 +79,7 @@ def admin_assign_role(
 
 @router.delete("/users/{user_id}/roles/{role_name}")
 def admin_remove_role(
-    user_id: int, role_name: str,
+    user_id: UUID, role_name: str,
     db: Session = Depends(get_db),
     _: User = _master_required,
 ):

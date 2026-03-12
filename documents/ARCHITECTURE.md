@@ -1017,6 +1017,62 @@ require_role("admin")    → user has "admin" role (master bypasses all)
 require_feature("X")     → user's roles have feature flag X (master bypasses all)
 ```
 
+### Marketplace Search
+
+The marketplace search combines three filter types, all AND-intersected.
+
+#### Frontend Flow
+
+When the user types in the search bar (debounced 200ms), three lookups run in parallel:
+
+| # | Source | Endpoint | Dropdown section |
+|---|--------|----------|-----------------|
+| 1 | PostgreSQL | `GET /tags/search?q=text` | Tag suggestions (up to 10) |
+| 2 | In-memory | `searchGameItemsLocal(text)` | Game item suggestions (up to 3) |
+| 3 | PostgreSQL | `GET /listings/search?q=text` | Listing suggestions |
+
+Selecting a **tag** adds it as a chip (AND filter) and immediately re-searches. Selecting a **game item** adds an orange chip (AND filter). Selecting a **listing** navigates to its detail view.
+
+The final search call: `GET /listings/search?q=text&tags=tag1&tags=tag2&game_item_id=123`
+
+#### Backend Search Logic (`listing_service.py:search_listings`)
+
+Three independent filters compute sets of listing IDs, then intersect:
+
+```
+result_ids = tag_ids ∩ text_ids ∩ game_item_ids
+```
+
+**Filter 1 — Tags** (exact name, AND across all chips):
+```sql
+SELECT listing_id FROM tags t
+JOIN tag_targets tt ... JOIN (listing_resolve_cte) sub ...
+WHERE t.name IN (:tags)
+GROUP BY listing_id
+HAVING COUNT(DISTINCT t.name) = :tag_count
+```
+
+Tags resolve through a CTE that maps each listing to all its related entities (`listing`, `game_item`, `enchant`, `listing_options`). A tag on an enchant matches any listing with that enchant.
+
+**Filter 2 — Text query** (cascading ILIKE, stops at first tier with results):
+
+| Tier | SQL | CTE? | Matches |
+|------|-----|------|---------|
+| 1 | `tags.name ILIKE '%q%'` | Yes | Tag names → resolve to listing IDs via CTE |
+| 2 | `game_items.name ILIKE '%q%'` | No | Direct JOIN to listings |
+| 3 | `listings.name ILIKE '%q%'` | No | Direct WHERE on listings |
+
+Only one tier executes — once results are found, lower tiers are skipped.
+
+**Filter 3 — Game item** (exact ID):
+```sql
+SELECT id FROM listings WHERE status = 1 AND game_item_id = :gi
+```
+
+#### Activity Logging
+
+Search activity is logged via `BackgroundTasks` (after response is sent) to `user_activity_logs` with action `search`. Metadata includes query text, tags, game_item_id, and result count.
+
 ### Endpoint Authorization Map
 
 | Router | Endpoint Pattern | Guard |

@@ -61,7 +61,7 @@ def trigger_job(
         broker.enqueue(get_queue(job_name), {
             "job_id": str(uuid4()),
             "job_name": job_name,
-            "run_id": run.id,
+            "run_id": str(run.id),
             "enqueued_at": datetime.now(timezone.utc).isoformat(),
             "payload": {},
         })

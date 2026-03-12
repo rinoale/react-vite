@@ -98,11 +98,13 @@ function buildEnchantEffectOptions(enchantSec) {
     };
 
     for (const eff of slotData.effects || []) {
-      const configEff = eff.enchant_effect_id ? eff : findConfigEff(eff.option_name);
+      const configEff = findConfigEff(eff.option_name);
+      const effIdx = configEff ? config.effects.indexOf(configEff) : -1;
       options.push({
         option_type: 'enchant_effects',
         option_name: configEff?.option_name ?? eff.option_name ?? '',
-        option_id: (eff.enchant_effect_id ?? configEff?.enchant_effect_id) || null,
+        enchant_id: config?.id || null,
+        effect_order: effIdx >= 0 ? effIdx : null,
         rolled_value: eff.option_level ?? null,
       });
     }

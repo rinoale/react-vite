@@ -1,3 +1,5 @@
+import json
+
 from fastapi import HTTPException
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -29,6 +31,106 @@ _ATTR_COLUMNS = {
     'defense', 'protection', 'magic_defense', 'magic_protection',
     'durability', 'piercing_level',
 }
+
+_FILTERABLE_COLUMNS = frozenset({
+    'special_upgrade_level', 'erg_level', 'piercing_level',
+    'damage', 'magic_damage', 'additional_damage', 'balance',
+    'defense', 'protection', 'magic_defense', 'magic_protection',
+    'durability',
+})
+
+
+_OP_PREFIXES = {'min_': '>=', 'max_': '<=', 'eq_': '='}
+
+
+_STRING_EQUALITY_COLUMNS = frozenset({'erg_grade', 'special_upgrade_type'})
+
+
+def parse_attr_filters(query_params):
+    """Extract min_/max_/eq_{col} query params as numeric attribute filters,
+    plus string equality filters for erg_grade and special_upgrade_type.
+
+    Only columns in _FILTERABLE_COLUMNS / _STRING_EQUALITY_COLUMNS are accepted.
+    Returns list of (col, op_sql, value) tuples, or None if no valid filters found.
+    """
+    result = []
+    for prefix, op_sql in _OP_PREFIXES.items():
+        for col in _FILTERABLE_COLUMNS:
+            val = query_params.get(f"{prefix}{col}")
+            if val is not None:
+                try:
+                    result.append((col, op_sql, int(val)))
+                except (ValueError, TypeError):
+                    pass
+    for col in _STRING_EQUALITY_COLUMNS:
+        val = query_params.get(col)
+        if val is not None:
+            result.append((col, '=', val))
+    return result or None
+
+
+_OP_MAP = {'gte': '>=', 'lte': '<=', 'eq': '='}
+
+
+def parse_reforge_filters(raw_json):
+    """Parse reforge filters from JSON string.
+
+    Expected format: [{"name": "...", "op": "gte|lte|eq", "level": int|null}, ...]
+    Returns list of (option_name, op_sql, level_or_None) tuples, or None.
+    Level=None means existence-only (no rolled_value constraint).
+    """
+    if not raw_json:
+        return None
+    try:
+        filters = json.loads(raw_json)
+        if not isinstance(filters, list):
+            return None
+        result = []
+        for f in filters:
+            name = f.get('name')
+            if not name:
+                continue
+            op = f.get('op', 'gte')
+            level = f.get('level')
+            op_sql = _OP_MAP.get(op, '>=')
+            result.append((name, op_sql, int(level) if level is not None else None))
+        return result or None
+    except (json.JSONDecodeError, ValueError, TypeError):
+        return None
+
+
+def parse_enchant_filters(raw_json):
+    """Parse enchant filters from JSON string.
+
+    Expected format: [{"name": "...", "effects": [{"id": int, "op": "gte|lte|eq", "value": int}]}]
+    Returns list of dicts with 'name' and 'effects' keys, or None.
+    """
+    if not raw_json:
+        return None
+    try:
+        filters = json.loads(raw_json)
+        if not isinstance(filters, list):
+            return None
+        result = []
+        for f in filters:
+            name = f.get('name')
+            if not name:
+                continue
+            effects = []
+            for eff in f.get('effects', []):
+                eff_id = eff.get('id')
+                op = eff.get('op', 'gte')
+                value = eff.get('value')
+                if eff_id is not None and value is not None:
+                    effects.append({
+                        'id': eff_id,
+                        'op_sql': _OP_MAP.get(op, '>='),
+                        'value': int(value),
+                    })
+            result.append({'name': name, 'effects': effects})
+        return result or None
+    except (json.JSONDecodeError, ValueError, TypeError):
+        return None
 
 
 def _parse_attrs(attrs_dict):
@@ -121,7 +223,7 @@ def create_listing(payload, db, *, user_id=None):
 
         db.commit()
         db.refresh(listing)
-        logger.info("register-listing  persisted listing id=%d name=%r enchants=%d options=%d",
+        logger.info("register-listing  persisted listing id=%s name=%r enchants=%d options=%d",
                      listing.id, listing.name, len(payload.enchants), len(payload.listing_options))
     except HTTPException:
         raise
@@ -345,37 +447,160 @@ def search_tags(db, q, limit=10):
     return [dict(r) for r in rows]
 
 
-def search_listings(db, q, tags=None, limit=50, offset=0):
-    """Search listings by tags (AND) and/or text query (cascading).
+def search_listings(db, q, tags=None, game_item_id=None, attr_filters=None,
+                    reforge_filters=None, enchant_filters=None, limit=50, offset=0):
+    """Search listings by tags (AND) and/or text query (cascading) and/or game item and/or attr ranges.
 
     - tags: list of exact tag names — intersection (listings matching ALL)
     - q: text query — cascading tier search (tag ILIKE → game_item → listing name)
-    When both are provided, intersect the results.
+    - game_item_id: exact game item filter
+    - attr_filters: list of (col, op_sql, value) tuples for numeric range filters
+    - reforge_filters: list of (option_name, op_sql, level) tuples for reforge option filters
+    - enchant_filters: list of dicts with 'name' and 'effects' (each with id/op_sql/value)
+    All provided filters are intersected (AND).
     """
-    tag_ids = set()
-    text_ids = set()
+    id_sets = []
 
     # --- Multi-tag filter (AND / intersection) ---
     if tags:
         tag_ids = _search_by_exact_tags(db, tags)
         if not tag_ids:
             return []
+        id_sets.append(tag_ids)
 
     # --- Text query (cascading) ---
     q = (q or '').strip()
     if q:
         text_ids = _search_by_text(db, q)
         if not text_ids:
-            if not tags:
+            if not id_sets:
                 return []
+        else:
+            id_sets.append(text_ids)
 
-    # Combine
-    if tags and q:
-        result_ids = tag_ids & text_ids
-    elif tags:
-        result_ids = tag_ids
-    else:
-        result_ids = text_ids
+    # --- Game item filter ---
+    if game_item_id is not None:
+        gi_ids = set(
+            db.execute(
+                text("SELECT id FROM listings WHERE status = 1 AND game_item_id = :gi"),
+                {"gi": game_item_id},
+            ).scalars().all()
+        )
+        if not gi_ids:
+            return []
+        id_sets.append(gi_ids)
+
+    # --- Attribute range filters (>=, <=, = conditions) ---
+    if attr_filters:
+        conds = []
+        af_params = {}
+        for i, (col, op_sql, val) in enumerate(attr_filters):
+            if col in _FILTERABLE_COLUMNS or col in _STRING_EQUALITY_COLUMNS:
+                param_key = f"af_{i}_{col}"
+                conds.append(f"l.{col} {op_sql} :{param_key}")
+                af_params[param_key] = val
+        if conds:
+            where = " AND ".join(conds)
+            af_ids = set(
+                db.execute(
+                    text(f"SELECT l.id FROM listings l WHERE l.status = 1 AND {where}"),
+                    af_params,
+                ).scalars().all()
+            )
+            if not af_ids:
+                return []
+            id_sets.append(af_ids)
+
+    # --- Reforge option filters (name + optional level via listing_options) ---
+    if reforge_filters:
+        conds = []
+        rf_params = {}
+        for i, (option_name, op_sql, level) in enumerate(reforge_filters):
+            name_key = f"rf_name_{i}"
+            if level is not None:
+                level_key = f"rf_level_{i}"
+                conds.append(f"""
+                    EXISTS (
+                        SELECT 1 FROM listing_options lo
+                        WHERE lo.listing_id = l.id
+                        AND lo.option_type = 'reforge_options'
+                        AND lo.option_name = :{name_key}
+                        AND lo.rolled_value {op_sql} :{level_key}
+                    )
+                """)
+                rf_params[level_key] = level
+            else:
+                conds.append(f"""
+                    EXISTS (
+                        SELECT 1 FROM listing_options lo
+                        WHERE lo.listing_id = l.id
+                        AND lo.option_type = 'reforge_options'
+                        AND lo.option_name = :{name_key}
+                    )
+                """)
+            rf_params[name_key] = option_name
+        if conds:
+            where = " AND ".join(conds)
+            rf_ids = set(
+                db.execute(
+                    text(f"SELECT l.id FROM listings l WHERE l.status = 1 AND {where}"),
+                    rf_params,
+                ).scalars().all()
+            )
+            if not rf_ids:
+                return []
+            id_sets.append(rf_ids)
+
+    # --- Enchant filters (name + optional effect level constraints) ---
+    if enchant_filters:
+        for i, ef in enumerate(enchant_filters):
+            enc_name = ef['name']
+            effects = ef.get('effects', [])
+
+            ef_params = {f"enc_name_{i}": enc_name}
+
+            # Base: listing has this enchant as prefix or suffix
+            base_cond = f"""
+                (l.prefix_enchant_id IN (SELECT id FROM enchants WHERE name = :enc_name_{i})
+                 OR l.suffix_enchant_id IN (SELECT id FROM enchants WHERE name = :enc_name_{i}))
+            """
+
+            # Effect level conditions
+            effect_conds = []
+            for j, eff in enumerate(effects):
+                id_key = f"eff_id_{i}_{j}"
+                val_key = f"eff_val_{i}_{j}"
+                effect_conds.append(f"""
+                    EXISTS (
+                        SELECT 1 FROM listing_options lo
+                        WHERE lo.listing_id = l.id
+                        AND lo.option_type = 'enchant_effects'
+                        AND lo.option_id = :{id_key}
+                        AND lo.rolled_value {eff['op_sql']} :{val_key}
+                    )
+                """)
+                ef_params[id_key] = eff['id']
+                ef_params[val_key] = eff['value']
+
+            all_conds = [base_cond] + effect_conds
+            where = " AND ".join(all_conds)
+
+            enc_ids = set(
+                db.execute(
+                    text(f"SELECT l.id FROM listings l WHERE l.status = 1 AND {where}"),
+                    ef_params,
+                ).scalars().all()
+            )
+            if not enc_ids:
+                return []
+            id_sets.append(enc_ids)
+
+    if not id_sets:
+        return []
+
+    result_ids = id_sets[0]
+    for s in id_sets[1:]:
+        result_ids = result_ids & s
 
     if not result_ids:
         return []
@@ -507,7 +732,7 @@ def _fetch_listings_by_ids(db, listing_ids, limit=50, offset=0):
     return listings
 
 
-def _resolve_listing_tags(db: Session, listing_id: int):
+def _resolve_listing_tags(db: Session, listing_id):
     """Resolve all tags for a single listing (used by detail view)."""
     rows = db.execute(
         text("""
@@ -532,7 +757,7 @@ def _resolve_listing_tags(db: Session, listing_id: int):
     return [{"name": r["name"], "weight": r["weight"]} for r in rows]
 
 
-def _build_enchant_detail(db: Session, listing_id: int, enchant_id: int, slot: int):
+def _build_enchant_detail(db: Session, listing_id, enchant_id, slot: int):
     """Build enchant detail dict with all effects for a single enchant slot."""
     enc = db.query(models.Enchant).filter(models.Enchant.id == enchant_id).first()
     if not enc:
@@ -560,7 +785,7 @@ def _build_enchant_detail(db: Session, listing_id: int, enchant_id: int, slot: i
     }
 
 
-def get_listing_detail(db: Session, listing_id: int):
+def get_listing_detail(db: Session, listing_id):
     """Fetch full listing detail including enchants, options, tags, and seller info."""
     listing = db.query(models.Listing).filter(models.Listing.id == listing_id).first()
     if not listing:

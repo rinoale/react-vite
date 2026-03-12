@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
@@ -26,7 +28,7 @@ def admin_listings(
 
 @router.get("/listings/{listing_id}/detail", response_model=schemas.ListingDetailOut)
 def admin_listing_detail(
-    listing_id: int,
+    listing_id: UUID,
     db: Session = Depends(get_db),
     _: User = _admin_required,
 ):

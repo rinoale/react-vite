@@ -49,7 +49,7 @@ async def examine_item(file: UploadFile = File(...)):
             broker.enqueue(get_queue("run_v3_pipeline"), {
                 "job_id": job_id,
                 "job_name": "run_v3_pipeline",
-                "run_id": run.id,
+                "run_id": str(run.id),
                 "enqueued_at": datetime.now(timezone.utc).isoformat(),
                 "payload": {
                     "job_id": job_id,

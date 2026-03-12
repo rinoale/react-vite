@@ -26,7 +26,8 @@
       "users": "Users",
       "roles": "Roles",
       "feature_flags": "Feature Flags",
-      "usage": "Usage"
+      "usage": "Usage",
+      "activity_logs": "Activity Logs"
     }
   },
   "usage": {
@@ -177,6 +178,21 @@
     "colResult": "Result",
     "workers": "{{count}} worker",
     "workers_plural": "{{count}} workers"
+  },
+  "activity": {
+    "title": "ACTIVITY LOGS",
+    "total": "total",
+    "refresh": "Refresh",
+    "allActions": "All actions",
+    "userIdPlaceholder": "User ID",
+    "colAction": "Action",
+    "colUser": "User",
+    "colTarget": "Target",
+    "colMetadata": "Metadata",
+    "colTime": "Time",
+    "noLogs": "No activity logs found.",
+    "prev": "PREV",
+    "next": "NEXT"
   },
   "enchants": {
     "title": "ENCHANT ENTRIES",

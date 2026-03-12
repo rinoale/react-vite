@@ -1,4 +1,4 @@
-"""baseline: all tables
+"""baseline: all tables (UUID v7 primary keys)
 
 Revision ID: 0001
 Revises: -
@@ -7,6 +7,8 @@ Create Date: 2026-03-09
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects.postgresql import JSONB, UUID as PG_UUID
+from uuid_utils import uuid7
 
 
 revision = "0001"
@@ -19,7 +21,7 @@ def upgrade() -> None:
     # --- Users & Auth ---
     op.create_table(
         "users",
-        sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
+        sa.Column("id", PG_UUID(as_uuid=True), primary_key=True),
         sa.Column("email", sa.Text(), nullable=False, unique=True),
         sa.Column("password_hash", sa.Text(), nullable=True),
         sa.Column("discord_id", sa.Text(), nullable=True, unique=True),
@@ -35,48 +37,48 @@ def upgrade() -> None:
 
     op.create_table(
         "roles",
-        sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
+        sa.Column("id", PG_UUID(as_uuid=True), primary_key=True),
         sa.Column("name", sa.Text(), nullable=False, unique=True),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
     )
 
     op.create_table(
         "user_roles",
-        sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
-        sa.Column("user_id", sa.Integer(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("role_id", sa.Integer(), sa.ForeignKey("roles.id", ondelete="CASCADE"), nullable=False),
+        sa.Column("id", PG_UUID(as_uuid=True), primary_key=True),
+        sa.Column("user_id", PG_UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+        sa.Column("role_id", PG_UUID(as_uuid=True), sa.ForeignKey("roles.id", ondelete="CASCADE"), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
         sa.UniqueConstraint("user_id", "role_id", name="_user_role_uc"),
     )
 
     op.create_table(
         "feature_flags",
-        sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
+        sa.Column("id", PG_UUID(as_uuid=True), primary_key=True),
         sa.Column("name", sa.Text(), nullable=False, unique=True),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
     )
 
     op.create_table(
         "role_feature_flags",
-        sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
-        sa.Column("role_id", sa.Integer(), sa.ForeignKey("roles.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("feature_flag_id", sa.Integer(), sa.ForeignKey("feature_flags.id", ondelete="CASCADE"), nullable=False),
+        sa.Column("id", PG_UUID(as_uuid=True), primary_key=True),
+        sa.Column("role_id", PG_UUID(as_uuid=True), sa.ForeignKey("roles.id", ondelete="CASCADE"), nullable=False),
+        sa.Column("feature_flag_id", PG_UUID(as_uuid=True), sa.ForeignKey("feature_flags.id", ondelete="CASCADE"), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
         sa.UniqueConstraint("role_id", "feature_flag_id", name="_role_feature_flag_uc"),
     )
 
     # --- Seed auth data ---
-    op.execute("INSERT INTO roles (name) VALUES ('master'), ('admin')")
-    op.execute("INSERT INTO feature_flags (name) VALUES ('manage_tags'), ('manage_corrections')")
+    op.execute(f"INSERT INTO roles (id, name) VALUES ('{uuid7()}', 'master'), ('{uuid7()}', 'admin')")
+    op.execute(f"INSERT INTO feature_flags (id, name) VALUES ('{uuid7()}', 'manage_tags'), ('{uuid7()}', 'manage_corrections')")
 
     # --- Enchants & Effects ---
     op.create_table(
         "enchants",
-        sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
+        sa.Column("id", PG_UUID(as_uuid=True), primary_key=True),
         sa.Column("slot", sa.SmallInteger(), nullable=False),
         sa.Column("name", sa.Text(), nullable=False),
         sa.Column("rank", sa.SmallInteger(), nullable=False),
-        sa.Column("header_text", sa.Text(), nullable=False, unique=True),
+        sa.Column("header_text", sa.Text(), nullable=False),
         sa.Column("restriction", sa.Text(), nullable=True),
         sa.Column("binding", sa.Boolean(), nullable=False, server_default="false"),
         sa.Column("guaranteed_success", sa.Boolean(), nullable=False, server_default="false"),
@@ -84,12 +86,11 @@ def upgrade() -> None:
         sa.Column("credit", sa.Text(), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
-        sa.UniqueConstraint("name", "rank", "slot", name="_enchant_name_rank_slot_uc"),
     )
 
     op.create_table(
         "effects",
-        sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
+        sa.Column("id", PG_UUID(as_uuid=True), primary_key=True),
         sa.Column("name", sa.Text(), nullable=False, unique=True),
         sa.Column("is_pct", sa.Boolean(), nullable=False, server_default="false"),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
@@ -98,9 +99,9 @@ def upgrade() -> None:
 
     op.create_table(
         "enchant_effects",
-        sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
-        sa.Column("enchant_id", sa.Integer(), sa.ForeignKey("enchants.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("effect_id", sa.Integer(), sa.ForeignKey("effects.id", ondelete="RESTRICT"), nullable=True),
+        sa.Column("id", PG_UUID(as_uuid=True), primary_key=True),
+        sa.Column("enchant_id", PG_UUID(as_uuid=True), sa.ForeignKey("enchants.id", ondelete="CASCADE"), nullable=False),
+        sa.Column("effect_id", PG_UUID(as_uuid=True), sa.ForeignKey("effects.id", ondelete="RESTRICT"), nullable=True),
         sa.Column("effect_order", sa.Integer(), nullable=False),
         sa.Column("condition_text", sa.Text(), nullable=True),
         sa.Column("min_value", sa.Numeric(), nullable=True),
@@ -114,7 +115,7 @@ def upgrade() -> None:
     # --- Option master tables ---
     op.create_table(
         "reforge_options",
-        sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
+        sa.Column("id", PG_UUID(as_uuid=True), primary_key=True),
         sa.Column("option_name", sa.Text(), nullable=False, unique=True),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
@@ -122,7 +123,7 @@ def upgrade() -> None:
 
     op.create_table(
         "echostone_options",
-        sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
+        sa.Column("id", PG_UUID(as_uuid=True), primary_key=True),
         sa.Column("option_name", sa.Text(), nullable=False, unique=True),
         sa.Column("type", sa.Text(), nullable=False),
         sa.Column("max_level", sa.Integer(), nullable=True),
@@ -133,13 +134,13 @@ def upgrade() -> None:
 
     op.create_table(
         "murias_relic_options",
-        sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
+        sa.Column("id", PG_UUID(as_uuid=True), primary_key=True),
         sa.Column("option_name", sa.Text(), nullable=False, unique=True),
         sa.Column("type", sa.Text(), nullable=False),
         sa.Column("max_level", sa.Integer(), nullable=True),
         sa.Column("min_level", sa.Integer(), nullable=False, server_default="1"),
         sa.Column("value_per_level", sa.Float(), nullable=True),
-        sa.Column("option_unit", sa.Text(), nullable=False, server_default=""),
+        sa.Column("option_unit", sa.Text(), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
     )
@@ -147,22 +148,26 @@ def upgrade() -> None:
     # --- Game items ---
     op.create_table(
         "game_items",
-        sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
+        sa.Column("id", PG_UUID(as_uuid=True), primary_key=True),
         sa.Column("name", sa.Text(), nullable=False, unique=True),
+        sa.Column("type", sa.Text(), nullable=True),
+        sa.Column("searchable", sa.Boolean(), nullable=False, server_default="false"),
+        sa.Column("tradable", sa.Boolean(), nullable=False, server_default="true"),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
     )
 
     # --- Listings ---
     op.create_table(
         "listings",
-        sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
-        sa.Column("user_id", sa.Integer(), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
+        sa.Column("id", PG_UUID(as_uuid=True), primary_key=True),
+        sa.Column("user_id", PG_UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
+        sa.Column("status", sa.SmallInteger(), nullable=False, server_default="0"),
         sa.Column("name", sa.Text(), nullable=False),
         sa.Column("description", sa.Text(), nullable=True),
         sa.Column("price", sa.Integer(), nullable=True),
-        sa.Column("game_item_id", sa.Integer(), sa.ForeignKey("game_items.id", ondelete="SET NULL"), nullable=True),
-        sa.Column("prefix_enchant_id", sa.Integer(), sa.ForeignKey("enchants.id", ondelete="SET NULL"), nullable=True),
-        sa.Column("suffix_enchant_id", sa.Integer(), sa.ForeignKey("enchants.id", ondelete="SET NULL"), nullable=True),
+        sa.Column("game_item_id", PG_UUID(as_uuid=True), sa.ForeignKey("game_items.id", ondelete="SET NULL"), nullable=True),
+        sa.Column("prefix_enchant_id", PG_UUID(as_uuid=True), sa.ForeignKey("enchants.id", ondelete="SET NULL"), nullable=True),
+        sa.Column("suffix_enchant_id", PG_UUID(as_uuid=True), sa.ForeignKey("enchants.id", ondelete="SET NULL"), nullable=True),
         sa.Column("item_type", sa.Text(), nullable=True),
         sa.Column("item_grade", sa.Text(), nullable=True),
         sa.Column("erg_grade", sa.Text(), nullable=True),
@@ -184,14 +189,15 @@ def upgrade() -> None:
     )
     op.create_index("ix_listings_name", "listings", ["name"])
     op.create_index("ix_listings_user_id", "listings", ["user_id"])
+    op.create_index("ix_listings_status", "listings", ["status"])
 
     # --- Listing options (unified polymorphic join) ---
     op.create_table(
         "listing_options",
-        sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
-        sa.Column("listing_id", sa.Integer(), sa.ForeignKey("listings.id", ondelete="CASCADE"), nullable=False),
+        sa.Column("id", PG_UUID(as_uuid=True), primary_key=True),
+        sa.Column("listing_id", PG_UUID(as_uuid=True), sa.ForeignKey("listings.id", ondelete="CASCADE"), nullable=False),
         sa.Column("option_type", sa.Text(), nullable=False),
-        sa.Column("option_id", sa.Integer(), nullable=True),
+        sa.Column("option_id", PG_UUID(as_uuid=True), nullable=True),
         sa.Column("option_name", sa.Text(), nullable=False),
         sa.Column("rolled_value", sa.Numeric(), nullable=True),
         sa.Column("max_level", sa.Integer(), nullable=True),
@@ -203,7 +209,7 @@ def upgrade() -> None:
     # --- Tags ---
     op.create_table(
         "tags",
-        sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
+        sa.Column("id", PG_UUID(as_uuid=True), primary_key=True),
         sa.Column("name", sa.Text(), nullable=False, unique=True),
         sa.Column("weight", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
@@ -212,10 +218,10 @@ def upgrade() -> None:
 
     op.create_table(
         "tag_targets",
-        sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
-        sa.Column("tag_id", sa.Integer(), sa.ForeignKey("tags.id", ondelete="CASCADE"), nullable=False),
+        sa.Column("id", PG_UUID(as_uuid=True), primary_key=True),
+        sa.Column("tag_id", PG_UUID(as_uuid=True), sa.ForeignKey("tags.id", ondelete="CASCADE"), nullable=False),
         sa.Column("target_type", sa.Text(), nullable=False),
-        sa.Column("target_id", sa.Integer(), nullable=False),
+        sa.Column("target_id", PG_UUID(as_uuid=True), nullable=False),
         sa.Column("weight", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
         sa.UniqueConstraint("tag_id", "target_type", "target_id", name="_tag_target_uc"),
@@ -226,7 +232,7 @@ def upgrade() -> None:
     # --- OCR Corrections ---
     op.create_table(
         "ocr_corrections",
-        sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
+        sa.Column("id", PG_UUID(as_uuid=True), primary_key=True),
         sa.Column("session_id", sa.Text(), nullable=False),
         sa.Column("line_index", sa.SmallInteger(), nullable=False),
         sa.Column("original_text", sa.Text(), nullable=False),
@@ -247,9 +253,10 @@ def upgrade() -> None:
     # --- Job Runs ---
     op.create_table(
         "job_runs",
-        sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
+        sa.Column("id", PG_UUID(as_uuid=True), primary_key=True),
         sa.Column("job_name", sa.Text(), nullable=False),
         sa.Column("status", sa.Text(), nullable=False, server_default="pending"),
+        sa.Column("payload", sa.Text(), nullable=True),
         sa.Column("result_summary", sa.Text(), nullable=True),
         sa.Column("error", sa.Text(), nullable=True),
         sa.Column("worker_id", sa.Text(), nullable=True),
@@ -258,8 +265,25 @@ def upgrade() -> None:
     )
     op.create_index("ix_job_runs_job_name", "job_runs", ["job_name"])
 
+    # --- User Activity Logs ---
+    op.create_table(
+        "user_activity_logs",
+        sa.Column("id", PG_UUID(as_uuid=True), primary_key=True),
+        sa.Column("user_id", PG_UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
+        sa.Column("action", sa.Text(), nullable=False),
+        sa.Column("target_type", sa.Text(), nullable=True),
+        sa.Column("target_id", PG_UUID(as_uuid=True), nullable=True),
+        sa.Column("metadata", JSONB, nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
+    )
+    op.create_index("ix_activity_user_id", "user_activity_logs", ["user_id"])
+    op.create_index("ix_activity_action", "user_activity_logs", ["action"])
+    op.create_index("ix_activity_target", "user_activity_logs", ["target_type", "target_id"])
+    op.create_index("ix_activity_created_at", "user_activity_logs", ["created_at"])
+
 
 def downgrade() -> None:
+    op.drop_table("user_activity_logs")
     op.drop_table("job_runs")
     op.drop_table("ocr_corrections")
     op.drop_table("tag_targets")

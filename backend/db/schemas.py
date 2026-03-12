@@ -1,5 +1,6 @@
 import re
 from typing import Dict, List, Optional, Union
+from uuid import UUID
 from pydantic import BaseModel, Field, field_validator
 from decimal import Decimal
 from datetime import datetime
@@ -14,7 +15,7 @@ class UserUpdate(BaseModel):
     game_id: Optional[str] = None
 
 class UserOut(BaseModel):
-    id: int
+    id: UUID
     email: str
     discord_username: Optional[str] = None
     server: Optional[str] = None
@@ -37,7 +38,7 @@ class EnchantCreate(EnchantBase):
     pass
 
 class Enchant(EnchantBase):
-    id: int
+    id: UUID
     effect_count: Optional[int] = 0
 
     class Config:
@@ -48,14 +49,14 @@ class EffectBase(BaseModel):
     is_pct: bool
 
 class Effect(EffectBase):
-    id: int
+    id: UUID
 
     class Config:
         from_attributes = True
 
 class EnchantEffectBase(BaseModel):
-    enchant_id: int
-    effect_id: Optional[int] = None
+    enchant_id: UUID
+    effect_id: Optional[UUID] = None
     effect_order: int
     condition_text: Optional[str] = None
     min_value: Optional[Decimal] = None
@@ -63,7 +64,7 @@ class EnchantEffectBase(BaseModel):
     raw_text: str
 
 class EnchantEffect(EnchantEffectBase):
-    id: int
+    id: UUID
     enchant_name: Optional[str] = None
     effect_name: Optional[str] = None
 
@@ -74,13 +75,13 @@ class ReforgeOptionBase(BaseModel):
     option_name: str
 
 class ReforgeOption(ReforgeOptionBase):
-    id: int
+    id: UUID
 
     class Config:
         from_attributes = True
 
 class EchostoneOptionOut(BaseModel):
-    id: int
+    id: UUID
     option_name: str
     type: str
     max_level: Optional[int] = None
@@ -90,7 +91,7 @@ class EchostoneOptionOut(BaseModel):
         from_attributes = True
 
 class MuriasRelicOptionOut(BaseModel):
-    id: int
+    id: UUID
     option_name: str
     type: str
     max_level: Optional[int] = None
@@ -114,7 +115,7 @@ class PaginatedMuriasRelicResponse(BaseModel):
 class TagCreate(BaseModel):
     """Create a tag and attach to a single target."""
     target_type: str
-    target_id: int
+    target_id: UUID
     name: str
     weight: int = 0
 
@@ -128,7 +129,7 @@ class TagCreate(BaseModel):
 
 class TagTarget(BaseModel):
     target_type: str
-    target_id: int
+    target_id: UUID
 
 
 class BulkTagCreate(BaseModel):
@@ -153,25 +154,25 @@ class TagBadge(BaseModel):
 
 class TagTargetOut(BaseModel):
     """A single tag-target association row for admin display."""
-    id: int  # tag_targets.id
-    tag_id: int
+    id: UUID  # tag_targets.id
+    tag_id: UUID
     target_type: str
-    target_id: int
+    target_id: UUID
     name: str
     weight: int = 0
     target_display_name: Optional[str] = None
 
 
 class TagDetailTarget(BaseModel):
-    id: int
+    id: UUID
     target_type: str
-    target_id: int
+    target_id: UUID
     weight: int = 0
     target_display_name: Optional[str] = None
 
 
 class TagDetail(BaseModel):
-    id: int
+    id: UUID
     name: str
     weight: int = 0
     targets: List[TagDetailTarget] = []
@@ -181,7 +182,7 @@ class WeightUpdate(BaseModel):
     weight: int
 
 class BulkWeightUpdate(BaseModel):
-    ids: List[int]
+    ids: List[UUID]
     weight: int
 
 # --- Jobs ---
@@ -195,7 +196,7 @@ class JobOut(BaseModel):
     last_run: Optional['JobRunOut'] = None
 
 class JobRunOut(BaseModel):
-    id: int
+    id: UUID
     job_name: str
     status: str
     payload: Optional[str] = None
@@ -252,12 +253,12 @@ class ListingOptionOut(BaseModel):
     max_level: Optional[int] = None
 
 class ListingOut(BaseModel):
-    id: int
+    id: UUID
     status: int = 0
     name: str
     description: Optional[str] = None
     price: Optional[int] = None
-    game_item_id: Optional[int] = None
+    game_item_id: Optional[UUID] = None
     game_item_name: Optional[str] = None
     prefix_enchant_name: Optional[str] = None
     suffix_enchant_name: Optional[str] = None
@@ -295,8 +296,11 @@ class PaginatedListingResponse(BaseModel):
 # --- Game item catalog ---
 
 class GameItemOut(BaseModel):
-    id: int
+    id: UUID
     name: str
+    type: Optional[str] = None
+    searchable: bool = False
+    tradable: bool = True
 
     class Config:
         from_attributes = True
@@ -317,7 +321,7 @@ class RegisterEnchantSlot(BaseModel):
 class RegisterListingOption(BaseModel):
     option_type: str  # enchant_effects, reforge_options, echostone_options, murias_relic_options
     option_name: str
-    option_id: Optional[int] = None
+    option_id: Optional[UUID] = None
     rolled_value: Optional[Union[int, float]] = None
     max_level: Optional[int] = None
 
@@ -332,7 +336,7 @@ class RegisterListingRequest(BaseModel):
     description: Optional[str] = Field(None, max_length=50)
     price: str = ''
     category: str = 'weapon'
-    game_item_id: Optional[int] = None
+    game_item_id: Optional[UUID] = None
     item_type: Optional[str] = None
     item_grade: Optional[str] = None
     erg_grade: Optional[str] = None
@@ -364,7 +368,7 @@ class RegisterListingRequest(BaseModel):
         return v
 
 class CorrectionOut(BaseModel):
-    id: int
+    id: UUID
     session_id: str
     line_index: int
     original_text: str
@@ -399,12 +403,12 @@ class ListingEnchantOut(BaseModel):
     effects: List[ListingEnchantEffectOut] = []
 
 class ListingDetailOut(BaseModel):
-    id: int
+    id: UUID
     status: int = 0
     name: str
     description: Optional[str] = None
     price: Optional[int] = None
-    game_item_id: Optional[int] = None
+    game_item_id: Optional[UUID] = None
     game_item_name: Optional[str] = None
     item_type: Optional[str] = None
     item_grade: Optional[str] = None

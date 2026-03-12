@@ -1,61 +1,55 @@
 #!/usr/bin/env python3
 """Export murias relic options to a static JS file for frontend client-side searching.
 
-Run from project root:
-    python3 scripts/frontend/configs/export_murias_relic_config.py
+Reads: data/source_of_truth/murias_relic.yaml
+Generates: frontend/packages/trade/public/murias_relic_config.js
 """
 
 import json
 import os
 import sys
-from sqlalchemy import text
+
+import yaml
 
 PROJECT_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '..')
-sys.path.append(os.path.join(PROJECT_ROOT, 'backend'))
-from db.connector import SessionLocal
-
+SOURCE_PATH = os.path.join(PROJECT_ROOT, 'data', 'source_of_truth', 'murias_relic.yaml')
 _FRONTEND_DIR = os.environ.get('FRONTEND_DIST_DIR', os.path.join(PROJECT_ROOT, 'frontend', 'packages', 'trade', 'public'))
 OUTPUT_PATH = os.path.join(_FRONTEND_DIR, 'murias_relic_config.js')
 
 
 def export_config():
-    db = SessionLocal()
-    try:
-        print("Fetching murias relic options from database...")
-        rows = db.execute(
-            text(
-                "SELECT id, option_name, type, max_level, min_level, value_per_level, option_unit "
-                "FROM murias_relic_options ORDER BY option_name"
-            )
-        ).mappings()
+    if not os.path.exists(SOURCE_PATH):
+        print(f"Error: {SOURCE_PATH} not found")
+        sys.exit(1)
 
-        options = [
-            {
-                "id": r["id"],
-                "option_name": r["option_name"],
-                "type": r["type"],
-                "max_level": r["max_level"],
-                "min_level": r["min_level"],
-                "value_per_level": r["value_per_level"],
-                "option_unit": r["option_unit"],
-            }
-            for r in rows
-        ]
+    print(f"Reading murias relic options from {SOURCE_PATH}...")
+    with open(SOURCE_PATH, encoding='utf-8') as f:
+        data = yaml.safe_load(f) or []
 
-        os.makedirs(os.path.dirname(OUTPUT_PATH), exist_ok=True)
+    options = [
+        {
+            "id": item["id"],
+            "option_name": item["option_name"],
+            "type": item["type"],
+            "max_level": item["max_level"],
+            "min_level": item["min_level"],
+            "value_per_level": item["value_per_level"],
+            "option_unit": item["option_unit"],
+        }
+        for item in data
+    ]
 
-        with open(OUTPUT_PATH, 'w', encoding='utf-8') as f:
-            f.write("// Generated static config for client-side murias relic searching\n")
-            f.write("window.MURIAS_RELIC_CONFIG = ")
-            json.dump(options, f, ensure_ascii=False, indent=2)
-            f.write(";\n")
+    options.sort(key=lambda x: x["option_name"])
 
-        print(f"Successfully exported {len(options)} murias relic options to {OUTPUT_PATH}")
+    os.makedirs(os.path.dirname(OUTPUT_PATH), exist_ok=True)
 
-    except Exception as e:
-        print(f"Error exporting config: {e}")
-    finally:
-        db.close()
+    with open(OUTPUT_PATH, 'w', encoding='utf-8') as f:
+        f.write("// Generated from data/source_of_truth/murias_relic.yaml\n")
+        f.write("window.MURIAS_RELIC_CONFIG = ")
+        json.dump(options, f, ensure_ascii=False, indent=2)
+        f.write(";\n")
+
+    print(f"Successfully exported {len(options)} murias relic options to {OUTPUT_PATH}")
 
 
 if __name__ == "__main__":

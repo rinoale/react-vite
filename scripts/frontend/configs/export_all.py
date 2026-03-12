@@ -2,7 +2,7 @@
 """Run all frontend config export scripts.
 
 Generates static JS config files that the frontend reads at runtime.
-Requires a running PostgreSQL database with imported dictionaries.
+All scripts read from YAML source_of_truth files -- no database needed.
 
 Run from project root:
     python3 scripts/frontend/configs/export_all.py
@@ -21,6 +21,8 @@ SCRIPTS = [
     os.path.join(SCRIPT_DIR, 'export_game_items_config.py'),
     os.path.join(SCRIPT_DIR, 'export_echostone_config.py'),
     os.path.join(SCRIPT_DIR, 'export_murias_relic_config.py'),
+    os.path.join(SCRIPT_DIR, 'export_type_hierarchy_config.py'),
+    os.path.join(SCRIPT_DIR, 'export_enchant_restriction_map_config.py'),
 ]
 
 

@@ -61,7 +61,7 @@ const EchostoneSection = ({ echostoneType, options, onOptionsChange }) => {
       <div className={`${groupRow} mb-1`}>
         <div className={flexCenter}>
           <span className="text-sm font-medium text-cyan-300">{opt.option_name}</span>
-          <button onClick={() => setEditingName(true)} className={iconBtnEdit} title={t('sections.reforge.correct')}>
+          <button type="button" onClick={() => setEditingName(true)} className={iconBtnEdit} title={t('sections.reforge.correct')}>
             <Pencil className="w-3 h-3" />
           </button>
         </div>

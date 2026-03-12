@@ -70,7 +70,7 @@ def get_enchant_effects(db: Session, limit: int = 100, offset: int = 0):
     ).mappings()
     return [dict(r) for r in rows]
 
-def get_enchant_effects_by_id(db: Session, enchant_id: int):
+def get_enchant_effects_by_id(db: Session, enchant_id):
     rows = db.execute(
         text(
             """
@@ -235,7 +235,7 @@ def create_tag(db: Session, data: schemas.TagCreate):
     return tt
 
 
-def delete_tag(db: Session, tag_target_id: int):
+def delete_tag(db: Session, tag_target_id):
     """Delete a tag-target association. If tag has no remaining targets, delete the tag too."""
     tt = db.query(models.TagTarget).filter(models.TagTarget.id == tag_target_id).first()
     if not tt:
@@ -347,7 +347,7 @@ def get_unique_tags(db: Session, limit: int = 100, offset: int = 0):
     return [dict(r) for r in rows]
 
 
-def delete_tag_by_id(db: Session, tag_id: int):
+def delete_tag_by_id(db: Session, tag_id):
     """Delete a tag and all its tag_targets (via CASCADE)."""
     tag = db.query(models.Tag).filter(models.Tag.id == tag_id).first()
     if not tag:
@@ -357,7 +357,7 @@ def delete_tag_by_id(db: Session, tag_id: int):
     return True
 
 
-def get_tag_detail(db: Session, tag_id: int):
+def get_tag_detail(db: Session, tag_id):
     tag = db.query(models.Tag).filter(models.Tag.id == tag_id).first()
     if not tag:
         return None
@@ -388,7 +388,7 @@ def get_tag_detail(db: Session, tag_id: int):
     }
 
 
-def update_tag_weight(db: Session, tag_id: int, weight: int):
+def update_tag_weight(db: Session, tag_id, weight: int):
     tag = db.query(models.Tag).filter(models.Tag.id == tag_id).first()
     if not tag:
         return False
@@ -397,7 +397,7 @@ def update_tag_weight(db: Session, tag_id: int, weight: int):
     return True
 
 
-def bulk_update_tag_target_weights(db: Session, ids: list[int], weight: int):
+def bulk_update_tag_target_weights(db: Session, ids: list, weight: int):
     updated = db.query(models.TagTarget).filter(models.TagTarget.id.in_(ids)).update(
         {"weight": weight}, synchronize_session="fetch"
     )
@@ -405,7 +405,7 @@ def bulk_update_tag_target_weights(db: Session, ids: list[int], weight: int):
     return {"updated": updated}
 
 
-def update_tag_target_weight(db: Session, tag_target_id: int, weight: int):
+def update_tag_target_weight(db: Session, tag_target_id, weight: int):
     tt = db.query(models.TagTarget).filter(models.TagTarget.id == tag_target_id).first()
     if not tt:
         return False
