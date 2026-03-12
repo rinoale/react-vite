@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
@@ -48,7 +50,7 @@ def admin_create_tag(
 
 @router.delete("/tags/{tag_target_id}")
 def admin_delete_tag(
-    tag_target_id: int,
+    tag_target_id: UUID,
     db: Session = Depends(get_db),
     _: User = _manage_tags,
 ):
@@ -70,7 +72,7 @@ def admin_unique_tags(
 
 @router.delete("/tags/by-tag/{tag_id}")
 def admin_delete_tag_by_id(
-    tag_id: int,
+    tag_id: UUID,
     db: Session = Depends(get_db),
     _: User = _manage_tags,
 ):
@@ -104,7 +106,7 @@ def admin_bulk_create_tags(
 
 @router.patch("/tags/targets/{tag_target_id}")
 def admin_update_tag_target_weight(
-    tag_target_id: int,
+    tag_target_id: UUID,
     data: schemas.WeightUpdate,
     db: Session = Depends(get_db),
     _: User = _manage_tags,
@@ -125,7 +127,7 @@ def admin_bulk_update_tag_target_weights(
 
 @router.get("/tags/{tag_id}", response_model=schemas.TagDetail)
 def admin_tag_detail(
-    tag_id: int,
+    tag_id: UUID,
     db: Session = Depends(get_db),
     _: User = _admin_required,
 ):
@@ -137,7 +139,7 @@ def admin_tag_detail(
 
 @router.patch("/tags/{tag_id}")
 def admin_update_tag_weight(
-    tag_id: int,
+    tag_id: UUID,
     data: schemas.WeightUpdate,
     db: Session = Depends(get_db),
     _: User = _manage_tags,

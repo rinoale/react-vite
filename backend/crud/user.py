@@ -11,7 +11,7 @@ def get_user_by_discord_id(db: Session, discord_id: str) -> User | None:
     return db.query(User).filter(User.discord_id == discord_id).first()
 
 
-def get_user_by_id(db: Session, user_id: int) -> User | None:
+def get_user_by_id(db: Session, user_id) -> User | None:
     return db.query(User).filter(User.id == user_id).first()
 
 
@@ -43,12 +43,12 @@ def link_discord(db: Session, user: User, discord_id: str, discord_username: str
     return user
 
 
-def get_user_roles(db: Session, user_id: int) -> list[str]:
+def get_user_roles(db: Session, user_id) -> list[str]:
     rows = db.query(Role.name).join(UserRole).filter(UserRole.user_id == user_id).all()
     return [r[0] for r in rows]
 
 
-def get_user_features(db: Session, user_id: int) -> list[str]:
+def get_user_features(db: Session, user_id) -> list[str]:
     rows = (
         db.query(FeatureFlag.name)
         .join(RoleFeatureFlag)
@@ -61,7 +61,7 @@ def get_user_features(db: Session, user_id: int) -> list[str]:
     return [r[0] for r in rows]
 
 
-def assign_role(db: Session, user_id: int, role_name: str) -> bool:
+def assign_role(db: Session, user_id, role_name: str) -> bool:
     role = db.query(Role).filter(Role.name == role_name).first()
     if not role:
         return False
@@ -73,7 +73,7 @@ def assign_role(db: Session, user_id: int, role_name: str) -> bool:
     return True
 
 
-def remove_role(db: Session, user_id: int, role_name: str) -> bool:
+def remove_role(db: Session, user_id, role_name: str) -> bool:
     role = db.query(Role).filter(Role.name == role_name).first()
     if not role:
         return False

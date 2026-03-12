@@ -16,7 +16,7 @@ import socket
 import threading
 import time
 from datetime import datetime, timezone
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from core.config import get_settings
 from db.connector import SessionLocal
@@ -59,11 +59,11 @@ signal.signal(signal.SIGTERM, _handle_signal)
 def execute_job(queue: str, message: JobMessage) -> None:
     broker = get_broker()
     job_name = message["job_name"]
-    run_id = message["run_id"]
+    run_id = UUID(message["run_id"]) if isinstance(message["run_id"], str) else message["run_id"]
 
     entry = REGISTRY.get(job_name)
     if not entry:
-        logger.error("Unknown job: %s (run_id=%d)", job_name, run_id)
+        logger.error("Unknown job: %s (run_id=%s)", job_name, run_id)
         broker.ack(queue, message)
         return
 
@@ -71,7 +71,7 @@ def execute_job(queue: str, message: JobMessage) -> None:
     try:
         run = db.get(JobRun, run_id)
         if not run:
-            logger.error("JobRun not found: %d", run_id)
+            logger.error("JobRun not found: %s", run_id)
             broker.ack(queue, message)
             return
 
@@ -80,7 +80,7 @@ def execute_job(queue: str, message: JobMessage) -> None:
         run.worker_id = WORKER_ID
         run.payload = json.dumps(payload, ensure_ascii=False) if payload else None
         db.commit()
-        logger.info("Running %s (run_id=%d) queue=%s payload=%s", job_name, run_id, queue, payload)
+        logger.info("Running %s (run_id=%s) queue=%s payload=%s", job_name, run_id, queue, payload)
         result = entry["fn"](db, payload=payload)
 
         run.status = "completed"
@@ -88,7 +88,7 @@ def execute_job(queue: str, message: JobMessage) -> None:
         run.finished_at = datetime.now(timezone.utc)
         db.commit()
         broker.ack(queue, message)
-        logger.info("Completed %s (run_id=%d): %s", job_name, run_id, result)
+        logger.info("Completed %s (run_id=%s): %s", job_name, run_id, result)
     except Exception as exc:
         db.rollback()
         run = db.get(JobRun, run_id)
@@ -98,7 +98,7 @@ def execute_job(queue: str, message: JobMessage) -> None:
             run.finished_at = datetime.now(timezone.utc)
             db.commit()
         broker.fail(queue, message, str(exc))
-        logger.exception("Failed %s (run_id=%d)", job_name, run_id)
+        logger.exception("Failed %s (run_id=%s)", job_name, run_id)
     finally:
         db.close()
 
@@ -148,12 +148,12 @@ def _scheduler_loop(queues: set[str]) -> None:
                 broker.enqueue(queue, {
                     "job_id": str(uuid4()),
                     "job_name": job_name,
-                    "run_id": run.id,
+                    "run_id": str(run.id),
                     "enqueued_at": datetime.now(timezone.utc).isoformat(),
                     "payload": {},
                 })
                 last_run[job_name] = now
-                logger.info("Scheduled %s (run_id=%d) queue=%s", job_name, run.id, queue)
+                logger.info("Scheduled %s (run_id=%s) queue=%s", job_name, run.id, queue)
             except Exception:
                 db.rollback()
                 logger.exception("Failed to schedule %s", job_name)

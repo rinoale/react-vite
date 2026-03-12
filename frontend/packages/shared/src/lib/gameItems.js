@@ -12,9 +12,10 @@ export const searchGameItemsLocal = (q, limit = 20) => {
     .slice(0, limit);
 };
 
-/** Typed items — curated subset with type for marketplace search */
+/** Typed items — searchable subset derived from GAME_ITEMS_CONFIG */
 
-export const getTypedItemsConfig = () => window.TYPED_ITEMS_CONFIG || [];
+export const getTypedItemsConfig = () =>
+  getGameItemsConfig().filter(gi => gi.searchable);
 
 export const searchTypedItems = (q, limit = 20) => {
   const lower = q.toLowerCase();

@@ -460,9 +460,11 @@ const ChipFilterPanel = ({
 
   const handleSelectEnchant = useCallback((item) => {
     const rangedEffects = (item.effects || [])
+      .map((e, idx) => ({ ...e, effect_order: idx }))
       .filter((e) => e.ranged)
       .map((e) => ({
-        enchant_effect_id: e.enchant_effect_id,
+        enchant_id: item.id,
+        effect_order: e.effect_order,
         option_name: e.option_name,
         op: 'gte',
         value: '',

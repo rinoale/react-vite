@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from fastapi import Cookie, Depends, HTTPException, status
 from fastapi.responses import RedirectResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -28,7 +30,7 @@ def _extract_user(
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token")
         return None
 
-    user = get_user_by_id(db, int(payload["sub"]))
+    user = get_user_by_id(db, UUID(payload["sub"]))
     if not user or user.status != 0:
         if required:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User inactive or not found")
@@ -90,7 +92,7 @@ def is_admin_user(
     payload = decode_token(token)
     if not payload or payload.get("type") != "access":
         return False
-    user = get_user_by_id(db, int(payload["sub"]))
+    user = get_user_by_id(db, UUID(payload["sub"]))
     if not user or user.status != 0:
         return False
     roles = get_user_roles(db, user.id)

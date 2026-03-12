@@ -123,7 +123,7 @@ def parse_enchant_filters(raw_json):
                 value = eff.get('value')
                 if eff_id is not None and value is not None:
                     effects.append({
-                        'id': int(eff_id),
+                        'id': eff_id,
                         'op_sql': _OP_MAP.get(op, '>='),
                         'value': int(value),
                     })
@@ -223,7 +223,7 @@ def create_listing(payload, db, *, user_id=None):
 
         db.commit()
         db.refresh(listing)
-        logger.info("register-listing  persisted listing id=%d name=%r enchants=%d options=%d",
+        logger.info("register-listing  persisted listing id=%s name=%r enchants=%d options=%d",
                      listing.id, listing.name, len(payload.enchants), len(payload.listing_options))
     except HTTPException:
         raise
@@ -732,7 +732,7 @@ def _fetch_listings_by_ids(db, listing_ids, limit=50, offset=0):
     return listings
 
 
-def _resolve_listing_tags(db: Session, listing_id: int):
+def _resolve_listing_tags(db: Session, listing_id):
     """Resolve all tags for a single listing (used by detail view)."""
     rows = db.execute(
         text("""
@@ -757,7 +757,7 @@ def _resolve_listing_tags(db: Session, listing_id: int):
     return [{"name": r["name"], "weight": r["weight"]} for r in rows]
 
 
-def _build_enchant_detail(db: Session, listing_id: int, enchant_id: int, slot: int):
+def _build_enchant_detail(db: Session, listing_id, enchant_id, slot: int):
     """Build enchant detail dict with all effects for a single enchant slot."""
     enc = db.query(models.Enchant).filter(models.Enchant.id == enchant_id).first()
     if not enc:
@@ -785,7 +785,7 @@ def _build_enchant_detail(db: Session, listing_id: int, enchant_id: int, slot: i
     }
 
 
-def get_listing_detail(db: Session, listing_id: int):
+def get_listing_detail(db: Session, listing_id):
     """Fetch full listing detail including enchants, options, tags, and seller info."""
     listing = db.query(models.Listing).filter(models.Listing.id == listing_id).first()
     if not listing:

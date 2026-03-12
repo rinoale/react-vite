@@ -26,7 +26,7 @@ class Recommender:
         self.corpus = [f"{item['name']} {item['category']} {item['description']}" for item in ITEMS_DB]
         self.tfidf_matrix = self.vectorizer.fit_transform(self.corpus)
 
-    def get_recommendations(self, item_id: int, top_k: int = 3):
+    def get_recommendations(self, item_id, top_k: int = 3):
         """
         Content-Based Filtering:
         Find items similar to the given item_id based on text description.
@@ -54,7 +54,7 @@ class Recommender:
         
         return recommendations[:top_k]
 
-    def recommend_for_user(self, user_history_ids: list[int], top_k: int = 3):
+    def recommend_for_user(self, user_history_ids: list, top_k: int = 3):
         """
         Hybrid/User-Basedish:
         Aggregate recommendations based on all items in user's history.

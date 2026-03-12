@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -14,7 +16,7 @@ _master_required = Depends(require_role("master"))
 @router.get("/activity-logs")
 def admin_list_activity_logs(
     action: str = Query(default=""),
-    user_id: int | None = Query(default=None),
+    user_id: UUID | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),

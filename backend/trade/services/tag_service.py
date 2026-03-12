@@ -69,11 +69,11 @@ def create_listing_tags(listing, payload, db):
             _attach_tag(db, tag, 'listing', listing.id, 0)
 
         db.commit()
-        logger.info("register-listing  tags created for listing id=%d user=%d auto=%d",
+        logger.info("register-listing  tags created for listing id=%s user=%d auto=%d",
                      listing.id, min(len(payload.tags), 3), len(auto_tags))
     except Exception:
         db.rollback()
-        logger.exception("register-listing  tag creation failed for listing id=%d", listing.id)
+        logger.exception("register-listing  tag creation failed for listing id=%s", listing.id)
 
 
 def _build_auto_tags(payload, db):

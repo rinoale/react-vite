@@ -6,9 +6,9 @@ from lib.utils.log import logger
 def log_activity(
     *,
     action: str,
-    user_id: int | None = None,
+    user_id=None,
     target_type: str | None = None,
-    target_id: int | None = None,
+    target_id=None,
     metadata: dict | None = None,
 ):
     """Write an activity log entry using its own DB session.

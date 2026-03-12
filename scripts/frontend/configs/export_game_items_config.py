@@ -1,46 +1,51 @@
 #!/usr/bin/env python3
 """Export game items to a static JS file for frontend client-side searching.
 
+Reads: data/source_of_truth/game_item.yaml
 Generates: frontend/packages/trade/public/game_items_config.js
 """
 
 import json
 import os
 import sys
-from sqlalchemy import text
+
+import yaml
 
 PROJECT_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '..')
-sys.path.append(os.path.join(PROJECT_ROOT, 'backend'))
-from db.connector import SessionLocal
-
+SOURCE_PATH = os.path.join(PROJECT_ROOT, 'data', 'source_of_truth', 'game_item.yaml')
 _FRONTEND_DIR = os.environ.get('FRONTEND_DIST_DIR', os.path.join(PROJECT_ROOT, 'frontend', 'packages', 'trade', 'public'))
 OUTPUT_PATH = os.path.join(_FRONTEND_DIR, 'game_items_config.js')
 
 
 def export_config():
-    db = SessionLocal()
-    try:
-        print("Fetching game items from database...")
-        rows = db.execute(
-            text("SELECT id, name FROM game_items ORDER BY name")
-        ).mappings()
+    if not os.path.exists(SOURCE_PATH):
+        print(f"Error: {SOURCE_PATH} not found")
+        sys.exit(1)
 
-        items = [{"id": r["id"], "name": r["name"]} for r in rows]
+    print(f"Reading game items from {SOURCE_PATH}...")
+    with open(SOURCE_PATH, encoding='utf-8') as f:
+        data = yaml.safe_load(f) or []
 
-        os.makedirs(os.path.dirname(OUTPUT_PATH), exist_ok=True)
+    items = [
+        {
+            "id": item["id"],
+            "name": item["name"],
+            "type": item.get("type"),
+            "searchable": item.get("searchable", False),
+            "tradable": item.get("tradable", True),
+        }
+        for item in data
+    ]
 
-        with open(OUTPUT_PATH, 'w', encoding='utf-8') as f:
-            f.write("// Generated static config for client-side game item lookup\n")
-            f.write("window.GAME_ITEMS_CONFIG = ")
-            json.dump(items, f, ensure_ascii=False, indent=2)
-            f.write(";\n")
+    os.makedirs(os.path.dirname(OUTPUT_PATH), exist_ok=True)
 
-        print(f"Successfully exported {len(items)} game items to {OUTPUT_PATH}")
+    with open(OUTPUT_PATH, 'w', encoding='utf-8') as f:
+        f.write("// Generated from data/source_of_truth/game_item.yaml\n")
+        f.write("window.GAME_ITEMS_CONFIG = ")
+        json.dump(items, f, ensure_ascii=False, indent=2)
+        f.write(";\n")
 
-    except Exception as e:
-        print(f"Error exporting config: {e}")
-    finally:
-        db.close()
+    print(f"Successfully exported {len(items)} game items to {OUTPUT_PATH}")
 
 
 if __name__ == "__main__":

@@ -42,9 +42,7 @@ saved_models
 tmp/
 
 # Generated
-frontend/packages/trade/public/enchants_config.js
-frontend/packages/trade/public/game_items_config.js
-frontend/packages/trade/public/reforges_config.js
+frontend/packages/trade/public/*_config.js
 
 # Misc
 

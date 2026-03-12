@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
@@ -22,7 +24,7 @@ router = APIRouter()
 
 @router.get("/listings")
 def get_listings(
-    game_item_id: int | None = Query(default=None),
+    game_item_id: UUID | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
@@ -35,7 +37,7 @@ def search_listings(
     request: Request,
     q: str = Query(default=""),
     tags: list[str] = Query(default=[]),
-    game_item_id: int | None = Query(default=None),
+    game_item_id: UUID | None = Query(default=None),
     reforge_filters: str | None = Query(default=None),
     enchant_filters: str | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=200),
@@ -71,7 +73,7 @@ def get_my_listings(
 
 @router.patch("/listings/{listing_id}/status")
 def update_status(
-    listing_id: int,
+    listing_id: UUID,
     body: _StatusUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -100,7 +102,7 @@ def get_listing_by_code(code: str, db: Session = Depends(get_db), current_user: 
 
 
 @router.get("/listings/{listing_id}")
-def get_listing(listing_id: int, db: Session = Depends(get_db), current_user: User | None = Depends(optional_user),
+def get_listing(listing_id: UUID, db: Session = Depends(get_db), current_user: User | None = Depends(optional_user),
                 bg: BackgroundTasks = None):
     result = get_listing_detail(db, listing_id)
     if result is None:

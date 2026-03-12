@@ -49,7 +49,7 @@ export const searchListings = (q, tags, { limit, offset, gameItemId, attrFilters
         name: f.name,
         effects: (f.effectFilters || [])
           .filter((ef) => ef.value !== '' && ef.value != null)
-          .map((ef) => ({ id: ef.enchant_effect_id, op: ef.op, value: parseInt(ef.value, 10) })),
+          .map((ef) => ({ enchant_id: ef.enchant_id, effect_order: ef.effect_order, op: ef.op, value: parseInt(ef.value, 10) })),
       })),
     );
   }
