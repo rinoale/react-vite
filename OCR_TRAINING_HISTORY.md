@@ -30,6 +30,8 @@ Each attempt has identified and fixed a specific bottleneck, steadily raising re
 | 22 | — | **90.4%** | — | No retraining — wired prefix detection into all V3 segments + subbullet slicing. `ㄴ` prefix now sliced before OCR (was only flagged). Non-ranged enchant FM uses DB text directly (no number regex). **184/311 exact (59.2%), FM=60.** +33 exact matches from pipeline changes alone. |
 | 23 | — | **94.5%** | — | No retraining — dedicated section handlers for item_mod, erg, set_item with structured extraction. Decorator-driven handler architecture (`@detect_prefix`, `@filter_prefix`, `@plain_lines_only`). Erg `@plain_lines_only` filters noise lines before OCR → 100%. Item_mod hardcodes `content_ng_reader` (headers always NanumGothic) → 100%. Set_item regex `(.+(?:강화\|증가))\s*\+\s*(\d+)` + FM(cutoff=90) → 95.8%. Frontend structured correction UI (inline selects + inputs). **398/557 exact (71.5%), FM=242.** Test set expanded with more GT lines. |
 | 24 | — | **94.6%** | — | No retraining — **Greedy Group Merging** line detection replaces gap-tolerance + `_has_internal_gap` + `_split_tall_block`. Eliminates false h=6 fragments from Korean characters with horizontal vowel ㅡ (증, 스, 승). Vertical padding removed from prefix detection and OCR crops (centered windows already provide margin). **429/597 exact, FM=268.** +3 exact from baseline 426/597. |
+| 25 | 99.94% (synth) | — | — | **Jamo OCR model experiment (abandoned).** Korean syllable decomposition (NFD) reduces charset from 738→108 (60 jamo + 48 others). Same images, labels converted to 초성/중성/종성. Trained `general_mabinogi_classic` jamo-v1: 24,197 images, 10k iters. Synthetic verification: jamo 500/500 (100%) vs syllable 494/500 (98.8%). Deployed as `JamoReader` wrapper (NFC recompose + strip orphaned 중성 + re-NFC) for `item_attrs` section only. MC-only eval (19 images): **item_attrs 102/216 (47.2%)** vs syllable baseline 90/216 (41.7%), **+12 exact**. Total 422/585 vs 410/585. Char accuracy slightly lower (85.9% vs 87.0%) — jamo produces wrong-but-valid syllables when vowel prediction is off (e.g. `정화` instead of `장화`). Not pursued further. |
+| 26 | 100% (synth) | — | — | **general_attr_mabinogi_classic v1** — binary-trained attr model for item_attrs/item_grade. Color masking preprocessing (exact match: white/blue/yellow). Binary threshold(128) in training data. Digit 6→8 confusion: 0→12 correct. Delimiters: `.` 100%, `~` 60%, `%` 72%, `/` 73%, `:` 24%. item_attrs 80/216 (37.0%), 66.3% char acc, FM=57. |
 
 Real-world char accuracy: **0% → 19.5% → 35.8% → 27.0% (regression) → 36.2% → 38.1% → 52.4% → 75.5% → 77.0% → 87.5% → 88.6% → 86.7% → 86.9% → 88.5% → 84.7% → 90.4% → 94.5% → 94.6%**. Note: Attempt 18 shows lower char_acc than 17b (86.7% vs 88.6%) because the test set expanded from 5→8 images (3 new images without GT reduce the measured total). On the same 5 GT images, exact matches jumped 67→104. Attempts 1-15 improved the OCR model. Attempt 16 regressed (charset expansion). Attempts 17/17b redesigned the pipeline without retraining. Attempt 18 fixed a fundamental EasyOCR inference bug ("double-dip resize") that affected all models since the beginning. Enchant Header v2 retrained with more variation but was essentially flat — header model was not the bottleneck. Attempt 19 proved that mixing real user crops into training data dramatically improves accuracy — validating the user correction feedback pipeline as a strategy. Attempt 20 added three-strategy enchant resolution — no retraining, pipeline-only improvement that uses DB effects as templates with OCR rolled values. Attempt 21 retrained general_mabinogi_classic content model (v1) and refactored prefix detection to config-driven architecture; char_acc appears lower (84.7% vs 88.5%) because the test set expanded to 19 images — on the same images, exact matches improved significantly (151 vs 128). Attempt 22 wired prefix detection to all content segments and extended subbullet slicing — the `ㄴ` glyph polluted OCR input across item_mod (+22), set_item (+4), reforge (+3), and item_attrs (+3). Also fixed enchant FM to use DB text directly for non-ranged effects instead of fragile number extraction/injection. Attempt 23 added dedicated section handlers (item_mod, erg, set_item) with structured extraction — each handler uses decorators to filter relevant lines before OCR, reducing noise and compute. Erg and item_mod reached 100% accuracy. The decorator-based handler architecture makes adding new sections trivial (regex + FM, ~80 lines each). Attempt 24 replaced the line detection algorithm: Greedy Group Merging eliminates false splits on Korean characters with internal gaps, and removing vertical padding from crops tightened both prefix detection and OCR input.
 
@@ -1977,3 +1979,71 @@ Previous: 426/597 exact, 94.5% char acc. **+3 exact matches, +26 FM.**
 **Don't fight the gap — use the physical constraint.** The old approach tried to classify gaps as "character-internal" vs "inter-line" using thresholds, but both types can be 1-2 pixels wide. Greedy Group Merging sidesteps the classification problem entirely: it doesn't care why a gap exists, only whether the total span of accumulated groups fits within the known height of a text line. The min_height parameter (13px) encodes a physical fact about the game's rendering, not a tuned threshold.
 
 The centered windows also made vertical padding unnecessary — and harmful. Padding inflated crop heights, which inflated ratio-based thresholds in prefix detection and fed oversized images to OCR. Removing padding from both prefix detection and OCR crops was essential to realize the full benefit.
+
+---
+
+## Attempt 25: Jamo OCR Model (abandoned)
+
+Decomposed Korean syllables into jamo (초성/중성/종성) via NFD to reduce charset from 738→108. Trained on same images with jamo labels. Item_attrs improved (+12 exact), but char accuracy slightly worse due to vowel prediction errors producing wrong-but-valid syllables. Not pursued further — the reduced charset benefit was marginal.
+
+---
+
+## Attempt 26: general_attr_mabinogi_classic v1 (binary-trained)
+
+Dedicated attr model for item_attrs/item_grade sections with color masking preprocessing.
+
+### Model Config
+
+- **Model type**: `general_attr_mabinogi_classic` v1
+- **Architecture**: TPS-ResNet-BiLSTM-CTC, imgH=32, imgW=200, hidden_size=256
+- **Charset**: 738 chars (from `generate_attr_template_lines()`)
+- **Training data**: 2,492 images, number-oversampled variant of general_mabinogi_classic
+- **Training**: 10,000 iterations, batch_size=64, 100% synthetic accuracy
+- **Font**: mabinogi_classic.ttf, sizes [11, 11, 12, 12, 13, 13]
+- **Key difference**: `threshold(128)` after grayscale render → strict binary (0/255) training images
+
+### Preprocessing (inference)
+
+- **Color masking** (`_color_mask_binary` in `item_attrs.py`): exact-color match for white (255,255,255), blue (74,149,238), yellow (255,252,157) → binary (ink=0, bg=255). Zero tolerance. Replaces BT.601+threshold=80 for item_attrs only.
+- **Line splitting**: standard `detect_centered_lines` on color-masked binary
+- **OCR**: standard `ocr_grouped_lines` (word-split tested but reverted — destroyed delimiter context)
+
+### Pipeline wiring (`v3.py`)
+
+```python
+# Init
+attr_mc_reader = easyocr.Reader(['ko'], ..., recog_network='custom_attr_mabinogi_classic')
+patch_reader_imgw(attr_mc_reader, ..., recog_network='custom_attr_mabinogi_classic')
+
+# Routing (item_attrs and item_grade only, mabinogi_classic font only)
+if section_key in ('item_attrs', 'item_grade') and detected_font != 'nanum_gothic':
+    section_reader = _pipeline['attr_mc_reader']
+```
+
+### Results (digit/delimiter/unit, item_attrs only)
+
+| Char | Grayscale model + colormask | Binary attr + colormask |
+|------|---------------------------|------------------------|
+| `%` | 37/49 (76%) | 34/47 (72%) |
+| `.` | 12/12 (100%) | 12/12 (100%) |
+| `/` | 24/27 (89%) | 19/26 (73%) |
+| `:` | 13/30 (43%) | 7/29 (24%) |
+| `~` | 1/15 (7%) | 9/15 (60%) |
+| Digit 6 | 0 correct, 22 confused | 12 correct, 7 confused |
+
+Overall item_attrs: 80/216 (37.0%), 66.3% char acc, FM=57.
+
+### Key Findings
+
+1. **Binary training fixed 6→8 confusion**: 0→12 correct. Root cause confirmed: grayscale AA in training blurred the 1-pixel feature distinguishing open-top (6) from closed-top (8).
+2. **Word-split OCR hurt delimiters**: splitting lines at word spaces destroyed BiLSTM context — `.` dropped 100%→17%, `:` dropped 24%→0%. Reverted.
+3. **EasyOCR BICUBIC resize (imgH=32) reintroduces grey pixels**: both binary training and binary inference images become grayscale after the 2.46× upscale. The binary training fix works by changing glyph shape, not by preserving binary values.
+4. **imgH=13 patch identified**: Real crops are ~13px. Patching ResNet (`maxpool1` (2,2)→(1,2), `conv4_2` kernel (2,2)→(1,2)) allows imgH=13, eliminating resize entirely. Not yet trained — next step.
+
+### Files Changed
+
+| File | Change |
+|------|--------|
+| `scripts/ocr/general_attr_mabinogi_classic_model/generate_training_data.py` | Added `threshold(128)` after grayscale render |
+| `backend/lib/pipeline/section_handlers/item_attrs.py` | `_color_mask_binary` preprocessing, word-split added then reverted |
+| `backend/lib/pipeline/v3.py` | `attr_mc_reader` init + routing for item_attrs/item_grade |

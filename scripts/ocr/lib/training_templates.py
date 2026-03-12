@@ -229,7 +229,7 @@ def _load_set_item_names():
         return []
 
     names = set()
-    pat = re.compile(r'세트 효과 (.+?) 강화 \+\d+ 주문서')
+    pat = re.compile(r'세트 효과 (.+?) (?:강화|증가) \+\d+ 주문서')
     with open(ITEM_NAME_DICT_PATH, 'r', encoding='utf-8') as f:
         for line in f:
             m = pat.match(line.strip())
@@ -670,7 +670,8 @@ def collect_all_chars():
         '최대 생명력', '보너스 대미지', '최대 마나', '등급 보너스 대미지',
         # Ergo
         '등급', '에르그 이전 불가',
-        '무기 공격력', '무기 마법 공격력', '모든 속성 연금술 대미지',
+        '무기 공격력', '무기 마법 공격력', '마법 공격력', '모든 속성 연금술 대미지',
+        '전투 점성술 재능 스킬 대미지',
         '마리오네트', '스플래시 반경',
         # Artisan
         '최대스태미나', '최대생명력', '솜씨', '체력',

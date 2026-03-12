@@ -76,6 +76,7 @@
 - underfitting: when a model fails to learn patterns adequately
 - benchmark: a standard test used to compare performance
 - evaluation: measuring system/model quality using defined metrics
+- heuristic: a practical, "rule-of-thumb" approach to problem-solving that is not guaranteed to be perfect but is sufficient for immediate goals. Example: "The line splitter uses a simple **heuristic** to detect borders based on pixel density rather than a complex neural network."
 
 ### Software Architecture and Design
 - abstraction: hiding complexity behind a simpler interface
@@ -92,6 +93,7 @@
 - extensibility: ease of adding new features without major rewrites
 - interoperability: ability of systems to work together
 - orthogonal: property of a system where components or features can vary independently without affecting each other. Example: "The database schema is **orthogonal** to the UI design, allowing us to change the layout without modifying the table structure."
+- ephemeral: lasting for a very short time; in IT, often refers to temporary resources like containers or storage that are destroyed after use. Example: "Docker containers provide an **ephemeral** environment that is wiped clean after the process finishes."
 
 ### Backend and Distributed Systems
 - stateful: system that keeps session/state between requests

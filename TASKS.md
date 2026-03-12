@@ -351,6 +351,11 @@ Jobs are registered in `backend/jobs/__init__.py` and manageable from the admin 
 ### Implemented
 - [x] **cleanup_zero_weight_tags** — Delete user-created tags with weight 0 (queue: `default`)
 - [x] **run_v3_pipeline** — Run V3 OCR pipeline on uploaded image (queue: `gpu`, lazy import)
+- [x] **Worker heartbeat** — Redis SET-based heartbeat (`jobs:{queue}:workers`, 60s TTL, 30s refresh). Broker rejects jobs with `NoWorkerError` (HTTP 503) when no worker is listening.
+- [x] **Admin worker count** — Jobs panel shows live worker count per queue with green/red badges
+- [x] **Remote worker via SSH tunnel** — `scripts/worker/run-remote.sh` opens SSH tunnel to staging (Redis + DB), loads staging env, runs worker locally with GPU
+- [x] **Pipeline init singleton** — `init_pipeline()` guard prevents reloading all OCR models (~10s) on every job
+- [x] **Worker logging fix** — Alembic's `fileConfig()` disables pre-existing loggers; worker restores them after migration
 
 ### Planned
 - [ ] **gather_discord_images** — Collect item screenshots uploaded to connected Discord channels (better UX for users)
@@ -358,8 +363,9 @@ Jobs are registered in `backend/jobs/__init__.py` and manageable from the admin 
 - [ ] **get_horn_bugle** — Fetch in-game chat data every 2 minutes (scheduled, needs APScheduler or similar)
 
 ### Tech Stack
-- **Current:** Redis broker + standalone worker process (`worker.py --queues ...`), `job_runs` DB table
+- **Current:** Redis broker + standalone worker process (`worker.py --queues ...`), `job_runs` DB table, heartbeat-based worker presence detection
 - **Queue routing:** `default` (lightweight), `gpu` (OCR pipeline). Worker accepts `--queues` to select which queues to handle.
+- **Remote worker:** SSH tunnel approach — Redis and DB bound to localhost on staging, remote worker tunnels through SSH. No ports exposed publicly.
 - **Future (when scheduling needed):** Add APScheduler with PostgreSQL job store for periodic jobs (horn_bugle every 2 min, etc.)
 
 ---
@@ -393,15 +399,21 @@ Can we save image upload traffic by scanning Discord channels for item screensho
 
 **Evaluation:** Feasible via Discord bot API (`discord.py`). The bot watches specific channels, downloads images, and queues them for the V3 pipeline. Saves user effort but adds complexity: bot hosting, channel permissions, mapping Discord user → app user. Already have a planned `gather_discord_images` background job. Medium-high complexity — needs Discord bot setup + user linking.
 
-### Listing Status
+### Listing Status Behavior
 
-Listings need a lifecycle status:
-- **draft** — saved but not publicly visible
-- **listed** — active and searchable
-- **sold** — transaction completed, kept for history
-- **deleted** — soft-deleted, not visible
+DB column exists (`status`: 0=draft, 1=listed, 2=sold, 3=deleted). Remaining work is status-driven behavior:
+- **Draft**: editable (modify item details, re-upload image), not visible in marketplace search
+- **Listed**: publicly searchable, read-only (no edits)
+- **Sold**: archived, shown in seller history, not searchable
+- **Deleted**: soft-deleted, hidden from all public views, visible in admin
 
-**Evaluation:** Add a `status` column (text or smallint) to the `listings` table. Filter by `status = 'listed'` in all public queries (search, get_listings). Admin can see all statuses. Low complexity — one column, update queries to add WHERE filter, frontend status badge.
+**Done:**
+- [x] Filter marketplace queries by `status = 1` (listed only)
+- [x] Status transition API (`PATCH /listings/{id}/status`)
+
+**Remaining:**
+- [ ] Draft editing flow in frontend (My Listings → edit draft → publish)
+- [ ] Admin: show all statuses with filter
 
 ### Background Jobs (Extended)
 
@@ -437,6 +449,16 @@ Medium complexity — touches pipeline handler, listing creation, and frontend d
 ---
 
 ## Infrastructure
+
+### Completed
+- [x] **Docker image split** — `mabi-base` replaced by `mabi-backend` (slim, ~30s build) + `mabi-worker` (full ML deps, ~15min ARM64 build). Backend rebuilds no longer blocked by PyTorch compilation.
+- [x] **OCR models + data in Docker image** — `mabi-ocr-models` bundles models, dictionary, source_of_truth, fonts. `infra/ocr-models/build.sh` stages everything.
+- [x] **rclone image transfer** — `scripts/ocr/sync-image.sh` uploads/downloads Docker images via Google Drive. Replaces manual rclone commands.
+- [x] **Data extraction from Docker** — `docker create mabi-ocr-models true` + `docker cp` extracts data to server. No more rsync for data files.
+- [x] **Training data cleanup** — `scripts/ocr/cleanup-train-data.sh` removes train_data/train_data_lmdb from inactive model versions (~1.2GB freed). Dry run by default, `--force` to delete.
+- [x] **Nginx security** — Block `.php/.cgi/.asp/.aspx` vulnerability scanner probes with `return 444` in `infra/nginx/stg.conf`
+- [x] **Redis localhost binding** — Staging Redis bound to `127.0.0.1:6379` (was `0.0.0.0`). Remote workers use SSH tunnel.
+- [x] **Credential cleanup** — Removed hardcoded server IP from `documents/DEPLOY.md` and `documents/ARCHITECTURE.md`
 
 ### Replace `sys.path` hacks with `PROJECT_ROOT` env var
 (See Backend section above — affects both backend and scripts infrastructure.)
