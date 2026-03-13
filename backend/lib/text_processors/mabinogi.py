@@ -172,10 +172,14 @@ class MabinogiTextCorrector(TextCorrector):
             for eff in raw_effects:
                 if isinstance(eff, dict):
                     effects.append(eff['effect'])
-                    full = f"{eff['condition']} {eff['effect']}"
+                    cond = eff.get('condition')
+                    if cond:
+                        full = f"{cond} {eff['effect']}"
+                        norm_full = f"{cond} {_normalize_nums(eff['effect'])}"
+                    else:
+                        full = eff['effect']
+                        norm_full = _normalize_nums(eff['effect'])
                     effects_full.append(full)
-                    # Only normalize effect numbers; condition numbers are DB constants
-                    norm_full = f"{eff['condition']} {_normalize_nums(eff['effect'])}"
                     effects_full_norm.append((norm_full, full))
                 else:
                     effects.append(eff)
