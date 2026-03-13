@@ -603,10 +603,64 @@ All models: TPS-ResNet-BiLSTM-CTC architecture, imgH=32, `sensitive=true`, `PAD=
 | Source | Path | Purpose |
 |--------|------|---------|
 | `enchant.yaml` | `data/source_of_truth/enchant.yaml` | Canonical enchant DB: 1,172 entries with slot/name/rank/effects |
+| `effect.yaml` | `data/source_of_truth/effect.yaml` | 68 unique effect definitions (name, is_pct) |
+| `reforge.yaml` | `data/source_of_truth/reforge.yaml` | 527 reforge options |
+| `echostone.yaml` | `data/source_of_truth/echostone.yaml` | 580 echostone options |
+| `murias_relic.yaml` | `data/source_of_truth/murias_relic.yaml` | 30 murias relic options |
+| `game_item.yaml` | `data/source_of_truth/game_item.yaml` | ~20k game items |
 | FM dictionaries | `data/dictionary/*.txt` | Runtime FM: `reforge.txt`, `tooltip_general.txt`, `item_name.txt`, `enchant_prefix.txt`, `enchant_suffix.txt` |
 | Training words | `data/train_words/*.txt` | Training-only: `enchant_slot_header.txt`, `item_type_armor.txt`, `item_type_melee.txt`, `special_weight_item_name.txt` |
 | Tooltip config | `configs/mabinogi_tooltip.yaml` | Section definitions, header patterns, parse modes, detection params |
 | GT images | `data/sample_images/*_original.png` | Test images with ground truth `.txt` files |
+
+### Source of Truth: Pre-Assigned IDs
+
+All static data managed in `data/source_of_truth/` has **pre-assigned UUIDs** in the YAML files. These IDs are the single source of truth — the DB import script uses them directly, and the frontend config export includes them so the client can reference entities by ID.
+
+**ID hierarchy in `enchant.yaml`:**
+```yaml
+- id: <enchant UUID>              # enchants table PK
+  name: 성단
+  slot: 접미
+  effects:
+  - id: <enchant_effect UUID>     # enchant_effects table PK (unique per enchant+effect)
+    effect_id: <effect UUID>      # FK → effects table (from effect.yaml)
+    effect: 최대대미지 8 ~ 16 증가
+  - id: <enchant_effect UUID>
+    effect_id: <effect UUID>
+    condition: 컴뱃 마스터리 랭크 9 이상일 때
+    effect: 최소대미지 5 ~ 10 증가
+```
+
+Each entity type has its own ID:
+
+| Entity | YAML field | DB table PK | Notes |
+|--------|-----------|-------------|-------|
+| Enchant | `enchant.id` | `enchants.id` | Top-level enchant definition |
+| Enchant Effect | `enchant.effects[].id` | `enchant_effects.id` | Unique per (enchant, effect) pair |
+| Effect | `effect.id` / `enchant.effects[].effect_id` | `effects.id` | Shared effect definition (e.g., "최대대미지") |
+| Reforge Option | `reforge[].option_id` | `reforge_options.id` | |
+| Echostone Option | `echostone[].id` | `echostone_options.id` | |
+| Murias Relic Option | `murias_relic[].id` | `murias_relic_options.id` | |
+| Game Item | `game_item[].id` | `game_items.id` | |
+
+**Convention: No name-based ID resolution.** The frontend receives all static data with IDs via config files (`window.ENCHANTS_CONFIG`, etc.) exported from the YAML. When submitting data to the backend (e.g., registering a listing), the frontend sends the entity's `id` directly. The backend never queries `WHERE name = :name` to find a static entity's ID.
+
+**Polymorphic `listing_options` table:** All option types (enchant_effects, reforge, echostone, murias) are stored in a single table with `option_type` discriminator and `option_id` pointing to the source table's PK:
+
+| option_type | option_id → | Source table |
+|---|---|---|
+| `enchant_effects` | `enchant_effects.id` | Per-enchant effect (not `effects.id`) |
+| `reforge_options` | `reforge_options.id` | Reforge option definition |
+| `echostone_options` | `echostone_options.id` | Echostone option definition |
+| `murias_relic_options` | `murias_relic_options.id` | Murias relic option definition |
+
+**Pipeline:** YAML → DB import (`scripts/db/import_dictionaries.py`) → frontend config export (`scripts/frontend/configs/export_*.py`) → browser config (`window.*_CONFIG`). IDs flow unchanged through the entire chain.
+
+**Scripts:**
+- `scripts/db/add_effect_ids_to_enchant.py` — one-time: generate stable `enchant_effects` IDs and resolve `effect_id` references in `enchant.yaml`
+- `scripts/db/import_dictionaries.py --force` — import all YAML into DB (requires truncate first if IDs changed)
+- `scripts/frontend/configs/export_enchant_config.py` — export enchant config with all IDs to frontend
 
 ---
 
