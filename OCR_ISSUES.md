@@ -120,6 +120,47 @@ Ink ratio gap: real padded crops 0.201 vs synthetic 0.144 (strokes ~1.4× thicke
 
 10. **v1 content model training pending** — Both font-specific models (mabinogi_classic, nanum_gothic_bold) training with new data: 748-char charset, enchant.yaml-sourced effects, no bullet prefixes, reduced threshold noise. Deploy and evaluate after training completes.
 
+13. **Digit 6→8 systematic misrecognition (item_attrs)** — 0/23 correct for digit `6` in color-masked item_attrs OCR. The model reads every `6` as `8`.
+
+    **Root cause: grayscale training vs binary inference.** Training images are rendered in PIL grayscale mode ('L'), producing anti-aliased edges with intermediate pixel values (grey fringe). Real inference crops from color masking are strict binary (0/255 only). The 1-pixel feature that distinguishes `6`'s open top from `8`'s closed top gets softened by anti-aliasing in training — the model never learns the binary distinction.
+
+    Pixel grid comparison (sz11, 5x7 ink bounding box):
+    - Real `6`: strict 0/255, top-right corner pixel is 255 (white/open)
+    - Training `6`: grey intermediate values (64-192) at the same corner, blurring the open/closed distinction
+    - Real `8`: strict 0/255, top-right corner pixel is 0 (black/closed)
+    - Training `8`: same grey fringe, making `6` and `8` training patterns nearly identical after resize
+
+    **Fix: binary threshold in training data generation.** Add `threshold(128)` after grayscale render to produce strict 0/255 training images matching inference input. File: `scripts/ocr/general_attr_mabinogi_classic_model/generate_training_data.py` — `render_grayscale()` currently returns PIL mode 'L' without binarization.
+
+    **Additional strategies (from literature):**
+    - **Oversample confusable pairs** — Add extra `6`/`8` training samples in varied contexts (different surrounding characters, positions)
+    - **Focal CTC Loss** — Down-weights easy characters, focuses gradient on hard confusable pairs. PaddleOCR implements this as Enhanced CTC Loss (Focal-CTC + Center Loss)
+    - **Center Loss (C-CTC)** — Pushes embeddings of confusable characters apart in feature space. Specifically designed for CTC-based recognizers where confusable pairs share similar hidden representations
+
+14. **Color masking preprocessing for item_attrs** — Implemented exact-color masking for mabinogi_classic font item_attrs section. Zero tolerance match for known text colors: white (255,255,255), blue (74,149,238), yellow (255,252,157). Produces cleaner binary than BT.601+threshold=80.
+
+    **Results vs BT.601 (digit/delimiter/unit comparison only):**
+    - Color mask: +11.4% exact match, +5.1% char accuracy on target characters
+    - Delimiter recognition (`/`, `.`) near-perfect with color mask
+    - Only remaining weakness: digit `6` (see issue #13)
+
+    **Missing colors:** Red (255,103,103), grey (128,128,128), light grey (167,167,167) lines are not captured. These colors are used for negative effects and disabled text — acceptable loss for item_attrs structured extraction.
+
+    **Word-split OCR:** Lines are split at zero-ink column gaps (word spaces) and each word is OCR'd individually. Keeps aspect ratios closer to model sweet spot (imgW/imgH = 6.25). Implemented in `_ocr_word_split()` in `item_attrs.py`.
+
+### Alternative OCR engines (research)
+
+Evaluated as potential replacements or supplements for EasyOCR's TPS-ResNet-BiLSTM-CTC:
+
+| Engine | Architecture | Pros | Cons |
+|--------|-------------|------|------|
+| **PaddleOCR** (v4) | SVTR (no LSTM), Enhanced CTC | Focal-CTC + C-CTC loss specifically addresses confusable chars; Korean support; active development; easy custom training | Separate ecosystem from EasyOCR |
+| **TrOCR** | Vision Transformer + GPT-2 decoder | Attention-based (no CTC path ambiguity); pre-trained on large corpus | Heavy (345M params); slow inference; fine-tuning needs substantial data |
+| **MMOCR** | Multiple backends (DBNet, CRNN, ABINet) | Modular; supports CTC and attention decoders | OpenMMLab dependency; complex config |
+| **docTR** | CRNN or ViT + CTC/Transformer | Clean API; supports custom training | Primarily document-focused; less game UI testing |
+
+**Recommendation:** PaddleOCR is the best fit if EasyOCR CTC limitations prove intractable. Its Enhanced CTC Loss directly targets the 6/8 confusion class of problems. However, the first step should be fixing training data to binary — this is the lowest-cost intervention and may resolve the issue within EasyOCR.
+
 ---
 
 ## Future: Frontend Tasks

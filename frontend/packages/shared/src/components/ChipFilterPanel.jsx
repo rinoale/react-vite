@@ -454,7 +454,7 @@ const ChipFilterPanel = ({
   }, [allEnchantItems, itemName, itemType, hasPrefix, hasSuffix]);
 
   const handleSelectReforge = useCallback((item) => {
-    onAddReforgeFilter({ option_name: item.option_name, op: 'gte', level: '', max_level: item.max_level || DEFAULT_REFORGE_MAX });
+    onAddReforgeFilter({ option_id: item.option_id, option_name: item.option_name, op: 'gte', level: '', max_level: item.max_level || DEFAULT_REFORGE_MAX });
     setAddMode(null);
   }, [onAddReforgeFilter]);
 
@@ -471,7 +471,7 @@ const ChipFilterPanel = ({
         min: e.min,
         max: e.max,
       }));
-    onAddEnchantFilter({ name: item.name, slot: item.slot, effectFilters: rangedEffects });
+    onAddEnchantFilter({ id: item.id, name: item.name, slot: item.slot, effectFilters: rangedEffects });
     setAddMode(null);
   }, [onAddEnchantFilter]);
 

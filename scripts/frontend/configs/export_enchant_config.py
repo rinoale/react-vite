@@ -4,8 +4,7 @@
 Reads: data/source_of_truth/enchant.yaml (IDs included in YAML)
 Generates: frontend/packages/trade/public/enchants_config.js
 
-No DB needed -- enchant IDs come from YAML. enchant_effect_id is not exported;
-the frontend matches by (enchant_id + effect_order) instead.
+No DB needed -- all IDs (enchant, effect) come from YAML.
 """
 
 import json
@@ -57,14 +56,11 @@ def export_config():
         rank_int = get_rank_int(rank_str)
         slot_int = 0 if slot_str == '접두' else 1
 
-        # Build structured effects: each is {text, option_name, suffix, ranged}
+        # Build structured effects: each is {effect_id, text, option_name, suffix, ranged}
         # so the frontend can reconstruct corrected text without regex.
         effects_list = []
         for eff in item.get('effects', []):
-            if isinstance(eff, str):
-                eff_text = eff
-                parse_text = eff
-            elif isinstance(eff, dict):
+            if isinstance(eff, dict):
                 cond = eff.get('condition', '')
                 effect = eff.get('effect', '')
                 eff_text = f"{cond} {effect}".strip() if cond and effect \
@@ -72,6 +68,7 @@ def export_config():
                 # Parse option_name from effect part only (not merged text)
                 # so it matches OCR-detected option_name which sees no condition
                 parse_text = effect if effect else eff_text
+                ee_id = eff.get('id')
             else:
                 continue
 
@@ -80,6 +77,7 @@ def export_config():
                 oname = parse_text[:m.start()].rstrip()
                 is_ranged = '~' in m.group()
                 eff_entry = {
+                    'id': ee_id,
                     'text': eff_text,
                     'option_name': oname if oname else None,
                     'suffix': parse_text[m.end():],
@@ -94,6 +92,7 @@ def export_config():
                 effects_list.append(eff_entry)
             else:
                 effects_list.append({
+                    'id': ee_id,
                     'text': eff_text,
                     'option_name': None,
                     'suffix': None,

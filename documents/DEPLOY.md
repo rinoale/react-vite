@@ -103,44 +103,63 @@ ENV_FILE=~/workspace/ocr_training_data/env/.env.staging
 
 ### `mabi-ocr-models` (~1.3GB)
 
-Minimal `FROM scratch` image containing only resolved OCR model `.pth` files + configs.
+Minimal `FROM scratch` image containing OCR model `.pth` files, configs, and data files (dictionary, source_of_truth, fonts).
 
 ```
 infra/ocr-models/
-├── Dockerfile          # FROM scratch, COPY /models/
-└── build.sh            # Resolves symlinks from backend/ocr/models/ → temp dir → docker build
+├── Dockerfile          # FROM scratch, COPY /models/ + /data/
+└── build.sh            # Resolves symlinks, stages data files → docker build
 ```
 
-Built and transferred only when OCR models are retrained (rare).
+Built and transferred only when OCR models are retrained or data files change (rare).
 
-### `mabi-base` (~2GB)
+Transfer via rclone + Google Drive:
+```bash
+bash scripts/ocr/sync-image.sh upload     # docker save → gzip → rclone to gdrive
+bash scripts/ocr/sync-image.sh download   # rclone → docker load
+bash scripts/ocr/sync-image.sh extract    # docker create → docker cp to project dirs
+```
 
-Python runtime + system deps + pip packages + OCR models. Source code is **not** baked in — it's volume-mounted via rsync.
+### `mabi-backend` (~300MB)
+
+Slim Python runtime for the web server. No OCR/ML packages, no models.
 
 ```dockerfile
-# infra/deploy/Dockerfile.base
-FROM mabi-ocr-models AS models
+# infra/deploy/Dockerfile.backend
 FROM python:3.14.2-slim
-
-# System deps (build tools for native Python packages + OpenCV)
-RUN apt-get install build-essential gcc g++ pkg-config rustc cargo libgl1 libglib2.0-0
-
-# Python deps
+RUN apt-get install build-essential gcc g++ pkg-config rustc cargo
 COPY requirements.txt /app/requirements.txt
 RUN pip install -r /app/requirements.txt
-
-# OCR models stored at /models/ (not /app/) to survive volume mount
-COPY --from=models /models/ /models/
-
 WORKDIR /app/backend
 CMD ["/app/startup.sh"]
 ```
 
-**Why models at `/models/` instead of `/app/`?** The docker-compose mounts `./app:/app`, which hides anything baked into `/app/` in the image. Models live at `/models/` and are symlinked at startup.
+Fast to build (~30s) since it only installs web dependencies.
+
+### `mabi-worker` (~2GB)
+
+Full OCR/ML runtime with PyTorch, EasyOCR, and all ML dependencies. Includes models and data from `mabi-ocr-models`.
+
+```dockerfile
+# infra/deploy/Dockerfile.base (worker image)
+FROM mabi-ocr-models AS models
+FROM python:3.14.2-slim
+RUN apt-get install build-essential gcc g++ pkg-config rustc cargo libgl1 libglib2.0-0
+COPY requirements.txt requirements-worker.txt /app/
+RUN pip install -r /app/requirements-worker.txt
+COPY --from=models /models/ /models/
+COPY --from=models /data/ /data/
+WORKDIR /app/backend
+CMD ["python", "worker.py", "--queues", "default", "gpu"]
+```
+
+**Why models at `/models/` and data at `/data/`?** The docker-compose mounts `./app:/app`, which hides anything baked into `/app/` in the image.
+
+Slow to build under ARM64 QEMU cross-compilation (~15min) due to PyTorch + Rust packages.
 
 ### Legacy `Dockerfile` (superseded)
 
-`infra/deploy/Dockerfile` bakes everything (source + deps + models + frontend) into one image. Superseded by `Dockerfile.base` + rsync approach. Kept for reference.
+`infra/deploy/Dockerfile` bakes everything (source + deps + models + frontend) into one image. Superseded by split images + rsync approach. Kept for reference.
 
 ## Container Startup: `infra/deploy/startup.sh`
 
@@ -175,9 +194,9 @@ exec uvicorn main:app --host 0.0.0.0 --port 8000
 ```yaml
 services:
   db:           # postgres:16-alpine, port 5432 (localhost only), db_data volume
-  redis:        # redis:7-alpine, port 6379, password-protected
-  backend:      # mabi-base:latest, volume-mounts ./app:/app + ocr_models:/models
-  worker:       # mabi-base:latest, runs `python worker.py`, same volumes as backend
+  redis:        # redis:7-alpine, port 6379 (localhost only), password-protected
+  backend:      # mabi-backend:latest, volume-mounts ./app:/app (no OCR deps)
+  worker:       # mabi-worker:latest, runs `python worker.py`, ./app + ocr_models:/models
   nginx:        # nginx:alpine, ports 80+443, certbot volumes (ro)
   certbot:      # certbot/certbot, auto-renewal loop (every 12h)
 
@@ -190,11 +209,10 @@ volumes:
 ```
 
 Key details:
-- `backend` reads `env_file: .env` (copied from staging env file during deploy)
-- `backend` gets DB + Redis credentials via both `env_file` and explicit `environment`
-- `redis` requires password (`REDIS_PASSWORD` from `.env`), data persisted in `redis_data` volume
-- `worker` uses the same `mabi-base` image and `./app` volume as `backend`; runs `python worker.py` (dequeue loop + scheduler thread)
-- `nginx` bind-mounts `./nginx.conf` (copied from `infra/nginx/stg.conf` during deploy)
+- `backend` uses `mabi-backend:latest` (slim, no OCR packages) — reads `env_file: .env`
+- `worker` uses `mabi-worker:latest` (full ML deps + models) — runs `python worker.py` (dequeue loop + scheduler thread)
+- `redis` bound to `127.0.0.1:6379` (not exposed publicly), password-protected. Remote workers connect via SSH tunnel.
+- `nginx` bind-mounts `./nginx.conf` (copied from `infra/nginx/stg.conf` during deploy). Blocks `.php/.cgi/.asp/.aspx` probes with `return 444`.
 - `certbot` runs an infinite renewal loop: `certbot renew; sleep 12h`
 
 ## SSL / HTTPS

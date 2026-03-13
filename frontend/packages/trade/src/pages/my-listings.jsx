@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Package, Loader2, Plus, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { getMyListings, getListingDetail, updateListingStatus } from '@mabi/shared/api/recommend';
+import { getMyListings, getListingDetail, updateListingStatus } from '@mabi/shared/api/listings';
 import ListingCard from '@mabi/shared/components/ListingCard';
 import ListingDetail from '@mabi/shared/components/ListingDetail';
 

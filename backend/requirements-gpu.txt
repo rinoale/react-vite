@@ -1,0 +1,9 @@
+-r requirements.txt
+torch
+torchvision
+easyocr
+opencv-python
+numpy
+Pillow
+scikit-learn
+rapidfuzz

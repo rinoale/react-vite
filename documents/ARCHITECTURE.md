@@ -675,11 +675,18 @@ class JobBroker(Protocol):
     def dequeue(self, queue: str, timeout: int) -> JobMessage | None: ...
     def ack(self, queue: str, message: JobMessage) -> None: ...
     def fail(self, queue: str, message: JobMessage, error: str) -> None: ...
+    def register_worker(self, worker_id: str, queues: set[str]) -> None: ...
+    def unregister_worker(self, worker_id: str, queues: set[str]) -> None: ...
+    def has_workers(self, queue: str) -> bool: ...
+    def worker_count(self, queue: str) -> int: ...
 ```
 
 `RedisBroker` is the current implementation. Uses two Redis lists per queue:
 - `jobs:{queue}` — pending messages (`LPUSH` to enqueue)
 - `jobs:{queue}:processing` — in-flight messages (`BRPOPLPUSH` to dequeue atomically)
+- `jobs:{queue}:workers` — worker heartbeat SET (60s TTL, refreshed every 30s)
+
+**Worker presence detection:** `enqueue()` checks `has_workers()` before pushing — raises `NoWorkerError` if no worker is listening on the target queue. Endpoints catch this and return HTTP 503.
 
 Swapping to SQS, Kafka, or Pub/Sub requires only implementing a new class — no changes to worker, jobs, or admin code.
 
@@ -725,10 +732,11 @@ Each entry: a Python function `fn(db: Session, *, payload: dict) -> str`, a desc
 
 **File:** `backend/worker.py`
 
-Standalone process with two responsibilities:
+Standalone process with three responsibilities:
 
 1. **Dequeue loop** — round-robin poll across subscribed queues (1s timeout per queue), execute job, update `job_runs` row, ack/fail
 2. **Scheduler thread** — daemon thread that enqueues scheduled jobs at their configured intervals (only for queues this worker handles)
+3. **Heartbeat thread** — daemon thread that refreshes worker registration in Redis every 30s (60s TTL). On startup, registers immediately; on shutdown (`SIGINT`/`SIGTERM`), unregisters.
 
 ```bash
 # All queues (default for Docker worker)
@@ -749,9 +757,13 @@ bash scripts/worker/run-remote.sh gpu
 
 **Queue routing:** Jobs are routed to queues by the `queue` field in `REGISTRY`. The `gpu` queue isolates GPU-heavy OCR pipeline jobs so they can be processed by a dedicated worker (e.g. a local PC with a GPU) while the deployed server handles only lightweight `default` queue jobs.
 
+**Remote worker via SSH tunnel:** `scripts/worker/run-remote.sh` opens an SSH tunnel to the staging server (forwarding Redis 6379 and PostgreSQL 5432 to local ports 16379/15432), loads the staging `.env` for credentials, and starts the worker locally. No ports need to be exposed on the server.
+
 The worker records `worker_id` (hostname) and `payload` (JSON) on each `job_runs` row — visible in the admin dashboard to track which machine processed a job and with what arguments.
 
-Handles `SIGINT`/`SIGTERM` for graceful shutdown.
+**Note on alembic:** The worker runs `alembic upgrade head` on startup. Alembic's `fileConfig()` disables pre-existing loggers — the worker restores them after migration.
+
+**Note on pipeline init:** The V3 pipeline singleton (`init_pipeline()`) loads all OCR models (~10s) on the first job. Subsequent jobs reuse the cached models.
 
 ### Admin API
 
@@ -759,11 +771,13 @@ Handles `SIGINT`/`SIGTERM` for graceful shutdown.
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/admin/jobs` | GET | List registered jobs with last run status and schedule |
+| `/admin/jobs` | GET | List registered jobs with last run status, schedule, queue, and worker count |
 | `/admin/jobs/{name}/run` | POST | Enqueue a job (creates `job_runs` row + Redis message) |
 | `/admin/jobs/history` | GET | Paginated execution history |
 
-Triggering a job via admin inserts a `pending` row into `job_runs` and calls `broker.enqueue()`. The web server does not execute jobs — it only enqueues them.
+`GET /admin/jobs` returns `queue` name and live `workers` count (from Redis heartbeat) for each job. The admin panel shows a green/red badge per job indicating worker availability.
+
+Triggering a job via admin inserts a `pending` row into `job_runs` and calls `broker.enqueue()`. If no worker is listening on the target queue, returns HTTP 503. The web server does not execute jobs — it only enqueues them.
 
 ### Database
 
@@ -786,24 +800,26 @@ Triggering a job via admin inserts a `pending` row into `job_runs` and calls `br
 Redis runs as a Docker container in both dev and staging:
 
 ```yaml
-# docker-compose.yml / docker-compose.stg.yml
+# docker-compose.stg.yml
 redis:
   image: redis:7-alpine
   command: redis-server --requirepass ${REDIS_PASSWORD}
   ports:
-    - "6379:6379"
+    - "127.0.0.1:6379:6379"   # localhost only — remote workers use SSH tunnel
+
+backend:
+  image: mabi-backend:latest     # slim, no OCR packages
+  # ...
 
 worker:
-  build:
-    context: .
-    dockerfile: backend/Dockerfile
-    args:
-      REQUIREMENTS: requirements-worker.txt   # includes OCR/ML packages
-  command: python worker.py --queues default gpu
+  image: mabi-worker:latest      # full ML deps + models
+  environment:
+    PYTHONUNBUFFERED: 1
+  command: ["python", "worker.py", "--queues", "default", "gpu"]
   depends_on: [db, redis]
 ```
 
-Staging exposes Redis on port 6379 (password-protected) so remote workers (local PC) can connect.
+Redis is bound to `127.0.0.1` (not exposed publicly). Remote workers connect via SSH tunnel (`scripts/worker/run-remote.sh`).
 
 All Docker services have logging configured with `json-file` driver, `max-size: 10m`, `max-file: 3`.
 
@@ -811,17 +827,26 @@ All Docker services have logging configured with `json-file` driver, `max-size: 
 
 ```
 backend/
-├── worker.py                  # Standalone worker entry point (--queues arg)
+├── worker.py                  # Standalone worker entry point (--queues, heartbeat, scheduler)
 ├── jobs/
 │   ├── __init__.py            # REGISTRY — job definitions, queue routing, get_queue()
-│   ├── broker.py              # JobBroker protocol + RedisBroker implementation
+│   ├── broker.py              # JobBroker protocol + RedisBroker (heartbeat, NoWorkerError)
 │   ├── connection.py          # get_broker() factory (Redis connection from settings)
 │   ├── cleanup_tags.py        # Job: delete zero-weight tags (queue: default)
 │   └── run_pipeline.py        # Job: V3 OCR pipeline (queue: gpu)
 ├── admin/
-│   └── jobs.py                # Admin API: list, trigger, history
+│   └── jobs.py                # Admin API: list (with worker count), trigger, history
 └── db/
     └── models.py              # JobRun model
+
+scripts/
+├── worker/
+│   └── run-remote.sh          # SSH tunnel + local worker for staging
+├── ocr/
+│   ├── sync-image.sh          # Upload/download/extract mabi-ocr-models via rclone
+│   └── cleanup-train-data.sh  # Remove train_data from inactive model versions
+└── deploy/
+    └── deploy.sh              # --backend, --worker, --models flags
 ```
 
 ---
@@ -913,7 +938,7 @@ GET /examine-item/{job_id}/stream
   → forward SSE events to browser
 ```
 
-The web server never touches the GPU. The worker can be anywhere with network access to Redis and R2.
+The web server never touches the GPU. The worker can be anywhere — it connects to Redis and PostgreSQL via SSH tunnel (`scripts/worker/run-remote.sh`) and uploads crops to R2 directly.
 
 ---
 

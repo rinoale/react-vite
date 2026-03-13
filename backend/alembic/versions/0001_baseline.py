@@ -190,6 +190,9 @@ def upgrade() -> None:
     op.create_index("ix_listings_name", "listings", ["name"])
     op.create_index("ix_listings_user_id", "listings", ["user_id"])
     op.create_index("ix_listings_status", "listings", ["status"])
+    op.create_index("ix_listings_game_item_id", "listings", ["game_item_id"])
+    op.create_index("ix_listings_prefix_enchant_id", "listings", ["prefix_enchant_id"])
+    op.create_index("ix_listings_suffix_enchant_id", "listings", ["suffix_enchant_id"])
 
     # --- Listing options (unified polymorphic join) ---
     op.create_table(

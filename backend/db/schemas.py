@@ -97,7 +97,7 @@ class MuriasRelicOptionOut(BaseModel):
     max_level: Optional[int] = None
     min_level: int = 1
     value_per_level: Optional[float] = None
-    option_unit: str = ''
+    option_unit: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -314,6 +314,7 @@ class PaginatedGameItemResponse(BaseModel):
 # --- Listing registration + implicit correction capture ---
 
 class RegisterEnchantSlot(BaseModel):
+    id: UUID
     slot: int  # 0=prefix, 1=suffix
     name: str
     rank: str

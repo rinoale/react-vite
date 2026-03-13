@@ -1,6 +1,15 @@
+from uuid import UUID
+
 from db.connector import SessionLocal
 from db.models import UserActivityLog
 from lib.utils.log import logger
+
+
+def _sanitize_metadata(metadata):
+    """Stringify UUID values in metadata dict for JSONB serialization."""
+    if not metadata:
+        return metadata
+    return {k: str(v) if isinstance(v, UUID) else v for k, v in metadata.items()}
 
 
 def log_activity(
@@ -23,7 +32,7 @@ def log_activity(
             action=action,
             target_type=target_type,
             target_id=target_id,
-            metadata_=metadata,
+            metadata_=_sanitize_metadata(metadata),
         )
         db.add(entry)
         db.commit()

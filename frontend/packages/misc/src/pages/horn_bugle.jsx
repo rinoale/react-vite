@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { getHornBugleHistory } from '@mabi/shared/api/recommend';
+import { getHornBugleHistory } from '@mabi/shared/api/hornBugle';
 import PlayerName from '@mabi/shared/components/PlayerName';
 
 const container = 'max-w-3xl mx-auto p-6';

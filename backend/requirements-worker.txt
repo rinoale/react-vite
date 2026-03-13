@@ -1,4 +1,7 @@
 -r requirements.txt
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch --index-url https://download.pytorch.org/whl/cpu
+torchvision --index-url https://download.pytorch.org/whl/cpu
 easyocr
 opencv-python
 numpy
