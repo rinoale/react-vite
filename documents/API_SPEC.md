@@ -198,40 +198,52 @@ All sections contain `lines` (array of Line objects) unless `skipped: true`.
 **Method:** `POST`
 **Content-Type:** `application/json`
 
+> **Convention:** All entity IDs for source-of-truth data (enchants, effects, reforge options, etc.) are pre-assigned in `data/source_of_truth/*.yaml` and exported to frontend config files. The frontend sends these IDs directly — the backend never resolves IDs by name for static entities. See [ARCHITECTURE.md § Source of Truth: Pre-Assigned IDs](ARCHITECTURE.md) for details.
+
 ### Request Body
 ```json
 {
   "session_id": "abc123",
   "name": "Dragon Blade",
+  "description": "설명",
   "price": "50000",
   "category": "weapon",
-  "game_item_id": 1234,
+  "game_item_id": "019c...",
   "item_type": "양손 검",
   "item_grade": "에픽",
   "erg_grade": "S",
   "erg_level": 25,
+  "special_upgrade_type": "R",
+  "special_upgrade_level": 7,
+  "attrs": { "damage": "15~30", "balance": "40" },
   "lines": [
-    { "line_index": 0, "text": "Dragon Blade" },
-    { "line_index": 2, "text": "공격 15~30" }
+    { "section": "item_attrs", "line_index": 0, "text": "공격 15~30" },
+    { "section": "enchant", "line_index": 2, "text": "최대대미지 5 증가" }
   ],
   "enchants": [
     {
+      "id": "019c...",
       "slot": 0,
       "name": "충격을",
-      "rank": "F",
-      "effects": [
-        { "text": "최대대미지 5 증가", "option_name": "최대대미지", "option_level": 5 }
-      ]
+      "rank": "F"
     }
   ],
-  "reforge_options": [
+  "listing_options": [
     {
-      "name": "스매시 대미지",
-      "reforge_option_id": 42,
-      "level": 15,
+      "option_type": "enchant_effects",
+      "option_name": "최대대미지",
+      "option_id": "019ce59d-a63d-...",
+      "rolled_value": 5
+    },
+    {
+      "option_type": "reforge_options",
+      "option_name": "스매시 대미지",
+      "option_id": "019c...",
+      "rolled_value": 15,
       "max_level": 20
     }
-  ]
+  ],
+  "tags": ["풀피어싱", "S르그50"]
 }
 ```
 
@@ -239,16 +251,41 @@ All sections contain `lines` (array of Line objects) unless `skipped: true`.
 | :--- | :--- | :--- | :--- |
 | `session_id` | `string` | No | Session ID from `/examine-item`. Enables correction capture. |
 | `name` | `string` | No | User-editable listing display name. |
+| `description` | `string` | No | Short description (max 50 chars). HTML tags stripped. |
 | `price` | `string` | No | Price string. |
 | `category` | `string` | No | Category. Default `weapon`. |
-| `game_item_id` | `int` | No | FK to `game_items`. Resolved from static config on the client. Falls back to name match on server. |
-| `item_type` | `string` | No | Equipment type, e.g. `양손 검`, `경갑옷`. Extracted from OCR `item_type` section. |
-| `item_grade` | `string` | No | Item grade, e.g. `에픽`, `레어`. Extracted from OCR `item_grade` section. |
-| `erg_grade` | `string` | No | ERG grade letter, e.g. `S`, `A`. Extracted from OCR `erg` section. |
-| `erg_level` | `int` | No | ERG level number, e.g. `25`. Extracted from OCR `erg` section. |
-| `lines` | `array` | No | Final line texts. Each has `section` (string), `line_index` (int), and `text` (string). Lines where `text` differs from the original OCR are saved as correction training data. |
-| `enchants` | `array` | No | Structured enchant data per slot. Each has `slot` (0=prefix, 1=suffix), `name`, `rank`, `effects[]`. |
-| `reforge_options` | `array` | No | Structured reforge options. Each has `name`, optional `reforge_option_id` (from static config), `level`, `max_level`. |
+| `game_item_id` | `UUID` | No | FK to `game_items`. Resolved from static config on the client. |
+| `item_type` | `string` | No | Equipment type, e.g. `양손 검`, `경갑옷`. From OCR `item_type` section. |
+| `item_grade` | `string` | No | Item grade, e.g. `에픽`, `레어`. From OCR `item_grade` section. |
+| `erg_grade` | `string` | No | ERG grade letter, e.g. `S`, `A`. From OCR `erg` section. |
+| `erg_level` | `int` | No | ERG level number, e.g. `25`. From OCR `erg` section. |
+| `special_upgrade_type` | `string` | No | `R` or `S`. From OCR `item_mod` section. |
+| `special_upgrade_level` | `int` | No | Level 1-8. From OCR `item_mod` section. |
+| `attrs` | `dict` | No | Structured key-value pairs from `item_attrs` section. |
+| `lines` | `array` | No | Final line texts. Each has `section`, `line_index`, `text`. Lines differing from original OCR are saved as correction training data. |
+| `enchants` | `array` | No | Enchant slots. See `RegisterEnchantSlot` below. |
+| `listing_options` | `array` | No | Unified options (all types). See `RegisterListingOption` below. |
+| `tags` | `string[]` | No | User-assigned tags (max 3, each max 5 chars). |
+
+#### RegisterEnchantSlot (each element in `enchants`)
+| Property | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | `UUID` | Yes | Enchant PK from `enchants` table. Resolved from frontend config (`window.ENCHANTS_CONFIG`). |
+| `slot` | `int` | Yes | `0` = prefix, `1` = suffix. |
+| `name` | `string` | Yes | Enchant name (display/auto-tagging). |
+| `rank` | `string` | Yes | Rank label (display). |
+
+#### RegisterListingOption (each element in `listing_options`)
+
+Polymorphic option entry. All option types use the same shape — `option_id` points to the source table's PK.
+
+| Property | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `option_type` | `string` | Yes | Discriminator: `enchant_effects`, `reforge_options`, `echostone_options`, `murias_relic_options`. |
+| `option_name` | `string` | Yes | Display name (denormalized). Avoids polymorphic JOIN for display. |
+| `option_id` | `UUID` | No | Source table PK from frontend config. `enchant_effects.id` for enchant effects, `reforge_options.id` for reforge, etc. |
+| `rolled_value` | `int\|float` | No | User's rolled/selected value. |
+| `max_level` | `int` | No | Maximum possible level (for reforge/echostone/murias). |
 
 ### Response
 ```json
@@ -317,8 +354,9 @@ Returns full detail for a single listing, including enchant effects and reforge 
     ]
   },
   "suffix_enchant": null,
-  "reforge_options": [
-    { "option_name": "스매시 대미지", "level": 15, "max_level": 20 }
+  "listing_options": [
+    { "option_type": "reforge_options", "option_name": "스매시 대미지", "rolled_value": 15, "max_level": 20 },
+    { "option_type": "echostone_options", "option_name": "최대대미지", "rolled_value": 8, "max_level": 10 }
   ]
 }
 ```
