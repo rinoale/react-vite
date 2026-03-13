@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { ShoppingBag, Loader2, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { getListings, getListingDetail, searchListings } from '@mabi/shared/api/recommend';
+import { getListings, getListingDetail, searchListings } from '@mabi/shared/api/listings';
 import { useListingSearch } from '@mabi/shared/hooks/useListingSearch';
 import ListingSearchBar from '@mabi/shared/components/ListingSearchBar';
 import ListingCard from '@mabi/shared/components/ListingCard';

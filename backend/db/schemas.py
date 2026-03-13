@@ -97,7 +97,7 @@ class MuriasRelicOptionOut(BaseModel):
     max_level: Optional[int] = None
     min_level: int = 1
     value_per_level: Optional[float] = None
-    option_unit: str = ''
+    option_unit: Optional[str] = None
 
     class Config:
         from_attributes = True

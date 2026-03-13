@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { searchListings, searchTags } from '../api/recommend';
+import { searchListings, searchTags } from '../api/listings';
 import { searchTypedItems } from '../lib/gameItems';
 
 /**

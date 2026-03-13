@@ -16,12 +16,9 @@ export const updateListingStatus = (listingId, status) =>
 export const getListingsByGameItem = (gameItemId) =>
   client.get('/listings', { params: { game_item_id: gameItemId } });
 
-export const searchGameItems = (q) =>
-  client.get('/game-items', { params: { q } });
-
 const _OP_PREFIX = { gte: 'min_', lte: 'max_', eq: 'eq_' };
 
-export const searchListings = (q, tags, { limit, offset, gameItemId, attrFilters, reforgeFilters, enchantFilters } = {}) => {
+export const searchListings = (q, tags, { limit, offset, gameItemId, attrFilters, reforgeFilters, enchantFilters, echostoneFilters, muriasFilters } = {}) => {
   const attrParams = {};
   if (attrFilters) {
     for (const f of attrFilters) {
@@ -39,18 +36,34 @@ export const searchListings = (q, tags, { limit, offset, gameItemId, attrFilters
     extra.reforge_filters = JSON.stringify(
       reforgeFilters.map((f) => {
         const level = f.level !== '' && f.level != null ? parseInt(f.level, 10) : null;
-        return { name: f.option_name, op: f.op, level: isNaN(level) ? null : level };
+        return { id: f.option_id, op: f.op, level: isNaN(level) ? null : level };
       }),
     );
   }
   if (enchantFilters?.length) {
     extra.enchant_filters = JSON.stringify(
       enchantFilters.map((f) => ({
-        name: f.name,
+        id: f.id,
         effects: (f.effectFilters || [])
           .filter((ef) => ef.value !== '' && ef.value != null)
           .map((ef) => ({ enchant_id: ef.enchant_id, effect_order: ef.effect_order, op: ef.op, value: parseInt(ef.value, 10) })),
       })),
+    );
+  }
+  if (echostoneFilters?.length) {
+    extra.echostone_filters = JSON.stringify(
+      echostoneFilters.map((f) => {
+        const level = f.level !== '' && f.level != null ? parseInt(f.level, 10) : null;
+        return { id: f.option_id, op: f.op, level: isNaN(level) ? null : level };
+      }),
+    );
+  }
+  if (muriasFilters?.length) {
+    extra.murias_filters = JSON.stringify(
+      muriasFilters.map((f) => {
+        const level = f.level !== '' && f.level != null ? parseInt(f.level, 10) : null;
+        return { id: f.option_id, op: f.op, level: isNaN(level) ? null : level };
+      }),
     );
   }
   return client.get('/listings/search', {
@@ -60,6 +73,3 @@ export const searchListings = (q, tags, { limit, offset, gameItemId, attrFilters
 
 export const searchTags = (q) =>
   client.get('/tags/search', { params: { q } });
-
-export const getHornBugleHistory = (serverName = '류트') =>
-  client.get('/horn-bugle', { params: { server_name: serverName } });

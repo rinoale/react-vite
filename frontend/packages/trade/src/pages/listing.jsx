@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ShoppingBag, Share2, Check, Loader2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { getListingByCode } from '@mabi/shared/api/recommend';
+import { getListingByCode } from '@mabi/shared/api/listings';
 import ListingDetail from '@mabi/shared/components/ListingDetail';
 
 const ListingPage = () => {
