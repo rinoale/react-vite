@@ -517,13 +517,15 @@ def search_listings(db, q, tags=None, game_item_id=None, attr_filters=None,
                     SELECT l3.id, 3 FROM listings l3
                     WHERE l3.status = 1 AND l3.name ILIKE :q_like
                 ) _tq
-                WHERE _tq.tier = (SELECT MIN(_tq2.tier) FROM (
-                    SELECT 1 AS tier FROM tags t2 WHERE t2.name ILIKE :q_like LIMIT 1
-                    UNION ALL
-                    SELECT 2 FROM game_items gi2 WHERE gi2.name ILIKE :q_like LIMIT 1
-                    UNION ALL
-                    SELECT 3
-                ) _tq2)
+                WHERE _tq.tier = (
+                    SELECT MIN(t) FROM (
+                        SELECT 1 AS t WHERE EXISTS (SELECT 1 FROM tags t2 WHERE t2.name ILIKE :q_like)
+                        UNION ALL
+                        SELECT 2 WHERE EXISTS (SELECT 1 FROM game_items gi2 WHERE gi2.name ILIKE :q_like)
+                        UNION ALL
+                        SELECT 3
+                    ) _mins
+                )
             )""")
 
     # --- Multi-tag filter (AND / intersection) ---

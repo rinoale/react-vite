@@ -585,6 +585,268 @@ def generate_template_lines():
     return lines
 
 
+# ---------------------------------------------------------------------------
+# Attribute-specialized templates (hard-digit oversampling)
+# ---------------------------------------------------------------------------
+
+_HARD_DIGITS = [6, 8, 2, 9, 5]
+
+
+def _rand_hard():
+    """Return a number containing at least one hard-to-distinguish digit."""
+    d = random.choice(_HARD_DIGITS)
+    form = random.choice(['single', 'tens', 'hundreds'])
+    if form == 'single':
+        return d
+    elif form == 'tens':
+        other = rand_int(0, 9)
+        return random.choice([d * 10 + other, other * 10 + d])
+    else:
+        return d * 100 + rand_int(0, 99)
+
+
+def generate_attr_template_lines():
+    """Generate training labels for item_attrs specialist model.
+
+    Three categories:
+    1. Positive: 10 structured attribute patterns (500 variations each)
+    2. Delimiter-heavy: extra %, /, ~ in diverse contexts
+    3. Negative: common non-attr lines from item_attrs sections
+       (prevents hallucinating attr patterns on unrecognized text)
+    """
+    lines = []
+
+    # ══════════════════════════════════════════════════════════
+    # POSITIVE: 10 attribute patterns (500 variations each)
+    # ══════════════════════════════════════════════════════════
+
+    # --- 1. 공격 N~N, 공격 N~N +N ---
+    for _ in range(500):
+        lo = rand_int(1, 999)
+        hi = lo + rand_int(1, 500)
+        lines.append(f"공격 {lo}~{hi}")
+    for _ in range(500):
+        lo = rand_int(1, 999)
+        hi = lo + rand_int(1, 500)
+        bonus = rand_int(1, 99)
+        lines.append(f"공격 {lo}~{hi} +{bonus}")
+
+    # --- 2. 밸런스 N% ---
+    for _ in range(500):
+        lines.append(f"밸런스 {rand_int(1, 100)}%")
+
+    # --- 3. 방어력 N ---
+    for _ in range(500):
+        lines.append(f"방어력 {rand_int(1, 999)}")
+
+    # --- 4. 보호 N ---
+    for _ in range(500):
+        lines.append(f"보호 {rand_int(1, 999)}")
+
+    # --- 5. 마법 공격력 N ---
+    for _ in range(500):
+        lines.append(f"마법 공격력 {rand_int(1, 999)}")
+
+    # --- 6. 마법 방어력 N ---
+    for _ in range(500):
+        lines.append(f"마법 방어력 {rand_int(1, 999)}")
+
+    # --- 7. 마법 보호 N ---
+    for _ in range(500):
+        lines.append(f"마법 보호 {rand_int(1, 999)}")
+
+    # --- 8. 내구력 N/N ---
+    for _ in range(500):
+        mx = rand_int(1, 999)
+        cur = rand_int(0, mx)
+        lines.append(f"내구력 {cur}/{mx}")
+
+    # --- 9. 피어싱 레벨 N, 피어싱 레벨 N+N ---
+    for _ in range(300):
+        lines.append(f"피어싱 레벨 {rand_int(1, 20)}")
+    for _ in range(300):
+        lvl = rand_int(1, 20)
+        extra = rand_int(1, 10)
+        lines.append(f"피어싱 레벨 {lvl}+ {extra}")
+    for _ in range(200):
+        lvl = rand_int(1, 20)
+        extra = rand_int(1, 10)
+        lines.append(f"피어싱 레벨 {lvl}+{extra}")
+
+    # --- 10. 전투 점성술 재능 스킬 대미지 N% 증가 ---
+    for _ in range(500):
+        lines.append(f"전투 점성술 재능 스킬 대미지 {rand_int(1, 999)}% 증가")
+
+    # ══════════════════════════════════════════════════════════
+    # DELIMITER-HEAVY: extra %, /, ~ exposure
+    # ══════════════════════════════════════════════════════════
+
+    # 부상률 N~N% (common in item_attrs, uses both ~ and %)
+    for _ in range(300):
+        lo = rand_int(0, 60)
+        hi = lo + rand_int(0, 40)
+        lines.append(f"부상률 {lo}~{hi}%")
+
+    # 부상률 N/N% (variant format)
+    for _ in range(200):
+        lines.append(f"부상률 {rand_int(0, 60)}/{rand_int(0, 60)}%")
+
+    # 크리티컬 N%
+    for _ in range(300):
+        lines.append(f"크리티컬 {rand_int(1, 99)}%")
+
+    # 탄환 N/N
+    for _ in range(200):
+        mx = rand_int(10, 999)
+        cur = rand_int(0, mx)
+        bullets = rand_int(0, 30)
+        lines.append(f"탄환 {cur}/{mx} +{bullets}")
+
+    # 숙련 N (N.N%)
+    for _ in range(200):
+        pct = round(random.uniform(0, 100), 1)
+        lines.append(f"숙련 {rand_int(0, 100)} ({pct:.1f}%)")
+    for _ in range(100):
+        pct = round(random.uniform(0, 100), 2)
+        lines.append(f"숙련 {rand_int(0, 100)} ({pct:.2f}%)")
+
+    # 자동방어 확률 N.NN% (common in item_attrs)
+    for prefix in ['근접공격 자동방어 확률', '원거리공격 자동방어 확률', '마법공격 자동방어 확률']:
+        for _ in range(100):
+            pct = round(random.uniform(0, 50), 2)
+            lines.append(f"{prefix} {pct:.2f}%")
+        for _ in range(100):
+            pct = round(random.uniform(0, 50), 2)
+            lines.append(f"{prefix} : {pct:.2f}%")
+
+    # 대미지 감소율 N.NN%
+    for _ in range(100):
+        pct = round(random.uniform(0, 50), 2)
+        lines.append(f"대미지 감소율 {pct:.2f}%")
+
+    # N% 증가/감소 patterns (성수 효과, 마나, etc.)
+    for _ in range(200):
+        lines.append(f"마나 소모량 {rand_int(1, 50)}% 감소")
+    for _ in range(200):
+        lines.append(f"마나 소모량 감소 {rand_int(1, 50)}%")
+    for _ in range(200):
+        lines.append(f"마나 회복량 {rand_int(1, 999)}% 증가")
+    for _ in range(200):
+        lines.append(f"중급 마법 대미지 {rand_int(1, 50)}% 증가")
+    for _ in range(200):
+        lines.append(f"상급 마법 대미지 {rand_int(1, 50)}% 증가")
+    for _ in range(200):
+        lines.append(f"불릿 스톰 대미지 {rand_int(1, 50)}% 증가")
+    for _ in range(100):
+        lines.append(f"내구도 {rand_int(50, 100)}%")
+
+    # Bare delimiter practice (isolated %, /, ~)
+    for _ in range(200):
+        lines.append(f"{rand_int(1, 999)}%")
+    for _ in range(200):
+        lines.append(f"{rand_int(0, 999)}/{rand_int(1, 999)}")
+    for _ in range(200):
+        lines.append(f"{rand_int(1, 999)}~{rand_int(1, 999)}")
+
+    # ══════════════════════════════════════════════════════════
+    # NEGATIVE: non-attr lines commonly found in item_attrs
+    # ══════════════════════════════════════════════════════════
+
+    _CHAR_NAMES = ['아자린', '사바', '나디아', '이리아', '아리엘']
+    _REPAIR_SHOPS = [
+        '대장장이 수리', '의류점 수리', '플레타 수리', '반호르 주점 수리',
+        '마법학교 수리', '마법 학교 수리', '엔지니어 수리', '연금술사 수리',
+    ]
+
+    # XX 전용 아이템
+    for name in _CHAR_NAMES:
+        for _ in range(50):
+            lines.append(f"{name} 전용 아이템")
+    for _ in range(50):
+        lines.append("전용 아이템")
+    for _ in range(30):
+        lines.append(f"{random.choice(_CHAR_NAMES)} 전용 아이템(전용 일시 해제)")
+
+    # 남은 전용 해제 가능 횟수 : N
+    for _ in range(100):
+        lines.append(f"남은 전용 해제 가능 횟수 : {rand_int(1, 10)}")
+
+    # 성수/성화 효과
+    _HOLY_EFFECTS = [
+        '체력', '의지', '마법 공격력', '마법 방어', '최대대미지',
+        '보호', '크리티컬', '최대마나',
+    ]
+    for eff in _HOLY_EFFECTS:
+        for _ in range(30):
+            v = rand_int(1, 99)
+            lines.append(f"성수 효과(거래 불가) : {eff} {v} 증가")
+            lines.append(f"성수 효과(거래 불가): {eff} {v} 증가")
+            lines.append(f"성화 효과 : {eff} {v} 증가")
+            lines.append(f"성화 효과: {eff} {v} 증가")
+    for _ in range(30):
+        lines.append(f"성수 효과(거래 불가) 크리티컬 대미지 {rand_int(1, 10)}% 증가")
+    for _ in range(30):
+        lines.append(f"성수 효과(거래 불가) : 매그넘 샷 강화 +{rand_int(1, 5)}")
+
+    # (거래 불가)
+    for _ in range(100):
+        lines.append("(거래 불가)")
+
+    # 외형 변경 아이템 : XXX
+    _SKIN_NAMES = [
+        '낙화의 곰방대 스태프', '카우보이 듀얼건', '클레이모어',
+        '스트리트 그래피티 실린더', '이시리얼 데빌 사이드',
+    ]
+    for name in _SKIN_NAMES:
+        for _ in range(30):
+            lines.append(f"외형 변경 아이템 : {name}")
+
+    # Hashtag lines
+    _HASHTAGS = [
+        '#거래 불가', '#은행 불가', '#펫 보관 불가', '#염색 불가',
+        '#소유권 보존', '#파트너 선물 및 착용 불가',
+        '#인챈트 실패 시 아이템 보호', '#인챈트 실패시 아이템 보호',
+        '#수리 실패시 아이템 보호',
+        '#남성 전용', '#여성 전용',
+        '#인간, 자이언트 전용', '#인간, 엘프 전용',
+        '#계승 장비', '#은행 공유 불가', '#계정 불가', '#아르카나 종합 레벨'
+    ]
+    for _ in range(200):
+        n = rand_int(2, 5)
+        tags = random.sample(_HASHTAGS, min(n, len(_HASHTAGS)))
+        lines.append(' '.join(tags))
+    for shop in _REPAIR_SHOPS:
+        for _ in range(30):
+            lines.append(f"#{shop}")
+
+    # Misc item_attrs lines
+    for _ in range(100):
+        lines.append(f"최대대미지 {rand_int(1, 50)}")
+    for _ in range(100):
+        lines.append(f"최대생명력 {rand_int(1, 500)} 증가")
+    for _ in range(100):
+        lines.append(f"최대마나 {rand_int(1, 999)} 증가")
+    for _ in range(100):
+        lines.append(f"최대스태미나 {rand_int(1, 999)} 증가")
+    for _ in range(100):
+        lines.append(f"4대 속성 연금술 대미지 {rand_int(1, 99)} 증가")
+    for _ in range(100):
+        lines.append(f"체인 실린더 쿨타임 {rand_int(1, 10)}초 감소")
+    for _ in range(50):
+        lines.append("특별 이벤트 장비(거래 불가)")
+    for _ in range(50):
+        pct = round(random.uniform(0, 100), 1)
+        lines.append(f"원거리 공격 시작 조준율 보정 {rand_int(1, 50)}% 증가 (상한 {rand_int(20, 50)}%)")
+    lines.extend([
+        "(피어싱이 부여된 장비를 양 쪽에 착용 시, 높은 쪽",
+        "적용)",
+        "인챈트 장비를 전용으로 만듦",
+        "머리나 발에 착용하는 아이템에 인챈트 가능",
+    ] * 50)
+
+    return lines
+
+
 def collect_all_chars():
     """Deterministically collect every character that can appear in training labels.
 
