@@ -140,6 +140,8 @@ backend/trade/services/
 - Unified condition evaluator — every rule is conditions + tag template, no rule types
 - Singular tables (`listing`, `prefix_enchant`, `suffix_enchant`, `game_item`) resolve to single objects
 - Plural tables (`enchant_effects`, `reforge_options`, `echostone_options`, `murias_relic_options`) iterate `listing_options` rows filtered by `option_type`
+- AND/OR logic: left-to-right evaluation with no operator precedence
+- Condition groups (`group` field): cross-row matching on plural tables — each group independently matches a row, all groups must pass (inter-group always AND)
 - Column references allow cross-field comparison (e.g., `rolled_value >= max_level` on same row)
 - Tag templates interpolate captured `refer` values as `{refer_name}`
 - All evaluation via `getattr()` on Python objects — no SQL from config
