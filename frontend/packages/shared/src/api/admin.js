@@ -118,3 +118,15 @@ export const getActivityLogs = ({ action, userId, limit, offset } = {}) =>
 
 export const getActivityActions = () =>
   client.get('/admin/activity-logs/actions');
+
+export const getAutoTagRules = ({ limit, offset } = {}) =>
+  client.get('/admin/auto-tag-rules', { params: { limit, offset } });
+
+export const createAutoTagRule = (data) =>
+  client.post('/admin/auto-tag-rules', data);
+
+export const updateAutoTagRule = (ruleId, data) =>
+  client.patch(`/admin/auto-tag-rules/${ruleId}`, data);
+
+export const deleteAutoTagRule = (ruleId) =>
+  client.delete(`/admin/auto-tag-rules/${ruleId}`);

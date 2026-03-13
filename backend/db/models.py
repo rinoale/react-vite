@@ -265,6 +265,24 @@ class MuriasRelicOption(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
+class AutoTagRule(Base):
+    __tablename__ = "auto_tag_rules"
+
+    id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid7)
+    name = Column(Text, nullable=False, unique=True)
+    description = Column(Text, nullable=True)
+    rule_type = Column(Text, nullable=False)  # iterate_list, field_compare, value_map, cross_table
+    enabled = Column(Boolean, nullable=False, server_default='true')
+    priority = Column(Integer, nullable=False, server_default='0')
+    config = Column(JSONB, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        Index('ix_auto_tag_rules_enabled_priority', 'enabled', 'priority'),
+    )
+
+
 class Tag(Base):
     __tablename__ = "tags"
 

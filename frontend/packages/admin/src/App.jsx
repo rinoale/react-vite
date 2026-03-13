@@ -20,6 +20,7 @@ const RolesPanel = lazy(() => import('./components/RolesPanel'))
 const FeatureFlagsPanel = lazy(() => import('./components/FeatureFlagsPanel'))
 const UsagePanel = lazy(() => import('./components/UsagePanel'))
 const ActivityLogsPanel = lazy(() => import('./components/ActivityLogsPanel'))
+const AutoTagRulesPanel = lazy(() => import('./components/AutoTagRulesPanel'))
 
 const Fallback = () => (
   <div className="flex items-center justify-center py-20">
@@ -73,6 +74,7 @@ function App() {
           <Route path="/trade/listings" element={<Suspense fallback={<Fallback />}><ListingsPanel /></Suspense>} />
           <Route path="/trade/corrections" element={<Suspense fallback={<Fallback />}><CorrectionsPanel /></Suspense>} />
           <Route path="/trade/tags" element={<Suspense fallback={<Fallback />}><TagsPanel /></Suspense>} />
+          <Route path="/trade/auto_tag_rules" element={<Suspense fallback={<Fallback />}><AutoTagRulesPanel /></Suspense>} />
 
           {/* System */}
           <Route path="/system" element={<Navigate to="/system/jobs" replace />} />

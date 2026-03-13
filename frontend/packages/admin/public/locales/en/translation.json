@@ -27,7 +27,8 @@
       "roles": "Roles",
       "feature_flags": "Feature Flags",
       "usage": "Usage",
-      "activity_logs": "Activity Logs"
+      "activity_logs": "Activity Logs",
+      "auto_tag_rules": "Auto Tag Rules"
     }
   },
   "usage": {
@@ -193,6 +194,74 @@
     "noLogs": "No activity logs found.",
     "prev": "PREV",
     "next": "NEXT"
+  },
+  "autoTagRules": {
+    "title": "AUTO TAG RULES",
+    "name": "Name",
+    "ruleType": "Type",
+    "priority": "Priority",
+    "description": "Description",
+    "config": "Config",
+    "status": "Status",
+    "actions": "Actions",
+    "add": "Add Rule",
+    "edit": "Edit",
+    "create": "Create",
+    "update": "Update",
+    "cancel": "Cancel",
+    "saving": "Saving...",
+    "enable": "Enable",
+    "disable": "Disable",
+    "refresh": "Refresh",
+    "noRules": "No auto tag rules found.",
+    "deleteConfirm": "Delete rule \"{{name}}\"?",
+    "invalidJson": "Invalid JSON in config field.",
+    "builder": {
+      "conditions": "Conditions",
+      "value": "Value",
+      "addCondition": "Add condition",
+      "tagTemplate": "Tag Template",
+      "tagOutput": "Tag output",
+      "switchLiteral": "Switch to literal",
+      "switchColumn": "Compare to column"
+    },
+    "schema": {
+      "tables": {
+        "listing": "Listing",
+        "prefix_enchant": "Prefix Enchant",
+        "suffix_enchant": "Suffix Enchant",
+        "enchant_effects": "Enchant Effects",
+        "reforge_options": "Reforge Options",
+        "echostone_options": "Echostone Options",
+        "murias_relic_options": "Murias Relic Options",
+        "game_item": "Game Item"
+      },
+      "columns": {
+        "name": "Name",
+        "price": "Price",
+        "item_type": "Item Type",
+        "item_grade": "Item Grade",
+        "erg_grade": "Erg Grade",
+        "erg_level": "Erg Level",
+        "special_upgrade_type": "Special Upgrade Type",
+        "special_upgrade_level": "Special Upgrade Level",
+        "damage": "Damage",
+        "magic_damage": "Magic Damage",
+        "additional_damage": "Additional Damage",
+        "balance": "Balance",
+        "defense": "Defense",
+        "protection": "Protection",
+        "magic_defense": "Magic Defense",
+        "magic_protection": "Magic Protection",
+        "durability": "Durability",
+        "piercing_level": "Piercing Level",
+        "rank": "Rank",
+        "option_name": "Option Name",
+        "rolled_value": "Rolled Value",
+        "max_level": "Max Level",
+        "type": "Type"
+      }
+    }
   },
   "enchants": {
     "title": "ENCHANT ENTRIES",
