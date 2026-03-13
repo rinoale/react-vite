@@ -156,53 +156,102 @@ def _eval_condition(payload, config: dict, db: Session) -> list[str]:
         else:
             singular_conds.append(cond)
 
-    # Check singular conditions first
+    # Check singular conditions first (left-to-right AND/OR)
     refers = {}
     row_context = {}
+    result = None
     for cond in singular_conds:
         table = cond.get('table', '')
+        logic = cond.get('logic', 'AND')
+
         if table not in row_context:
             obj = _resolve_singular(table, payload, db)
             if obj is None:
-                return []
-            row_context[table] = obj
+                cond_ok = False
+            else:
+                row_context[table] = obj
 
-        actual = _get_value(row_context[table], cond.get('column', ''))
-        expected = _resolve_condition_value(cond, row_context, payload, db)
-        if not _check_condition(actual, cond.get('op', '=='), expected):
-            return []
+        if table in row_context:
+            actual = _get_value(row_context[table], cond.get('column', ''))
+            expected = _resolve_condition_value(cond, row_context, payload, db)
+            cond_ok = _check_condition(actual, cond.get('op', '=='), expected)
+            if cond_ok:
+                refer = cond.get('refer', '')
+                if refer:
+                    refers[refer] = actual
 
-        refer = cond.get('refer', '')
-        if refer:
-            refers[refer] = actual
+        result = cond_ok if result is None else (result or cond_ok) if logic == 'OR' else (result and cond_ok)
+
+    if result is False:
+        return []
 
     # No plural conditions — emit tag
     if not plural_groups:
         tag = _render_template(template, refers) if '{' in template else template
         return [tag] if tag else []
 
-    # Plural conditions — iterate rows, all conditions on same table must match same row
+    # Plural conditions — check if any condition uses group for cross-row matching
+    has_groups = any(cond.get('group') is not None for cond in conditions if cond.get('table', '') in _PLURAL_TABLES)
+
+    if has_groups:
+        return _eval_plural_grouped(plural_groups, row_context, refers, template, payload, db)
+    return _eval_plural_per_row(plural_groups, row_context, refers, template, payload, db)
+
+
+def _eval_row(conds, item, row_context, table, payload, db):
+    """Evaluate conditions against a single row with AND/OR logic. Returns (passed, refers)."""
+    row_result = None
+    row_refers = {}
+    ctx = {**row_context, table: item}
+    for cond in conds:
+        logic = cond.get('logic', 'AND')
+        actual = _get_value(item, cond.get('column', ''))
+        expected = _resolve_condition_value(cond, ctx, payload, db)
+        cond_ok = _check_condition(actual, cond.get('op', '=='), expected)
+        if cond_ok:
+            refer = cond.get('refer', '')
+            if refer:
+                row_refers[refer] = actual
+        row_result = cond_ok if row_result is None else (row_result or cond_ok) if logic == 'OR' else (row_result and cond_ok)
+    return bool(row_result), row_refers
+
+
+def _eval_plural_per_row(plural_groups, row_context, refers, template, payload, db):
+    """Legacy mode: all conditions on same table must match same row. Emits per match."""
     tags = []
     for table, conds in plural_groups.items():
         items = _resolve_plural(table, payload)
         for item in items:
-            ctx = {**row_context, table: item}
-            all_match = True
-            row_refers = {}
-            for cond in conds:
-                actual = _get_value(item, cond.get('column', ''))
-                expected = _resolve_condition_value(cond, ctx, payload, db)
-                if not _check_condition(actual, cond.get('op', '=='), expected):
-                    all_match = False
-                    break
-                refer = cond.get('refer', '')
-                if refer:
-                    row_refers[refer] = actual
-
-            if all_match:
+            passed, row_refers = _eval_row(conds, item, row_context, table, payload, db)
+            if passed:
                 merged = {**refers, **row_refers}
                 tag = _render_template(template, merged) if '{' in template else template
                 if tag:
                     tags.append(tag)
-
     return tags
+
+
+def _eval_plural_grouped(plural_groups, row_context, refers, template, payload, db):
+    """Group mode: each condition group independently matches a row. ALL groups must pass."""
+    all_refers = dict(refers)
+    for table, conds in plural_groups.items():
+        items = _resolve_plural(table, payload)
+        # Split conditions into groups
+        groups: dict[int, list] = {}
+        for cond in conds:
+            gid = cond.get('group', 0)
+            groups.setdefault(gid, []).append(cond)
+
+        for gid, group_conds in groups.items():
+            group_passed = False
+            for item in items:
+                passed, row_refers = _eval_row(group_conds, item, row_context, table, payload, db)
+                if passed:
+                    all_refers.update(row_refers)
+                    group_passed = True
+                    break
+            if not group_passed:
+                return []
+
+    tag = _render_template(template, all_refers) if '{' in template else template
+    return [tag] if tag else []

@@ -44,8 +44,8 @@ export const searchTagEntities = (targetType, q, { like = true } = {}) =>
 export const bulkCreateTags = ({ targets, names, weight }) =>
   client.post('/admin/tags/bulk', { targets, names, ...(weight != null && { weight }) });
 
-export const getUniqueTags = ({ limit, offset }) =>
-  client.get('/admin/tags/unique', { params: { limit, offset } });
+export const getUniqueTags = ({ q, sort, limit, offset } = {}) =>
+  client.get('/admin/tags/unique', { params: { q: q || '', sort: sort || '', limit, offset } });
 
 export const deleteTagById = (tagId) =>
   client.delete(`/admin/tags/by-tag/${tagId}`);

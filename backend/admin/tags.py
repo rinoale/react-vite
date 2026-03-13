@@ -53,11 +53,13 @@ def admin_delete_tag(
 
 @router.get("/tags/unique")
 def admin_unique_tags(
+    q: str = Query(default=""),
+    sort: str = Query(default=""),
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
 ):
-    rows = crud_admin.get_unique_tags(db, limit=limit, offset=offset)
+    rows = crud_admin.get_unique_tags(db, limit=limit, offset=offset, q=q or None, sort=sort or None)
     return {"limit": limit, "offset": offset, "rows": rows}
 
 

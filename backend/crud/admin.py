@@ -236,19 +236,11 @@ def create_tag(db: Session, data: schemas.TagCreate):
 
 
 def delete_tag(db: Session, tag_target_id):
-    """Delete a tag-target association. If tag has no remaining targets, delete the tag too."""
+    """Delete a tag-target association."""
     tt = db.query(models.TagTarget).filter(models.TagTarget.id == tag_target_id).first()
     if not tt:
         return False
-    tag_id = tt.tag_id
     db.delete(tt)
-    db.flush()
-    # Clean up orphaned tag definition
-    remaining = db.query(models.TagTarget).filter(models.TagTarget.tag_id == tag_id).count()
-    if remaining == 0:
-        tag = db.query(models.Tag).filter(models.Tag.id == tag_id).first()
-        if tag:
-            db.delete(tag)
     db.commit()
     return True
 
@@ -332,17 +324,42 @@ def bulk_create_tags(db: Session, data: schemas.BulkTagCreate):
     return {"created": created, "duplicates": duplicates}
 
 
-def get_unique_tags(db: Session, limit: int = 100, offset: int = 0):
+_UNIQUE_TAGS_SORT_MAP = {
+    "name": "t.name",
+    "-name": "t.name DESC",
+    "target_count": "target_count",
+    "-target_count": "target_count DESC",
+    "weight": "t.weight",
+    "-weight": "t.weight DESC",
+    "created_at": "t.created_at",
+    "-created_at": "t.created_at DESC",
+}
+
+
+def get_unique_tags(
+    db: Session,
+    limit: int = 100,
+    offset: int = 0,
+    q: Optional[str] = None,
+    sort: Optional[str] = None,
+):
+    where = ""
+    params: dict[str, Any] = {"limit": limit, "offset": offset}
+    if q:
+        where = "WHERE t.name ILIKE :q"
+        params["q"] = f"%{q}%"
+    order = _UNIQUE_TAGS_SORT_MAP.get(sort, "t.id DESC")
     rows = db.execute(
-        text("""
-            SELECT t.id, t.name, t.weight, COUNT(tt.id) AS target_count
+        text(f"""
+            SELECT t.id, t.name, t.weight, t.created_at, COUNT(tt.id) AS target_count
             FROM tags t
             LEFT JOIN tag_targets tt ON tt.tag_id = t.id
+            {where}
             GROUP BY t.id
-            ORDER BY t.id DESC
+            ORDER BY {order}
             LIMIT :limit OFFSET :offset
         """),
-        {"limit": limit, "offset": offset},
+        params,
     ).mappings()
     return [dict(r) for r in rows]
 

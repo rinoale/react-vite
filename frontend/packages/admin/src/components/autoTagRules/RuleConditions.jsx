@@ -12,6 +12,25 @@ const btnToggleOff = `${btnToggle} bg-gray-800 text-gray-500 border-gray-700 hov
 const TABLE_KEYS = Object.keys(LISTING_SCHEMA);
 
 const isColRef = (v) => v !== null && typeof v === 'object' && 'table' in v && 'column' in v;
+const isPlural = (table) => LISTING_SCHEMA[table]?.relation === 'has_many';
+
+const groupBorderClass = (gid) => {
+  const colors = [
+    'border-l-cyan-500', 'border-l-amber-500', 'border-l-emerald-500',
+    'border-l-pink-500', 'border-l-violet-500',
+  ];
+  return colors[(gid - 1) % colors.length];
+};
+const groupBadgeClass = (gid) => {
+  const styles = [
+    'bg-cyan-900/50 text-cyan-400 border-cyan-700/50',
+    'bg-amber-900/50 text-amber-400 border-amber-700/50',
+    'bg-emerald-900/50 text-emerald-400 border-emerald-700/50',
+    'bg-pink-900/50 text-pink-400 border-pink-700/50',
+    'bg-violet-900/50 text-violet-400 border-violet-700/50',
+  ];
+  return styles[(gid - 1) % styles.length];
+};
 
 const emptyCondition = () => ({ table: '', column: '', op: '==', value: '', refer: '' });
 
@@ -50,8 +69,8 @@ const RuleConditions = ({ conditions, onChange, readOnly }) => {
     if (isColRef(c.value)) {
       set(idx, { value: '' });
     } else {
-      const isPlural = LISTING_SCHEMA[c.table]?.relation === 'has_many';
-      set(idx, { value: { table: isPlural ? c.table : '', column: '' } });
+      const plural = LISTING_SCHEMA[c.table]?.relation === 'has_many';
+      set(idx, { value: { table: plural ? c.table : '', column: '' } });
     }
   };
 
@@ -62,13 +81,21 @@ const RuleConditions = ({ conditions, onChange, readOnly }) => {
   };
 
   if (readOnly) {
+    const hasGroups = conditions.some((c) => c.group != null);
     return (
       <div className="space-y-1">
         {conditions.map((c, i) => {
           const valIsRef = isColRef(c.value);
+          const gid = c.group;
+          const groupBorder = hasGroups && gid != null ? `border-l-2 pl-2 ${groupBorderClass(gid)}` : '';
           return (
-            <div key={i} className="flex items-center gap-2 text-sm flex-wrap">
+            <div key={i} className={`flex items-center gap-2 text-sm flex-wrap ${groupBorder}`}>
               {i > 0 && <span className="text-cyan-500 font-bold text-xs w-8">{c.logic}</span>}
+              {hasGroups && gid != null && (
+                <span className={`text-[10px] px-1.5 py-0.5 rounded border font-bold shrink-0 ${groupBadgeClass(gid)}`}>
+                  G{gid}
+                </span>
+              )}
               <span className="font-mono text-gray-400">{tTable(c.table)}</span>
               <span className="text-gray-600">.</span>
               <span className="font-mono text-cyan-400">{tColumn(c.column)}</span>
@@ -96,16 +123,20 @@ const RuleConditions = ({ conditions, onChange, readOnly }) => {
         const columnKeys = Object.keys(columns);
         const isNull = c.value === null;
         const valIsRef = isColRef(c.value);
-        const isPluralTable = LISTING_SCHEMA[c.table]?.relation === 'has_many';
+        const isPluralTable = isPlural(c.table);
         // For has_many, col ref is always same table; for singular, allow other singulars
         const refTable = valIsRef ? c.value.table : '';
         const refColumns = Object.keys(LISTING_SCHEMA[refTable]?.columns || {});
         const refTableKeys = isPluralTable
           ? []
           : TABLE_KEYS.filter((k) => LISTING_SCHEMA[k].relation !== 'has_many');
+        const gid = c.group;
+        const groupBorder = isPluralTable && gid != null
+          ? `border-l-2 pl-2 ${groupBorderClass(gid)}`
+          : '';
 
         return (
-          <div key={idx} className="flex items-center gap-2 flex-wrap">
+          <div key={idx} className={`flex items-center gap-2 flex-wrap ${groupBorder}`}>
             {/* AND/OR */}
             {idx > 0 && (
               <select
@@ -118,6 +149,22 @@ const RuleConditions = ({ conditions, onChange, readOnly }) => {
               </select>
             )}
             {idx === 0 && <span className="w-16" />}
+
+            {/* group (plural tables only) */}
+            {isPluralTable && (
+              <input
+                type="number"
+                min="1"
+                className={`${inp} w-14 text-center ${gid != null ? 'border-cyan-700' : ''}`}
+                value={gid ?? ''}
+                onChange={(e) => {
+                  const raw = e.target.value.trim();
+                  set(idx, { group: raw === '' ? undefined : parseInt(raw, 10) || 1 });
+                }}
+                placeholder="G"
+                title={t('autoTagRules.builder.group')}
+              />
+            )}
 
             {/* table */}
             <select className={sel} value={c.table} onChange={(e) => set(idx, { table: e.target.value, column: '' })}>

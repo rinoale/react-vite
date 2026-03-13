@@ -2,7 +2,8 @@
 
 function formatCondition(c) {
   const val = c.value === null || c.value === undefined ? 'null' : String(c.value);
-  return `${c.table}.${c.column} ${c.op} ${val}`;
+  const group = c.group != null ? `[G${c.group}] ` : '';
+  return `${group}${c.table}.${c.column} ${c.op} ${val}`;
 }
 
 export function getRuleSummary(rule) {
