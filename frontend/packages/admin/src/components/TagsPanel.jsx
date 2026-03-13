@@ -570,7 +570,7 @@ const TagsPanel = () => {
                       <AdminTagBadge name={tg.name} weight={tg.weight} />
                     </button>
                     <span className="text-[10px] text-gray-500">w:{tg.weight}</span>
-                    <span className="text-[10px] text-gray-500">
+                    <span className={`text-[10px] ${tg.target_count > 0 ? 'text-emerald-400' : 'text-gray-500'}`}>
                       ({t('tags.targetCount', { count: tg.target_count })})
                     </span>
                   </div>

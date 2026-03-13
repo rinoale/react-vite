@@ -82,33 +82,73 @@ const RuleConditions = ({ conditions, onChange, readOnly }) => {
 
   if (readOnly) {
     const hasGroups = conditions.some((c) => c.group != null);
+
+    const renderCondition = (c, showLogic) => {
+      const valIsRef = isColRef(c.value);
+      return (
+        <span className="inline-flex items-center gap-1.5 text-sm">
+          {showLogic && <span className="text-cyan-500 font-bold text-xs">{c.logic}</span>}
+          <span className="font-mono text-gray-400">{tTable(c.table)}</span>
+          <span className="text-gray-600">.</span>
+          <span className="font-mono text-cyan-400">{tColumn(c.column)}</span>
+          <span className="text-gray-400">{c.op}</span>
+          <span className={`font-mono ${valIsRef ? 'text-cyan-400' : 'text-gray-300'}`}>
+            {formatValue(c.value)}
+          </span>
+          {c.refer && (
+            <>
+              <span className="text-gray-600 ml-1">as</span>
+              <span className="font-mono text-amber-300">{`{${c.refer}}`}</span>
+            </>
+          )}
+        </span>
+      );
+    };
+
+    if (!hasGroups) {
+      return (
+        <div className="space-y-1">
+          {conditions.map((c, i) => (
+            <div key={i} className="flex items-center gap-2 text-sm flex-wrap">
+              {renderCondition(c, i > 0)}
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    // Group conditions: ungrouped first, then grouped blocks
+    const ungrouped = conditions.filter((c) => c.group == null);
+    const grouped = {};
+    conditions.filter((c) => c.group != null).forEach((c) => {
+      grouped[c.group] = grouped[c.group] || [];
+      grouped[c.group].push(c);
+    });
+    const groupIds = Object.keys(grouped).map(Number).sort((a, b) => a - b);
+
     return (
-      <div className="space-y-1">
-        {conditions.map((c, i) => {
-          const valIsRef = isColRef(c.value);
-          const gid = c.group;
-          const groupBorder = hasGroups && gid != null ? `border-l-2 pl-2 ${groupBorderClass(gid)}` : '';
+      <div className="space-y-2">
+        {ungrouped.map((c, i) => (
+          <div key={`u${i}`} className="flex items-center gap-2 text-sm flex-wrap">
+            {renderCondition(c, i > 0)}
+          </div>
+        ))}
+        {groupIds.map((gid, gi) => {
+          const conds = grouped[gid];
+          const showAnd = ungrouped.length > 0 || gi > 0;
           return (
-            <div key={i} className={`flex items-center gap-2 text-sm flex-wrap ${groupBorder}`}>
-              {i > 0 && <span className="text-cyan-500 font-bold text-xs w-8">{c.logic}</span>}
-              {hasGroups && gid != null && (
+            <div key={`g${gid}`}>
+              {showAnd && <div className="text-cyan-500 font-bold text-xs py-0.5">AND</div>}
+              <div className={`flex items-center gap-1.5 flex-wrap border-l-2 pl-2 py-0.5 ${groupBorderClass(gid)}`}>
                 <span className={`text-[10px] px-1.5 py-0.5 rounded border font-bold shrink-0 ${groupBadgeClass(gid)}`}>
                   G{gid}
                 </span>
-              )}
-              <span className="font-mono text-gray-400">{tTable(c.table)}</span>
-              <span className="text-gray-600">.</span>
-              <span className="font-mono text-cyan-400">{tColumn(c.column)}</span>
-              <span className="text-gray-400">{c.op}</span>
-              <span className={`font-mono ${valIsRef ? 'text-cyan-400' : 'text-gray-300'}`}>
-                {formatValue(c.value)}
-              </span>
-              {c.refer && (
-                <>
-                  <span className="text-gray-600 ml-2">as</span>
-                  <span className="font-mono text-amber-300">{`{${c.refer}}`}</span>
-                </>
-              )}
+                {conds.map((c, j) => (
+                  <span key={j} className="inline-flex items-center gap-1.5">
+                    {renderCondition(c, j > 0)}
+                  </span>
+                ))}
+              </div>
             </div>
           );
         })}
