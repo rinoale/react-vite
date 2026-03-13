@@ -1164,6 +1164,7 @@ Search activity is logged via `BackgroundTasks` (after response is sent) to `use
 | `/admin/roles/*/features/*` | POST, DELETE | `require_role("master")` |
 | `/admin/corrections/*` | All except crop | `require_feature("manage_corrections")` |
 | `/admin/corrections/crop/*` | GET | None (public, serves static images) |
+| `/admin/auto-tag-rules` | GET, POST, PATCH, DELETE | `require_role("admin")` |
 | `/register-listing` | POST | `get_current_user` |
 | `/examine-item` | POST | None (public) |
 | `/listings`, `/tags/search`, `/game-items` | GET | None (public) |
@@ -1195,6 +1196,165 @@ All apps are served behind nginx under subdomains of `.mabitra.com`. The backend
 **Why not `localStorage`?** `localStorage` is scoped per origin (protocol + domain + port). The monorepo apps run on different subdomains, so `localStorage` is not shared between them. Cookies with a shared domain solve this.
 
 **Why same-origin proxy instead of cross-origin AJAX?** Chrome blocks `SameSite=None; Secure` cookies on self-signed certs (treats them as "not truly secure"). Rather than requiring real SSL certs for development, each frontend's nginx server block includes `location /api/` that proxies to the backend. This makes all API calls same-origin, so `SameSite=Lax` works naturally. The `dev.api.mabitra.com` subdomain still exists for direct API access (Swagger docs, mobile clients with Bearer header).
+
+---
+
+## Auto-Tag Rule Engine
+
+### Overview
+
+When a listing is created, the system automatically generates tags based on database-driven rules. Every rule is a set of **conditions** and a **tag template** — conditions met → tag created. There are no rule "types"; every rule uses the same unified condition engine.
+
+```
+Register Listing
+  → create_listing_tags()
+    → user-submitted tags (positional weights [80, 60, 30])
+    → evaluate_rules(payload, db)
+      → load enabled AutoTagRule rows (ordered by priority, id)
+      → for each rule: _eval_condition(payload, rule.config, db)
+        → check singular conditions (listing, enchants, game_item)
+        → iterate plural conditions (listing_options rows)
+        → render tag template with captured refer values
+    → deduplicate (auto tags skip names already attached by user)
+    → commit
+```
+
+### Data Model
+
+```
+auto_tag_rules
+├── id          UUID (PK)
+├── name        TEXT (unique)
+├── description TEXT
+├── rule_type   TEXT          # always 'condition' (legacy column)
+├── enabled     BOOLEAN
+├── priority    INTEGER       # lower = higher priority
+├── config      JSONB         # { conditions: [...], tag_template: "..." }
+├── created_at  TIMESTAMPTZ
+└── updated_at  TIMESTAMPTZ
+```
+
+### Config Schema
+
+Each rule's JSONB config contains:
+
+```json
+{
+  "conditions": [
+    {
+      "table": "listing",
+      "column": "erg_grade",
+      "op": "!=",
+      "value": null,
+      "logic": "AND",
+      "refer": "grade"
+    },
+    {
+      "table": "listing",
+      "column": "erg_level",
+      "op": "==",
+      "value": 50,
+      "logic": "AND",
+      "refer": "level"
+    }
+  ],
+  "tag_template": "{grade}르그{level}"
+}
+```
+
+**Value types:**
+- Literal: string, number, or `null`
+- Array: `[1, 2, 3]` (used with `in` operator)
+- Column reference: `{"table": "enchant_effects", "column": "max_level"}` — compares against another column's value on the same row
+
+**Operators:** `==`, `!=`, `>=`, `<=`, `>`, `<`, `in`
+
+**Refer names:** A condition can capture its matched value into a named variable via the `refer` field. The tag template interpolates these as `{refer_name}`.
+
+### Table Resolution
+
+The engine resolves condition tables against the listing payload:
+
+| Table | Resolution | Relation |
+|-------|-----------|----------|
+| `listing` | The payload itself | root (singular) |
+| `prefix_enchant` | `payload.enchants` where `slot == 0` | belongs_to (singular) |
+| `suffix_enchant` | `payload.enchants` where `slot == 1` | belongs_to (singular) |
+| `game_item` | DB lookup by `payload.game_item_id` | belongs_to (singular) |
+| `enchant_effects` | `payload.listing_options` where `option_type == 'enchant_effects'` | has_many (plural) |
+| `reforge_options` | `payload.listing_options` where `option_type == 'reforge_options'` | has_many (plural) |
+| `echostone_options` | `payload.listing_options` where `option_type == 'echostone_options'` | has_many (plural) |
+| `murias_relic_options` | `payload.listing_options` where `option_type == 'murias_relic_options'` | has_many (plural) |
+
+Schema keys are plural, matching `option_type` values directly — no mapping needed.
+
+### Condition Evaluation (`_eval_condition`)
+
+1. **Split** conditions into singular and plural groups by table
+2. **Singular conditions** checked first — if any fail, rule short-circuits (returns `[]`)
+3. **Plural conditions** grouped by table — all conditions on the same table must match the **same row**
+4. For each matching plural row, merge singular refers + row refers → render tag template
+5. **Column references** resolve against the current row context (same-table ref for plural) or via `_resolve_singular` (cross-table ref for singular tables)
+6. **Type coercion** in `_coerce_eq`: handles Decimal/int/string mismatches via float comparison
+
+No SQL is executed from config data. All evaluation uses `getattr()` on Python payload objects — zero SQL injection surface.
+
+### Frontend: Visual Rule Builder
+
+Located at `frontend/packages/admin/src/components/autoTagRules/`:
+
+```
+AutoTagRulesPanel.jsx       — Rule list with summary, expand/collapse, edit mode
+├── RuleForm.jsx            — Form shell: name, priority, description + conditions + tag template
+│   └── RuleConditions.jsx  — Dynamic condition rows (table, column, op, value, refer)
+├── ruleSummary.js          — Human-readable one-liner from config
+└── ruleSchema.js           — LISTING_SCHEMA constant + COMPARE_OPS
+```
+
+Each condition row provides:
+- **Table** dropdown (all schema tables, i18n translated)
+- **Column** dropdown (filtered by selected table, i18n translated)
+- **Operator** dropdown (`==`, `!=`, `>=`, `<=`, `>`, `<`, `in`)
+- **Value** input — literal text, null toggle (checkbox), column reference toggle (`col` button), or comma-separated array (for `in`)
+- **Refer** input — name for template interpolation
+- **AND/OR** logic selector (between conditions)
+
+Column reference restrictions: has_many tables can only reference columns on the same table (e.g., `enchant_effects.rolled_value >= enchant_effects.max_level`). Singular tables can reference any other singular table.
+
+### Input Validation
+
+`backend/db/schemas.py` validates `option_type` on `RegisterListingOption`:
+
+```python
+VALID_OPTION_TYPES = frozenset({
+    'enchant_effects', 'reforge_options', 'echostone_options', 'murias_relic_options',
+})
+```
+
+Rejects payloads with unknown `option_type` values before they reach the database.
+
+### Files
+
+```
+backend/trade/services/
+├── tag_service.py          # create_listing_tags: user tags + auto tags
+└── auto_tag_engine.py      # evaluate_rules, _eval_condition, _check_condition
+
+backend/admin/
+└── auto_tag_rules.py       # CRUD API for auto_tag_rules (admin panel)
+
+backend/db/
+├── models.py               # AutoTagRule model
+└── schemas.py              # VALID_OPTION_TYPES + RegisterListingOption validator
+
+frontend/packages/admin/src/components/
+├── AutoTagRulesPanel.jsx
+└── autoTagRules/
+    ├── ruleSchema.js
+    ├── ruleSummary.js
+    ├── RuleForm.jsx
+    └── RuleConditions.jsx
+```
 
 ---
 

@@ -26,6 +26,7 @@ const NAV_GROUPS = [
       { key: 'listings' },
       { key: 'corrections' },
       { key: 'tags' },
+      { key: 'auto_tag_rules' },
     ],
   },
   {

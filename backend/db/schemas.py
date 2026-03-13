@@ -319,12 +319,23 @@ class RegisterEnchantSlot(BaseModel):
     name: str
     rank: str
 
+VALID_OPTION_TYPES = frozenset({
+    'enchant_effects', 'reforge_options', 'echostone_options', 'murias_relic_options',
+})
+
 class RegisterListingOption(BaseModel):
-    option_type: str  # enchant_effects, reforge_options, echostone_options, murias_relic_options
+    option_type: str
     option_name: str
     option_id: Optional[UUID] = None
     rolled_value: Optional[Union[int, float]] = None
     max_level: Optional[int] = None
+
+    @field_validator('option_type')
+    @classmethod
+    def validate_option_type(cls, v):
+        if v not in VALID_OPTION_TYPES:
+            raise ValueError(f'invalid option_type: {v}')
+        return v
 
 class RegisterListingLine(BaseModel):
     section: str
@@ -367,6 +378,39 @@ class RegisterListingRequest(BaseModel):
             if len(tag) > 5:
                 raise ValueError('each tag must be 5 characters or fewer')
         return v
+
+# --- Auto Tag Rules ---
+
+class AutoTagRuleCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    rule_type: str
+    enabled: bool = True
+    priority: int = 0
+    config: dict
+
+class AutoTagRuleUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    rule_type: Optional[str] = None
+    enabled: Optional[bool] = None
+    priority: Optional[int] = None
+    config: Optional[dict] = None
+
+class AutoTagRuleOut(BaseModel):
+    id: UUID
+    name: str
+    description: Optional[str] = None
+    rule_type: str
+    enabled: bool
+    priority: int
+    config: dict
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
 
 class CorrectionOut(BaseModel):
     id: UUID

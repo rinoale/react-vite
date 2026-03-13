@@ -107,6 +107,7 @@ function buildEnchantEffectOptions(enchantSec) {
         option_name: configEff?.option_name ?? eff.option_name ?? '',
         option_id: configEff?.id || null,
         rolled_value: eff.option_level ?? null,
+        max_level: configEff?.max ?? null,
       });
     }
   };

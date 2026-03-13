@@ -130,7 +130,19 @@ backend/lib/
 |   +-- connection.py            # get_storage() factory (keyed instance cache)
 +-- utils/
     +-- log.py                   # Logging + @timed decorator
+
+backend/trade/services/
++-- tag_service.py               # create_listing_tags: user tags (positional weights) + auto tags
++-- auto_tag_engine.py           # Unified condition engine: evaluate_rules, _eval_condition
 ```
+
+**Auto-Tag Engine** (`backend/trade/services/auto_tag_engine.py`):
+- Unified condition evaluator — every rule is conditions + tag template, no rule types
+- Singular tables (`listing`, `prefix_enchant`, `suffix_enchant`, `game_item`) resolve to single objects
+- Plural tables (`enchant_effects`, `reforge_options`, `echostone_options`, `murias_relic_options`) iterate `listing_options` rows filtered by `option_type`
+- Column references allow cross-field comparison (e.g., `rolled_value >= max_level` on same row)
+- Tag templates interpolate captured `refer` values as `{refer_name}`
+- All evaluation via `getattr()` on Python objects — no SQL from config
 
 **Section Handlers** (`backend/lib/pipeline/section_handlers/`):
 - Each section processed end-to-end by its handler (image process -> OCR -> FM -> structured rebuild)
@@ -313,7 +325,7 @@ cd frontend && npm test                   # Frontend (29 tests) — vitest
 
 ### Routes (Admin)
 - `/source_of_truth/*` -- Enchants, Effects, Reforge/Echostone/Murias options, Game Items
-- `/trade/*` -- Listings, Corrections, Tags
+- `/trade/*` -- Listings, Corrections, Tags, Auto Tag Rules
 - `/system/*` -- Jobs, Users, Roles, Feature Flags, Usage (R2 + OCI)
 
 ### Monorepo Structure
@@ -343,7 +355,7 @@ frontend/packages/
 
 | Document | Contents |
 |---|---|
-| `documents/ARCHITECTURE.md` | Full V3 pipeline stages (1-8) with algorithms |
+| `documents/ARCHITECTURE.md` | Full V3 pipeline stages (1-8), auto-tag rule engine, infrastructure |
 | `documents/OCR_MODELS.md` | Model inventory, symlink layout, DualReader, inference patch |
 | `documents/CORE_LOGIC.md` | Algorithm details: Dullahan, FM, item name parsing, etc. |
 | `documents/STRATEGY_MABINOGI.md` | Design decisions D1-D11 with porting guides |
