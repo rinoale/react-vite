@@ -2,6 +2,8 @@ import { useEffect, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Loader2, ChevronDown, ChevronRight, Package, RefreshCw } from 'lucide-react';
 import { getListings, getListingDetail } from '@mabi/shared/api/admin';
+import { consumeSearchIntent } from '@mabi/shared/lib/searchIntent';
+import SearchBar from '@mabi/shared/components/SearchBar';
 import TagBadge from '@mabi/shared/components/TagBadge';
 import LevelBadge from '@mabi/shared/components/LevelBadge';
 import { ATTR_LABELS } from '@mabi/shared/lib/listingUtils';
@@ -15,9 +17,12 @@ const toRankLabel = (rank) => {
 
 const ListingsPanel = () => {
   const { t } = useTranslation();
+  const [_intent] = useState(() => consumeSearchIntent());
   const [listings, setListings] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [pagination, setPagination] = useState({ limit: 50, offset: 0 });
+  const [searchQuery, setSearchQuery] = useState(_intent?.q || '');
+  const [searchBy, setSearchBy] = useState(_intent?.by || 'name');
   const [expandedListingIds, setExpandedListingIds] = useState({});
   const [detailByListing, setDetailByListing] = useState({});
   const [loadingDetail, setLoadingDetail] = useState({});
@@ -25,7 +30,12 @@ const ListingsPanel = () => {
   const fetchListings = useCallback(async () => {
     setIsLoading(true);
     try {
-      const { data } = await getListings({ limit: pagination.limit, offset: pagination.offset });
+      const params = { limit: pagination.limit, offset: pagination.offset };
+      if (searchQuery) {
+        if (searchBy === 'id') params.id = searchQuery;
+        else params.q = searchQuery;
+      }
+      const { data } = await getListings(params);
       setListings(data.rows || []);
     } catch (error) {
       console.error('Error fetching listings:', error);
@@ -33,7 +43,13 @@ const ListingsPanel = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [pagination.offset, pagination.limit]);
+  }, [pagination.offset, pagination.limit, searchQuery, searchBy]);
+
+  const handleSearch = useCallback(({ query, by }) => {
+    setSearchQuery(query);
+    setSearchBy(by);
+    setPagination((prev) => ({ ...prev, offset: 0 }));
+  }, []);
 
   useEffect(() => {
     fetchListings();
@@ -66,6 +82,7 @@ const ListingsPanel = () => {
           {t('listings.title')}
         </h2>
         <div className="flex items-center gap-4">
+          <SearchBar defaultQuery={_intent?.q} defaultBy={_intent?.by} onSearch={handleSearch} />
           <button
             onClick={() => setPagination((prev) => ({ ...prev, offset: Math.max(0, prev.offset - prev.limit) }))}
             className="text-xs bg-gray-600 hover:bg-gray-500 px-3 py-1 rounded"

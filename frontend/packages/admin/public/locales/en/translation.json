@@ -2,6 +2,10 @@
   "app": {
     "title": "Mabinogi Admin"
   },
+  "common": {
+    "name": "Name",
+    "searchPlaceholder": "Search..."
+  },
   "admin": {
     "title": "ADMIN",
     "titleHighlight": "DASHBOARD",
@@ -275,6 +279,26 @@
         "type": "Type"
       }
     }
+  },
+  "gameItems": {
+    "title": "GAME ITEMS",
+    "searchPlaceholder": "Search item name",
+    "noItems": "No game items found.",
+    "colName": "Name",
+    "colType": "Type",
+    "colSearchable": "Searchable",
+    "colTradable": "Tradable",
+    "prev": "PREV",
+    "next": "NEXT",
+    "refresh": "Refresh"
+  },
+  "entityTypes": {
+    "reforge_options": "Reforge Option",
+    "echostone_options": "Echostone Option",
+    "murias_relic_options": "Murias Relic Option",
+    "game_items": "Game Item",
+    "listings": "Listing",
+    "enchants": "Enchant"
   },
   "enchants": {
     "title": "ENCHANT ENTRIES",

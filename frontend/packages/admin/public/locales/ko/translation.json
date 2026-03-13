@@ -2,6 +2,10 @@
   "app": {
     "title": "마비노기 관리자"
   },
+  "common": {
+    "name": "이름",
+    "searchPlaceholder": "검색..."
+  },
   "admin": {
     "title": "ADMIN",
     "titleHighlight": "DASHBOARD",
@@ -274,6 +278,26 @@
         "type": "종류"
       }
     }
+  },
+  "gameItems": {
+    "title": "게임 아이템",
+    "searchPlaceholder": "아이템 이름 검색",
+    "noItems": "게임 아이템이 없습니다.",
+    "colName": "이름",
+    "colType": "종류",
+    "colSearchable": "검색 가능",
+    "colTradable": "거래 가능",
+    "prev": "이전",
+    "next": "다음",
+    "refresh": "새로고침"
+  },
+  "entityTypes": {
+    "reforge_options": "세공 옵션",
+    "echostone_options": "에코스톤 옵션",
+    "murias_relic_options": "무리아스 유물 옵션",
+    "game_items": "게임 아이템",
+    "listings": "매물",
+    "enchants": "인챈트"
   },
   "enchants": {
     "title": "ENCHANT ENTRIES",

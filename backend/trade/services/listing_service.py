@@ -245,15 +245,15 @@ def _batch_resolve_tags(db, listing_ids):
         text(f"""
             SELECT DISTINCT sub.l_id, t.name, (t.weight + tt.weight) AS weight
             FROM (
-                SELECT l.id AS l_id, 'listing' AS ttype, l.id AS tid FROM listings l WHERE l.id IN ({placeholders})
+                SELECT l.id AS l_id, 'listings' AS ttype, l.id AS tid FROM listings l WHERE l.id IN ({placeholders})
                 UNION ALL
-                SELECT l.id, 'game_item', l.game_item_id FROM listings l WHERE l.id IN ({placeholders}) AND l.game_item_id IS NOT NULL
+                SELECT l.id, 'game_items', l.game_item_id FROM listings l WHERE l.id IN ({placeholders}) AND l.game_item_id IS NOT NULL
                 UNION ALL
                 SELECT lo.listing_id, lo.option_type, lo.option_id FROM listing_options lo WHERE lo.listing_id IN ({placeholders}) AND lo.option_id IS NOT NULL
                 UNION ALL
-                SELECT l.id, 'enchant', l.prefix_enchant_id FROM listings l WHERE l.id IN ({placeholders}) AND l.prefix_enchant_id IS NOT NULL
+                SELECT l.id, 'enchants', l.prefix_enchant_id FROM listings l WHERE l.id IN ({placeholders}) AND l.prefix_enchant_id IS NOT NULL
                 UNION ALL
-                SELECT l.id, 'enchant', l.suffix_enchant_id FROM listings l WHERE l.id IN ({placeholders}) AND l.suffix_enchant_id IS NOT NULL
+                SELECT l.id, 'enchants', l.suffix_enchant_id FROM listings l WHERE l.id IN ({placeholders}) AND l.suffix_enchant_id IS NOT NULL
             ) AS sub(l_id, ttype, tid)
             JOIN tag_targets tt ON tt.target_type = sub.ttype AND tt.target_id = sub.tid
             JOIN tags t ON t.id = tt.tag_id
@@ -624,16 +624,16 @@ def search_listings(db, q, tags=None, game_item_id=None, attr_filters=None,
 
 
 _LISTING_RESOLVE_CTE = """
-    SELECT l.id, 'listing' AS ttype, l.id AS tid FROM listings l WHERE l.status = 1
+    SELECT l.id, 'listings' AS ttype, l.id AS tid FROM listings l WHERE l.status = 1
     UNION ALL
-    SELECT l.id, 'game_item', l.game_item_id FROM listings l WHERE l.status = 1 AND l.game_item_id IS NOT NULL
+    SELECT l.id, 'game_items', l.game_item_id FROM listings l WHERE l.status = 1 AND l.game_item_id IS NOT NULL
     UNION ALL
     SELECT lo.listing_id, lo.option_type, lo.option_id FROM listing_options lo
         JOIN listings l ON l.id = lo.listing_id WHERE l.status = 1 AND lo.option_id IS NOT NULL
     UNION ALL
-    SELECT l.id, 'enchant', l.prefix_enchant_id FROM listings l WHERE l.status = 1 AND l.prefix_enchant_id IS NOT NULL
+    SELECT l.id, 'enchants', l.prefix_enchant_id FROM listings l WHERE l.status = 1 AND l.prefix_enchant_id IS NOT NULL
     UNION ALL
-    SELECT l.id, 'enchant', l.suffix_enchant_id FROM listings l WHERE l.status = 1 AND l.suffix_enchant_id IS NOT NULL
+    SELECT l.id, 'enchants', l.suffix_enchant_id FROM listings l WHERE l.status = 1 AND l.suffix_enchant_id IS NOT NULL
 """
 
 
@@ -645,15 +645,15 @@ def _resolve_listing_tags(db: Session, listing_id):
         text("""
             SELECT DISTINCT t.name, (t.weight + tt.weight) AS weight
             FROM (
-                SELECT 'listing' AS ttype, :lid AS tid
+                SELECT 'listings' AS ttype, :lid AS tid
                 UNION ALL
-                SELECT 'game_item', l.game_item_id FROM listings l WHERE l.id = :lid AND l.game_item_id IS NOT NULL
+                SELECT 'game_items', l.game_item_id FROM listings l WHERE l.id = :lid AND l.game_item_id IS NOT NULL
                 UNION ALL
                 SELECT lo.option_type, lo.option_id FROM listing_options lo WHERE lo.listing_id = :lid AND lo.option_id IS NOT NULL
                 UNION ALL
-                SELECT 'enchant', l.prefix_enchant_id FROM listings l WHERE l.id = :lid AND l.prefix_enchant_id IS NOT NULL
+                SELECT 'enchants', l.prefix_enchant_id FROM listings l WHERE l.id = :lid AND l.prefix_enchant_id IS NOT NULL
                 UNION ALL
-                SELECT 'enchant', l.suffix_enchant_id FROM listings l WHERE l.id = :lid AND l.suffix_enchant_id IS NOT NULL
+                SELECT 'enchants', l.suffix_enchant_id FROM listings l WHERE l.id = :lid AND l.suffix_enchant_id IS NOT NULL
             ) AS sub(ttype, tid)
             JOIN tag_targets tt ON tt.target_type = sub.ttype AND tt.target_id = sub.tid
             JOIN tags t ON t.id = tt.tag_id

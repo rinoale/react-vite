@@ -56,7 +56,7 @@ def create_listing_tags(listing, payload, db):
             pos_weight = _TAG_POSITION_WEIGHTS[i] if i < len(_TAG_POSITION_WEIGHTS) else 0
             tag = _get_or_create_tag(db, tag_name)
             weight = max(0, pos_weight - tag.weight)
-            _attach_tag(db, tag, 'listing', listing.id, weight)
+            _attach_tag(db, tag, 'listings', listing.id, weight)
             attached.add(tag_name)
 
         # --- Auto tags (skip if already attached by user) ---
@@ -65,7 +65,7 @@ def create_listing_tags(listing, payload, db):
             if name in attached:
                 continue
             tag = _get_or_create_tag(db, name)
-            _attach_tag(db, tag, 'listing', listing.id, 0)
+            _attach_tag(db, tag, 'listings', listing.id, 0)
 
         db.commit()
         logger.info("register-listing  tags created for listing id=%s user=%d auto=%d",

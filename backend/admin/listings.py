@@ -13,11 +13,13 @@ router = APIRouter()
 
 @router.get("/listings", response_model=schemas.PaginatedListingResponse)
 def admin_listings(
+    q: str = Query(default=""),
+    id: str = Query(default=""),
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
 ):
-    rows = crud_admin.get_listings(db, limit=limit, offset=offset)
+    rows = crud_admin.get_listings(db, q=q or None, id=id or None, limit=limit, offset=offset)
     return {"limit": limit, "offset": offset, "rows": rows}
 
 
@@ -35,9 +37,10 @@ def admin_listing_detail(
 @router.get("/game-items", response_model=schemas.PaginatedGameItemResponse)
 def admin_game_items(
     q: str = Query(default=""),
+    id: str = Query(default=""),
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
 ):
-    rows = crud_admin.get_game_items(db, q=q or None, limit=limit, offset=offset)
+    rows = crud_admin.get_game_items(db, q=q or None, id=id or None, limit=limit, offset=offset)
     return {"limit": limit, "offset": offset, "rows": rows}
