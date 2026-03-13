@@ -6,13 +6,9 @@ from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
 from db.connector import get_db
-from db.models import User
 from crud import admin as crud_admin
-from auth.dependencies import require_role
 
 router = APIRouter()
-
-_admin_required = Depends(require_role("admin"))
 
 _ALLOWED_TABS = {"enchants", "effects", "enchant_effects", "reforge"}
 
@@ -62,7 +58,6 @@ def admin_validate_page(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
-    _: User = _admin_required,
 ) -> HTMLResponse:
     tab = tab if tab in _ALLOWED_TABS else "enchants"
     summary = crud_admin.get_summary(db)
@@ -109,7 +104,7 @@ def admin_validate_page(
   </p>
   {_render_table(rows)}
   <hr/>
-  <p>JSON endpoints: /admin/summary, /admin/enchant-entries, /admin/effects, /admin/links, /admin/reforge-options, /admin/listings, /admin/game-items</p>
+  <p>JSON endpoints: /admin/summary, /admin/enchants, /admin/effects, /admin/links, /admin/reforge-options, /admin/listings, /admin/game-items</p>
 </body>
 </html>
 """

@@ -146,7 +146,13 @@
     "assignedRoles": "할당된 역할",
     "noRoles": "역할 없음",
     "noFlags": "기능 플래그가 없습니다.",
-    "refresh": "새로고침"
+    "refresh": "새로고침",
+    "create": "생성",
+    "delete": "삭제",
+    "deleteConfirm": "\"{{name}}\" 기능 플래그를 삭제하시겠습니까?",
+    "namePlaceholder": "리소스_이름",
+    "read": "read",
+    "manage": "manage"
   },
   "onboarding": {
     "welcome": "환영합니다, {{name}}님!",

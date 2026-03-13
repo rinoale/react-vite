@@ -11,34 +11,34 @@ const NAV_GROUPS = [
     key: 'source_of_truth',
     icon: Database,
     items: [
-      { key: 'enchants' },
-      { key: 'effects' },
-      { key: 'reforge_options' },
-      { key: 'echostone_options' },
-      { key: 'murias_relic_options' },
-      { key: 'game_items' },
+      { key: 'enchants', resource: 'enchants' },
+      { key: 'effects', resource: 'effects' },
+      { key: 'reforge_options', resource: 'reforge_options' },
+      { key: 'echostone_options', resource: 'echostone_options' },
+      { key: 'murias_relic_options', resource: 'murias_relic_options' },
+      { key: 'game_items', resource: 'game_items' },
     ],
   },
   {
     key: 'trade',
     icon: ShoppingCart,
     items: [
-      { key: 'listings' },
-      { key: 'corrections' },
-      { key: 'tags' },
-      { key: 'auto_tag_rules' },
+      { key: 'listings', resource: 'listings' },
+      { key: 'corrections', resource: 'corrections' },
+      { key: 'tags', resource: 'tags' },
+      { key: 'auto_tag_rules', resource: 'auto_tag_rules' },
     ],
   },
   {
     key: 'system',
     icon: Settings,
     items: [
-      { key: 'jobs' },
-      { key: 'users' },
-      { key: 'roles' },
-      { key: 'feature_flags' },
-      { key: 'usage' },
-      { key: 'activity_logs' },
+      { key: 'jobs', resource: 'jobs' },
+      { key: 'users', resource: 'users' },
+      { key: 'roles', resource: 'roles' },
+      { key: 'feature_flags', resource: 'feature_flags' },
+      { key: 'usage', resource: 'usage' },
+      { key: 'activity_logs', resource: 'activity_logs' },
     ],
   },
 ];
@@ -82,13 +82,17 @@ const AdminLayout = () => {
     return parts.length >= 3 ? parts[2] : null;
   }, [location.pathname]);
 
+  const canAccess = useCallback((resource) => {
+    if (isMaster) return true;
+    const features = user?.features || [];
+    return features.includes(`read_${resource}`) || features.includes(`manage_${resource}`);
+  }, [isMaster, user?.features]);
+
   const visibleGroups = useMemo(() => {
-    if (isMaster) return NAV_GROUPS;
-    return NAV_GROUPS.map((g) => {
-      if (g.key !== 'system') return g;
-      return { ...g, items: g.items.filter((i) => i.key === 'jobs') };
-    });
-  }, [isMaster]);
+    return NAV_GROUPS
+      .map((g) => ({ ...g, items: g.items.filter((item) => canAccess(item.resource)) }))
+      .filter((g) => g.items.length > 0);
+  }, [canAccess]);
 
   const handleGroupClick = (groupKey) => {
     navigate(`/${groupKey}`);

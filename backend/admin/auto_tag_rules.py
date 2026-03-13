@@ -5,12 +5,8 @@ from sqlalchemy.orm import Session
 
 from db.connector import get_db
 from db import schemas, models
-from db.models import User
-from auth.dependencies import require_role
 
 router = APIRouter()
-
-_admin_required = Depends(require_role("admin"))
 
 
 @router.get("/auto-tag-rules")
@@ -18,7 +14,6 @@ def list_rules(
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
-    _: User = _admin_required,
 ):
     rows = (
         db.query(models.AutoTagRule)
@@ -32,7 +27,6 @@ def list_rules(
 def get_rule(
     rule_id: UUID,
     db: Session = Depends(get_db),
-    _: User = _admin_required,
 ):
     rule = db.query(models.AutoTagRule).filter(models.AutoTagRule.id == rule_id).first()
     if not rule:
@@ -44,7 +38,6 @@ def get_rule(
 def create_rule(
     data: schemas.AutoTagRuleCreate,
     db: Session = Depends(get_db),
-    _: User = _admin_required,
 ):
     rule = models.AutoTagRule(**data.model_dump())
     db.add(rule)
@@ -58,7 +51,6 @@ def update_rule(
     rule_id: UUID,
     data: schemas.AutoTagRuleUpdate,
     db: Session = Depends(get_db),
-    _: User = _admin_required,
 ):
     rule = db.query(models.AutoTagRule).filter(models.AutoTagRule.id == rule_id).first()
     if not rule:
@@ -74,7 +66,6 @@ def update_rule(
 def delete_rule(
     rule_id: UUID,
     db: Session = Depends(get_db),
-    _: User = _admin_required,
 ):
     rule = db.query(models.AutoTagRule).filter(models.AutoTagRule.id == rule_id).first()
     if not rule:

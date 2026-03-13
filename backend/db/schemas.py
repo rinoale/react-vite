@@ -28,6 +28,18 @@ class UserOut(BaseModel):
     class Config:
         from_attributes = True
 
+_FEATURE_FLAG_NAME_RE = re.compile(r'^(read|manage)_[a-z][a-z0-9_]*$')
+
+class FeatureFlagCreate(BaseModel):
+    name: str
+
+    @field_validator('name')
+    @classmethod
+    def validate_flag_name(cls, v: str) -> str:
+        if not _FEATURE_FLAG_NAME_RE.match(v):
+            raise ValueError('Flag name must match (read|manage)_<resource> pattern')
+        return v
+
 class EnchantBase(BaseModel):
     slot: int
     name: str

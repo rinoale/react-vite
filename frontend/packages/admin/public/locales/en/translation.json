@@ -146,7 +146,13 @@
     "assignedRoles": "Assigned Roles",
     "noRoles": "No roles assigned",
     "noFlags": "No feature flags found.",
-    "refresh": "Refresh"
+    "refresh": "Refresh",
+    "create": "Create",
+    "delete": "Delete",
+    "deleteConfirm": "Delete feature flag \"{{name}}\"?",
+    "namePlaceholder": "resource_name",
+    "read": "read",
+    "manage": "manage"
   },
   "onboarding": {
     "welcome": "Welcome, {{name}}!",
