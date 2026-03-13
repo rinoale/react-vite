@@ -4,7 +4,6 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from auth.dependencies import require_role
 from db.connector import get_db
 from db.models import JobRun
 from db.schemas import JobOut, JobRunOut, PaginatedJobRunResponse
@@ -12,9 +11,7 @@ from jobs import REGISTRY, get_queue
 from jobs.broker import NoWorkerError
 from jobs.connection import get_broker
 
-router = APIRouter(
-    dependencies=[Depends(require_role("admin"))],
-)
+router = APIRouter()
 
 
 def _last_run(db: Session, job_name: str) -> JobRunOut | None:

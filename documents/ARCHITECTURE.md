@@ -1085,8 +1085,6 @@ Files:
 
 **Database tables:** `users`, `roles`, `user_roles`, `feature_flags`, `role_feature_flags`
 
-**Seeded data:** roles=`{master, admin}`, feature_flags=`{manage_tags, manage_corrections}`
-
 **Dependency chain:**
 
 ```
@@ -1094,7 +1092,33 @@ get_current_user         → any valid JWT, active user (status=0)
 optional_user            → same but returns None if no token
 require_role("admin")    → user has "admin" role (master bypasses all)
 require_feature("X")     → user's roles have feature flag X (master bypasses all)
+admin_gate               → convention-based auth on admin router (see below)
 ```
+
+#### Convention-Based Feature Flag System (`admin_gate`)
+
+All admin endpoints are gated by a single `admin_gate` dependency on the parent admin router. Feature flags are derived from URL paths by convention — no per-endpoint decorators needed.
+
+**Convention:**
+```
+URL: /admin/{resource}/...
+GET           → requires read_{resource}  flag
+POST/PATCH/DELETE → requires manage_{resource} flag
+```
+
+- Hyphens to underscores: `/admin/auto-tag-rules` → `auto_tag_rules`
+- `manage_*` implies `read_*` (manage grants both read and write access)
+- Master role bypasses all checks immediately
+- Non-admin users are rejected with 403
+- Resource extracted via regex: `^(?:/api)?/admin/([a-z][a-z0-9-]*)(?:/|$)`
+
+**Deny by default:** Every admin resource requires a matching feature flag. If a user doesn't have the flag, access is denied — even if the flag doesn't exist in the DB.
+
+**Exceptions:** Master-only endpoints (`/admin/users`, `/admin/activity`) keep their own `_master_required` guard. The corrections router is mounted separately with its own `require_feature("manage_corrections")`.
+
+**Feature flag CRUD (master only):** `POST /admin/feature-flags` creates flags (validated: must match `^(read|manage)_[a-z][a-z0-9_]*$`), `DELETE /admin/feature-flags/{id}` removes them.
+
+**Frontend nav gating:** `AdminLayout.jsx` reads `user.features` from `/auth/me` and filters nav items via `canAccess(resource)` — checks for `read_{resource}` or `manage_{resource}` in the user's feature list. Master sees all.
 
 ### Marketplace Search
 
@@ -1158,13 +1182,12 @@ Search activity is logged via `BackgroundTasks` (after response is sent) to `use
 |--------|-----------------|-------|
 | `/auth/*` | refresh, logout, discord, discord/callback | None (public) |
 | `/auth/me` | GET, PATCH | `get_current_user` |
-| `/admin/*` | All GET endpoints | `require_role("admin")` |
-| `/admin/tags` | POST, DELETE, PATCH (mutations) | `require_feature("manage_tags")` |
-| `/admin/users/*/roles/*` | POST, DELETE | `require_role("master")` |
-| `/admin/roles/*/features/*` | POST, DELETE | `require_role("master")` |
-| `/admin/corrections/*` | All except crop | `require_feature("manage_corrections")` |
+| `/admin/*` | All endpoints | `admin_gate` (convention: `read_/manage_{resource}`) |
+| `/admin/users/*` | All | `_master_required` (overrides `admin_gate`) |
+| `/admin/activity/*` | All | `_master_required` (overrides `admin_gate`) |
+| `/admin/feature-flags` | POST, DELETE | `_master_required` |
+| `/admin/corrections/*` | All except crop | `require_feature("manage_corrections")` (separate router) |
 | `/admin/corrections/crop/*` | GET | None (public, serves static images) |
-| `/admin/auto-tag-rules` | GET, POST, PATCH, DELETE | `require_role("admin")` |
 | `/register-listing` | POST | `get_current_user` |
 | `/examine-item` | POST | None (public) |
 | `/listings`, `/tags/search`, `/game-items` | GET | None (public) |
@@ -1262,14 +1285,19 @@ Each rule's JSONB config contains:
 }
 ```
 
-**Value types:**
-- Literal: string, number, or `null`
-- Array: `[1, 2, 3]` (used with `in` operator)
-- Column reference: `{"table": "enchant_effects", "column": "max_level"}` — compares against another column's value on the same row
+**Condition fields:**
 
-**Operators:** `==`, `!=`, `>=`, `<=`, `>`, `<`, `in`
+| Field | Type | Description |
+|-------|------|-------------|
+| `table` | string | Table to evaluate against (see Table Resolution) |
+| `column` | string | Column name on that table |
+| `op` | string | `==`, `!=`, `>=`, `<=`, `>`, `<`, `in` |
+| `value` | any | Literal (string/number/null), array (for `in`), or column reference `{"table": ..., "column": ...}` |
+| `logic` | string | `AND` or `OR` — combines with previous condition (left-to-right, no precedence) |
+| `refer` | string | Optional — captures matched value for tag template interpolation as `{refer_name}` |
+| `group` | int | Optional — assigns condition to a cross-row group (plural tables only) |
 
-**Refer names:** A condition can capture its matched value into a named variable via the `refer` field. The tag template interpolates these as `{refer_name}`.
+**Column references:** Compare against another column's value on the same row. Example: `{"table": "enchant_effects", "column": "max_level"}` for `rolled_value >= max_level`.
 
 ### Table Resolution
 
@@ -1291,13 +1319,42 @@ Schema keys are plural, matching `option_type` values directly — no mapping ne
 ### Condition Evaluation (`_eval_condition`)
 
 1. **Split** conditions into singular and plural groups by table
-2. **Singular conditions** checked first — if any fail, rule short-circuits (returns `[]`)
-3. **Plural conditions** grouped by table — all conditions on the same table must match the **same row**
-4. For each matching plural row, merge singular refers + row refers → render tag template
-5. **Column references** resolve against the current row context (same-table ref for plural) or via `_resolve_singular` (cross-table ref for singular tables)
-6. **Type coercion** in `_coerce_eq`: handles Decimal/int/string mismatches via float comparison
+2. **Singular conditions** checked first with AND/OR logic (left-to-right, no precedence) — if result is `False`, short-circuit (return `[]`)
+3. **Plural conditions** — two modes based on whether any condition has a `group` field:
+
+**Per-row mode** (no `group` field — default): All conditions on the same plural table must match the **same row**. AND/OR logic applies within each row. Each matching row emits a tag.
+
+**Grouped mode** (any condition has `group`): Conditions are split by group ID. Each group must independently find at least one matching row. All groups must pass (inter-group is always AND). Emits one tag if all groups pass.
+
+Example — cross-row matching with groups:
+```json
+{
+  "conditions": [
+    {"group": 1, "table": "reforge_options", "column": "option_name", "op": "==", "value": "최대 공격력", "logic": "AND"},
+    {"group": 1, "table": "reforge_options", "column": "rolled_value", "op": ">", "value": 19, "logic": "AND"},
+    {"group": 2, "table": "reforge_options", "column": "option_name", "op": "==", "value": "스매시 대미지", "logic": "AND"},
+    {"group": 2, "table": "reforge_options", "column": "rolled_value", "op": ">", "value": 19, "logic": "AND"}
+  ],
+  "tag_template": "최공스매19"
+}
+```
+
+This matches when 최대 공격력 > 19 on **one** row AND 스매시 대미지 > 19 on **another** row (or same row). Without groups, all 4 conditions would need to match the same row — impossible since `option_name` can't equal two values simultaneously.
+
+**Group semantics:**
+- Intra-group: AND/OR logic (left-to-right within the group's row evaluation)
+- Inter-group: always AND (every group must match)
+- Inter-group OR is not supported (future feature if needed)
+
+4. **Column references** resolve against the current row context (same-table ref for plural) or via `_resolve_singular` (cross-table ref for singular tables)
+5. **Type coercion** in `_coerce_eq`: handles Decimal/int/string mismatches via float comparison
 
 No SQL is executed from config data. All evaluation uses `getattr()` on Python payload objects — zero SQL injection surface.
+
+**Engine helpers:**
+- `_eval_row(conds, item, ...)` — evaluate conditions against a single plural row with AND/OR logic
+- `_eval_plural_per_row(...)` — legacy mode: per-row matching, emits tag per match
+- `_eval_plural_grouped(...)` — group mode: each group finds a matching row, all groups must pass
 
 ### Frontend: Visual Rule Builder
 
@@ -1318,6 +1375,9 @@ Each condition row provides:
 - **Value** input — literal text, null toggle (checkbox), column reference toggle (`col` button), or comma-separated array (for `in`)
 - **Refer** input — name for template interpolation
 - **AND/OR** logic selector (between conditions)
+- **Group** number input — only shown for plural (`has_many`) tables; assigns conditions to cross-row groups
+
+**Read-only view:** When conditions use groups, they are visually merged by group — each group displays as a single color-coded line with a `G{n}` badge and colored left border. Groups are connected by "AND" on a separate line. Conditions are sorted by group index before save.
 
 Column reference restrictions: has_many tables can only reference columns on the same table (e.g., `enchant_effects.rolled_value >= enchant_effects.max_level`). Singular tables can reference any other singular table.
 

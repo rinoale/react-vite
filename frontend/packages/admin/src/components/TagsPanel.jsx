@@ -77,6 +77,9 @@ const TagsPanel = () => {
   const [tags, setTags] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [pagination, setPagination] = useState({ limit: 50, offset: 0 });
+  const [tagSearch, setTagSearch] = useState('');
+  const [tagSort, setTagSort] = useState('');
+  const tagSearchDebounceRef = useRef(null);
 
   // Detail state
   const [expandedTagId, setExpandedTagId] = useState(null);
@@ -91,7 +94,7 @@ const TagsPanel = () => {
   const fetchTags = useCallback(async () => {
     setIsLoading(true);
     try {
-      const { data } = await getUniqueTags({ limit: pagination.limit, offset: pagination.offset });
+      const { data } = await getUniqueTags({ q: tagSearch || undefined, sort: tagSort || undefined, limit: pagination.limit, offset: pagination.offset });
       setTags(data.rows || []);
     } catch (error) {
       console.error('Error fetching tags:', error);
@@ -99,7 +102,7 @@ const TagsPanel = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [pagination.offset, pagination.limit]);
+  }, [pagination.offset, pagination.limit, tagSearch, tagSort]);
 
   useEffect(() => { fetchTags(); }, [fetchTags]);
 
@@ -201,6 +204,20 @@ const TagsPanel = () => {
   const handleFormKeyDown = useCallback((e) => {
     if (e.key === 'Enter') handleCreate();
   }, [handleCreate]);
+
+  const handleTagSearchChange = useCallback((e) => {
+    const q = e.target.value;
+    if (tagSearchDebounceRef.current) clearTimeout(tagSearchDebounceRef.current);
+    tagSearchDebounceRef.current = setTimeout(() => {
+      setTagSearch(q);
+      setPagination((prev) => ({ ...prev, offset: 0 }));
+    }, 300);
+  }, []);
+
+  const toggleSort = useCallback((field) => {
+    setTagSort((prev) => prev === field ? `-${field}` : field);
+    setPagination((prev) => ({ ...prev, offset: 0 }));
+  }, []);
 
   // --- Pagination ---
   const handlePrevPage = useCallback(() => {
@@ -500,6 +517,37 @@ const TagsPanel = () => {
           </div>
         </div>
 
+        {/* search-sort-bar */}
+        <div className="px-6 py-3 border-b border-gray-700 flex items-center gap-3 flex-wrap">
+          <div className="relative flex-1 min-w-[180px] max-w-xs">
+            <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-500 w-3 h-3" />
+            <input
+              type="text"
+              defaultValue={tagSearch}
+              onChange={handleTagSearchChange}
+              placeholder={t('tags.searchPlaceholder')}
+              className="text-xs bg-gray-800 border border-gray-600 rounded pl-7 pr-2 py-1.5 w-full outline-none focus:border-emerald-500"
+            />
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="text-[10px] font-bold uppercase text-gray-500 mr-1">{t('tags.sort')}</span>
+            {['name', 'target_count', 'weight', 'created_at'].map((field) => {
+              const active = tagSort === field || tagSort === `-${field}`;
+              const desc = tagSort === `-${field}`;
+              return (
+                <button
+                  key={field}
+                  onClick={() => toggleSort(field)}
+                  className={`text-[10px] px-2 py-1 rounded transition-colors ${active ? 'bg-emerald-700 text-emerald-200' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}
+                >
+                  {t(`tags.col_${field}`)}
+                  {active && (desc ? ' ↓' : ' ↑')}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         <div className="divide-y divide-gray-700">
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
@@ -522,7 +570,7 @@ const TagsPanel = () => {
                       <AdminTagBadge name={tg.name} weight={tg.weight} />
                     </button>
                     <span className="text-[10px] text-gray-500">w:{tg.weight}</span>
-                    <span className="text-[10px] text-gray-500">
+                    <span className={`text-[10px] ${tg.target_count > 0 ? 'text-emerald-400' : 'text-gray-500'}`}>
                       ({t('tags.targetCount', { count: tg.target_count })})
                     </span>
                   </div>

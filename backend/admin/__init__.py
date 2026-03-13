@@ -1,5 +1,6 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
+from auth.dependencies import admin_gate
 from admin.activity import router as activity_router
 from admin.data import router as data_router
 from admin.jobs import router as jobs_router
@@ -11,7 +12,7 @@ from admin.users import router as users_router
 from admin.auto_tag_rules import router as auto_tag_rules_router
 from admin.validate import router as validate_router
 
-router = APIRouter(prefix="/admin", tags=["admin"])
+router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(admin_gate)])
 router.include_router(activity_router)
 router.include_router(auto_tag_rules_router)
 router.include_router(data_router)

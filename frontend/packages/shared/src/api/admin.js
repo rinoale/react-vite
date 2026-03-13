@@ -3,10 +3,10 @@ import client from './client';
 export const getSummary = () => client.get('/admin/summary');
 
 export const getEnchantEntries = ({ limit, offset }) =>
-  client.get('/admin/enchant-entries', { params: { limit, offset } });
+  client.get('/admin/enchants', { params: { limit, offset } });
 
 export const getEnchantEffects = (enchantId) =>
-  client.get(`/admin/enchant-entries/${enchantId}/effects`);
+  client.get(`/admin/enchants/${enchantId}/effects`);
 
 export const getLinks = ({ limit, offset }) =>
   client.get('/admin/links', { params: { limit, offset } });
@@ -44,8 +44,8 @@ export const searchTagEntities = (targetType, q, { like = true } = {}) =>
 export const bulkCreateTags = ({ targets, names, weight }) =>
   client.post('/admin/tags/bulk', { targets, names, ...(weight != null && { weight }) });
 
-export const getUniqueTags = ({ limit, offset }) =>
-  client.get('/admin/tags/unique', { params: { limit, offset } });
+export const getUniqueTags = ({ q, sort, limit, offset } = {}) =>
+  client.get('/admin/tags/unique', { params: { q: q || '', sort: sort || '', limit, offset } });
 
 export const deleteTagById = (tagId) =>
   client.delete(`/admin/tags/by-tag/${tagId}`);
@@ -94,6 +94,12 @@ export const getRoles = () =>
 
 export const getFeatureFlags = () =>
   client.get('/admin/feature-flags');
+
+export const createFeatureFlag = (name) =>
+  client.post('/admin/feature-flags', { name });
+
+export const deleteFeatureFlag = (flagId) =>
+  client.delete(`/admin/feature-flags/${flagId}`);
 
 export const assignRole = (userId, roleName) =>
   client.post(`/admin/users/${userId}/roles/${roleName}`);

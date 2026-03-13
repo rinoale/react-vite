@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from db.connector import get_db
+from db import schemas
 from db.models import User
 from crud import user as crud_user
 from auth.dependencies import require_role
@@ -63,7 +64,39 @@ def admin_list_roles(db: Session = Depends(get_db), _: User = _master_required):
 def admin_list_feature_flags(db: Session = Depends(get_db), _: User = _master_required):
     from db.models import FeatureFlag
     flags = db.query(FeatureFlag).order_by(FeatureFlag.id).all()
-    return [{"id": f.id, "name": f.name} for f in flags]
+    return [{"id": f.id, "name": f.name, "created_at": f.created_at} for f in flags]
+
+
+@router.post("/feature-flags")
+def admin_create_feature_flag(
+    data: schemas.FeatureFlagCreate,
+    db: Session = Depends(get_db),
+    _: User = _master_required,
+):
+    from db.models import FeatureFlag
+    existing = db.query(FeatureFlag).filter(FeatureFlag.name == data.name).first()
+    if existing:
+        raise HTTPException(status_code=409, detail="Feature flag already exists")
+    flag = FeatureFlag(name=data.name)
+    db.add(flag)
+    db.commit()
+    db.refresh(flag)
+    return {"id": flag.id, "name": flag.name, "created_at": flag.created_at}
+
+
+@router.delete("/feature-flags/{flag_id}")
+def admin_delete_feature_flag(
+    flag_id: UUID,
+    db: Session = Depends(get_db),
+    _: User = _master_required,
+):
+    from db.models import FeatureFlag
+    flag = db.query(FeatureFlag).filter(FeatureFlag.id == flag_id).first()
+    if not flag:
+        raise HTTPException(status_code=404, detail="Feature flag not found")
+    db.delete(flag)
+    db.commit()
+    return {"deleted": True}
 
 
 @router.post("/users/{user_id}/roles/{role_name}")

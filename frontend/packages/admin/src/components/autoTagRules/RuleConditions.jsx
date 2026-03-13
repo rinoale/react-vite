@@ -12,6 +12,25 @@ const btnToggleOff = `${btnToggle} bg-gray-800 text-gray-500 border-gray-700 hov
 const TABLE_KEYS = Object.keys(LISTING_SCHEMA);
 
 const isColRef = (v) => v !== null && typeof v === 'object' && 'table' in v && 'column' in v;
+const isPlural = (table) => LISTING_SCHEMA[table]?.relation === 'has_many';
+
+const groupBorderClass = (gid) => {
+  const colors = [
+    'border-l-cyan-500', 'border-l-amber-500', 'border-l-emerald-500',
+    'border-l-pink-500', 'border-l-violet-500',
+  ];
+  return colors[(gid - 1) % colors.length];
+};
+const groupBadgeClass = (gid) => {
+  const styles = [
+    'bg-cyan-900/50 text-cyan-400 border-cyan-700/50',
+    'bg-amber-900/50 text-amber-400 border-amber-700/50',
+    'bg-emerald-900/50 text-emerald-400 border-emerald-700/50',
+    'bg-pink-900/50 text-pink-400 border-pink-700/50',
+    'bg-violet-900/50 text-violet-400 border-violet-700/50',
+  ];
+  return styles[(gid - 1) % styles.length];
+};
 
 const emptyCondition = () => ({ table: '', column: '', op: '==', value: '', refer: '' });
 
@@ -50,8 +69,8 @@ const RuleConditions = ({ conditions, onChange, readOnly }) => {
     if (isColRef(c.value)) {
       set(idx, { value: '' });
     } else {
-      const isPlural = LISTING_SCHEMA[c.table]?.relation === 'has_many';
-      set(idx, { value: { table: isPlural ? c.table : '', column: '' } });
+      const plural = LISTING_SCHEMA[c.table]?.relation === 'has_many';
+      set(idx, { value: { table: plural ? c.table : '', column: '' } });
     }
   };
 
@@ -62,26 +81,74 @@ const RuleConditions = ({ conditions, onChange, readOnly }) => {
   };
 
   if (readOnly) {
-    return (
-      <div className="space-y-1">
-        {conditions.map((c, i) => {
-          const valIsRef = isColRef(c.value);
-          return (
+    const hasGroups = conditions.some((c) => c.group != null);
+
+    const renderCondition = (c, showLogic) => {
+      const valIsRef = isColRef(c.value);
+      return (
+        <span className="inline-flex items-center gap-1.5 text-sm">
+          {showLogic && <span className="text-cyan-500 font-bold text-xs">{c.logic}</span>}
+          <span className="font-mono text-gray-400">{tTable(c.table)}</span>
+          <span className="text-gray-600">.</span>
+          <span className="font-mono text-cyan-400">{tColumn(c.column)}</span>
+          <span className="text-gray-400">{c.op}</span>
+          <span className={`font-mono ${valIsRef ? 'text-cyan-400' : 'text-gray-300'}`}>
+            {formatValue(c.value)}
+          </span>
+          {c.refer && (
+            <>
+              <span className="text-gray-600 ml-1">as</span>
+              <span className="font-mono text-amber-300">{`{${c.refer}}`}</span>
+            </>
+          )}
+        </span>
+      );
+    };
+
+    if (!hasGroups) {
+      return (
+        <div className="space-y-1">
+          {conditions.map((c, i) => (
             <div key={i} className="flex items-center gap-2 text-sm flex-wrap">
-              {i > 0 && <span className="text-cyan-500 font-bold text-xs w-8">{c.logic}</span>}
-              <span className="font-mono text-gray-400">{tTable(c.table)}</span>
-              <span className="text-gray-600">.</span>
-              <span className="font-mono text-cyan-400">{tColumn(c.column)}</span>
-              <span className="text-gray-400">{c.op}</span>
-              <span className={`font-mono ${valIsRef ? 'text-cyan-400' : 'text-gray-300'}`}>
-                {formatValue(c.value)}
-              </span>
-              {c.refer && (
-                <>
-                  <span className="text-gray-600 ml-2">as</span>
-                  <span className="font-mono text-amber-300">{`{${c.refer}}`}</span>
-                </>
-              )}
+              {renderCondition(c, i > 0)}
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    // Group conditions: ungrouped first, then grouped blocks
+    const ungrouped = conditions.filter((c) => c.group == null);
+    const grouped = {};
+    conditions.filter((c) => c.group != null).forEach((c) => {
+      grouped[c.group] = grouped[c.group] || [];
+      grouped[c.group].push(c);
+    });
+    const groupIds = Object.keys(grouped).map(Number).sort((a, b) => a - b);
+
+    return (
+      <div className="space-y-2">
+        {ungrouped.map((c, i) => (
+          <div key={`u${i}`} className="flex items-center gap-2 text-sm flex-wrap">
+            {renderCondition(c, i > 0)}
+          </div>
+        ))}
+        {groupIds.map((gid, gi) => {
+          const conds = grouped[gid];
+          const showAnd = ungrouped.length > 0 || gi > 0;
+          return (
+            <div key={`g${gid}`}>
+              {showAnd && <div className="text-cyan-500 font-bold text-xs py-0.5">AND</div>}
+              <div className={`flex items-center gap-1.5 flex-wrap border-l-2 pl-2 py-0.5 ${groupBorderClass(gid)}`}>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded border font-bold shrink-0 ${groupBadgeClass(gid)}`}>
+                  G{gid}
+                </span>
+                {conds.map((c, j) => (
+                  <span key={j} className="inline-flex items-center gap-1.5">
+                    {renderCondition(c, j > 0)}
+                  </span>
+                ))}
+              </div>
             </div>
           );
         })}
@@ -96,16 +163,20 @@ const RuleConditions = ({ conditions, onChange, readOnly }) => {
         const columnKeys = Object.keys(columns);
         const isNull = c.value === null;
         const valIsRef = isColRef(c.value);
-        const isPluralTable = LISTING_SCHEMA[c.table]?.relation === 'has_many';
+        const isPluralTable = isPlural(c.table);
         // For has_many, col ref is always same table; for singular, allow other singulars
         const refTable = valIsRef ? c.value.table : '';
         const refColumns = Object.keys(LISTING_SCHEMA[refTable]?.columns || {});
         const refTableKeys = isPluralTable
           ? []
           : TABLE_KEYS.filter((k) => LISTING_SCHEMA[k].relation !== 'has_many');
+        const gid = c.group;
+        const groupBorder = isPluralTable && gid != null
+          ? `border-l-2 pl-2 ${groupBorderClass(gid)}`
+          : '';
 
         return (
-          <div key={idx} className="flex items-center gap-2 flex-wrap">
+          <div key={idx} className={`flex items-center gap-2 flex-wrap ${groupBorder}`}>
             {/* AND/OR */}
             {idx > 0 && (
               <select
@@ -118,6 +189,22 @@ const RuleConditions = ({ conditions, onChange, readOnly }) => {
               </select>
             )}
             {idx === 0 && <span className="w-16" />}
+
+            {/* group (plural tables only) */}
+            {isPluralTable && (
+              <input
+                type="number"
+                min="1"
+                className={`${inp} w-14 text-center ${gid != null ? 'border-cyan-700' : ''}`}
+                value={gid ?? ''}
+                onChange={(e) => {
+                  const raw = e.target.value.trim();
+                  set(idx, { group: raw === '' ? undefined : parseInt(raw, 10) || 1 });
+                }}
+                placeholder="G"
+                title={t('autoTagRules.builder.group')}
+              />
+            )}
 
             {/* table */}
             <select className={sel} value={c.table} onChange={(e) => set(idx, { table: e.target.value, column: '' })}>

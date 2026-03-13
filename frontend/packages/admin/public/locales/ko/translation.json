@@ -104,7 +104,13 @@
     "targetWeight": "w:",
     "noTargets": "대상 없음.",
     "filterAll": "전체",
-    "bulkUpdate": "일괄 적용 ({{count}})"
+    "bulkUpdate": "일괄 적용 ({{count}})",
+    "searchPlaceholder": "태그 검색...",
+    "sort": "정렬",
+    "col_name": "이름",
+    "col_target_count": "대상 수",
+    "col_weight": "가중치",
+    "col_created_at": "생성일"
   },
   "bulkTag": {
     "title": "일괄 태그",
@@ -146,7 +152,13 @@
     "assignedRoles": "할당된 역할",
     "noRoles": "역할 없음",
     "noFlags": "기능 플래그가 없습니다.",
-    "refresh": "새로고침"
+    "refresh": "새로고침",
+    "create": "생성",
+    "delete": "삭제",
+    "deleteConfirm": "\"{{name}}\" 기능 플래그를 삭제하시겠습니까?",
+    "namePlaceholder": "리소스_이름",
+    "read": "read",
+    "manage": "manage"
   },
   "onboarding": {
     "welcome": "환영합니다, {{name}}님!",
@@ -222,7 +234,8 @@
       "tagTemplate": "태그 템플릿",
       "tagOutput": "태그 출력",
       "switchLiteral": "리터럴로 전환",
-      "switchColumn": "컬럼 비교"
+      "switchColumn": "컬럼 비교",
+      "group": "그룹 (행 간 매칭)"
     },
     "schema": {
       "tables": {

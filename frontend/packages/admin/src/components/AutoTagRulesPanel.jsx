@@ -80,7 +80,9 @@ const AutoTagRulesPanel = () => {
   const handleSave = useCallback(async () => {
     setSaving(true);
     try {
-      const payload = { ...form, config: form.config, priority: Number(form.priority), rule_type: 'condition' };
+      const sortedConditions = [...(form.config.conditions || [])].sort((a, b) => (a.group ?? Infinity) - (b.group ?? Infinity));
+      const config = { ...form.config, conditions: sortedConditions };
+      const payload = { ...form, config, priority: Number(form.priority), rule_type: 'condition' };
       if (editId) {
         const res = await updateAutoTagRule(editId, payload);
         setRules((prev) => prev.map((r) => r.id === editId ? res.data : r));

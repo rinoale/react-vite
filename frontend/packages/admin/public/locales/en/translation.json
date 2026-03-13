@@ -104,7 +104,13 @@
     "targetWeight": "w:",
     "noTargets": "No targets.",
     "filterAll": "All",
-    "bulkUpdate": "Set all ({{count}})"
+    "bulkUpdate": "Set all ({{count}})",
+    "searchPlaceholder": "Search tags...",
+    "sort": "Sort",
+    "col_name": "Name",
+    "col_target_count": "Targets",
+    "col_weight": "Weight",
+    "col_created_at": "Created"
   },
   "bulkTag": {
     "title": "BULK TAG",
@@ -146,7 +152,13 @@
     "assignedRoles": "Assigned Roles",
     "noRoles": "No roles assigned",
     "noFlags": "No feature flags found.",
-    "refresh": "Refresh"
+    "refresh": "Refresh",
+    "create": "Create",
+    "delete": "Delete",
+    "deleteConfirm": "Delete feature flag \"{{name}}\"?",
+    "namePlaceholder": "resource_name",
+    "read": "read",
+    "manage": "manage"
   },
   "onboarding": {
     "welcome": "Welcome, {{name}}!",
@@ -223,7 +235,8 @@
       "tagTemplate": "Tag Template",
       "tagOutput": "Tag output",
       "switchLiteral": "Switch to literal",
-      "switchColumn": "Compare to column"
+      "switchColumn": "Compare to column",
+      "group": "Group (cross-row)"
     },
     "schema": {
       "tables": {
