@@ -57,16 +57,19 @@ export function buildRegistrationPayload({ sessionId, name, description, price, 
   };
 }
 
-/** Build enchant slots (slot/name/rank only, no effects) */
+/** Build enchant slots with IDs resolved from config */
 function buildEnchantSlots(enchantSec) {
   const enchants = [];
   if (!enchantSec) return enchants;
-  if (enchantSec.prefix?.name) {
-    enchants.push({ slot: 0, name: enchantSec.prefix.name, rank: enchantSec.prefix.rank || '' });
-  }
-  if (enchantSec.suffix?.name) {
-    enchants.push({ slot: 1, name: enchantSec.suffix.name, rank: enchantSec.suffix.rank || '' });
-  }
+  const resolve = (slotData, slotInt) => {
+    if (!slotData?.name) return;
+    const config = (window.ENCHANTS_CONFIG || []).find(
+      e => e.name === slotData.name && e.slot === slotInt
+    );
+    if (config?.id) enchants.push({ id: config.id, slot: slotInt, name: slotData.name, rank: slotData.rank || '' });
+  };
+  resolve(enchantSec.prefix, 0);
+  resolve(enchantSec.suffix, 1);
   return enchants;
 }
 
@@ -99,12 +102,10 @@ function buildEnchantEffectOptions(enchantSec) {
 
     for (const eff of slotData.effects || []) {
       const configEff = findConfigEff(eff.option_name);
-      const effIdx = configEff ? config.effects.indexOf(configEff) : -1;
       options.push({
         option_type: 'enchant_effects',
         option_name: configEff?.option_name ?? eff.option_name ?? '',
-        enchant_id: config?.id || null,
-        effect_order: effIdx >= 0 ? effIdx : null,
+        option_id: configEff?.id || null,
         rolled_value: eff.option_level ?? null,
       });
     }

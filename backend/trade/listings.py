@@ -62,7 +62,7 @@ def search_listings(
         limit=limit, offset=offset,
     )
     bg.add_task(log_activity, action="search", user_id=current_user.id if current_user else None,
-                target_type="search_query", metadata={"query": q.strip(), "tags": tags, "game_item_id": str(game_item_id) if game_item_id else None, "results": len(result) if isinstance(result, list) else 0})
+                target_type="search_query", metadata={"query": q.strip(), "tags": tags, "game_item_id": game_item_id, "results": len(result) if isinstance(result, list) else 0})
     return result
 
 

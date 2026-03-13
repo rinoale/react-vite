@@ -167,30 +167,16 @@ def create_listing(payload, db, *, user_id=None):
 
     Returns the created Listing.
     """
-    # Resolve game_item FK: use explicit ID if provided, else match by name
     game_item_id = payload.game_item_id
-    if not game_item_id and payload.name:
-        gi = db.query(GameItem).filter(GameItem.name == payload.name).first()
-        if gi:
-            game_item_id = gi.id
 
-    # Resolve enchant FKs
+    # Enchant IDs come directly from frontend config
     prefix_enchant_id = None
     suffix_enchant_id = None
-    enchant_rows_by_slot = {}
     for enc in payload.enchants:
-        enchant_row = db.query(Enchant).filter(
-            Enchant.name == enc.name,
-            Enchant.slot == enc.slot,
-        ).first()
-        if not enchant_row:
-            logger.warning("register-listing  enchant not found: name=%r slot=%d", enc.name, enc.slot)
-            continue
-        enchant_rows_by_slot[enc.slot] = (enchant_row, enc)
         if enc.slot == 0:
-            prefix_enchant_id = enchant_row.id
+            prefix_enchant_id = enc.id
         elif enc.slot == 1:
-            suffix_enchant_id = enchant_row.id
+            suffix_enchant_id = enc.id
 
     # Parse price string to integer (frontend sends comma-stripped digits)
     price_int = None

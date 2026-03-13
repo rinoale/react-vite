@@ -314,6 +314,7 @@ class PaginatedGameItemResponse(BaseModel):
 # --- Listing registration + implicit correction capture ---
 
 class RegisterEnchantSlot(BaseModel):
+    id: UUID
     slot: int  # 0=prefix, 1=suffix
     name: str
     rank: str
