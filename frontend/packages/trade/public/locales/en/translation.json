@@ -89,6 +89,9 @@
     "ergLabel": "Erg",
     "ergGrade": "Grade {{grade}}",
     "addMoreTags": "Add more tags...",
+    "saveSearch": "Save search",
+    "savedSearches": "Saved searches",
+    "emptySearch": "(empty)",
     "backToList": "Back",
     "filter": {
       "specialUpgrade": "Special Upgrade",

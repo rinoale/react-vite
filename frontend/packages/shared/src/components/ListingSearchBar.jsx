@@ -1,8 +1,8 @@
-import React, { useState, useCallback } from 'react';
-import { Search, X, MoreHorizontal, Package, ChevronDown } from 'lucide-react';
+import React, { useState, useCallback, useMemo } from 'react';
+import { Search, X, Bookmark, Plus, Trash2, MoreHorizontal, Package, ChevronDown } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import {
-  dropdownFull, clearBtnAbsolute, chevronSm,
+  dropdownFull, chevronSm,
   filterBadgeSm,
   searchBarIcon, searchBarInput, suggestionBtn, suggestionIconOrange,
   suggestionTagsWrap, suggestionExpandBtn, suggestionMetaSm,
@@ -11,6 +11,7 @@ import {
 import TagBadge from './TagBadge.jsx';
 import ChipFilterPanel from './ChipFilterPanel.jsx';
 import { FILTER_MAP, OP_SYMBOLS } from '../lib/filterConstants.js';
+import { getSavedSearches, saveSearch, deleteSavedSearch, toStorable, hashStorable, isSaveable } from '../lib/savedSearches.js';
 
 const stopPropagation = (e) => e.stopPropagation();
 const MAX_VISIBLE_TAGS = 3;
@@ -86,7 +87,7 @@ const muriasBadgeSm = 'text-[10px] font-mono leading-none px-1 py-0.5 rounded bg
 const ListingSearchBar = ({
   search,
   wrapperClassName = 'relative w-full md:w-[28rem]',
-  barClassName = 'flex items-center gap-1.5 flex-wrap bg-gray-800 border border-gray-700 rounded-full py-1.5 pl-10 pr-8 min-h-[2.5rem] focus-within:ring-2 focus-within:ring-cyan-500',
+  barClassName = 'flex items-center gap-1.5 flex-wrap bg-gray-800 border border-gray-700 rounded-full py-1.5 pl-10 pr-20 min-h-[2.5rem] focus-within:ring-2 focus-within:ring-cyan-500',
   placeholder,
   addMorePlaceholder,
 }) => {
@@ -103,7 +104,41 @@ const ListingSearchBar = ({
     handleAddEchostoneFilter, handleUpdateEchostoneFilter, handleRemoveEchostoneFilter,
     handleAddMuriasFilter, handleUpdateMuriasFilter, handleRemoveMuriasFilter,
     handleSubmitSearch, handleClear, handleKeyDown, handleInputFocus, executeSearch,
+    toSearchParams, loadSearchParams,
   } = search;
+
+  const [savedOpen, setSavedOpen] = useState(false);
+  const [savedList, setSavedList] = useState(() => getSavedSearches());
+
+  const { canSave, alreadySaved, storable } = useMemo(() => {
+    const s = toStorable(toSearchParams());
+    const saveable = isSaveable(s);
+    const hash = saveable ? hashStorable(s) : null;
+    return { canSave: saveable, alreadySaved: !!(hash && savedList.some((e) => e.hash === hash)), storable: s };
+  }, [selectedTags, selectedGameItem, attrFilters, reforgeFilters, enchantFilters, echostoneFilters, muriasFilters, savedList]);
+
+  const handleSave = useCallback(() => {
+    saveSearch(storable);
+    setSavedList(getSavedSearches());
+  }, [storable]);
+
+  const handleLoadSaved = useCallback((entry) => {
+    loadSearchParams(entry.params);
+    setSavedOpen(false);
+  }, [loadSearchParams]);
+
+  const handleDeleteSaved = useCallback((e, id) => {
+    e.stopPropagation();
+    deleteSavedSearch(id);
+    const updated = getSavedSearches();
+    setSavedList(updated);
+    if (!updated.length) setSavedOpen(false);
+  }, []);
+
+  const toggleSaved = useCallback(() => {
+    setSavedList(getSavedSearches());
+    setSavedOpen((prev) => !prev);
+  }, []);
 
   const isExpanded = panelOpen && !!selectedGameItem;
   const activeAttrFilters = attrFilters.filter((f) => (f.value !== '' && f.value != null) || f.grade || f.type);
@@ -241,12 +276,19 @@ const ListingSearchBar = ({
           className={searchBarInput}
         />
 
-        {/* clear-btn */}
-        {hasFilters && (
-          <button onClick={handleClear} className={clearBtnAbsolute}>
-            <X className="w-4 h-4" />
-          </button>
-        )}
+        {/* bookmark + clear */}
+        <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+          {(hasFilters || savedList.length > 0) && (
+            <button onClick={toggleSaved} className="text-gray-400 hover:text-cyan-400" title={t('marketplace.savedSearches')}>
+              <Bookmark className={`w-4 h-4 ${alreadySaved ? 'fill-current' : ''} ${savedOpen ? 'text-cyan-400' : ''}`} />
+            </button>
+          )}
+          {hasFilters && (
+            <button onClick={() => { handleClear(); setSavedOpen(false); }} className="text-gray-400 hover:text-white">
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* suggestions-dropdown */}
@@ -263,6 +305,74 @@ const ListingSearchBar = ({
               />
             );
           })}
+        </div>
+      )}
+
+      {/* saved-searches-dropdown */}
+      {savedOpen && (hasFilters || savedList.length > 0) && (
+        <div className={`${dropdownFull} max-h-60 rounded-lg mt-1 p-1`}>
+          {canSave && !alreadySaved && (
+            <button
+              onClick={handleSave}
+              className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded text-xs text-cyan-400 hover:bg-gray-700/50"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              {t('marketplace.saveSearch')}
+            </button>
+          )}
+          {savedList.map((entry) => (
+            <div
+              key={entry.id}
+              onClick={() => handleLoadSaved(entry)}
+              className="flex items-center justify-between px-3 py-2 rounded cursor-pointer hover:bg-gray-700/50 group"
+            >
+              <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                {entry.params.gameItem && (
+                  <span className="inline-flex items-center gap-1 text-xs text-orange-300 bg-orange-900/50 border border-orange-700/50 rounded px-1.5 py-0.5">
+                    <Package className="w-3 h-3" />
+                    {entry.params.gameItem.name}
+                  </span>
+                )}
+                {entry.params.tags?.map((tag) => (
+                  <TagBadge key={tag} name={tag} weight={0} />
+                ))}
+                {entry.params.reforgeFilters?.map((f, i) => (
+                  <span key={`r${i}`} className={filterBadgeSm}>
+                    {f.option_name.slice(0, 4)}{f.level ? `${OP_SYMBOLS[f.op]}${f.level}` : ''}
+                  </span>
+                ))}
+                {entry.params.enchantFilters?.map((f, i) => (
+                  <span key={`e${i}`} className={enchantBadgeSm}>{f.name}</span>
+                ))}
+                {entry.params.echostoneFilters?.map((f, i) => (
+                  <span key={`es${i}`} className={echostoneBadgeSm}>
+                    {f.option_name.slice(0, 6)}{f.level ? `${OP_SYMBOLS[f.op]}${f.level}` : ''}
+                  </span>
+                ))}
+                {entry.params.muriasFilters?.map((f, i) => (
+                  <span key={`m${i}`} className={muriasBadgeSm}>
+                    {f.option_name.slice(0, 6)}{f.level ? `${OP_SYMBOLS[f.op]}${f.level}` : ''}
+                  </span>
+                ))}
+                {entry.params.attrFilters?.filter(f => f.value).map((f, i) => {
+                  const opt = FILTER_MAP[f.key];
+                  const label = (opt?.abbr || f.key) + `${OP_SYMBOLS[f.op]}${f.value}`;
+                  return <span key={`a${i}`} className={filterBadgeSm}>{label}</span>;
+                })}
+                {!entry.params.gameItem && !entry.params.tags?.length && !entry.params.reforgeFilters?.length
+                  && !entry.params.enchantFilters?.length && !entry.params.echostoneFilters?.length
+                  && !entry.params.muriasFilters?.length && !entry.params.attrFilters?.some(f => f.value) && (
+                  <span className="text-xs text-gray-500">{t('marketplace.emptySearch')}</span>
+                )}
+              </div>
+              <button
+                onClick={(e) => handleDeleteSaved(e, entry.id)}
+                className="text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 shrink-0 ml-2"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ))}
         </div>
       )}
     </div>
