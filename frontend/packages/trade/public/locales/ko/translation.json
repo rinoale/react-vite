@@ -89,6 +89,9 @@
     "ergLabel": "에르그",
     "ergGrade": "{{grade}}등급",
     "addMoreTags": "태그 추가",
+    "saveSearch": "검색 저장",
+    "savedSearches": "저장된 검색",
+    "emptySearch": "(비어있음)",
     "backToList": "뒤로",
     "filter": {
       "specialUpgrade": "특별개조",

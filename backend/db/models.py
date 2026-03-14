@@ -119,7 +119,7 @@ class EnchantEffect(Base):
 
     id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid7)
     enchant_id = Column(PG_UUID(as_uuid=True), ForeignKey("enchants.id", ondelete="CASCADE"), nullable=False)
-    effect_id = Column(PG_UUID(as_uuid=True), ForeignKey("effects.id", ondelete="RESTRICT"), nullable=True)
+    effect_id = Column(PG_UUID(as_uuid=True), ForeignKey("effects.id", ondelete="RESTRICT"), nullable=False)
     effect_order = Column(Integer, nullable=False)
     condition_text = Column(Text, nullable=True)
     min_value = Column(Numeric, nullable=True)
@@ -225,7 +225,7 @@ class ListingOption(Base):
     id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid7)
     listing_id = Column(PG_UUID(as_uuid=True), ForeignKey("listings.id", ondelete="CASCADE"), nullable=False)
     option_type = Column(Text, nullable=False)  # reforge_options, echostone_options, murias_relic_options, enchant_effects
-    option_id = Column(PG_UUID(as_uuid=True), nullable=True)
+    option_id = Column(PG_UUID(as_uuid=True), nullable=False)
     option_name = Column(Text, nullable=False)
     rolled_value = Column(Numeric, nullable=True)
     max_level = Column(Integer, nullable=True)

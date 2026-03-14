@@ -17,27 +17,27 @@ def get_summary(db: Session):
         "tags": db.query(models.Tag).count(),
     }
 
-def get_enchants(db: Session, limit: int = 100, offset: int = 0):
-    # Use raw SQL for count aggregation to avoid complexity with ORM relationships in simple list
-    # but we can also use ORM with label
+def get_enchants(db: Session, q: Optional[str] = None, id: Optional[str] = None, limit: int = 100, offset: int = 0):
+    where = ""
+    params = {"limit": limit, "offset": offset}
+    if id:
+        where = "WHERE e.id = :id"
+        params["id"] = id
+    elif q:
+        where = "WHERE e.name ILIKE :q"
+        params["q"] = f"%{q}%"
     rows = db.execute(
-        text(
-            """
-            SELECT
-                e.id,
-                e.slot,
-                e.name,
-                e.rank,
-                e.header_text,
-                COUNT(ee.id) AS effect_count
+        text(f"""
+            SELECT e.id, e.slot, e.name, e.rank, e.header_text,
+                   COUNT(ee.id) AS effect_count
             FROM enchants e
             LEFT JOIN enchant_effects ee ON ee.enchant_id = e.id
+            {where}
             GROUP BY e.id
             ORDER BY e.id
             LIMIT :limit OFFSET :offset
-            """
-        ),
-        {"limit": limit, "offset": offset},
+        """),
+        params,
     ).mappings()
     return [dict(r) for r in rows]
 
@@ -94,46 +94,59 @@ def get_enchant_effects_by_id(db: Session, enchant_id):
     ).mappings()
     return [dict(r) for r in rows]
 
-def get_reforge_options(db: Session, limit: int = 100, offset: int = 0):
-    return db.query(models.ReforgeOption).order_by(models.ReforgeOption.id).limit(limit).offset(offset).all()
+def get_reforge_options(db: Session, q: Optional[str] = None, id: Optional[str] = None, limit: int = 100, offset: int = 0):
+    query = db.query(models.ReforgeOption)
+    if id:
+        query = query.filter(models.ReforgeOption.id == id)
+    elif q:
+        query = query.filter(models.ReforgeOption.option_name.ilike(f"%{q}%"))
+    return query.order_by(models.ReforgeOption.id).limit(limit).offset(offset).all()
 
-def get_echostone_options(db: Session, limit: int = 100, offset: int = 0):
-    return db.query(models.EchostoneOption).order_by(models.EchostoneOption.id).limit(limit).offset(offset).all()
+def get_echostone_options(db: Session, q: Optional[str] = None, id: Optional[str] = None, limit: int = 100, offset: int = 0):
+    query = db.query(models.EchostoneOption)
+    if id:
+        query = query.filter(models.EchostoneOption.id == id)
+    elif q:
+        query = query.filter(models.EchostoneOption.option_name.ilike(f"%{q}%"))
+    return query.order_by(models.EchostoneOption.id).limit(limit).offset(offset).all()
 
-def get_murias_relic_options(db: Session, limit: int = 100, offset: int = 0):
-    return db.query(models.MuriasRelicOption).order_by(models.MuriasRelicOption.id).limit(limit).offset(offset).all()
+def get_murias_relic_options(db: Session, q: Optional[str] = None, id: Optional[str] = None, limit: int = 100, offset: int = 0):
+    query = db.query(models.MuriasRelicOption)
+    if id:
+        query = query.filter(models.MuriasRelicOption.id == id)
+    elif q:
+        query = query.filter(models.MuriasRelicOption.option_name.ilike(f"%{q}%"))
+    return query.order_by(models.MuriasRelicOption.id).limit(limit).offset(offset).all()
 
-def get_listings(db: Session, limit: int = 100, offset: int = 0):
+def get_listings(db: Session, q: Optional[str] = None, id: Optional[str] = None, limit: int = 100, offset: int = 0):
+    where = ""
+    params = {"limit": limit, "offset": offset}
+    if id:
+        where = "WHERE l.id = :id"
+        params["id"] = id
+    elif q:
+        where = "WHERE l.name ILIKE :q"
+        params["q"] = f"%{q}%"
     rows = db.execute(
-        text(
-            """
+        text(f"""
             SELECT
-                l.id,
-                l.status,
-                l.name,
-                l.description,
-                l.price,
-                l.game_item_id,
+                l.id, l.status, l.name, l.description, l.price, l.game_item_id,
                 gi.name AS game_item_name,
                 pe.name AS prefix_enchant_name,
                 se.name AS suffix_enchant_name,
-                l.item_type,
-                l.item_grade,
-                l.erg_grade,
-                l.erg_level,
-                l.created_at,
+                l.item_type, l.item_grade, l.erg_grade, l.erg_level, l.created_at,
                 COUNT(DISTINCT lo.id) AS option_count
             FROM listings l
             LEFT JOIN game_items gi ON gi.id = l.game_item_id
             LEFT JOIN enchants pe ON pe.id = l.prefix_enchant_id
             LEFT JOIN enchants se ON se.id = l.suffix_enchant_id
             LEFT JOIN listing_options lo ON lo.listing_id = l.id
+            {where}
             GROUP BY l.id, gi.name, pe.name, se.name
             ORDER BY l.id DESC
             LIMIT :limit OFFSET :offset
-            """
-        ),
-        {"limit": limit, "offset": offset},
+        """),
+        params,
     ).mappings()
     return [dict(r) for r in rows]
 
@@ -141,12 +154,17 @@ def get_listing_count(db: Session):
     return db.query(models.Listing).count()
 
 
-def get_game_items(db: Session, q: Optional[str] = None, limit: int = 20, offset: int = 0):
-    if q:
+def get_game_items(db: Session, q: Optional[str] = None, id: Optional[str] = None, limit: int = 20, offset: int = 0):
+    if id:
+        rows = db.execute(
+            text("SELECT id, name, type, searchable, tradable FROM game_items WHERE id = :id"),
+            {"id": id},
+        ).mappings()
+    elif q:
         rows = db.execute(
             text(
                 """
-                SELECT id, name
+                SELECT id, name, type, searchable, tradable
                 FROM game_items
                 WHERE name ILIKE :q
                 ORDER BY name
@@ -159,7 +177,7 @@ def get_game_items(db: Session, q: Optional[str] = None, limit: int = 20, offset
         rows = db.execute(
             text(
                 """
-                SELECT id, name
+                SELECT id, name, type, searchable, tradable
                 FROM game_items
                 ORDER BY name
                 LIMIT :limit OFFSET :offset
@@ -186,6 +204,21 @@ def _get_or_create_tag(db: Session, name: str, weight: int = 0):
     return tag
 
 
+_ENTITY_NAME_COLUMN = {
+    'reforge_options':      'option_name',
+    'echostone_options':    'option_name',
+    'murias_relic_options': 'option_name',
+    'game_items':           'name',
+    'listings':             'name',
+    'enchants':             'name',
+}
+
+_DISPLAY_NAME_CASE = "CASE tt.target_type\n" + "\n".join(
+    f"                    WHEN '{tbl}' THEN (SELECT x.{col} FROM {tbl} x WHERE x.id = tt.target_id)"
+    for tbl, col in _ENTITY_NAME_COLUMN.items()
+) + "\n                END"
+
+
 def get_tags(db: Session, target_type: Optional[str] = None, limit: int = 100, offset: int = 0):
     where = "WHERE tt.target_type = :target_type" if target_type else ""
     params = {"limit": limit, "offset": offset}
@@ -200,12 +233,7 @@ def get_tags(db: Session, target_type: Optional[str] = None, limit: int = 100, o
                 tt.target_id,
                 t.name,
                 t.weight,
-                CASE tt.target_type
-                    WHEN 'reforge_option' THEN (SELECT ro.option_name FROM reforge_options ro WHERE ro.id = tt.target_id)
-                    WHEN 'game_item'      THEN (SELECT gi.name FROM game_items gi WHERE gi.id = tt.target_id)
-                    WHEN 'listing'        THEN (SELECT l.name FROM listings l WHERE l.id = tt.target_id)
-                    WHEN 'enchant'        THEN (SELECT e.name FROM enchants e WHERE e.id = tt.target_id)
-                END AS target_display_name
+                {_DISPLAY_NAME_CASE} AS target_display_name
             FROM tag_targets tt
             JOIN tags t ON t.id = tt.tag_id
             {where}
@@ -246,16 +274,9 @@ def delete_tag(db: Session, tag_target_id):
 
 
 def search_entities(db: Session, target_type: str, q: str, limit: int = 20, like: bool = True):
-    if target_type == 'reforge_option':
-        tbl, col = 'reforge_options', 'option_name'
-    elif target_type == 'game_item':
-        tbl, col = 'game_items', 'name'
-    elif target_type == 'listing':
-        tbl, col = 'listings', 'name'
-    elif target_type == 'enchant':
-        tbl, col = 'enchants', 'name'
-    else:
+    if target_type not in _ENTITY_NAME_COLUMN:
         return []
+    tbl, col = target_type, _ENTITY_NAME_COLUMN[target_type]
     q_param = f"%{q}%" if like else q
     rows = db.execute(
         text(f"""
@@ -379,18 +400,13 @@ def get_tag_detail(db: Session, tag_id):
     if not tag:
         return None
     rows = db.execute(
-        text("""
+        text(f"""
             SELECT
                 tt.id,
                 tt.target_type,
                 tt.target_id,
                 tt.weight,
-                CASE tt.target_type
-                    WHEN 'reforge_option' THEN (SELECT ro.option_name FROM reforge_options ro WHERE ro.id = tt.target_id)
-                    WHEN 'game_item'      THEN (SELECT gi.name FROM game_items gi WHERE gi.id = tt.target_id)
-                    WHEN 'listing'        THEN (SELECT l.name FROM listings l WHERE l.id = tt.target_id)
-                    WHEN 'enchant'        THEN (SELECT e.name FROM enchants e WHERE e.id = tt.target_id)
-                END AS target_display_name
+                {_DISPLAY_NAME_CASE} AS target_display_name
             FROM tag_targets tt
             WHERE tt.tag_id = :tag_id
             ORDER BY tt.id

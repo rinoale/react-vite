@@ -111,31 +111,29 @@ const Marketplace = () => {
 
   useEffect(() => {
     const st = location.state || {};
-    const name = st.text || '';
-    const tags = st.tags || [];
+    const sp = st.searchParams;
     const targetId = st.listingId || null;
 
-    const init = async () => {
-      if (name) search.setSearchText(name);
-      if (tags.length) {
-        search.setSelectedTags(tags);
-        if (st.tagWeights) search.setTagWeights(st.tagWeights);
-      }
+    if (sp) {
+      search.loadSearchParams(sp);
+      searchStateRef.current = {
+        tags: sp.tags || [], text: sp.text || '',
+        gameItemId: sp.gameItem?.id || null,
+        attrFilters: sp.attrFilters || [],
+        reforgeFilters: sp.reforgeFilters || [],
+        enchantFilters: sp.enchantFilters || [],
+      };
+    } else {
+      const init = async () => {
+        const data = await fetchPage(0, [], '', null, []);
+        setListings(data);
+      };
+      init();
+    }
 
-      searchStateRef.current = { tags, text: name, gameItemId: null, attrFilters: [], reforgeFilters: [], enchantFilters: [] };
-      const data = await fetchPage(0, tags.length ? tags : [], name, null, []);
-      setListings(data);
-
-      if (targetId) {
-        const match = data.find((l) => l.id === targetId);
-        if (match) {
-          setSelectedListing(match);
-        } else {
-          setSelectedListing({ id: targetId, name: '' });
-        }
-      }
-    };
-    init();
+    if (targetId) {
+      setSelectedListing({ id: targetId, name: '' });
+    }
   }, []);
 
   useEffect(() => {

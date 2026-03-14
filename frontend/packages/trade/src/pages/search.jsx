@@ -1,18 +1,17 @@
-import React, { useCallback, useRef } from 'react';
+import React, { useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useListingSearch } from '@mabi/shared/hooks/useListingSearch';
 import ListingSearchBar from '@mabi/shared/components/ListingSearchBar';
 
-const searchBarClass = 'flex items-center gap-1.5 flex-wrap bg-gray-800 border border-gray-700 rounded-xl py-3 pl-12 pr-8 min-h-[3rem] focus-within:ring-2 focus-within:ring-cyan-500';
+const searchBarClass = 'flex items-center gap-1.5 flex-wrap bg-gray-800 border border-gray-700 rounded-xl py-3 pl-12 pr-20 min-h-[3rem] focus-within:ring-2 focus-within:ring-cyan-500';
 
 const SearchPage = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const tagWeightsRef = useRef({});
 
-  const handleSubmit = useCallback(({ tags, text }) => {
-    navigate('/market', { state: { tags, text, tagWeights: tagWeightsRef.current } });
+  const handleSubmit = useCallback((searchParams) => {
+    navigate('/market', { state: { searchParams } });
   }, [navigate]);
 
   const handleSelectListing = useCallback((listing) => {
@@ -23,8 +22,6 @@ const SearchPage = () => {
     onSubmit: handleSubmit,
     onSelectListing: handleSelectListing,
   });
-
-  tagWeightsRef.current = search.tagWeights;
 
   return (
     <div className="min-h-screen bg-gray-900 text-gray-100 flex flex-col items-center p-6 pt-24">

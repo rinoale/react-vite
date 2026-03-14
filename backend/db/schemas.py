@@ -338,7 +338,7 @@ VALID_OPTION_TYPES = frozenset({
 class RegisterListingOption(BaseModel):
     option_type: str
     option_name: str
-    option_id: Optional[UUID] = None
+    option_id: UUID
     rolled_value: Optional[Union[int, float]] = None
     max_level: Optional[int] = None
 

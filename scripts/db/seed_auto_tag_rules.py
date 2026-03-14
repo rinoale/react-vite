@@ -13,56 +13,66 @@ from uuid_utils import uuid7
 
 SEED_RULES = [
     {
-        "name": "enchant_names",
-        "description": "Create tag for each enchant name",
-        "rule_type": "iterate_list",
-        "priority": 10,
-        "config": {"source": "enchants", "field": "name", "tag_template": "{value}"},
+        "name": "full_piercing",
+        "description": "Tag when piercing level equals max roll",
+        "rule_type": "condition",
+        "priority": 0,
+        "config": {
+            "conditions": [
+                {"table": "enchant_effects", "column": "option_name", "op": "==", "value": "피어싱 레벨", "refer": "", "logic": "AND"},
+                {"table": "enchant_effects", "column": "rolled_value", "op": "==", "value": {"table": "enchant_effects", "column": "max_level"}, "refer": "", "logic": "AND"},
+            ],
+            "tag_template": "풀피어싱",
+        },
     },
     {
         "name": "erg_max",
-        "description": "Tag when erg level reaches max (50)",
-        "rule_type": "field_compare",
-        "priority": 20,
+        "description": "Tag when erg grade is S and level is 50",
+        "rule_type": "condition",
+        "priority": 0,
         "config": {
             "conditions": [
-                {"field": "erg_grade", "op": "!=", "value": None},
-                {"field": "erg_level", "op": "==", "value": 50},
+                {"table": "listing", "column": "erg_grade", "op": "==", "value": "S", "refer": "erg_grade", "logic": "AND"},
+                {"table": "listing", "column": "erg_level", "op": "==", "value": 50, "refer": "erg_level", "logic": "AND"},
             ],
             "tag_template": "{erg_grade}르그{erg_level}",
         },
     },
     {
-        "name": "special_upgrade_name",
-        "description": "Map special upgrade type to nickname (R=붉개, S=푸개)",
-        "rule_type": "value_map",
-        "priority": 30,
-        "config": {"field": "special_upgrade_type", "mapping": {"R": "붉개", "S": "푸개"}},
-    },
-    {
-        "name": "special_upgrade_level",
-        "description": "Tag high special upgrade level (7+)",
-        "rule_type": "field_compare",
-        "priority": 40,
+        "name": "special_upgrade",
+        "description": "Tag when special upgrade level >= 7",
+        "rule_type": "condition",
+        "priority": 0,
         "config": {
-            "conditions": [{"field": "special_upgrade_level", "op": ">=", "value": 7}],
-            "tag_template": "{special_upgrade_level}강",
+            "conditions": [
+                {"table": "listing", "column": "special_upgrade_level", "op": ">=", "value": 7, "refer": "level", "logic": "AND"},
+                {"table": "listing", "column": "special_upgrade_type", "op": "!=", "value": None, "refer": "type", "logic": "AND"},
+            ],
+            "tag_template": "{type}{level}",
         },
     },
     {
-        "name": "full_piercing",
-        "description": "Tag when piercing level equals max roll",
-        "rule_type": "cross_table",
-        "priority": 50,
+        "name": "prefix_enchant",
+        "description": "Tag with prefix enchant name",
+        "rule_type": "condition",
+        "priority": 0,
         "config": {
-            "source": "listing_options",
-            "filter": {"option_type": "enchant_effects", "option_name": "피어싱 레벨"},
-            "lookup_table": "enchant_effects",
-            "lookup_key": "option_id",
-            "lookup_field": "max_value",
-            "compare_field": "rolled_value",
-            "op": ">=",
-            "tag_template": "풀피어싱",
+            "conditions": [
+                {"table": "prefix_enchant", "column": "name", "op": "!=", "value": None, "refer": "name", "logic": "AND"},
+            ],
+            "tag_template": "{name}",
+        },
+    },
+    {
+        "name": "suffix_enchant",
+        "description": "Tag with suffix enchant name",
+        "rule_type": "condition",
+        "priority": 0,
+        "config": {
+            "conditions": [
+                {"table": "suffix_enchant", "column": "name", "op": "!=", "value": None, "refer": "name", "logic": "AND"},
+            ],
+            "tag_template": "{name}",
         },
     },
 ]

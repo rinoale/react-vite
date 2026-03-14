@@ -1,5 +1,6 @@
 from sqlalchemy.exc import IntegrityError
 
+from db.connector import SessionLocal
 from db.models import Tag, TagTarget
 from lib.utils.log import logger
 from trade.services.auto_tag_engine import evaluate_rules
@@ -38,25 +39,27 @@ def _attach_tag(db, tag, target_type, target_id, weight):
         sp.rollback()
 
 
-def create_listing_tags(listing, payload, db):
+def create_listing_tags(*, listing_id, tags, payload):
     """Create user-submitted and auto-generated tags for a listing.
 
+    Uses its own DB session — designed for BackgroundTasks (after response).
     User tags use positional weights [80, 60, 30].
     Auto tags use weight 0.
     Deduplicates: auto tags already attached by user tags are skipped.
     """
+    db = SessionLocal()
     try:
         attached = set()
 
         # --- User-submitted tags (positional weights) ---
-        for i, tag_name in enumerate(payload.tags[:3]):
+        for i, tag_name in enumerate(tags[:3]):
             tag_name = tag_name.strip()
             if not tag_name:
                 continue
             pos_weight = _TAG_POSITION_WEIGHTS[i] if i < len(_TAG_POSITION_WEIGHTS) else 0
             tag = _get_or_create_tag(db, tag_name)
             weight = max(0, pos_weight - tag.weight)
-            _attach_tag(db, tag, 'listing', listing.id, weight)
+            _attach_tag(db, tag, 'listings', listing_id, weight)
             attached.add(tag_name)
 
         # --- Auto tags (skip if already attached by user) ---
@@ -65,11 +68,13 @@ def create_listing_tags(listing, payload, db):
             if name in attached:
                 continue
             tag = _get_or_create_tag(db, name)
-            _attach_tag(db, tag, 'listing', listing.id, 0)
+            _attach_tag(db, tag, 'listings', listing_id, 0)
 
         db.commit()
         logger.info("register-listing  tags created for listing id=%s user=%d auto=%d",
-                     listing.id, min(len(payload.tags), 3), len(auto_tags))
+                     listing_id, min(len(tags), 3), len(auto_tags))
     except Exception:
         db.rollback()
-        logger.exception("register-listing  tag creation failed for listing id=%s", listing.id)
+        logger.exception("register-listing  tag creation failed for listing id=%s", listing_id)
+    finally:
+        db.close()

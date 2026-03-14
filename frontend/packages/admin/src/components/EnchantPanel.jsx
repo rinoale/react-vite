@@ -1,7 +1,9 @@
-import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Loader2, ChevronDown, ChevronRight, List, RefreshCw, Info } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { getEnchantEntries, getEnchantEffects, getLinks } from '@mabi/shared/api/admin';
+import { consumeSearchIntent } from '@mabi/shared/lib/searchIntent';
+import SearchBar from '@mabi/shared/components/SearchBar';
 
 const toRankLabel = (rank) => {
   const n = Number(rank);
@@ -47,28 +49,35 @@ const EnchantPanel = () => {
   const [loadingEffects, setLoadingEffects] = useState({});
   const [isLoading, setIsLoading] = useState(true);
   const [expandedEnchantIds, setExpandedEnchantIds] = useState({});
-  const [nameQuery, setNameQuery] = useState('');
+  const [_intent] = useState(() => consumeSearchIntent());
+  const [searchQuery, setSearchQuery] = useState(_intent?.q || '');
+  const [searchBy, setSearchBy] = useState(_intent?.by || 'name');
   const [pagination, setPagination] = useState({ limit: 100, offset: 0 });
 
   const fetchData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const { data } = await getEnchantEntries({ limit: pagination.limit, offset: pagination.offset });
+      const params = { limit: pagination.limit, offset: pagination.offset };
+      if (searchQuery) {
+        if (searchBy === 'id') params.id = searchQuery;
+        else params.q = searchQuery;
+      }
+      const { data } = await getEnchantEntries(params);
       setEntries(data.rows || []);
     } catch (error) {
       console.error('Error fetching enchants:', error);
     } finally {
       setIsLoading(false);
     }
-  }, [pagination.offset, pagination.limit]);
+  }, [pagination.offset, pagination.limit, searchQuery, searchBy]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  const filteredEntries = useMemo(() => {
-    const q = nameQuery.trim().toLowerCase();
-    if (!q) return entries;
-    return entries.filter((entry) => String(entry.name || '').toLowerCase().includes(q));
-  }, [entries, nameQuery]);
+  const handleSearch = useCallback(({ query, by }) => {
+    setSearchQuery(query);
+    setSearchBy(by);
+    setPagination((prev) => ({ ...prev, offset: 0 }));
+  }, []);
 
   const fetchEnchantEffects = async (enchantId) => {
     if (effectsByEnchant[enchantId] || loadingEffects[enchantId]) return;
@@ -106,13 +115,7 @@ const EnchantPanel = () => {
           {t('enchants.title')}
         </h2>
         <div className="flex items-center gap-4">
-          <input
-            type="text"
-            value={nameQuery}
-            onChange={(e) => setNameQuery(e.target.value)}
-            placeholder={t('enchants.searchPlaceholder')}
-            className="text-xs bg-gray-900 border border-gray-600 rounded px-2 py-1 outline-none focus:border-cyan-500"
-          />
+          <SearchBar defaultQuery={_intent?.q} defaultBy={_intent?.by} onSearch={handleSearch} placeholder={t('enchants.searchPlaceholder')} />
           <button
             onClick={() => setPagination((prev) => ({ ...prev, offset: Math.max(0, prev.offset - prev.limit) }))}
             className="text-xs bg-gray-600 hover:bg-gray-500 px-3 py-1 rounded"
@@ -141,11 +144,11 @@ const EnchantPanel = () => {
           <div className="flex items-center justify-center py-12">
             <Loader2 className="w-8 h-8 text-cyan-500 animate-spin" />
           </div>
-        ) : filteredEntries.length === 0 ? (
+        ) : entries.length === 0 ? (
           <div className="px-6 py-8 text-center text-xs text-gray-500 uppercase tracking-wide">
             {t('enchants.noMatch')}
           </div>
-        ) : filteredEntries.map((entry) => {
+        ) : entries.map((entry) => {
           const isExpanded = !!expandedEnchantIds[entry.id];
           const effects = effectsByEnchant[entry.id] || [];
           const isEffectsLoading = !!loadingEffects[entry.id];

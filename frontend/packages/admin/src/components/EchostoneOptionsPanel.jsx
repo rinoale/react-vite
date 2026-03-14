@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { Loader2, RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { getEchostoneOptions } from '@mabi/shared/api/admin';
+import { consumeSearchIntent } from '@mabi/shared/lib/searchIntent';
+import SearchBar from '@mabi/shared/components/SearchBar';
 import {
   panelOuter, panelHeader, panelTitle, panelEmpty,
   thRow, thCell, tdCell, tdCellMono, tdCellSub, btnPagGray,
@@ -17,23 +19,37 @@ const TYPE_COLORS = {
 
 const EchostoneOptionsPanel = () => {
   const { t } = useTranslation();
+  const [_intent] = useState(() => consumeSearchIntent());
   const [rows, setRows] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [pagination, setPagination] = useState({ limit: 100, offset: 0 });
+  const [searchQuery, setSearchQuery] = useState(_intent?.q || '');
+  const [searchBy, setSearchBy] = useState(_intent?.by || 'name');
 
   const fetchData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const { data } = await getEchostoneOptions({ limit: pagination.limit, offset: pagination.offset });
+      const params = { limit: pagination.limit, offset: pagination.offset };
+      if (searchQuery) {
+        if (searchBy === 'id') params.id = searchQuery;
+        else params.q = searchQuery;
+      }
+      const { data } = await getEchostoneOptions(params);
       setRows(data.rows || []);
     } catch (error) {
       console.error('Error fetching echostone options:', error);
     } finally {
       setIsLoading(false);
     }
-  }, [pagination.offset, pagination.limit]);
+  }, [pagination.offset, pagination.limit, searchQuery, searchBy]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  const handleSearch = useCallback(({ query, by }) => {
+    setSearchQuery(query);
+    setSearchBy(by);
+    setPagination((prev) => ({ ...prev, offset: 0 }));
+  }, []);
 
   const handlePrev = useCallback(() => {
     setPagination((prev) => ({ ...prev, offset: Math.max(0, prev.offset - prev.limit) }));
@@ -48,6 +64,7 @@ const EchostoneOptionsPanel = () => {
       <div className={panelHeader}>
         <h2 className={panelTitle}>{t('nav.items.echostone_options')}</h2>
         <div className="flex items-center gap-4">
+          <SearchBar defaultQuery={_intent?.q} defaultBy={_intent?.by} onSearch={handleSearch} />
           <button onClick={handlePrev} className={btnPagGray} disabled={pagination.offset === 0}>
             Prev
           </button>

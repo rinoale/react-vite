@@ -2,8 +2,8 @@ import client from './client';
 
 export const getSummary = () => client.get('/admin/summary');
 
-export const getEnchantEntries = ({ limit, offset }) =>
-  client.get('/admin/enchants', { params: { limit, offset } });
+export const getEnchantEntries = ({ q, id, limit, offset } = {}) =>
+  client.get('/admin/enchants', { params: { q: q || '', id: id || '', limit, offset } });
 
 export const getEnchantEffects = (enchantId) =>
   client.get(`/admin/enchants/${enchantId}/effects`);
@@ -23,8 +23,8 @@ export const editCorrection = (correctionId, correctedText) =>
 export const truncateCorrections = () =>
   client.delete('/admin/corrections/truncate');
 
-export const getListings = ({ limit, offset }) =>
-  client.get('/admin/listings', { params: { limit, offset } });
+export const getListings = ({ q, id, limit, offset } = {}) =>
+  client.get('/admin/listings', { params: { q: q || '', id: id || '', limit, offset } });
 
 export const getListingDetail = (listingId) =>
   client.get(`/admin/listings/${listingId}/detail`);
@@ -62,20 +62,20 @@ export const updateTagTargetWeight = (tagTargetId, weight) =>
 export const bulkUpdateTagTargetWeights = (ids, weight) =>
   client.patch('/admin/tags/targets/bulk', { ids, weight });
 
-export const getEchostoneOptions = ({ limit, offset } = {}) =>
-  client.get('/admin/echostone-options', { params: { limit, offset } });
+export const getEchostoneOptions = ({ q, id, limit, offset } = {}) =>
+  client.get('/admin/echostone-options', { params: { q: q || '', id: id || '', limit, offset } });
 
-export const getMuriasRelicOptions = ({ limit, offset } = {}) =>
-  client.get('/admin/murias-relic-options', { params: { limit, offset } });
+export const getMuriasRelicOptions = ({ q, id, limit, offset } = {}) =>
+  client.get('/admin/murias-relic-options', { params: { q: q || '', id: id || '', limit, offset } });
 
-export const getReforgeOptions = ({ limit, offset } = {}) =>
-  client.get('/admin/reforge-options', { params: { limit, offset } });
+export const getReforgeOptions = ({ q, id, limit, offset } = {}) =>
+  client.get('/admin/reforge-options', { params: { q: q || '', id: id || '', limit, offset } });
 
 export const getEffects = ({ limit, offset } = {}) =>
   client.get('/admin/effects', { params: { limit, offset } });
 
-export const getGameItems = ({ limit, offset } = {}) =>
-  client.get('/admin/game-items', { params: { limit, offset } });
+export const getGameItems = ({ q, id, limit, offset } = {}) =>
+  client.get('/admin/game-items', { params: { q: q || '', id: id || '', limit, offset } });
 
 export const getJobs = () =>
   client.get('/admin/jobs');

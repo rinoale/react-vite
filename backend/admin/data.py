@@ -23,11 +23,13 @@ def admin_summary(db: Session = Depends(get_db)):
 
 @router.get("/enchants", response_model=schemas.PaginatedEnchantResponse)
 def admin_enchant_entries(
+    q: str = Query(default=""),
+    id: str = Query(default=""),
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
 ):
-    rows = crud_admin.get_enchants(db, limit=limit, offset=offset)
+    rows = crud_admin.get_enchants(db, q=q or None, id=id or None, limit=limit, offset=offset)
     return {"limit": limit, "offset": offset, "rows": rows}
 
 
@@ -61,29 +63,35 @@ def admin_links(
 
 @router.get("/reforge-options", response_model=schemas.PaginatedReforgeResponse)
 def admin_reforge_options(
+    q: str = Query(default=""),
+    id: str = Query(default=""),
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
 ):
-    rows = crud_admin.get_reforge_options(db, limit=limit, offset=offset)
+    rows = crud_admin.get_reforge_options(db, q=q or None, id=id or None, limit=limit, offset=offset)
     return {"limit": limit, "offset": offset, "rows": rows}
 
 
 @router.get("/echostone-options", response_model=schemas.PaginatedEchostoneResponse)
 def admin_echostone_options(
+    q: str = Query(default=""),
+    id: str = Query(default=""),
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
 ):
-    rows = crud_admin.get_echostone_options(db, limit=limit, offset=offset)
+    rows = crud_admin.get_echostone_options(db, q=q or None, id=id or None, limit=limit, offset=offset)
     return {"limit": limit, "offset": offset, "rows": rows}
 
 
 @router.get("/murias-relic-options", response_model=schemas.PaginatedMuriasRelicResponse)
 def admin_murias_relic_options(
+    q: str = Query(default=""),
+    id: str = Query(default=""),
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
 ):
-    rows = crud_admin.get_murias_relic_options(db, limit=limit, offset=offset)
+    rows = crud_admin.get_murias_relic_options(db, q=q or None, id=id or None, limit=limit, offset=offset)
     return {"limit": limit, "offset": offset, "rows": rows}

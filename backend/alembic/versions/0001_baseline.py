@@ -67,10 +67,6 @@ def upgrade() -> None:
         sa.UniqueConstraint("role_id", "feature_flag_id", name="_role_feature_flag_uc"),
     )
 
-    # --- Seed auth data ---
-    op.execute(f"INSERT INTO roles (id, name) VALUES ('{uuid7()}', 'master'), ('{uuid7()}', 'admin')")
-    op.execute(f"INSERT INTO feature_flags (id, name) VALUES ('{uuid7()}', 'manage_tags'), ('{uuid7()}', 'manage_corrections')")
-
     # --- Enchants & Effects ---
     op.create_table(
         "enchants",
@@ -101,7 +97,7 @@ def upgrade() -> None:
         "enchant_effects",
         sa.Column("id", PG_UUID(as_uuid=True), primary_key=True),
         sa.Column("enchant_id", PG_UUID(as_uuid=True), sa.ForeignKey("enchants.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("effect_id", PG_UUID(as_uuid=True), sa.ForeignKey("effects.id", ondelete="RESTRICT"), nullable=True),
+        sa.Column("effect_id", PG_UUID(as_uuid=True), sa.ForeignKey("effects.id", ondelete="RESTRICT"), nullable=False),
         sa.Column("effect_order", sa.Integer(), nullable=False),
         sa.Column("condition_text", sa.Text(), nullable=True),
         sa.Column("min_value", sa.Numeric(), nullable=True),
@@ -200,7 +196,7 @@ def upgrade() -> None:
         sa.Column("id", PG_UUID(as_uuid=True), primary_key=True),
         sa.Column("listing_id", PG_UUID(as_uuid=True), sa.ForeignKey("listings.id", ondelete="CASCADE"), nullable=False),
         sa.Column("option_type", sa.Text(), nullable=False),
-        sa.Column("option_id", PG_UUID(as_uuid=True), nullable=True),
+        sa.Column("option_id", PG_UUID(as_uuid=True), nullable=False),
         sa.Column("option_name", sa.Text(), nullable=False),
         sa.Column("rolled_value", sa.Numeric(), nullable=True),
         sa.Column("max_level", sa.Integer(), nullable=True),
@@ -284,8 +280,36 @@ def upgrade() -> None:
     op.create_index("ix_activity_target", "user_activity_logs", ["target_type", "target_id"])
     op.create_index("ix_activity_created_at", "user_activity_logs", ["created_at"])
 
+    # --- Auto Tag Rules ---
+    op.create_table(
+        "auto_tag_rules",
+        sa.Column("id", PG_UUID(as_uuid=True), primary_key=True),
+        sa.Column("name", sa.Text(), nullable=False, unique=True),
+        sa.Column("description", sa.Text(), nullable=True),
+        sa.Column("rule_type", sa.Text(), nullable=False),
+        sa.Column("enabled", sa.Boolean(), nullable=False, server_default="true"),
+        sa.Column("priority", sa.Integer(), nullable=False, server_default="0"),
+        sa.Column("config", JSONB(), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
+    )
+    op.create_index(
+        "ix_auto_tag_rules_enabled_priority",
+        "auto_tag_rules",
+        ["enabled", "priority"],
+    )
+
+    # --- Import metadata ---
+    op.create_table(
+        "import_metadata",
+        sa.Column("key", sa.Text(), primary_key=True),
+        sa.Column("value", sa.Text(), nullable=False),
+    )
+
 
 def downgrade() -> None:
+    op.drop_table("import_metadata")
+    op.drop_table("auto_tag_rules")
     op.drop_table("user_activity_logs")
     op.drop_table("job_runs")
     op.drop_table("ocr_corrections")

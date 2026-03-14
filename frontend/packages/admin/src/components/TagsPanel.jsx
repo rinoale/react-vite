@@ -1,20 +1,27 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
-import { Loader2, ChevronDown, ChevronRight, List, RefreshCw, Check, X, Plus, Search, Tag, Trash2 } from 'lucide-react';
+import { Loader2, ChevronDown, ChevronRight, List, RefreshCw, Check, X, Plus, Search, Tag, Trash2, ExternalLink } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { Link, useNavigate } from 'react-router-dom';
+import { setSearchIntent } from '@mabi/shared/lib/searchIntent';
 import { getTags, createTag, deleteTag, searchTagEntities, bulkCreateTags, getUniqueTags, deleteTagById, getTagDetail, updateTagWeight, updateTagTargetWeight, bulkUpdateTagTargetWeights } from '@mabi/shared/api/admin';
 import CustomSelect from '@mabi/shared/components/CustomSelect';
 import TagBadge from '@mabi/shared/components/TagBadge';
 import { getTagColor } from '@mabi/shared/lib/tagColors';
 import { pillActive, pillInactive, btnSmEmerald, weightInputSm } from '@mabi/shared/styles';
 
-const ENTITY_TYPES = [
-  { value: 'reforge_options', label: 'Reforge Option' },
-  { value: 'echostone_options', label: 'Echostone Option' },
-  { value: 'murias_relic_options', label: 'Murias Relic Option' },
-  { value: 'game_item', label: 'Game Item' },
-  { value: 'listing', label: 'Listing' },
-  { value: 'enchant', label: 'Enchant' },
+const ENTITY_TYPE_KEYS = [
+  'reforge_options', 'echostone_options', 'murias_relic_options',
+  'game_items', 'listings', 'enchants',
 ];
+
+const ENTITY_ROUTE_MAP = {
+  enchants: '/source_of_truth/enchants',
+  game_items: '/source_of_truth/game_items',
+  reforge_options: '/source_of_truth/reforge_options',
+  echostone_options: '/source_of_truth/echostone_options',
+  murias_relic_options: '/source_of_truth/murias_relic_options',
+  listings: '/trade/listings',
+};
 
 const AdminTagBadge = ({ name, weight }) => (
   <TagBadge name={name} weight={weight} size="sm" className="group-hover:ring-1 ring-emerald-500/50" />
@@ -22,14 +29,23 @@ const AdminTagBadge = ({ name, weight }) => (
 
 const TagTargetRow = ({ tgt, editingWeight, onStartEdit, onSaveWeight, onCancelEdit, onChangeWeight, onDelete, t }) => {
   const weightColor = getTagColor(editingWeight != null ? (parseInt(editingWeight, 10) || 0) : tgt.weight);
+  const entityRoute = ENTITY_ROUTE_MAP[tgt.target_type];
+  const entityLink = entityRoute || null;
   return (
     <div className="flex items-center gap-3 py-1 px-2 rounded hover:bg-gray-800/50">
       <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-gray-700 text-gray-400 min-w-[80px] text-center">
-        {tgt.target_type}
+        {t(`entityTypes.${tgt.target_type}`, tgt.target_type)}
       </span>
-      <span className="text-xs text-gray-300 flex-1">
-        {tgt.target_display_name || `#${tgt.target_id}`}
-      </span>
+      {entityLink ? (
+        <Link to={entityLink} onClick={() => setSearchIntent(tgt.target_id, 'id')} className="text-xs text-cyan-400 hover:text-cyan-300 flex items-center gap-1 flex-1">
+          {tgt.target_display_name || `#${tgt.target_id}`}
+          <ExternalLink className="w-2.5 h-2.5 shrink-0" />
+        </Link>
+      ) : (
+        <span className="text-xs text-gray-300 flex-1">
+          {tgt.target_display_name || `#${tgt.target_id}`}
+        </span>
+      )}
       <span className="text-[10px] text-gray-500 mr-1">{t('tags.targetWeight')}</span>
       {editingWeight != null ? (
         <span className="flex items-center gap-1">
@@ -59,8 +75,13 @@ const TagTargetRow = ({ tgt, editingWeight, onStartEdit, onSaveWeight, onCancelE
 const TagsPanel = () => {
   const { t } = useTranslation();
 
+  const entityTypeOptions = useMemo(
+    () => ENTITY_TYPE_KEYS.map((key) => ({ value: key, label: t(`entityTypes.${key}`) })),
+    [t],
+  );
+
   // --- Section A: Bulk Tag Creator ---
-  const [searchType, setSearchType] = useState('game_item');
+  const [searchType, setSearchType] = useState('game_items');
   const [searchQuery, setSearchQuery] = useState('');
   const [likeSearch, setLikeSearch] = useState(true);
   const [suggestions, setSuggestions] = useState([]);
@@ -373,7 +394,7 @@ const TagsPanel = () => {
           <CustomSelect
             value={searchType}
             onChange={handleSearchTypeChange}
-            options={ENTITY_TYPES}
+            options={entityTypeOptions}
             triggerClassName="text-xs bg-gray-800 border border-gray-600 rounded px-2 py-1.5 focus:border-emerald-500"
           />
 
@@ -392,27 +413,27 @@ const TagsPanel = () => {
               placeholder={t('bulkTag.searchPlaceholder')}
               className="text-xs bg-gray-800 border border-gray-600 rounded pl-7 pr-2 py-1.5 w-full outline-none focus:border-emerald-500"
             />
-            {showSuggestions && suggestions.length > 0 && (
-              <div className="absolute z-50 mt-1 w-full bg-gray-800 border border-gray-700 rounded-lg shadow-xl max-h-48 overflow-auto scrollbar-thin">
-                {suggestions.map((ent) => {
-                  const alreadyAdded = selectedTargets.some((st) => st.target_type === searchType && st.target_id === ent.id);
-                  return (
+            {showSuggestions && suggestions.length > 0 && (() => {
+              const filtered = suggestions.filter((ent) => !selectedTargets.some((st) => st.target_type === searchType && st.target_id === ent.id));
+              if (filtered.length === 0) return null;
+              return (
+                <div className="absolute z-50 mt-1 w-full bg-gray-800 border border-gray-700 rounded-lg shadow-xl max-h-48 overflow-auto scrollbar-thin">
+                  <button onClick={handleSelectAll} className="w-full text-center px-3 py-1.5 text-xs font-bold text-emerald-400 hover:bg-gray-700 border-b border-gray-700 transition-colors sticky top-0 bg-gray-800">
+                    {t('tags.selectAll')}
+                  </button>
+                  {filtered.map((ent) => (
                     <button
                       key={ent.id}
                       onClick={() => handleAddTarget(ent)}
-                      disabled={alreadyAdded}
-                      className={`w-full text-left px-3 py-1.5 text-xs flex items-center justify-between transition-colors ${alreadyAdded ? 'opacity-40 cursor-not-allowed' : 'hover:bg-gray-700'}`}
+                      className="w-full text-left px-3 py-1.5 text-xs flex items-center justify-between transition-colors hover:bg-gray-700"
                     >
                       <span><span className="text-gray-400 mr-1">#{ent.id}</span> {ent.name}</span>
-                      {!alreadyAdded && <Plus className="w-3 h-3 text-emerald-400" />}
+                      <Plus className="w-3 h-3 text-emerald-400" />
                     </button>
-                  );
-                })}
-                <button onClick={handleSelectAll} className="w-full text-center px-3 py-1.5 text-xs font-bold text-emerald-400 hover:bg-gray-700 border-t border-gray-700 transition-colors">
-                  {t('tags.selectAll')}
-                </button>
-              </div>
-            )}
+                  ))}
+                </div>
+              );
+            })()}
           </div>
         </div>
 
@@ -424,7 +445,7 @@ const TagsPanel = () => {
             </span>
             {selectedTargets.map((tgt, i) => (
               <span key={`${tgt.target_type}:${tgt.target_id}`} className="inline-flex items-center gap-1 text-xs bg-gray-700 text-gray-300 px-2 py-0.5 rounded">
-                <span className="text-[9px] font-bold uppercase text-gray-500">{tgt.target_type.replace('_', ' ')}</span>
+                <span className="text-[9px] font-bold uppercase text-gray-500">{t(`entityTypes.${tgt.target_type}`, tgt.target_type)}</span>
                 {tgt.name}
                 <button onClick={() => handleRemoveTarget(i)} className="text-gray-500 hover:text-red-400 ml-0.5">
                   <X className="w-3 h-3" />
@@ -643,7 +664,7 @@ const TagsPanel = () => {
                                         onClick={() => setTargetTypeFilter(type)}
                                         className={targetTypeFilter === type ? pillActive : pillInactive}
                                       >
-                                        {type.replace('_', ' ')}
+                                        {t(`entityTypes.${type}`, type)}
                                       </button>
                                     ))}
                                   </div>

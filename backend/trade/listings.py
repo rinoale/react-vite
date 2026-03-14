@@ -129,8 +129,8 @@ def register_listing(payload: RegisterListingRequest, db: Session = Depends(get_
 
     corrections_saved = capture_corrections(payload.session_id, payload.lines, db)
     listing = create_listing(payload, db, user_id=current_user.id)
-    create_listing_tags(listing, payload, db)
 
+    bg.add_task(create_listing_tags, listing_id=listing.id, tags=payload.tags, payload=payload)
     bg.add_task(log_activity, action="listing_created", user_id=current_user.id,
                 target_type="listing", target_id=listing.id,
                 metadata={"game_item_id": payload.game_item_id})
