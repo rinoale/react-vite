@@ -12,6 +12,16 @@
     "subtitle": "Database Validation & Maintenance",
     "initializing": "Initializing Database..."
   },
+  "auth": {
+    "loginTitle": "로그인",
+    "loginSuccess": "로그인 성공",
+    "logout": "로그아웃",
+    "error": "인증에 실패했습니다.",
+    "discordError": {
+      "discord_failed": "디스코드 로그인에 실패했습니다. 다시 시도해주세요.",
+      "no_email": "디스코드 로그인에 실패했습니다. 디스코드 계정에 이메일이 없습니다."
+    }
+  },
   "nav": {
     "source_of_truth": "원본 데이터",
     "trade": "거래",

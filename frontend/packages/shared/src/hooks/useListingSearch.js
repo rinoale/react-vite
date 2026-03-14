@@ -208,15 +208,28 @@ export function useListingSearch({ onResults, onSelectListing, onSubmit, onClear
     setTagWeights((prev) => { const n = { ...prev }; delete n[tagName]; return n; });
   }, [executeSearch, searchText, selectedGameItem]);
 
+  // --- Serialize all search state to a plain JSON-safe object ---
+  const toSearchParams = useCallback(() => ({
+    text: searchText,
+    tags: selectedTags,
+    tagWeights,
+    gameItem: selectedGameItem,
+    attrFilters: attrFiltersRef.current,
+    reforgeFilters: reforgeFiltersRef.current,
+    enchantFilters: enchantFiltersRef.current,
+    echostoneFilters: echostoneFiltersRef.current,
+    muriasFilters: muriasFiltersRef.current,
+  }), [searchText, selectedTags, tagWeights, selectedGameItem]);
+
   // --- Submit search (Enter / button) ---
   const handleSubmitSearch = useCallback(() => {
     setShowSuggestions(false);
     if (onSubmit) {
-      onSubmit({ tags: selectedTags, text: searchText, gameItem: selectedGameItem });
+      onSubmit(toSearchParams());
     } else {
       executeSearch(selectedTags, searchText, selectedGameItem);
     }
-  }, [selectedTags, searchText, selectedGameItem, executeSearch, onSubmit]);
+  }, [selectedTags, searchText, selectedGameItem, executeSearch, onSubmit, toSearchParams]);
 
   // --- Attribute filter CRUD ---
   const handleAddAttrFilter = useCallback((key) => {
@@ -393,6 +406,37 @@ export function useListingSearch({ onResults, onSelectListing, onSubmit, onClear
     || echostoneFilters.length > 0
     || muriasFilters.length > 0;
 
+  // --- Restore search state from a params object and execute search ---
+  const loadSearchParams = useCallback((params) => {
+    if (!params) return;
+    const text = params.text || '';
+    const tags = params.tags || [];
+    const weights = params.tagWeights || {};
+    const gameItem = params.gameItem || null;
+    const af = params.attrFilters || [];
+    const rf = params.reforgeFilters || [];
+    const ef = params.enchantFilters || [];
+    const ecf = params.echostoneFilters || [];
+    const mf = params.muriasFilters || [];
+
+    setSearchText(text);
+    setSelectedTags(tags);
+    setTagWeights(weights);
+    setSelectedGameItem(gameItem);
+    attrFiltersRef.current = af;
+    setAttrFilters(af);
+    reforgeFiltersRef.current = rf;
+    setReforgeFilters(rf);
+    enchantFiltersRef.current = ef;
+    setEnchantFilters(ef);
+    echostoneFiltersRef.current = ecf;
+    setEchostoneFilters(ecf);
+    muriasFiltersRef.current = mf;
+    setMuriasFilters(mf);
+
+    executeSearch(tags, text, gameItem);
+  }, [executeSearch]);
+
   return {
     // State
     searchText, selectedTags, tagWeights, selectedGameItem, suggestions, showSuggestions, focusIdx, hasFilters,
@@ -410,6 +454,8 @@ export function useListingSearch({ onResults, onSelectListing, onSubmit, onClear
     handleAddEchostoneFilter, handleUpdateEchostoneFilter, handleRemoveEchostoneFilter,
     handleAddMuriasFilter, handleUpdateMuriasFilter, handleRemoveMuriasFilter,
     handleSubmitSearch, handleClear, handleKeyDown, handleInputFocus,
+    // Serialization
+    toSearchParams, loadSearchParams,
     // Direct execute
     executeSearch,
   };

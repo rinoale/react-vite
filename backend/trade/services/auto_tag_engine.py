@@ -113,6 +113,8 @@ def _check_condition(actual, op: str, expected) -> bool:
         return actual < expected
     if op == 'in':
         return actual in (expected if isinstance(expected, list) else [expected])
+    if op == 'contains':
+        return str(expected) in str(actual)
     return False
 
 

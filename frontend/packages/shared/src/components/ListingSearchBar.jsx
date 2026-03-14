@@ -102,7 +102,7 @@ const ListingSearchBar = ({
     handleAddEnchantFilter, handleRemoveEnchantFilter, handleUpdateEnchantEffect,
     handleAddEchostoneFilter, handleUpdateEchostoneFilter, handleRemoveEchostoneFilter,
     handleAddMuriasFilter, handleUpdateMuriasFilter, handleRemoveMuriasFilter,
-    handleClear, handleKeyDown, handleInputFocus, executeSearch,
+    handleSubmitSearch, handleClear, handleKeyDown, handleInputFocus, executeSearch,
   } = search;
 
   const isExpanded = panelOpen && !!selectedGameItem;
@@ -127,7 +127,7 @@ const ListingSearchBar = ({
     <div ref={containerRef} className={wrapperClassName}>
       <div className={barClassName}>
         {/* search-icon */}
-        <Search className={searchBarIcon} />
+        <Search className={`${searchBarIcon} cursor-pointer`} onClick={handleSubmitSearch} />
 
         {/* game-item-chip */}
         {selectedGameItem && (

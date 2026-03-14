@@ -120,37 +120,61 @@ function buildEnchantEffectOptions(enchantSec) {
 /** Convert reforge options into listing_options with option_type='reforge_options' */
 function buildReforgeOptions(reforgeSec) {
   if (!reforgeSec?.options) return [];
-  return reforgeSec.options.map(opt => ({
-    option_type: 'reforge_options',
-    option_name: opt.option_name || opt.name || '',
-    option_id: opt.reforge_option_id ?? null,
-    rolled_value: opt.option_level ?? opt.level ?? null,
-    max_level: opt.max_level ?? null,
-  }));
+  const config = window.REFORGE_OPTIONS_CONFIG || [];
+  return reforgeSec.options
+    .map(opt => {
+      const name = opt.option_name || opt.name || '';
+      const id = opt.reforge_option_id ?? config.find(c => c.option_name === name)?.option_id ?? null;
+      if (!id) { console.warn(`[registration] reforge option_id not resolved: "${name}"`); return null; }
+      return {
+        option_type: 'reforge_options',
+        option_name: name,
+        option_id: id,
+        rolled_value: opt.option_level ?? opt.level ?? null,
+        max_level: opt.max_level ?? null,
+      };
+    })
+    .filter(Boolean);
 }
 
 /** Convert echostone options into listing_options with option_type='echostone_options' */
 function buildEchostoneOptions(opts) {
   if (!opts?.length) return [];
-  return opts.map(opt => ({
-    option_type: 'echostone_options',
-    option_name: opt.option_name || '',
-    option_id: opt.option_id ?? null,
-    rolled_value: opt.level ?? null,
-    max_level: opt.max_level ?? null,
-  }));
+  const config = window.ECHOSTONE_CONFIG || [];
+  return opts
+    .map(opt => {
+      const name = opt.option_name || '';
+      const id = opt.option_id ?? config.find(c => c.option_name === name)?.id ?? null;
+      if (!id) { console.warn(`[registration] echostone option_id not resolved: "${name}"`); return null; }
+      return {
+        option_type: 'echostone_options',
+        option_name: name,
+        option_id: id,
+        rolled_value: opt.level ?? null,
+        max_level: opt.max_level ?? null,
+      };
+    })
+    .filter(Boolean);
 }
 
 /** Convert murias relic options into listing_options with option_type='murias_relic_options' */
 function buildMuriasRelicOptions(opts) {
   if (!opts?.length) return [];
-  return opts.map(opt => ({
-    option_type: 'murias_relic_options',
-    option_name: opt.option_name || '',
-    option_id: opt.option_id ?? null,
-    rolled_value: opt.level ?? null,
-    max_level: opt.max_level ?? null,
-  }));
+  const config = window.MURIAS_RELIC_CONFIG || [];
+  return opts
+    .map(opt => {
+      const name = opt.option_name || '';
+      const id = opt.option_id ?? config.find(c => c.option_name === name)?.id ?? null;
+      if (!id) { console.warn(`[registration] murias option_id not resolved: "${name}"`); return null; }
+      return {
+        option_type: 'murias_relic_options',
+        option_name: name,
+        option_id: id,
+        rolled_value: opt.level ?? null,
+        max_level: opt.max_level ?? null,
+      };
+    })
+    .filter(Boolean);
 }
 
 /** Extract item type, grade, erg from sections */

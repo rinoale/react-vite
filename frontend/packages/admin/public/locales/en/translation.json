@@ -12,6 +12,16 @@
     "subtitle": "Database Validation & Maintenance",
     "initializing": "Initializing Database..."
   },
+  "auth": {
+    "loginTitle": "Login",
+    "loginSuccess": "Logged in successfully.",
+    "logout": "Logout",
+    "error": "Authentication failed.",
+    "discordError": {
+      "discord_failed": "Discord login failed. Please try again.",
+      "no_email": "Discord login failed. No email associated with your Discord account."
+    }
+  },
   "nav": {
     "source_of_truth": "Source of Truth",
     "trade": "Trade",
