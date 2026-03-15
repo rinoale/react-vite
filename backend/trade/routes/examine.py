@@ -3,17 +3,19 @@ import json
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 
 from core.config import get_settings
+from db.models import User
+from auth.dependencies import get_current_user
 from lib.utils.log import logger
 
 router = APIRouter()
 
 
 @router.post("/examine-item")
-async def examine_item(file: UploadFile = File(...)):
+async def examine_item(file: UploadFile = File(...), current_user: User = Depends(get_current_user)):
     """Upload image to storage and enqueue V3 pipeline job.
 
     Returns a job_id for SSE streaming via /examine-item/{job_id}/stream.
@@ -70,7 +72,7 @@ async def examine_item(file: UploadFile = File(...)):
 
 
 @router.get("/examine-item/{job_id}/stream")
-async def examine_item_stream(job_id: str):
+async def examine_item_stream(job_id: str, current_user: User = Depends(get_current_user)):
     """SSE endpoint — subscribes to Redis pub/sub for pipeline progress and result."""
 
     async def event_generator():
