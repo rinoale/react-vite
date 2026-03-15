@@ -9,7 +9,7 @@ Scenarios are drawn from real pipeline runs (e.g. dropbell enchant
 continuation line, Dullahan-corrected header).
 """
 
-from trade.schemas import OcrLineResponse
+from trade.schemas.examine import OcrLineResponse
 
 # ---------------------------------------------------------------------------
 # 1. Pipeline enchant effect line — stitched continuation

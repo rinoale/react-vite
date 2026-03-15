@@ -4,8 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from db.connector import get_db
-from db import schemas
 from db.models import User
+from auth.schemas.user import UserOut, UserUpdate, FeatureFlagCreate
 from auth.services import user_service as crud_user
 from auth.dependencies import require_role
 
@@ -69,7 +69,7 @@ def admin_list_feature_flags(db: Session = Depends(get_db), _: User = _master_re
 
 @router.post("/feature-flags")
 def admin_create_feature_flag(
-    data: schemas.FeatureFlagCreate,
+    data: FeatureFlagCreate,
     db: Session = Depends(get_db),
     _: User = _master_required,
 ):

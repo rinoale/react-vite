@@ -4,7 +4,8 @@ from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from db import models, schemas
+from db import models
+from admin.schemas.tags import TagCreate, BulkTagCreate
 
 
 _ENTITY_NAME_COLUMN = {
@@ -67,7 +68,7 @@ def get_tags(*, target_type: Optional[str] = None, limit: int = 100, offset: int
     return [dict(r) for r in rows]
 
 
-def create_tag(*, data: schemas.TagCreate, db: Session):
+def create_tag(*, data: TagCreate, db: Session):
     tag = _get_or_create_tag(db=db, name=data.name, weight=data.weight)
     tt = models.TagTarget(
         tag_id=tag.id,
@@ -111,7 +112,7 @@ def search_entities(*, target_type: str, q: str, limit: int = 20, like: bool = T
     return [dict(r) for r in rows]
 
 
-def bulk_create_tags(*, data: schemas.BulkTagCreate, db: Session):
+def bulk_create_tags(*, data: BulkTagCreate, db: Session):
     created = 0
     duplicates = 0
     seen = set()

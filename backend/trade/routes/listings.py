@@ -6,13 +6,18 @@ from sqlalchemy.orm import Session
 from db.connector import get_db
 from db.models import User
 from pydantic import BaseModel
-from db.schemas import RegisterListingRequest
-from trade.services import capture_corrections, create_listing, create_listing_tags, get_listings as svc_get_listings, get_my_listings as svc_get_my_listings, search_listings as svc_search_listings, get_listing_detail, update_listing_status as svc_update_status
-from trade.services.listing_service import parse_attr_filters, parse_reforge_filters, parse_enchant_filters, parse_option_filters
+from trade.schemas.listing import RegisterListingRequest
+from trade.services.listing_service import (
+    create_listing, get_listings as svc_get_listings, get_my_listings as svc_get_my_listings,
+    search_listings as svc_search_listings, get_listing_detail, update_listing_status as svc_update_status,
+    parse_attr_filters, parse_reforge_filters, parse_enchant_filters, parse_option_filters,
+)
+from trade.services.tag_service import create_listing_tags
+from trade.services.correction_service import capture_corrections
 from trade.services.short_code import encode, decode
+from trade.services.activity_service import log_activity
 from lib.utils.log import logger
 from auth.dependencies import get_current_user, optional_user
-from trade.services.activity_service import log_activity
 
 class _StatusUpdate(BaseModel):
     status: int
@@ -29,7 +34,7 @@ def get_listings(
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
 ):
-    return svc_get_listings(db, game_item_id=game_item_id, limit=limit, offset=offset)
+    return svc_get_listings(game_item_id=game_item_id, limit=limit, offset=offset, db=db)
 
 
 @router.get("/listings/search")
@@ -54,12 +59,12 @@ def search_listings(
     parsed_echostone = parse_option_filters(echostone_filters)
     parsed_murias = parse_option_filters(murias_filters)
     if not q.strip() and not tags and game_item_id is None and not attr_filters and not parsed_reforge and not parsed_enchant and not parsed_echostone and not parsed_murias:
-        return svc_get_listings(db, limit=limit, offset=offset)
+        return svc_get_listings(limit=limit, offset=offset, db=db)
     result = svc_search_listings(
-        db, q.strip() or None, tags=tags or None, game_item_id=game_item_id,
+        q=q.strip() or None, tags=tags or None, game_item_id=game_item_id,
         attr_filters=attr_filters, reforge_filters=parsed_reforge, enchant_filters=parsed_enchant,
         echostone_filters=parsed_echostone, murias_filters=parsed_murias,
-        limit=limit, offset=offset,
+        limit=limit, offset=offset, db=db,
     )
     bg.add_task(log_activity, action="search", user_id=current_user.id if current_user else None,
                 target_type="search_query", metadata={"query": q.strip(), "tags": tags, "game_item_id": game_item_id, "results": len(result) if isinstance(result, list) else 0})
@@ -73,7 +78,7 @@ def get_my_listings(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return svc_get_my_listings(db, current_user.id, limit=limit, offset=offset)
+    return svc_get_my_listings(user_id=current_user.id, limit=limit, offset=offset, db=db)
 
 
 @router.patch("/listings/{listing_id}/status")
@@ -84,7 +89,7 @@ def update_status(
     current_user: User = Depends(get_current_user),
     bg: BackgroundTasks = None,
 ):
-    result = svc_update_status(db, listing_id, body.status, current_user.id)
+    result = svc_update_status(listing_id=listing_id, status=body.status, user_id=current_user.id, db=db)
     bg.add_task(log_activity, action=_STATUS_ACTIONS.get(body.status, "listing_status_changed"),
                 user_id=current_user.id, target_type="listing", target_id=listing_id,
                 metadata={"new_status": body.status})
@@ -97,7 +102,7 @@ def get_listing_by_code(code: str, db: Session = Depends(get_db), current_user: 
     listing_id = decode(code)
     if listing_id is None:
         raise HTTPException(status_code=404, detail="Listing not found")
-    result = get_listing_detail(db, listing_id)
+    result = get_listing_detail(listing_id=listing_id, db=db)
     if result is None:
         raise HTTPException(status_code=404, detail="Listing not found")
     result["short_code"] = code
@@ -109,7 +114,7 @@ def get_listing_by_code(code: str, db: Session = Depends(get_db), current_user: 
 @router.get("/listings/{listing_id}")
 def get_listing(listing_id: UUID, db: Session = Depends(get_db), current_user: User | None = Depends(optional_user),
                 bg: BackgroundTasks = None):
-    result = get_listing_detail(db, listing_id)
+    result = get_listing_detail(listing_id=listing_id, db=db)
     if result is None:
         raise HTTPException(status_code=404, detail="Listing not found")
     result["short_code"] = encode(listing_id)
@@ -127,8 +132,8 @@ def register_listing(payload: RegisterListingRequest, db: Session = Depends(get_
         payload.session_id, payload.name, len(payload.lines),
     )
 
-    corrections_saved = capture_corrections(payload.session_id, payload.lines, db)
-    listing = create_listing(payload, db, user_id=current_user.id)
+    corrections_saved = capture_corrections(session_id=payload.session_id, lines=payload.lines, db=db)
+    listing = create_listing(payload=payload, user_id=current_user.id, db=db)
 
     bg.add_task(create_listing_tags, listing_id=listing.id, tags=payload.tags, payload=payload)
     bg.add_task(log_activity, action="listing_created", user_id=current_user.id,

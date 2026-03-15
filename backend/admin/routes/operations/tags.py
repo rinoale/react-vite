@@ -4,7 +4,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from db.connector import get_db
-from db import schemas
+from admin.schemas.tags import (
+    TagCreate, TagTargetOut, BulkTagCreate,
+    WeightUpdate, BulkWeightUpdate, TagDetail,
+)
 from admin.services.tag_service import (
     get_tags, create_tag, delete_tag, search_entities, bulk_create_tags,
     get_unique_tags, delete_tag_by_id, get_tag_detail,
@@ -25,9 +28,9 @@ def admin_tags(
     return {"limit": limit, "offset": offset, "rows": rows}
 
 
-@router.post("/tags", response_model=schemas.TagTargetOut)
+@router.post("/tags", response_model=TagTargetOut)
 def admin_create_tag(
-    data: schemas.TagCreate,
+    data: TagCreate,
     db: Session = Depends(get_db),
 ):
     tt = create_tag(db=db, data=data)
@@ -91,7 +94,7 @@ def admin_search_tag_entities(
 
 @router.post("/tags/bulk")
 def admin_bulk_create_tags(
-    data: schemas.BulkTagCreate,
+    data: BulkTagCreate,
     db: Session = Depends(get_db),
 ):
     return bulk_create_tags(db=db, data=data)
@@ -100,7 +103,7 @@ def admin_bulk_create_tags(
 @router.patch("/tags/targets/{tag_target_id}")
 def admin_update_tag_target_weight(
     tag_target_id: UUID,
-    data: schemas.WeightUpdate,
+    data: WeightUpdate,
     db: Session = Depends(get_db),
 ):
     if not update_tag_target_weight(db=db, tag_target_id=tag_target_id, weight=data.weight):
@@ -110,13 +113,13 @@ def admin_update_tag_target_weight(
 
 @router.patch("/tags/targets/bulk")
 def admin_bulk_update_tag_target_weights(
-    data: schemas.BulkWeightUpdate,
+    data: BulkWeightUpdate,
     db: Session = Depends(get_db),
 ):
     return bulk_update_tag_target_weights(db=db, ids=data.ids, weight=data.weight)
 
 
-@router.get("/tags/{tag_id}", response_model=schemas.TagDetail)
+@router.get("/tags/{tag_id}", response_model=TagDetail)
 def admin_tag_detail(
     tag_id: UUID,
     db: Session = Depends(get_db),
@@ -130,7 +133,7 @@ def admin_tag_detail(
 @router.patch("/tags/{tag_id}")
 def admin_update_tag_weight(
     tag_id: UUID,
-    data: schemas.WeightUpdate,
+    data: WeightUpdate,
     db: Session = Depends(get_db),
 ):
     if not update_tag_weight(db=db, tag_id=tag_id, weight=data.weight):

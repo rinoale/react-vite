@@ -6,8 +6,8 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from db.connector import get_db
-from db import schemas
 from db.models import User
+from admin.schemas.corrections import CorrectionOut
 from admin.services.correction_service import (
     list_corrections as svc_list_corrections,
     approve_correction as svc_approve_correction,
@@ -26,7 +26,7 @@ class CorrectionEdit(BaseModel):
     corrected_text: str
 
 
-@router.get("/list", response_model=list[schemas.CorrectionOut])
+@router.get("/list", response_model=list[CorrectionOut])
 def list_corrections(
     status: str = Query("pending"),
     limit: int = Query(100, le=500),

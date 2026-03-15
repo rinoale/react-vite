@@ -4,7 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from db.connector import get_db
-from db import schemas, models
+from db import models
+from admin.schemas.rules import AutoTagRuleOut, AutoTagRuleCreate, AutoTagRuleUpdate
 
 router = APIRouter()
 
@@ -20,10 +21,10 @@ def list_rules(
         .order_by(models.AutoTagRule.priority, models.AutoTagRule.id)
         .limit(limit).offset(offset).all()
     )
-    return {"limit": limit, "offset": offset, "rows": [schemas.AutoTagRuleOut.model_validate(r) for r in rows]}
+    return {"limit": limit, "offset": offset, "rows": [AutoTagRuleOut.model_validate(r) for r in rows]}
 
 
-@router.get("/auto-tag-rules/{rule_id}", response_model=schemas.AutoTagRuleOut)
+@router.get("/auto-tag-rules/{rule_id}", response_model=AutoTagRuleOut)
 def get_rule(
     rule_id: UUID,
     db: Session = Depends(get_db),
@@ -34,9 +35,9 @@ def get_rule(
     return rule
 
 
-@router.post("/auto-tag-rules", response_model=schemas.AutoTagRuleOut)
+@router.post("/auto-tag-rules", response_model=AutoTagRuleOut)
 def create_rule(
-    data: schemas.AutoTagRuleCreate,
+    data: AutoTagRuleCreate,
     db: Session = Depends(get_db),
 ):
     rule = models.AutoTagRule(**data.model_dump())
@@ -46,10 +47,10 @@ def create_rule(
     return rule
 
 
-@router.patch("/auto-tag-rules/{rule_id}", response_model=schemas.AutoTagRuleOut)
+@router.patch("/auto-tag-rules/{rule_id}", response_model=AutoTagRuleOut)
 def update_rule(
     rule_id: UUID,
-    data: schemas.AutoTagRuleUpdate,
+    data: AutoTagRuleUpdate,
     db: Session = Depends(get_db),
 ):
     rule = db.query(models.AutoTagRule).filter(models.AutoTagRule.id == rule_id).first()

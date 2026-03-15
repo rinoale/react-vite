@@ -3,18 +3,18 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
 from db.connector import get_db
-from db import schemas
 from db.models import User
+from auth.schemas.user import UserOut, UserUpdate
 from auth.dependencies import get_current_user
 from auth.services.user_service import get_user_roles, get_user_features, update_user_profile
 
 router = APIRouter()
 
 
-def _build_user_out(db: Session, user: User) -> schemas.UserOut:
+def _build_user_out(db: Session, user: User) -> UserOut:
     roles = get_user_roles(db, user.id)
     features = get_user_features(db, user.id)
-    return schemas.UserOut(
+    return UserOut(
         id=user.id,
         email=user.email,
         discord_username=user.discord_username,
@@ -27,7 +27,7 @@ def _build_user_out(db: Session, user: User) -> schemas.UserOut:
     )
 
 
-@router.get("/me", response_model=schemas.UserOut)
+@router.get("/me", response_model=UserOut)
 def get_me(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -35,9 +35,9 @@ def get_me(
     return _build_user_out(db, current_user)
 
 
-@router.patch("/me", response_model=schemas.UserOut)
+@router.patch("/me", response_model=UserOut)
 def update_me(
-    body: schemas.UserUpdate,
+    body: UserUpdate,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):

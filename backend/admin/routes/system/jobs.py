@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from db.connector import get_db
 from db.models import JobRun
-from db.schemas import JobOut, JobRunOut, PaginatedJobRunResponse
+from admin.schemas.jobs import JobOut, JobRunOut, PaginatedJobRunResponse
 from jobs import REGISTRY, get_queue
 from jobs.broker import NoWorkerError
 from jobs.connection import get_broker

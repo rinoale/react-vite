@@ -43,7 +43,7 @@ def _load_charsets():
 _CHARSETS = _load_charsets()
 
 
-def capture_corrections(session_id, lines, db):
+def capture_corrections(*, session_id, lines, db):
     """Diff submitted lines against stored OCR results and save corrections.
 
     Returns the number of corrections saved.

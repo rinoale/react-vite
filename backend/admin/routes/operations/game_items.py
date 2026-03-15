@@ -2,13 +2,13 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from db.connector import get_db
-from db import schemas
+from admin.schemas.data import PaginatedGameItemResponse
 from admin.services.game_item_service import get_game_items
 
 router = APIRouter()
 
 
-@router.get("/game-items", response_model=schemas.PaginatedGameItemResponse)
+@router.get("/game-items", response_model=PaginatedGameItemResponse)
 def admin_game_items(
     q: str = Query(default=""),
     id: str = Query(default=""),
