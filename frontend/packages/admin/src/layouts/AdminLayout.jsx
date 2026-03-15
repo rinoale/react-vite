@@ -39,6 +39,7 @@ const NAV_GROUPS = [
       { key: 'feature_flags', resource: 'feature_flags' },
       { key: 'usage', resource: 'usage' },
       { key: 'activity_logs', resource: 'activity_logs' },
+      { key: 'system_logs', resource: 'system_logs' },
     ],
   },
 ];

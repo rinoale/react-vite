@@ -15,6 +15,7 @@ def _sanitize_metadata(metadata):
 def log_activity(
     *,
     action: str,
+    source: str = 'user',
     user_id=None,
     target_type: str | None = None,
     target_id=None,
@@ -28,6 +29,7 @@ def log_activity(
     db = SessionLocal()
     try:
         entry = UserActivityLog(
+            source=source,
             user_id=user_id,
             action=action,
             target_type=target_type,

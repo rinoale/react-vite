@@ -280,6 +280,23 @@ def upgrade() -> None:
     op.create_index("ix_activity_target", "user_activity_logs", ["target_type", "target_id"])
     op.create_index("ix_activity_created_at", "user_activity_logs", ["created_at"])
 
+    # --- System Logs (admin + job audit) ---
+    op.create_table(
+        "system_logs",
+        sa.Column("id", PG_UUID(as_uuid=True), primary_key=True),
+        sa.Column("source", sa.Text(), nullable=False),
+        sa.Column("user_id", PG_UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
+        sa.Column("action", sa.Text(), nullable=False),
+        sa.Column("target_type", sa.Text(), nullable=True),
+        sa.Column("target_id", PG_UUID(as_uuid=True), nullable=True),
+        sa.Column("before", JSONB, nullable=True),
+        sa.Column("after", JSONB, nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
+    )
+    op.create_index("ix_syslog_source", "system_logs", ["source"])
+    op.create_index("ix_syslog_action", "system_logs", ["action"])
+    op.create_index("ix_syslog_created_at", "system_logs", ["created_at"])
+
     # --- Auto Tag Rules ---
     op.create_table(
         "auto_tag_rules",
@@ -310,6 +327,7 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_table("import_metadata")
     op.drop_table("auto_tag_rules")
+    op.drop_table("system_logs")
     op.drop_table("user_activity_logs")
     op.drop_table("job_runs")
     op.drop_table("ocr_corrections")

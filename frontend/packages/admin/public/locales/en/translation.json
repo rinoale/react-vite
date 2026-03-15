@@ -42,6 +42,7 @@
       "feature_flags": "Feature Flags",
       "usage": "Usage",
       "activity_logs": "Activity Logs",
+      "system_logs": "System Logs",
       "auto_tag_rules": "Auto Tag Rules"
     }
   },
@@ -218,6 +219,21 @@
     "colMetadata": "Metadata",
     "colTime": "Time",
     "noLogs": "No activity logs found.",
+    "prev": "PREV",
+    "next": "NEXT"
+  },
+  "systemLogs": {
+    "title": "SYSTEM LOGS",
+    "total": "total",
+    "refresh": "Refresh",
+    "allSources": "All sources",
+    "allActions": "All actions",
+    "colSource": "Source",
+    "colAction": "Action",
+    "colTarget": "Target",
+    "colUser": "User",
+    "colTime": "Time",
+    "noLogs": "No system logs found.",
     "prev": "PREV",
     "next": "NEXT"
   },

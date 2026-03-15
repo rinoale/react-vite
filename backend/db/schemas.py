@@ -397,7 +397,7 @@ class AutoTagRuleCreate(BaseModel):
     name: str
     description: Optional[str] = None
     rule_type: str
-    enabled: bool = True
+    enabled: bool = False
     priority: int = 0
     config: dict
 

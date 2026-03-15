@@ -125,6 +125,12 @@ export const getActivityLogs = ({ action, userId, limit, offset } = {}) =>
 export const getActivityActions = () =>
   client.get('/admin/activity-logs/actions');
 
+export const getSystemLogs = ({ source, action, limit, offset } = {}) =>
+  client.get('/admin/system-logs', { params: { source: source || '', action: action || '', limit, offset } });
+
+export const getSystemLogActions = () =>
+  client.get('/admin/system-logs/actions');
+
 export const getAutoTagRules = ({ limit, offset } = {}) =>
   client.get('/admin/auto-tag-rules', { params: { limit, offset } });
 
