@@ -125,6 +125,7 @@ class ListingOut(BaseModel):
     created_at: Optional[datetime] = None
     seller_server: Optional[str] = None
     seller_game_id: Optional[str] = None
+    seller_verified: bool = False
     tags: List[TagBadge] = []
     listing_options: List[ListingOptionOut] = []
 
@@ -183,3 +184,4 @@ class ListingDetailOut(BaseModel):
     seller_server: Optional[str] = None
     seller_game_id: Optional[str] = None
     seller_discord_id: Optional[str] = None
+    seller_verified: bool = False

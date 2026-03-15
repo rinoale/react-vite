@@ -32,6 +32,18 @@ class User(Base):
     )
 
 
+class VerificationCode(Base):
+    __tablename__ = "verification_codes"
+
+    id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid7)
+    user_id = Column(PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True)
+    code = Column(Text, nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    user = relationship("User")
+
+
 class Role(Base):
     __tablename__ = "roles"
 

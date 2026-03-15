@@ -26,10 +26,15 @@ def create_user(db: Session, *, email: str, password_hash: str | None = None,
 
 
 def update_user_profile(db: Session, user: User, *, server: str | None = None, game_id: str | None = None) -> User:
-    if server is not None:
+    changed = False
+    if server is not None and server != user.server:
         user.server = server
-    if game_id is not None:
+        changed = True
+    if game_id is not None and game_id != user.game_id:
         user.game_id = game_id
+        changed = True
+    if changed and user.verified:
+        user.verified = False
     db.commit()
     db.refresh(user)
     return user

@@ -36,6 +36,15 @@ def upgrade() -> None:
     )
 
     op.create_table(
+        "verification_codes",
+        sa.Column("id", PG_UUID(as_uuid=True), primary_key=True),
+        sa.Column("user_id", PG_UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True),
+        sa.Column("code", sa.Text(), nullable=False),
+        sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
+    )
+
+    op.create_table(
         "roles",
         sa.Column("id", PG_UUID(as_uuid=True), primary_key=True),
         sa.Column("name", sa.Text(), nullable=False, unique=True),
@@ -346,4 +355,5 @@ def downgrade() -> None:
     op.drop_table("feature_flags")
     op.drop_table("user_roles")
     op.drop_table("roles")
+    op.drop_table("verification_codes")
     op.drop_table("users")

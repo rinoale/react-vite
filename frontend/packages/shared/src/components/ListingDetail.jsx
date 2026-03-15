@@ -160,7 +160,7 @@ const ListingDetail = ({ detail, onTagClick }) => {
       {/* Seller */}
       {(detail.seller_server || detail.seller_game_id) && (
         <div className="mt-6 pt-4 border-t border-gray-700 flex items-center justify-between">
-          <PlayerName server={detail.seller_server} gameId={detail.seller_game_id} className="text-sm" />
+          <PlayerName server={detail.seller_server} gameId={detail.seller_game_id} verified={detail.seller_verified} className="text-sm" />
           {detail.seller_discord_id && (
             <a
               href={`https://discord.com/users/${detail.seller_discord_id}`}

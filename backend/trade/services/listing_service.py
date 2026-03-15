@@ -334,7 +334,8 @@ def get_listings(*, game_item_id=None, limit=50, offset=0, db: Session):
             l.piercing_level,
             l.created_at,
             u.server AS seller_server,
-            u.game_id AS seller_game_id
+            u.game_id AS seller_game_id,
+            u.verified AS seller_verified
         FROM listings l
         LEFT JOIN game_items gi ON gi.id = l.game_item_id
         LEFT JOIN enchants pe ON pe.id = l.prefix_enchant_id
@@ -761,4 +762,5 @@ def get_listing_detail(*, listing_id, db: Session):
         "seller_server": seller.server if seller else None,
         "seller_game_id": seller.game_id if seller else None,
         "seller_discord_id": seller.discord_id if seller else None,
+        "seller_verified": seller.verified if seller else False,
     }

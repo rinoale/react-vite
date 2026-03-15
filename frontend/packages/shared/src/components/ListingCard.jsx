@@ -68,7 +68,7 @@ const ListingCard = ({ listing, selected = false, onClick }) => {
       )}
       {/* listing-seller */}
       <p className="text-xs text-gray-500">
-        <PlayerName server={listing.seller_server} gameId={listing.seller_game_id} />
+        <PlayerName server={listing.seller_server} gameId={listing.seller_game_id} verified={listing.seller_verified} />
         {listing.created_at && (
           <span className="ml-2">{formatDate(listing.created_at)}</span>
         )}

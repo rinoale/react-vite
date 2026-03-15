@@ -43,6 +43,7 @@
       "usage": "사용량",
       "activity_logs": "활동 로그",
       "system_logs": "시스템 로그",
+      "horn_bugle": "뿔피리",
       "auto_tag_rules": "자동 태그 규칙"
     }
   },

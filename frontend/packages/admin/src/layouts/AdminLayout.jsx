@@ -40,6 +40,7 @@ const NAV_GROUPS = [
       { key: 'usage', resource: 'usage' },
       { key: 'activity_logs', resource: 'activity_logs' },
       { key: 'system_logs', resource: 'system_logs' },
+      { key: 'horn_bugle', resource: 'horn_bugle' },
     ],
   },
 ];
@@ -169,7 +170,7 @@ const AdminLayout = () => {
         {/* user-info */}
         {user && (
           <div className={userInfoBox}>
-            <PlayerName server={user.server} gameId={user.game_id} className="text-xs text-gray-300 truncate" copyable={false} />
+            <PlayerName server={user.server} gameId={user.game_id} verified={user.verified} className="text-xs text-gray-300 truncate" copyable={false} />
             <button type="button" className={logoutBtn} onClick={handleLogout}>
               <LogOut className="w-3.5 h-3.5" />
               {t('auth.logout')}
