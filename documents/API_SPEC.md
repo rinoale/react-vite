@@ -14,6 +14,7 @@ This document serves as the contract between the Backend AI Agent and the Fronte
 
 **Endpoint:** `POST /examine-item`
 **Content-Type:** `multipart/form-data`
+**Auth:** Required (signed-in users only)
 
 | Parameter | Type | Required | Description |
 | :--- | :--- | :--- | :--- |
@@ -27,6 +28,7 @@ The backend uploads the image to file storage and enqueues a `run_v3_pipeline` j
 
 **Endpoint:** `GET /examine-item/{job_id}/stream`
 **Content-Type:** `text/event-stream`
+**Auth:** Required (signed-in users only)
 
 Subscribes to Redis pub/sub for pipeline progress and result. Events:
 
@@ -283,7 +285,7 @@ Polymorphic option entry. All option types use the same shape — `option_id` po
 | :--- | :--- | :--- | :--- |
 | `option_type` | `string` | Yes | Discriminator: `enchant_effects`, `reforge_options`, `echostone_options`, `murias_relic_options`. |
 | `option_name` | `string` | Yes | Display name (denormalized). Avoids polymorphic JOIN for display. |
-| `option_id` | `UUID` | No | Source table PK from frontend config. `enchant_effects.id` for enchant effects, `reforge_options.id` for reforge, etc. |
+| `option_id` | `UUID` | Yes | Source table PK from frontend config. `enchant_effects.id` for enchant effects, `reforge_options.id` for reforge, etc. |
 | `rolled_value` | `int\|float` | No | User's rolled/selected value. |
 | `max_level` | `int` | No | Maximum possible level (for reforge/echostone/murias). |
 
@@ -293,9 +295,12 @@ Polymorphic option entry. All option types use the same shape — `option_id` po
   "registered": true,
   "name": "Dragon Blade",
   "listing_id": 7,
+  "short_code": "abc123",
   "corrections_saved": 2
 }
 ```
+
+> **Note:** `create_listing_tags` (user tags + auto tags) runs as a background task and does not block the response. Tags are available shortly after registration completes.
 
 ---
 
@@ -324,6 +329,7 @@ Returns all listings, optionally filtered by game item.
     "item_grade": "에픽",
     "erg_grade": "S",
     "erg_level": 25,
+    "seller_verified": false,
     "created_at": "2026-02-26T12:00:00+00:00",
     "reforge_count": 3
   }
@@ -344,6 +350,7 @@ Returns full detail for a single listing, including enchant effects and reforge 
   "item_grade": "에픽",
   "erg_grade": "S",
   "erg_level": 25,
+  "seller_verified": false,
   "prefix_enchant": {
     "slot": 0,
     "enchant_name": "충격을",
@@ -376,6 +383,15 @@ Search listings by text query, tag chips, and/or game item. All provided filters
 | `q` | `string` | `""` | Text query. Triggers cascading ILIKE search (see below). |
 | `tags` | `string[]` | `[]` | Tag names. Multiple values = AND (all must match). |
 | `game_item_id` | `int` | (none) | Exact game item filter. |
+| `reforge_filters` | `string` (JSON) | (none) | JSON array of reforge option filters. Format: `[{"id": "uuid", "op": "gte\|lte\|eq", "level": int\|null}]`. `level=null` means existence-only. |
+| `enchant_filters` | `string` (JSON) | (none) | JSON array of enchant filters. Format: `[{"id": "uuid", "effects": [{"enchant_id": "uuid", "effect_order": int, "op": "gte\|lte\|eq", "value": int}]}]`. |
+| `echostone_filters` | `string` (JSON) | (none) | JSON array of echostone option filters. Same format as `reforge_filters`. |
+| `murias_filters` | `string` (JSON) | (none) | JSON array of murias relic option filters. Same format as `reforge_filters`. |
+| `min_{col}` | `int` | (none) | Numeric minimum filter. Supported columns: `damage`, `magic_damage`, `additional_damage`, `balance`, `defense`, `protection`, `magic_defense`, `magic_protection`, `durability`, `special_upgrade_level`, `erg_level`, `piercing_level`. |
+| `max_{col}` | `int` | (none) | Numeric maximum filter. Same columns as `min_{col}`. |
+| `eq_{col}` | `int` | (none) | Numeric exact match filter. Same columns as `min_{col}`. |
+| `erg_grade` | `string` | (none) | String equality filter (`S`, `A`, `B`). |
+| `special_upgrade_type` | `string` | (none) | String equality filter (`R`, `S`). |
 | `limit` | `int` | `50` | Max results (1-200). |
 | `offset` | `int` | `0` | Pagination offset. |
 
@@ -430,8 +446,10 @@ Search game items by name substring.
 
 ## 2. Admin Validation APIs (v2 Schema)
 
-These endpoints provide access to the core enchant and reforge dictionaries. 
+These endpoints provide access to the core enchant and reforge dictionaries.
 All responses are validated against Pydantic models.
+
+> **Auth:** All admin endpoints require admin role gate + audit middleware. Admin CRUD operations on audited models are automatically logged to `system_logs` with before/after diffs (see Section 6).
 
 ### Communication with Admin UI
 - **Base URL:** `/admin`
@@ -529,6 +547,61 @@ Fetches the master list of reforge options.
     ]
   }
   ```
+
+#### `GET /admin/auto-tag-rules?limit=100&offset=0`
+Fetches a paginated list of auto-tag rules, ordered by priority.
+- **Response Structure:**
+  ```json
+  {
+    "limit": 100,
+    "offset": 0,
+    "rows": [
+      {
+        "id": "019c...",
+        "name": "S등급 에르그",
+        "description": "S등급 에르그 50 태그",
+        "rule_type": "erg",
+        "enabled": true,
+        "priority": 0,
+        "config": { "conditions": [...], "tag_template": "S르그{erg_level}" },
+        "created_at": "2026-03-01T00:00:00+00:00",
+        "updated_at": null
+      }
+    ]
+  }
+  ```
+
+#### `POST /admin/auto-tag-rules`
+Creates a new auto-tag rule. New rules are created as **disabled by default** (`enabled: false`).
+- **Request Body:** `AutoTagRuleCreate`
+
+| Property | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `name` | `string` | Yes | Rule display name. |
+| `description` | `string` | No | Optional description. |
+| `rule_type` | `string` | Yes | Rule type discriminator. |
+| `enabled` | `bool` | No | Default `false`. |
+| `priority` | `int` | No | Evaluation order. Default `0`. |
+| `config` | `object` | Yes | Rule config (conditions + tag template). |
+
+- **Response:** `AutoTagRuleOut` (the created rule).
+
+#### `PATCH /admin/auto-tag-rules/{rule_id}`
+Updates an existing auto-tag rule. Only provided fields are updated.
+- **Request Body:** `AutoTagRuleUpdate` — all fields optional (same shape as `AutoTagRuleCreate`).
+- **Response:** `AutoTagRuleOut` (the updated rule).
+- **Errors:** `404` — Rule not found.
+
+#### `DELETE /admin/auto-tag-rules/{rule_id}`
+Deletes an auto-tag rule.
+- **Response:** `{ "deleted": true }`
+- **Errors:** `404` — Rule not found.
+
+#### `GET /admin/system-logs?source=&action=&limit=50&offset=0`
+Fetches paginated system audit logs. See [Section 6](#6-system-logs) for full details.
+
+#### `GET /admin/system-logs/actions`
+Returns distinct action names with counts, for filter dropdown population. See [Section 6](#6-system-logs).
 
 ### HTML Validation Helper
 - **Endpoint:** `/admin/validate`
@@ -639,4 +712,95 @@ Returns current-month OCI cost breakdown by service.
     { "service": "Block Storage", "cost": 0.2847, "currency": "SGD" }
   ]
 }
+```
+
+---
+
+## 5. Authentication & Verification
+
+### `POST /auth/verify/request`
+Requests an in-game verification code. The user must speak this code in the horn bugle (all-chat) for a scheduled job to match and verify them.
+
+**Auth:** Required (signed-in users only)
+
+**Request Body:** None
+
+**Response:**
+```json
+{
+  "code": "마트레-482957",
+  "expires_at": "2026-03-15T12:30:00+00:00"
+}
+```
+
+**Errors:**
+- `400` — Server and game ID must be set before verification (`server` or `game_id` not configured on the user profile).
+- `400` — Already verified.
+
+**Verification flow:**
+1. User sets their `server` and `game_id` on their profile.
+2. User calls `POST /auth/verify/request` to receive a 6-digit code prefixed with `마트레-` (e.g., `마트레-482957`). Code expires after 30 minutes.
+3. User speaks the code in-game via horn bugle (all-chat).
+4. Scheduled job `verify_users` polls the Nexon horn bugle API every 20 minutes across 4 servers (`류트`, `만돌린`, `하프`, `울프`). If a pending user's `game_id` (character name) matches a horn bugle message containing their code, the user is marked as `verified=true`.
+
+> **Note:** Verification is optional -- users can use all services without it. Verified users receive a badge displayed on their listings.
+
+> **Note:** Changing `server` or `game_id` on the user profile resets `verified` to `false`.
+
+---
+
+## 6. System Logs
+
+Automatic audit logging for admin/system changes. All admin CRUD operations on audited models are logged via a SQLAlchemy `before_flush` event listener. Each log entry captures the `source`, `action`, `target_type`, `target_id`, and before/after diffs of changed columns.
+
+**Audited models:** `AutoTagRule`, `Tag`, `TagTarget`, `Listing`, `ListingOption`, `GameItem`, `User`, `Role`, `UserRole`, `FeatureFlag`, `RoleFeatureFlag`.
+
+### `GET /admin/system-logs`
+Fetches paginated system audit logs with optional source/action filters.
+
+**Auth:** Required (master role)
+
+**Query params:**
+
+| Parameter | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `source` | `string` | `""` | Filter by source (e.g., `admin`). Empty = all sources. |
+| `action` | `string` | `""` | Filter by action (e.g., `admin:create`, `admin:update`, `admin:delete`). Empty = all actions. |
+| `limit` | `int` | `50` | Max rows (1-200). |
+| `offset` | `int` | `0` | Pagination offset. |
+
+**Response:**
+```json
+{
+  "total": 142,
+  "limit": 50,
+  "offset": 0,
+  "rows": [
+    {
+      "id": "019c...",
+      "source": "admin",
+      "user_id": "019c...",
+      "action": "admin:update",
+      "target_type": "auto_tag_rules",
+      "target_id": "019c...",
+      "before": { "enabled": false },
+      "after": { "enabled": true },
+      "created_at": "2026-03-15T10:00:00+00:00"
+    }
+  ]
+}
+```
+
+### `GET /admin/system-logs/actions`
+Returns distinct action names with counts, for populating filter dropdowns.
+
+**Auth:** Required (master role)
+
+**Response:**
+```json
+[
+  { "action": "admin:create", "count": 45 },
+  { "action": "admin:update", "count": 82 },
+  { "action": "admin:delete", "count": 15 }
+]
 ```

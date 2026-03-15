@@ -6,6 +6,62 @@ For algorithm details of individual correction strategies, see [CORE_LOGIC.md](C
 
 ---
 
+## Backend Structure
+
+```
+backend/
+├── admin/
+│   ├── middleware/audit.py       # SQLAlchemy before_flush audit logging
+│   ├── routes/
+│   │   ├── data/                 # Read-only source of truth (enchants, effects, reforge, echostone, murias)
+│   │   ├── operations/           # Mutable CRUD (listings, game_items, tags, auto_tag_rules, corrections)
+│   │   └── system/              # System management (activity, system_logs, jobs, users, usage)
+│   ├── services/                # Per-entity services (enchant, reforge, echostone, murias, listing, game_item, tag, correction, usage)
+│   └── schemas/                 # Domain schemas (data, tags, rules, jobs, corrections)
+├── auth/
+│   ├── services/user_service.py  # User CRUD, roles, features
+│   ├── services/verification_service.py  # In-game OTP verification
+│   └── schemas/user.py
+├── trade/
+│   ├── routes/                  # listings, examine, game_items, tags
+│   ├── services/                # listing, tag, correction, activity, auto_tag_engine, short_code
+│   └── schemas/                 # listing.py, examine.py
+├── core/
+│   ├── config.py               # Pydantic settings
+│   └── paths.py                # Central path constants (BACKEND_DIR, PROJECT_DIR, DATA_DIR, etc.)
+├── jobs/
+│   ├── cleanup_tags.py         # Cleanup orphaned zero-weight tags
+│   └── verify_users.py         # Poll horn bugle for user verification
+├── db/
+│   ├── models.py               # SQLAlchemy models (including VerificationCode, SystemLog)
+│   └── connector.py            # Session factory
+└── lib/
+    ├── pipeline/               # V3 OCR pipeline (see Pipeline Overview)
+    ├── text_processors/        # FM, Dullahan, item name parsing
+    ├── image_processors/       # Prefix detection, enchant classification
+    ├── patches/                # EasyOCR inference patch
+    ├── storage/                # FileStorage ABC + R2/Local implementations
+    └── utils/                  # Logging, @timed decorator
+```
+
+### Central Path Constants
+
+**File:** `backend/core/paths.py`
+
+All project paths are defined once: `BACKEND_DIR`, `PROJECT_DIR`, `DATA_DIR`, `CONFIGS_DIR`, `DICT_DIR`, `TMP_DIR`, `MODELS_DIR`, `OCR_CROPS_DIR`, `CORRECTIONS_DIR`. Individual files import from `core.paths` instead of computing paths with `os.path.dirname(os.path.dirname(...))` chains.
+
+### Domain-Owned Schemas
+
+Schemas are co-located with their domain modules. The former monolithic `db/schemas.py` has been removed and replaced with:
+
+| Domain | Schema files |
+|--------|-------------|
+| Auth | `auth/schemas/user.py` |
+| Trade | `trade/schemas/listing.py`, `trade/schemas/examine.py` |
+| Admin | `admin/schemas/data.py`, `admin/schemas/tags.py`, `admin/schemas/rules.py`, `admin/schemas/jobs.py`, `admin/schemas/corrections.py` |
+
+---
+
 ## Pipeline Overview
 
 ```
@@ -1291,7 +1347,7 @@ Each rule's JSONB config contains:
 |-------|------|-------------|
 | `table` | string | Table to evaluate against (see Table Resolution) |
 | `column` | string | Column name on that table |
-| `op` | string | `==`, `!=`, `>=`, `<=`, `>`, `<`, `in` |
+| `op` | string | `==`, `!=`, `>=`, `<=`, `>`, `<`, `in`, `contains` |
 | `value` | any | Literal (string/number/null), array (for `in`), or column reference `{"table": ..., "column": ...}` |
 | `logic` | string | `AND` or `OR` — combines with previous condition (left-to-right, no precedence) |
 | `refer` | string | Optional — captures matched value for tag template interpolation as `{refer_name}` |
@@ -1351,6 +1407,10 @@ This matches when 최대 공격력 > 19 on **one** row AND 스매시 대미지 >
 
 No SQL is executed from config data. All evaluation uses `getattr()` on Python payload objects — zero SQL injection surface.
 
+**Rule lifecycle:** Rules are created as **disabled by default** and must be manually enabled via the admin panel. This prevents untested rules from immediately affecting production listings.
+
+**Tag creation runs as a background task** (`BackgroundTasks`) — the listing registration response returns immediately while auto-tag evaluation happens asynchronously after the response is sent.
+
 **Engine helpers:**
 - `_eval_row(conds, item, ...)` — evaluate conditions against a single plural row with AND/OR logic
 - `_eval_plural_per_row(...)` — legacy mode: per-row matching, emits tag per match
@@ -1371,7 +1431,7 @@ AutoTagRulesPanel.jsx       — Rule list with summary, expand/collapse, edit mo
 Each condition row provides:
 - **Table** dropdown (all schema tables, i18n translated)
 - **Column** dropdown (filtered by selected table, i18n translated)
-- **Operator** dropdown (`==`, `!=`, `>=`, `<=`, `>`, `<`, `in`)
+- **Operator** dropdown (`==`, `!=`, `>=`, `<=`, `>`, `<`, `in`, `contains`)
 - **Value** input — literal text, null toggle (checkbox), column reference toggle (`col` button), or comma-separated array (for `in`)
 - **Refer** input — name for template interpolation
 - **AND/OR** logic selector (between conditions)
@@ -1383,7 +1443,7 @@ Column reference restrictions: has_many tables can only reference columns on the
 
 ### Input Validation
 
-`backend/db/schemas.py` validates `option_type` on `RegisterListingOption`:
+`backend/trade/schemas/listing.py` validates `option_type` on `RegisterListingOption`:
 
 ```python
 VALID_OPTION_TYPES = frozenset({
@@ -1401,11 +1461,14 @@ backend/trade/services/
 └── auto_tag_engine.py      # evaluate_rules, _eval_condition, _check_condition
 
 backend/admin/
-└── auto_tag_rules.py       # CRUD API for auto_tag_rules (admin panel)
+├── routes/operations/auto_tag_rules.py  # CRUD API for auto_tag_rules (admin panel)
+└── schemas/rules.py                     # Rule validation schemas
+
+backend/trade/
+└── schemas/listing.py      # VALID_OPTION_TYPES + RegisterListingOption validator
 
 backend/db/
-├── models.py               # AutoTagRule model
-└── schemas.py              # VALID_OPTION_TYPES + RegisterListingOption validator
+└── models.py               # AutoTagRule model
 
 frontend/packages/admin/src/components/
 ├── AutoTagRulesPanel.jsx
@@ -1527,3 +1590,99 @@ Backend reads `.env.development` via symlink created at container startup:
 ```
 
 This avoids Docker mount conflicts when `./backend` volume already contains a symlink at that path.
+
+---
+
+## Audit System
+
+### Overview
+
+Administrative and system actions are recorded in `system_logs` for accountability and debugging. This is separate from `user_activity_logs`, which tracks user-facing actions (search, view, bookmark) for the recommendation engine.
+
+### Data Model
+
+**Table:** `system_logs`
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | int (PK) | Auto-increment |
+| `source` | text | `admin` (human action) or `system` (automated job) |
+| `action` | text | Operation performed (e.g., `insert`, `update`, `delete`) |
+| `entity_type` | text | Model name (e.g., `Listing`, `Tag`, `AutoTagRule`) |
+| `entity_id` | text | Primary key of the affected row |
+| `before` | JSONB | Snapshot of the row before the change (null for inserts) |
+| `after` | JSONB | Snapshot of the row after the change (null for deletes) |
+| `user_id` | UUID | The admin user who triggered the action (null for system) |
+| `created_at` | timestamptz | Timestamp of the action |
+
+### SQLAlchemy `before_flush` Listener
+
+**File:** `backend/admin/middleware/audit.py`
+
+The audit system uses SQLAlchemy's `before_flush` event to automatically capture changes on audited models. When a session is marked for auditing, the listener inspects `session.new`, `session.dirty`, and `session.deleted` and records before/after JSONB diffs for each affected row.
+
+### Activation
+
+The `enable_audit` FastAPI dependency is applied to the admin router. It marks the database session for auditing so that any ORM changes within admin endpoints are automatically logged. Non-admin code paths (trade endpoints, background jobs) do not trigger audit logging unless they explicitly mark the session.
+
+Background jobs that modify audited models (e.g., the cleanup job deleting zero-weight tags) log their changes with `source=system` and include before/after snapshots in `system_logs`.
+
+---
+
+## In-Game Verification System
+
+### Overview
+
+Users can optionally verify their in-game identity by proving they control a specific game character. Verification is not required -- unverified users can use all services. Verified users receive a badge displayed via the `PlayerName` component.
+
+### Flow
+
+```
+1. User requests verification code
+   POST /auth/me/verify
+     → generate code: 마트레-XXXXXX (6 random digits)
+     → store in verification_codes table (30 min expiry)
+     → return code to user
+
+2. User sends code in game chat
+   Player types the code in the in-game horn bugle chat
+
+3. Background job polls game API
+   Job: verify_users (runs every 20 min)
+     → poll 4 servers: 류트, 만돌린, 하프, 울프
+     → search for pending verification codes in chat messages
+     → if found: mark user as verified, record server + game_id
+
+4. User is verified
+   GET /auth/me returns verified=true, server, game_id
+   PlayerName component shows verified badge
+```
+
+### Code Format
+
+`마트레-XXXXXX` — prefix `마트레-` (site name) followed by 6 random digits. Expires after 30 minutes.
+
+### API Polling
+
+4 servers are polled every 20 minutes:
+- 류트, 만돌린, 하프, 울프
+
+API limit: 1000 calls/day. At 4 servers polled 3 times/hour (every 20 min), consumption is ~288 calls/day, well within the limit.
+
+### Verification Reset
+
+Changing `server` or `game_id` on user profile resets the `verified` flag. The user must re-verify to prove they control the new character.
+
+### Files
+
+```
+backend/auth/
+├── services/verification_service.py  # Code generation, verification check
+└── schemas/user.py                   # Profile update with server/game_id
+
+backend/jobs/
+└── verify_users.py                   # Background polling job
+
+backend/db/
+└── models.py                         # VerificationCode model (code, user_id, expires_at)
+```
