@@ -5,8 +5,8 @@ from sqlalchemy.orm import Session
 
 from db.connector import get_db
 from db import schemas
-from crud import admin as crud_admin
-from trade.services import get_listing_detail as svc_get_listing_detail
+from admin.services.listing_service import get_listings
+from trade.services.listing_service import get_listing_detail as svc_get_listing_detail
 
 router = APIRouter()
 
@@ -19,7 +19,7 @@ def admin_listings(
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
 ):
-    rows = crud_admin.get_listings(db, q=q or None, id=id or None, limit=limit, offset=offset)
+    rows = get_listings(q=q or None, id=id or None, limit=limit, offset=offset, db=db)
     return {"limit": limit, "offset": offset, "rows": rows}
 
 
@@ -32,15 +32,3 @@ def admin_listing_detail(
     if result is None:
         raise HTTPException(status_code=404, detail="Listing not found")
     return result
-
-
-@router.get("/game-items", response_model=schemas.PaginatedGameItemResponse)
-def admin_game_items(
-    q: str = Query(default=""),
-    id: str = Query(default=""),
-    limit: int = Query(default=100, ge=1, le=500),
-    offset: int = Query(default=0, ge=0),
-    db: Session = Depends(get_db),
-):
-    rows = crud_admin.get_game_items(db, q=q or None, id=id or None, limit=limit, offset=offset)
-    return {"limit": limit, "offset": offset, "rows": rows}

@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from db.connector import get_db
 from db import schemas
 from db.models import User
-from corrections.service import (
+from admin.services.correction_service import (
     list_corrections as svc_list_corrections,
     approve_correction as svc_approve_correction,
     edit_correction as svc_edit_correction,
@@ -17,7 +17,7 @@ from corrections.service import (
 )
 from auth.dependencies import require_feature
 
-router = APIRouter(prefix="/admin/corrections", tags=["corrections"])
+router = APIRouter(prefix="/corrections", tags=["corrections"])
 
 _manage_corrections = Depends(require_feature("manage_corrections"))
 

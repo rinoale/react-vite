@@ -6,7 +6,9 @@ from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
 from db.connector import get_db
-from crud import admin as crud_admin
+from admin.services.summary_service import get_summary
+from admin.services.enchant_service import get_enchants, get_effects, get_enchant_effects
+from admin.services.reforge_service import get_reforge_options
 
 router = APIRouter()
 
@@ -60,16 +62,16 @@ def admin_validate_page(
     db: Session = Depends(get_db),
 ) -> HTMLResponse:
     tab = tab if tab in _ALLOWED_TABS else "enchants"
-    summary = crud_admin.get_summary(db)
+    summary = get_summary(db=db)
 
     if tab == "enchants":
-        rows = crud_admin.get_enchants(db, limit, offset)
+        rows = get_enchants(db=db, limit=limit, offset=offset)
     elif tab == "effects":
-        rows = crud_admin.get_effects(db, limit, offset)
+        rows = get_effects(db=db, limit=limit, offset=offset)
     elif tab == "enchant_effects":
-        rows = crud_admin.get_enchant_effects(db, limit, offset)
+        rows = get_enchant_effects(db=db, limit=limit, offset=offset)
     else:
-        rows = crud_admin.get_reforge_options(db, limit, offset)
+        rows = get_reforge_options(db=db, limit=limit, offset=offset)
 
     next_offset = offset + limit
     prev_offset = max(0, offset - limit)

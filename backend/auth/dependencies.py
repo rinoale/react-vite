@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from db.connector import get_db
 from db.models import User
 from auth.service import decode_token
-from crud.user import get_user_by_id, get_user_roles, get_user_features
+from auth.services.user_service import get_user_by_id, get_user_roles, get_user_features
 
 _bearer = HTTPBearer(auto_error=False)
 

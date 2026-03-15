@@ -6,7 +6,7 @@ from db.connector import get_db
 from db import schemas
 from db.models import User
 from auth.dependencies import get_current_user
-from crud.user import get_user_roles, get_user_features, update_user_profile
+from auth.services.user_service import get_user_roles, get_user_features, update_user_profile
 
 router = APIRouter()
 

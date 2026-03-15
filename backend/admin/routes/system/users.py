@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from db.connector import get_db
 from db import schemas
 from db.models import User
-from crud import user as crud_user
+from auth.services import user_service as crud_user
 from auth.dependencies import require_role
 
 router = APIRouter()

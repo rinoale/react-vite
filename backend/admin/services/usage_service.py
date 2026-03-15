@@ -1,11 +1,13 @@
-from datetime import datetime, timezone
+"""R2 and OCI usage queries."""
+from datetime import datetime, timedelta, timezone
 
 import httpx
-from fastapi import APIRouter, HTTPException
+import oci
 
 from core.config import get_settings
 
-router = APIRouter()
+
+# ── R2 (Cloudflare) ──
 
 CF_GRAPHQL = "https://api.cloudflare.com/client/v4/graphql"
 
@@ -15,12 +17,17 @@ R2_FREE_TIER = {
     "class_b_ops": 10_000_000,
 }
 
+_CLASS_A = {
+    "PutObject", "CopyObject", "CompleteMultipartUpload", "CreateMultipartUpload",
+    "UploadPart", "UploadPartCopy", "ListBuckets", "ListObjects", "ListObjectsV2",
+    "ListMultipartUploads", "ListParts",
+}
+
 
 async def _query_cf(query: str, variables: dict) -> dict:
     settings = get_settings()
     if not settings.cloudflare_api_token:
-        raise HTTPException(status_code=501, detail="Cloudflare API token not configured")
-
+        raise ValueError("Cloudflare API token not configured")
     async with httpx.AsyncClient() as client:
         resp = await client.post(
             CF_GRAPHQL,
@@ -34,27 +41,22 @@ async def _query_cf(query: str, variables: dict) -> dict:
     data = resp.json()
     if resp.status_code != 200 or data.get("errors"):
         detail = data.get("errors", [{}])[0].get("message", resp.text)
-        raise HTTPException(status_code=502, detail=f"Cloudflare API error: {detail}")
+        raise ValueError(f"Cloudflare API error: {detail}")
     return data["data"]
 
 
-@router.get("/usage/r2")
-async def r2_usage():
-    """Return current-month R2 storage and operation counts vs free tier limits."""
+async def get_r2_usage():
     settings = get_settings()
     account_id = settings.r2_account_id
     if not account_id:
-        raise HTTPException(status_code=501, detail="R2 account ID not configured")
+        raise ValueError("R2 account ID not configured")
 
     now = datetime.now(timezone.utc)
     month_start_date = now.strftime("%Y-%m-01")
     today_date = now.strftime("%Y-%m-%d")
-    month_start_dt = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0).strftime(
-        "%Y-%m-%dT%H:%M:%SZ"
-    )
+    month_start_dt = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0).strftime("%Y-%m-%dT%H:%M:%SZ")
     now_dt = now.strftime("%Y-%m-%dT%H:%M:%SZ")
 
-    # Storage query — aggregate over current month (uses Date! filters)
     storage_query = """
     query ($accountTag: String!, $date_geq: Date!, $date_leq: Date!) {
       viewer {
@@ -71,7 +73,6 @@ async def r2_usage():
     }
     """
 
-    # Operations query — sum over current month (uses DateTime! filters)
     ops_query = """
     query ($accountTag: String!, $date_geq: DateTime!, $date_leq: DateTime!) {
       viewer {
@@ -99,7 +100,6 @@ async def r2_usage():
         "date_leq": now_dt,
     })
 
-    # Parse storage
     storage_rows = (
         storage_data.get("viewer", {}).get("accounts", [{}])[0]
         .get("r2StorageAdaptiveGroups", [])
@@ -107,10 +107,6 @@ async def r2_usage():
     total_bytes = sum(row.get("max", {}).get("payloadSize", 0) for row in storage_rows)
     total_objects = sum(row.get("max", {}).get("objectCount", 0) for row in storage_rows)
 
-    # Parse operations
-    CLASS_A = {"PutObject", "CopyObject", "CompleteMultipartUpload", "CreateMultipartUpload",
-               "UploadPart", "UploadPartCopy", "ListBuckets", "ListObjects", "ListObjectsV2",
-               "ListMultipartUploads", "ListParts"}
     ops_rows = (
         ops_data.get("viewer", {}).get("accounts", [{}])[0]
         .get("r2OperationsAdaptiveGroups", [])
@@ -120,7 +116,7 @@ async def r2_usage():
     for row in ops_rows:
         action = row.get("dimensions", {}).get("actionType", "")
         count = row.get("sum", {}).get("requests", 0)
-        if action in CLASS_A:
+        if action in _CLASS_A:
             class_a += count
         else:
             class_b += count
@@ -128,7 +124,7 @@ async def r2_usage():
     storage_gb = total_bytes / (1024 ** 3)
 
     return {
-        "period": f"{now.strftime('%Y-%m')}",
+        "period": now.strftime("%Y-%m"),
         "storage": {
             "used_bytes": total_bytes,
             "used_gb": round(storage_gb, 3),
@@ -146,4 +142,59 @@ async def r2_usage():
             "limit": R2_FREE_TIER["class_b_ops"],
             "pct": round(class_b / R2_FREE_TIER["class_b_ops"] * 100, 1),
         },
+    }
+
+
+# ── OCI ──
+
+def _get_oci_config() -> dict:
+    settings = get_settings()
+    if not settings.oci_tenancy_ocid:
+        raise ValueError("OCI credentials not configured")
+    return {
+        "user": settings.oci_user_ocid,
+        "key_content": settings.oci_private_key.replace("\\n", "\n"),
+        "fingerprint": settings.oci_fingerprint,
+        "tenancy": settings.oci_tenancy_ocid,
+        "region": settings.oci_region,
+    }
+
+
+def get_oci_usage():
+    cfg = _get_oci_config()
+
+    now = datetime.now(timezone.utc)
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    end_date = now.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
+
+    client = oci.usage_api.UsageapiClient(cfg)
+    resp = client.request_summarized_usages(
+        oci.usage_api.models.RequestSummarizedUsagesDetails(
+            tenant_id=cfg["tenancy"],
+            time_usage_started=month_start,
+            time_usage_ended=end_date,
+            granularity="MONTHLY",
+            query_type="COST",
+            group_by=["service"],
+        ),
+    )
+
+    services = []
+    total = 0.0
+    for item in resp.data.items:
+        cost = item.computed_amount or 0.0
+        currency = item.currency or "USD"
+        service = item.service or "Unknown"
+        if cost == 0.0:
+            continue
+        services.append({"service": service, "cost": round(cost, 4), "currency": currency})
+        total += cost
+
+    services.sort(key=lambda s: s["cost"], reverse=True)
+
+    return {
+        "period": now.strftime("%Y-%m"),
+        "currency": services[0]["currency"] if services else "USD",
+        "total": round(total, 4),
+        "services": services,
     }

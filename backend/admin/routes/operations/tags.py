@@ -5,7 +5,11 @@ from sqlalchemy.orm import Session
 
 from db.connector import get_db
 from db import schemas
-from crud import admin as crud_admin
+from admin.services.tag_service import (
+    get_tags, create_tag, delete_tag, search_entities, bulk_create_tags,
+    get_unique_tags, delete_tag_by_id, get_tag_detail,
+    update_tag_weight, update_tag_target_weight, bulk_update_tag_target_weights,
+)
 
 router = APIRouter()
 
@@ -17,7 +21,7 @@ def admin_tags(
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
 ):
-    rows = crud_admin.get_tags(db, target_type=target_type or None, limit=limit, offset=offset)
+    rows = get_tags(db=db, target_type=target_type or None, limit=limit, offset=offset)
     return {"limit": limit, "offset": offset, "rows": rows}
 
 
@@ -26,11 +30,10 @@ def admin_create_tag(
     data: schemas.TagCreate,
     db: Session = Depends(get_db),
 ):
-    tt = crud_admin.create_tag(db, data)
+    tt = create_tag(db=db, data=data)
     if tt is None:
         raise HTTPException(status_code=409, detail="Tag already exists for this target")
-    # Re-fetch with display name
-    rows = crud_admin.get_tags(db, limit=1, offset=0)
+    rows = get_tags(db=db, limit=1, offset=0)
     return rows[0] if rows and rows[0]['id'] == tt.id else {
         "id": tt.id,
         "tag_id": tt.tag_id,
@@ -46,7 +49,7 @@ def admin_delete_tag(
     tag_target_id: UUID,
     db: Session = Depends(get_db),
 ):
-    if not crud_admin.delete_tag(db, tag_target_id):
+    if not delete_tag(db=db, tag_target_id=tag_target_id):
         raise HTTPException(status_code=404, detail="Tag target not found")
     return {"deleted": True}
 
@@ -59,7 +62,7 @@ def admin_unique_tags(
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
 ):
-    rows = crud_admin.get_unique_tags(db, limit=limit, offset=offset, q=q or None, sort=sort or None)
+    rows = get_unique_tags(db=db, limit=limit, offset=offset, q=q or None, sort=sort or None)
     return {"limit": limit, "offset": offset, "rows": rows}
 
 
@@ -68,7 +71,7 @@ def admin_delete_tag_by_id(
     tag_id: UUID,
     db: Session = Depends(get_db),
 ):
-    if not crud_admin.delete_tag_by_id(db, tag_id):
+    if not delete_tag_by_id(db=db, tag_id=tag_id):
         raise HTTPException(status_code=404, detail="Tag not found")
     return {"deleted": True}
 
@@ -83,7 +86,7 @@ def admin_search_tag_entities(
 ):
     if not q.strip():
         return []
-    return crud_admin.search_entities(db, target_type, q.strip(), limit=limit, like=like)
+    return search_entities(db=db, target_type=target_type, q=q.strip(), limit=limit, like=like)
 
 
 @router.post("/tags/bulk")
@@ -91,7 +94,7 @@ def admin_bulk_create_tags(
     data: schemas.BulkTagCreate,
     db: Session = Depends(get_db),
 ):
-    return crud_admin.bulk_create_tags(db, data)
+    return bulk_create_tags(db=db, data=data)
 
 
 @router.patch("/tags/targets/{tag_target_id}")
@@ -100,7 +103,7 @@ def admin_update_tag_target_weight(
     data: schemas.WeightUpdate,
     db: Session = Depends(get_db),
 ):
-    if not crud_admin.update_tag_target_weight(db, tag_target_id, data.weight):
+    if not update_tag_target_weight(db=db, tag_target_id=tag_target_id, weight=data.weight):
         raise HTTPException(status_code=404, detail="Tag target not found")
     return {"ok": True}
 
@@ -110,7 +113,7 @@ def admin_bulk_update_tag_target_weights(
     data: schemas.BulkWeightUpdate,
     db: Session = Depends(get_db),
 ):
-    return crud_admin.bulk_update_tag_target_weights(db, data.ids, data.weight)
+    return bulk_update_tag_target_weights(db=db, ids=data.ids, weight=data.weight)
 
 
 @router.get("/tags/{tag_id}", response_model=schemas.TagDetail)
@@ -118,7 +121,7 @@ def admin_tag_detail(
     tag_id: UUID,
     db: Session = Depends(get_db),
 ):
-    result = crud_admin.get_tag_detail(db, tag_id)
+    result = get_tag_detail(db=db, tag_id=tag_id)
     if result is None:
         raise HTTPException(status_code=404, detail="Tag not found")
     return result
@@ -130,6 +133,6 @@ def admin_update_tag_weight(
     data: schemas.WeightUpdate,
     db: Session = Depends(get_db),
 ):
-    if not crud_admin.update_tag_weight(db, tag_id, data.weight):
+    if not update_tag_weight(db=db, tag_id=tag_id, weight=data.weight):
         raise HTTPException(status_code=404, detail="Tag not found")
     return {"ok": True}
