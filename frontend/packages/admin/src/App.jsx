@@ -20,7 +20,9 @@ const RolesPanel = lazy(() => import('./components/RolesPanel'))
 const FeatureFlagsPanel = lazy(() => import('./components/FeatureFlagsPanel'))
 const UsagePanel = lazy(() => import('./components/UsagePanel'))
 const ActivityLogsPanel = lazy(() => import('./components/ActivityLogsPanel'))
+const SystemLogsPanel = lazy(() => import('./components/SystemLogsPanel'))
 const AutoTagRulesPanel = lazy(() => import('./components/AutoTagRulesPanel'))
+const HornBuglePanel = lazy(() => import('./components/HornBuglePanel'))
 
 const Fallback = () => (
   <div className="flex items-center justify-center py-20">
@@ -84,6 +86,8 @@ function App() {
           <Route path="/system/feature_flags" element={<Suspense fallback={<Fallback />}><FeatureFlagsPanel /></Suspense>} />
           <Route path="/system/usage" element={<Suspense fallback={<Fallback />}><UsagePanel /></Suspense>} />
           <Route path="/system/activity_logs" element={<Suspense fallback={<Fallback />}><ActivityLogsPanel /></Suspense>} />
+          <Route path="/system/system_logs" element={<Suspense fallback={<Fallback />}><SystemLogsPanel /></Suspense>} />
+          <Route path="/system/horn_bugle" element={<Suspense fallback={<Fallback />}><HornBuglePanel /></Suspense>} />
 
           {/* Default */}
           <Route path="/" element={null} />

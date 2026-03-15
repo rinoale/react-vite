@@ -30,28 +30,28 @@ class TestPluralAndOr:
         payload = _make_payload(listing_options=[
             _opt("reforge_options", "최대 공격력", 20),
         ])
-        assert _eval_condition(payload, self.CONFIG, None) == ["최공스매"]
+        assert _eval_condition(payload=payload, config=self.CONFIG, db=None) == ["최공스매"]
 
     def test_smash_high_roll(self):
         """스매시 대미지 with rolled_value >= 19 → match."""
         payload = _make_payload(listing_options=[
             _opt("reforge_options", "스매시 대미지", 19),
         ])
-        assert _eval_condition(payload, self.CONFIG, None) == ["최공스매"]
+        assert _eval_condition(payload=payload, config=self.CONFIG, db=None) == ["최공스매"]
 
     def test_max_attack_low_roll(self):
         """최대 공격력 with rolled_value < 19 → no match."""
         payload = _make_payload(listing_options=[
             _opt("reforge_options", "최대 공격력", 18),
         ])
-        assert _eval_condition(payload, self.CONFIG, None) == []
+        assert _eval_condition(payload=payload, config=self.CONFIG, db=None) == []
 
     def test_wrong_option_high_roll(self):
         """Neither 최대 공격력 nor 스매시 대미지 → no match."""
         payload = _make_payload(listing_options=[
             _opt("reforge_options", "밸런스", 20),
         ])
-        assert _eval_condition(payload, self.CONFIG, None) == []
+        assert _eval_condition(payload=payload, config=self.CONFIG, db=None) == []
 
     def test_multiple_rows_one_matches(self):
         """Multiple reforge rows, one matches."""
@@ -59,12 +59,12 @@ class TestPluralAndOr:
             _opt("reforge_options", "밸런스", 20),
             _opt("reforge_options", "스매시 대미지", 19),
         ])
-        assert _eval_condition(payload, self.CONFIG, None) == ["최공스매"]
+        assert _eval_condition(payload=payload, config=self.CONFIG, db=None) == ["최공스매"]
 
     def test_no_options(self):
         """No reforge options → no match."""
         payload = _make_payload(listing_options=[])
-        assert _eval_condition(payload, self.CONFIG, None) == []
+        assert _eval_condition(payload=payload, config=self.CONFIG, db=None) == []
 
 
 class TestPluralAllAnd:
@@ -82,19 +82,19 @@ class TestPluralAllAnd:
         payload = _make_payload(listing_options=[
             _opt("reforge_options", "밸런스", 18),
         ])
-        assert _eval_condition(payload, self.CONFIG, None) == ["high_balance"]
+        assert _eval_condition(payload=payload, config=self.CONFIG, db=None) == ["high_balance"]
 
     def test_name_mismatch(self):
         payload = _make_payload(listing_options=[
             _opt("reforge_options", "대미지", 18),
         ])
-        assert _eval_condition(payload, self.CONFIG, None) == []
+        assert _eval_condition(payload=payload, config=self.CONFIG, db=None) == []
 
     def test_value_too_low(self):
         payload = _make_payload(listing_options=[
             _opt("reforge_options", "밸런스", 10),
         ])
-        assert _eval_condition(payload, self.CONFIG, None) == []
+        assert _eval_condition(payload=payload, config=self.CONFIG, db=None) == []
 
 
 class TestSingularAndOr:
@@ -110,15 +110,15 @@ class TestSingularAndOr:
 
     def test_weapon(self):
         payload = _make_payload(item_type="weapon")
-        assert _eval_condition(payload, self.CONFIG, None) == ["combat_item"]
+        assert _eval_condition(payload=payload, config=self.CONFIG, db=None) == ["combat_item"]
 
     def test_armor(self):
         payload = _make_payload(item_type="armor")
-        assert _eval_condition(payload, self.CONFIG, None) == ["combat_item"]
+        assert _eval_condition(payload=payload, config=self.CONFIG, db=None) == ["combat_item"]
 
     def test_accessory(self):
         payload = _make_payload(item_type="accessory")
-        assert _eval_condition(payload, self.CONFIG, None) == []
+        assert _eval_condition(payload=payload, config=self.CONFIG, db=None) == []
 
 
 class TestCrossRowGroups:
@@ -140,14 +140,14 @@ class TestCrossRowGroups:
             _opt("reforge_options", "최대 공격력", 20),
             _opt("reforge_options", "스매시 대미지", 20),
         ])
-        assert _eval_condition(payload, self.CONFIG, None) == ["최공스매19"]
+        assert _eval_condition(payload=payload, config=self.CONFIG, db=None) == ["최공스매19"]
 
     def test_only_one_present(self):
         """Only one option present → no match."""
         payload = _make_payload(listing_options=[
             _opt("reforge_options", "최대 공격력", 20),
         ])
-        assert _eval_condition(payload, self.CONFIG, None) == []
+        assert _eval_condition(payload=payload, config=self.CONFIG, db=None) == []
 
     def test_both_present_one_low(self):
         """Both present but 스매시 rolled <= 19 → no match."""
@@ -155,7 +155,7 @@ class TestCrossRowGroups:
             _opt("reforge_options", "최대 공격력", 20),
             _opt("reforge_options", "스매시 대미지", 19),
         ])
-        assert _eval_condition(payload, self.CONFIG, None) == []
+        assert _eval_condition(payload=payload, config=self.CONFIG, db=None) == []
 
     def test_both_present_other_low(self):
         """Both present but 최대 공격력 rolled <= 19 → no match."""
@@ -163,7 +163,7 @@ class TestCrossRowGroups:
             _opt("reforge_options", "최대 공격력", 19),
             _opt("reforge_options", "스매시 대미지", 20),
         ])
-        assert _eval_condition(payload, self.CONFIG, None) == []
+        assert _eval_condition(payload=payload, config=self.CONFIG, db=None) == []
 
     def test_extra_rows_dont_interfere(self):
         """Extra unrelated rows don't affect matching."""
@@ -173,12 +173,12 @@ class TestCrossRowGroups:
             _opt("reforge_options", "크리티컬", 15),
             _opt("reforge_options", "스매시 대미지", 21),
         ])
-        assert _eval_condition(payload, self.CONFIG, None) == ["최공스매19"]
+        assert _eval_condition(payload=payload, config=self.CONFIG, db=None) == ["최공스매19"]
 
     def test_no_options(self):
         """No reforge options → no match."""
         payload = _make_payload(listing_options=[])
-        assert _eval_condition(payload, self.CONFIG, None) == []
+        assert _eval_condition(payload=payload, config=self.CONFIG, db=None) == []
 
     def test_wrong_options_high_roll(self):
         """High rolls but wrong option names → no match."""
@@ -186,4 +186,4 @@ class TestCrossRowGroups:
             _opt("reforge_options", "밸런스", 25),
             _opt("reforge_options", "크리티컬", 25),
         ])
-        assert _eval_condition(payload, self.CONFIG, None) == []
+        assert _eval_condition(payload=payload, config=self.CONFIG, db=None) == []

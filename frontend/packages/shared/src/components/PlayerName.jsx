@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { Clipboard, Check } from 'lucide-react';
+import { Clipboard, Check, BadgeCheck } from 'lucide-react';
 
 const SERVER_COLORS = {
   '류트': 'text-blue-400',
@@ -15,7 +15,7 @@ const gameIdColor = (name) => {
   return '#' + c.map(v => ((v * 101) % 97 + 159).toString(16).toUpperCase()).join('');
 };
 
-const PlayerName = ({ server, gameId, className = 'text-xs', copyable = true }) => {
+const PlayerName = ({ server, gameId, verified = false, className = 'text-xs', copyable = true }) => {
   const [copied, setCopied] = useState(false);
   const timerRef = useRef(null);
 
@@ -43,13 +43,17 @@ const PlayerName = ({ server, gameId, className = 'text-xs', copyable = true }) 
             onClick={handleCopy}
           >
             {gameId}
+            {verified && <BadgeCheck className="w-3.5 h-3.5 text-cyan-400" />}
             {copied
               ? <Check className="w-3 h-3 text-green-400" />
               : <Clipboard className="w-3 h-3 opacity-40" />
             }
           </span>
         ) : (
-          <span style={{ color: gameIdColor(gameId) }}>{gameId}</span>
+          <span style={{ color: gameIdColor(gameId) }} className="inline-flex items-center gap-1">
+            {gameId}
+            {verified && <BadgeCheck className="w-3.5 h-3.5 text-cyan-400" />}
+          </span>
         )
       )}
     </span>

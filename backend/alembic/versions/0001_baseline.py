@@ -36,6 +36,15 @@ def upgrade() -> None:
     )
 
     op.create_table(
+        "verification_codes",
+        sa.Column("id", PG_UUID(as_uuid=True), primary_key=True),
+        sa.Column("user_id", PG_UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True),
+        sa.Column("code", sa.Text(), nullable=False),
+        sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
+    )
+
+    op.create_table(
         "roles",
         sa.Column("id", PG_UUID(as_uuid=True), primary_key=True),
         sa.Column("name", sa.Text(), nullable=False, unique=True),
@@ -280,6 +289,23 @@ def upgrade() -> None:
     op.create_index("ix_activity_target", "user_activity_logs", ["target_type", "target_id"])
     op.create_index("ix_activity_created_at", "user_activity_logs", ["created_at"])
 
+    # --- System Logs (admin + job audit) ---
+    op.create_table(
+        "system_logs",
+        sa.Column("id", PG_UUID(as_uuid=True), primary_key=True),
+        sa.Column("source", sa.Text(), nullable=False),
+        sa.Column("user_id", PG_UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
+        sa.Column("action", sa.Text(), nullable=False),
+        sa.Column("target_type", sa.Text(), nullable=True),
+        sa.Column("target_id", PG_UUID(as_uuid=True), nullable=True),
+        sa.Column("before", JSONB, nullable=True),
+        sa.Column("after", JSONB, nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
+    )
+    op.create_index("ix_syslog_source", "system_logs", ["source"])
+    op.create_index("ix_syslog_action", "system_logs", ["action"])
+    op.create_index("ix_syslog_created_at", "system_logs", ["created_at"])
+
     # --- Auto Tag Rules ---
     op.create_table(
         "auto_tag_rules",
@@ -310,6 +336,7 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_table("import_metadata")
     op.drop_table("auto_tag_rules")
+    op.drop_table("system_logs")
     op.drop_table("user_activity_logs")
     op.drop_table("job_runs")
     op.drop_table("ocr_corrections")
@@ -328,4 +355,5 @@ def downgrade() -> None:
     op.drop_table("feature_flags")
     op.drop_table("user_roles")
     op.drop_table("roles")
+    op.drop_table("verification_codes")
     op.drop_table("users")

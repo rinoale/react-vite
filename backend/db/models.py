@@ -32,6 +32,18 @@ class User(Base):
     )
 
 
+class VerificationCode(Base):
+    __tablename__ = "verification_codes"
+
+    id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid7)
+    user_id = Column(PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True)
+    code = Column(Text, nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    user = relationship("User")
+
+
 class Role(Base):
     __tablename__ = "roles"
 
@@ -347,4 +359,24 @@ class UserActivityLog(Base):
         Index('ix_activity_action', 'action'),
         Index('ix_activity_target', 'target_type', 'target_id'),
         Index('ix_activity_created_at', 'created_at'),
+    )
+
+
+class SystemLog(Base):
+    __tablename__ = "system_logs"
+
+    id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid7)
+    source = Column(Text, nullable=False)  # admin, system
+    user_id = Column(PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    action = Column(Text, nullable=False)
+    target_type = Column(Text, nullable=True)
+    target_id = Column(PG_UUID(as_uuid=True), nullable=True)
+    before_ = Column("before", JSONB, nullable=True)
+    after_ = Column("after", JSONB, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        Index('ix_syslog_source', 'source'),
+        Index('ix_syslog_action', 'action'),
+        Index('ix_syslog_created_at', 'created_at'),
     )

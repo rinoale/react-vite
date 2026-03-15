@@ -33,10 +33,8 @@ def get_storage(backend: str | None = None) -> FileStorage:
     else:
         base_dir = settings.storage_local_dir
         if not base_dir:
-            base_dir = os.path.join(
-                os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-                '..', 'tmp', 'ocr_crops',
-            )
+            from core.paths import OCR_CROPS_DIR
+            base_dir = OCR_CROPS_DIR
         _instances[key] = LocalFileStorage(base_dir=base_dir)
 
     return _instances[key]

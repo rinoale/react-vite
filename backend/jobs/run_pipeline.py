@@ -14,7 +14,7 @@ from core.config import get_settings
 from lib.storage import get_storage
 from lib.pipeline.v3 import init_pipeline, run_v3_pipeline, prepare_sections_for_response
 from lib.utils.log import logger
-from trade.schemas import ExamineItemResponse
+from trade.schemas.examine import ExamineItemResponse
 
 
 def _get_pubsub_redis():

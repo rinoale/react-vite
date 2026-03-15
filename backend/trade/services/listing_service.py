@@ -12,7 +12,7 @@ from lib.utils.log import logger
 _VALID_STATUS_TRANSITIONS = {0, 1, 2, 3}
 
 
-def update_listing_status(db, listing_id, status, user_id):
+def update_listing_status(*, listing_id, status, user_id, db: Session):
     """Update listing status. Only the owner can change status."""
     if status not in _VALID_STATUS_TRANSITIONS:
         raise HTTPException(status_code=400, detail="Invalid status")
@@ -162,7 +162,7 @@ def _parse_attrs(attrs_dict):
     return result
 
 
-def create_listing(payload, db, *, user_id=None):
+def create_listing(*, payload, user_id=None, db: Session):
     """Resolve FKs and persist a Listing with listing options.
 
     Returns the created Listing.
@@ -232,7 +232,7 @@ def create_listing(payload, db, *, user_id=None):
     return listing
 
 
-def _batch_resolve_tags(db, listing_ids):
+def _batch_resolve_tags(*, listing_ids, db: Session):
     """Batch-resolve tags for multiple listings via a single query.
 
     Returns dict: listing_id -> [tag_name, ...]
@@ -277,7 +277,7 @@ def _batch_resolve_tags(db, listing_ids):
     return tags_by_listing
 
 
-def _batch_resolve_options(db, listing_ids):
+def _batch_resolve_options(*, listing_ids, db: Session):
     """Batch-fetch listing_options for a set of listing IDs."""
     if not listing_ids:
         return {}
@@ -303,7 +303,7 @@ def _batch_resolve_options(db, listing_ids):
     return options_by_listing
 
 
-def get_listings(db, game_item_id=None, limit=50, offset=0):
+def get_listings(*, game_item_id=None, limit=50, offset=0, db: Session):
     """Fetch listing summaries, optionally filtered by game_item_id."""
     base_sql = """
         SELECT
@@ -334,7 +334,8 @@ def get_listings(db, game_item_id=None, limit=50, offset=0):
             l.piercing_level,
             l.created_at,
             u.server AS seller_server,
-            u.game_id AS seller_game_id
+            u.game_id AS seller_game_id,
+            u.verified AS seller_verified
         FROM listings l
         LEFT JOIN game_items gi ON gi.id = l.game_item_id
         LEFT JOIN enchants pe ON pe.id = l.prefix_enchant_id
@@ -365,8 +366,8 @@ def get_listings(db, game_item_id=None, limit=50, offset=0):
 
     # Batch-resolve tags and options
     listing_ids = [l['id'] for l in listings]
-    tags_map = _batch_resolve_tags(db, listing_ids)
-    options_map = _batch_resolve_options(db, listing_ids)
+    tags_map = _batch_resolve_tags(listing_ids=listing_ids, db=db)
+    options_map = _batch_resolve_options(listing_ids=listing_ids, db=db)
     for l in listings:
         l['tags'] = tags_map.get(l['id'], [])
         l['listing_options'] = options_map.get(l['id'], [])
@@ -374,7 +375,7 @@ def get_listings(db, game_item_id=None, limit=50, offset=0):
     return listings
 
 
-def get_my_listings(db, user_id, limit=50, offset=0):
+def get_my_listings(*, user_id, limit=50, offset=0, db: Session):
     """Fetch listings owned by a user (all statuses)."""
     rows = db.execute(
         text("""
@@ -403,8 +404,8 @@ def get_my_listings(db, user_id, limit=50, offset=0):
     listings = [dict(r) for r in rows]
 
     listing_ids = [l['id'] for l in listings]
-    tags_map = _batch_resolve_tags(db, listing_ids)
-    options_map = _batch_resolve_options(db, listing_ids)
+    tags_map = _batch_resolve_tags(listing_ids=listing_ids, db=db)
+    options_map = _batch_resolve_options(listing_ids=listing_ids, db=db)
     for l in listings:
         l['tags'] = tags_map.get(l['id'], [])
         l['listing_options'] = options_map.get(l['id'], [])
@@ -412,7 +413,7 @@ def get_my_listings(db, user_id, limit=50, offset=0):
     return listings
 
 
-def search_game_items(db, q, limit=20):
+def search_game_items(*, q, limit=20, db: Session):
     """Search game items by name (ILIKE)."""
     rows = db.execute(
         text("""
@@ -427,7 +428,7 @@ def search_game_items(db, q, limit=20):
     return [dict(r) for r in rows]
 
 
-def search_tags(db, q, limit=10):
+def search_tags(*, q, limit=10, db: Session):
     """Search tag names by ILIKE. Returns [{name, weight}, ...]."""
     if not q.strip():
         return []
@@ -470,10 +471,10 @@ def _add_option_conditions(conditions, params, filters, option_type, prefix):
                 )""")
 
 
-def search_listings(db, q, tags=None, game_item_id=None, attr_filters=None,
+def search_listings(*, q, tags=None, game_item_id=None, attr_filters=None,
                     reforge_filters=None, enchant_filters=None,
                     echostone_filters=None, murias_filters=None,
-                    limit=50, offset=0):
+                    limit=50, offset=0, db: Session):
     """Search listings with all filters combined into a single query.
 
     Filters are intersected (AND). Text search uses cascading priority
@@ -614,8 +615,8 @@ def search_listings(db, q, tags=None, game_item_id=None, attr_filters=None,
 
     # Batch-resolve tags and options (2 queries)
     listing_ids = [l['id'] for l in listings]
-    tags_map = _batch_resolve_tags(db, listing_ids)
-    options_map = _batch_resolve_options(db, listing_ids)
+    tags_map = _batch_resolve_tags(listing_ids=listing_ids, db=db)
+    options_map = _batch_resolve_options(listing_ids=listing_ids, db=db)
     for l in listings:
         l['tags'] = tags_map.get(l['id'], [])
         l['listing_options'] = options_map.get(l['id'], [])
@@ -639,7 +640,7 @@ _LISTING_RESOLVE_CTE = """
 
 
 
-def _resolve_listing_tags(db: Session, listing_id):
+def _resolve_listing_tags(*, listing_id, db: Session):
     """Resolve all tags for a single listing (used by detail view)."""
     rows = db.execute(
         text("""
@@ -664,7 +665,7 @@ def _resolve_listing_tags(db: Session, listing_id):
     return [{"name": r["name"], "weight": r["weight"]} for r in rows]
 
 
-def _build_enchant_detail(db: Session, listing_id, enchant_id, slot: int):
+def _build_enchant_detail(*, listing_id, enchant_id, slot: int, db: Session):
     """Build enchant detail dict with all effects for a single enchant slot."""
     enc = db.query(models.Enchant).filter(models.Enchant.id == enchant_id).first()
     if not enc:
@@ -692,7 +693,7 @@ def _build_enchant_detail(db: Session, listing_id, enchant_id, slot: int):
     }
 
 
-def get_listing_detail(db: Session, listing_id):
+def get_listing_detail(*, listing_id, db: Session):
     """Fetch full listing detail including enchants, options, tags, and seller info."""
     listing = db.query(models.Listing).filter(models.Listing.id == listing_id).first()
     if not listing:
@@ -711,11 +712,11 @@ def get_listing_detail(db: Session, listing_id):
 
     prefix_enchant = None
     if listing.prefix_enchant_id:
-        prefix_enchant = _build_enchant_detail(db, listing_id, listing.prefix_enchant_id, 0)
+        prefix_enchant = _build_enchant_detail(listing_id=listing_id, enchant_id=listing.prefix_enchant_id, slot=0, db=db)
 
     suffix_enchant = None
     if listing.suffix_enchant_id:
-        suffix_enchant = _build_enchant_detail(db, listing_id, listing.suffix_enchant_id, 1)
+        suffix_enchant = _build_enchant_detail(listing_id=listing_id, enchant_id=listing.suffix_enchant_id, slot=1, db=db)
 
     # All listing options (reforge, echostone, murias_relic, enchant_effect)
     option_rows = db.execute(
@@ -757,8 +758,9 @@ def get_listing_detail(db: Session, listing_id):
         "prefix_enchant": prefix_enchant,
         "suffix_enchant": suffix_enchant,
         "listing_options": [dict(r) for r in option_rows],
-        "tags": _resolve_listing_tags(db, listing_id),
+        "tags": _resolve_listing_tags(listing_id=listing_id, db=db),
         "seller_server": seller.server if seller else None,
         "seller_game_id": seller.game_id if seller else None,
         "seller_discord_id": seller.discord_id if seller else None,
+        "seller_verified": seller.verified if seller else False,
     }

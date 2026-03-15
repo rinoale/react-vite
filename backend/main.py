@@ -7,7 +7,6 @@ import os
 from admin import router as admin_router
 from auth import router as auth_router
 from auth.dependencies import is_admin_user
-from corrections import router as corrections_router
 from misc import router as misc_router
 from trade import router as trade_router
 from core.config import get_settings
@@ -54,7 +53,6 @@ _api_prefix = "/api" if _SPA_MODE else ""
 api = APIRouter(prefix=_api_prefix)
 api.include_router(auth_router)
 api.include_router(admin_router)
-api.include_router(corrections_router)
 api.include_router(misc_router)
 api.include_router(trade_router)
 app.include_router(api)

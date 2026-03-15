@@ -1,4 +1,5 @@
 from jobs.cleanup_tags import cleanup_zero_weight_tags
+from jobs.verify_users import verify_users_from_horn_bugle
 
 DEFAULT_QUEUE = "default"
 
@@ -13,6 +14,12 @@ REGISTRY = {
         "fn": cleanup_zero_weight_tags,
         "description": "Delete user-created tags with weight 0 (not searchable, varied text)",
         "schedule_seconds": 12 * 3600,
+        "queue": DEFAULT_QUEUE,
+    },
+    "verify_users": {
+        "fn": verify_users_from_horn_bugle,
+        "description": "Poll horn bugle and verify pending users via in-game OTP",
+        "schedule_seconds": 20 * 60,  # every 20 minutes
         "queue": DEFAULT_QUEUE,
     },
     "run_v3_pipeline": {

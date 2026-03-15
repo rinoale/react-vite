@@ -6,7 +6,7 @@ from db.connector import get_db
 from auth.service import create_token_pair, get_discord_auth_url, exchange_discord_code
 from auth.cookies import set_auth_cookies
 from core.config import get_settings
-from crud.user import get_user_by_email, get_user_by_discord_id, create_user, link_discord
+from auth.services.user_service import get_user_by_email, get_user_by_discord_id, create_user, link_discord
 
 router = APIRouter()
 

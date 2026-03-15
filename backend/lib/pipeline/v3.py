@@ -26,11 +26,10 @@ from lib.pipeline.segmenter import (
 )
 from lib.text_processors import MabinogiTextCorrector
 
-BASE_DIR    = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-MODELS_DIR  = os.path.join(BASE_DIR, 'ocr', 'models')
-CONFIG_PATH = os.path.join(BASE_DIR, '..', 'configs', 'mabinogi_tooltip.yaml')
-LINE_SPLIT_CONFIG_PATH = os.path.join(BASE_DIR, '..', 'configs', 'line_split.yaml')
-DICT_DIR    = os.path.join(BASE_DIR, '..', 'data', 'dictionary')
+from core.paths import MODELS_DIR, CONFIGS_DIR, DICT_DIR, OCR_CROPS_DIR
+
+CONFIG_PATH = os.path.join(CONFIGS_DIR, 'mabinogi_tooltip.yaml')
+LINE_SPLIT_CONFIG_PATH = os.path.join(CONFIGS_DIR, 'line_split.yaml')
 
 
 _pipeline = None
@@ -336,8 +335,7 @@ def run_v3_pipeline(img_bgr, *, save_crops=False, save_crops_dir=None,
         if save_crops_dir:
             crop_session_dir = os.path.join(save_crops_dir, session_id)
         else:
-            crop_session_dir = os.path.join(
-                BASE_DIR, '..', 'tmp', 'ocr_crops', session_id)
+            crop_session_dir = os.path.join(OCR_CROPS_DIR, session_id)
         os.makedirs(crop_session_dir, exist_ok=True)
 
     # Step 1: Detect orange headers → segment into pre_header + tagged sections

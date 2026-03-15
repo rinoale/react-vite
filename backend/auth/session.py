@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from db.connector import get_db
 from auth.service import create_token_pair, decode_token
 from auth.cookies import set_auth_cookies, clear_auth_cookies
-from crud.user import get_user_by_id
+from auth.services.user_service import get_user_by_id
 
 router = APIRouter()
 

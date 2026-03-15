@@ -1477,3 +1477,233 @@ After splitting, the pipeline applies (in `line_processing.py` and `line_merge.p
 | Border run max width | 3px | Only mask narrow dense column runs |
 | pad_x | `max(2, h // 3)` | Horizontal crop padding |
 | Gap outlier threshold | `max(median×2, median+4)` | Detect section-boundary gaps |
+
+---
+
+## 18. Auto-Tag Rule Engine
+
+**File:** `backend/trade/services/auto_tag_engine.py`
+**Called from:** `tag_service.create_listing_tags()` (runs as BackgroundTask)
+
+### Problem
+
+Manually tagging listings is tedious. Users want automatic tags like "풀피어싱" (full piercing), "S르그50" (max erg), or enchant names.
+
+### Architecture
+
+Every rule is a list of conditions + tag template stored as JSON in `auto_tag_rules` table. No rule types — the unified evaluator handles all patterns.
+
+### Condition Evaluation
+
+- **Singular tables** (`listing`, `prefix_enchant`, `suffix_enchant`, `game_item`): Resolve to one object, conditions checked once
+- **Plural tables** (`enchant_effects`, `reforge_options`, `echostone_options`, `murias_relic_options`): Iterate `listing_options` rows filtered by `option_type`, all conditions on same table must match same row
+
+### Operators
+
+`==`, `!=`, `>=`, `<=`, `>`, `<`, `in`, `contains`
+
+### Column References
+
+Value can reference another column on the same row:
+```json
+{"value": {"table": "enchant_effects", "column": "max_level"}}
+```
+This enables cross-field comparisons like `rolled_value == max_level` (full piercing check).
+
+### Refer & Template
+
+Each condition can capture its actual value with `"refer": "name"`. The tag template interpolates: `"{name}"` -> captured value.
+
+Example rule (prefix enchant name as tag):
+```json
+{
+  "conditions": [
+    {"table": "prefix_enchant", "column": "name", "op": "!=", "value": null, "refer": "name", "logic": "AND"}
+  ],
+  "tag_template": "{name}"
+}
+```
+
+### Group-Based Cross-Row Matching
+
+When conditions have a `"group"` field, each group independently matches a row. ALL groups must pass. This enables multi-row conditions (e.g., "has piercing AND has critical" on different listing_options rows).
+
+### Example Rules
+
+| Rule | Conditions | Tag |
+|---|---|---|
+| Full piercing | enchant_effects: option_name=="피어싱 레벨" AND rolled_value==max_level | "풀피어싱" |
+| Max erg | listing: erg_grade=="S" AND erg_level==50 | "{erg_grade}르그{erg_level}" |
+| Special upgrade | listing: special_upgrade_level>=7 AND special_upgrade_type!=null | "{type}{level}" |
+| Enchant names | prefix/suffix enchant: name != null | "{name}" |
+
+---
+
+## 19. In-Game Verification (Horn Bugle OTP)
+
+**Files:** `backend/auth/services/verification_service.py`, `backend/jobs/verify_users.py`
+
+### Problem
+
+Users set their in-game name (server + game_id) on their profile, but there's no way to verify they actually own that character. This enables impersonation.
+
+### Solution
+
+Use the game's all-chat (horn bugle) API as an OTP channel. The user sends a verification code in-game, and the backend polls the API to confirm.
+
+### Flow
+
+```
+1. User sets server + game_id on profile
+2. POST /auth/verify/request → generates "마트레-XXXXXX" (6 digits), 30 min expiry
+3. User sends the code in-game via horn bugle (all-chat)
+4. Scheduled job (every 20 min) polls all 4 servers via Nexon Open API
+5. Match: character_name == user.game_id AND message contains code
+6. → user.verified = true, verification code deleted
+```
+
+### Constraints
+
+- **API rate limit**: 1000 calls/day. 4 servers x 3 polls/hour x 24 = 288/day (well under limit)
+- **Horn bugle history**: Last 30 minutes. Code expiry matches this window.
+- **Re-verification**: Changing `server` or `game_id` resets `verified` to `false`
+- **Non-mandatory**: All services work without verification. Verified users get a BadgeCheck icon next to their name.
+
+### Storage
+
+`verification_codes` table with `user_id` (unique), `code`, `expires_at`. One pending code per user. Requesting a new code overwrites the old one.
+
+---
+
+## 20. Saved Search Params
+
+**File:** `frontend/packages/shared/src/lib/savedSearches.js`
+
+### Problem
+
+Users build complex search filters (tags + game item + reforge/enchant/echostone/murias filters + attr filters) and want to save and reuse them.
+
+### Design
+
+- Stored in localStorage as JSON array (max 20 entries)
+- Deduplication via hash: `hashStorable()` produces a DJB2 hash from normalized params
+- Normalization: tags sorted alphabetically, filter arrays sorted by name field (each filter type uses its own sort key: `key` for attrs, `name` for enchants, `option_name` for others)
+- Order-independent: "A B" and "B A" produce the same hash
+- Text-only searches rejected (`isSaveable()` checks for tags, game item, or filter content)
+- `FILTER_KEYS` array is single source of truth for all filter types
+
+---
+
+## Key Features — Notable Logic Summary
+
+### 1. Screenshot → Listing in One Click
+
+A user uploads a single screenshot of an in-game item tooltip. The system extracts everything automatically.
+
+**Pipeline:** 8-stage V3 pipeline processes the original color screenshot — no preprocessing by the user.
+
+```
+Screenshot → Border Crop → Orange Header Detection → Segmentation
+→ Header OCR (section classification) → Per-Section Content OCR
+→ Item Name Parsing (enchant prefix/suffix split)
+→ Fuzzy Matching (section-aware text correction)
+→ Structured Rebuild (enchant/reforge/erg/color/set data)
+```
+
+**Why section-first?** Legacy V2 ran OCR first, then tried to detect sections from the text. If a header word was garbled, all subsequent lines were assigned to the wrong section — cascade failure. V3 detects headers visually (orange pixel mask) before any OCR runs.
+
+**Notable algorithms:**
+- **Dullahan** (§1): When header OCR can't distinguish `폭단` from `성단`, the effect lines break the tie. 802/1172 enchants have unique effect fingerprints.
+- **Number-Normalized FM** (§3): Extracts numbers, matches against N-normalized dictionary, re-injects OCR'd numbers. Handles `최대대미지 18 증가` → matches template `최대대미지 N 증가`.
+- **EasyOCR Inference Patch** (§10): Fixes double-resize bug in EasyOCR — training resizes once, but inference resized twice. Patch gave **+37 exact matches with zero retraining**.
+
+### 2. Smart Search
+
+Multi-dimensional search combining text, tags, game items, and structured filters — all intersected.
+
+**Search dimensions:**
+- **Text query** — cascading 3-tier: tags → game items → listing names (stops at first tier with results)
+- **Tag chips** — AND across all selected tags. Polymorphic resolution: a tag on an enchant matches listings with that enchant.
+- **Game item filter** — exact match, enables type-specific filter panels
+- **Attribute filters** — numeric comparisons (damage ≥ 100, erg level = 50)
+- **Option filters** — reforge, enchant (with per-effect sub-filters), echostone, murias — each with operator + level
+
+**Saved search presets:**
+- Stored in localStorage as JSON, max 20 entries
+- Order-independent dedup via DJB2 hash on normalized (sorted) params
+- `FILTER_KEYS` array as single source of truth — adding a new filter type = add one string
+
+**Search param handoff:** `toSearchParams()` / `loadSearchParams()` on the search hook. SearchPage serializes full state to JSON, navigates to Marketplace, Marketplace restores the exact search bar state including game item chip and all filter badges.
+
+### 3. Auto-Tag Engine
+
+Database-driven rule engine that automatically generates tags when listings are registered.
+
+**Design:** Every rule is `conditions[] + tag_template` stored as JSON. No rule types, no code changes to add rules. Admin creates rules via UI, enables them manually.
+
+**Condition evaluation:**
+- Singular tables (`listing`, `prefix_enchant`, `suffix_enchant`, `game_item`) → resolve to one object
+- Plural tables (`enchant_effects`, `reforge_options`, etc.) → iterate `listing_options` rows, all conditions on same table must match same row
+- 8 operators: `==`, `!=`, `>=`, `<=`, `>`, `<`, `in`, `contains`
+- Column references: `{"value": {"table": "enchant_effects", "column": "max_level"}}` enables cross-field comparisons
+- Group-based cross-row matching: each group independently matches a row, all groups must pass
+
+**Example — "풀피어싱" (full piercing):**
+```json
+{
+  "conditions": [
+    {"table": "enchant_effects", "column": "option_name", "op": "==", "value": "피어싱 레벨"},
+    {"table": "enchant_effects", "column": "rolled_value", "op": "==",
+     "value": {"table": "enchant_effects", "column": "max_level"}}
+  ],
+  "tag_template": "풀피어싱"
+}
+```
+
+**Execution:** Runs as `BackgroundTask` after listing registration — doesn't block the HTTP response.
+
+### 4. In-Game Identity Verification
+
+OTP-style verification using the game's all-chat (horn bugle) API as the delivery channel.
+
+**Flow:**
+```
+User requests code → "마트레-482957" displayed
+User sends code in-game via horn bugle (all-chat)
+Scheduled job (every 20 min) polls Nexon API for all 4 servers
+Match: character_name == user.game_id AND message contains code
+→ user.verified = true, verified badge appears
+```
+
+**Constraints:**
+- API rate limit: 1000/day. 4 servers × 3 polls/hour × 24h = 288 calls/day
+- Horn bugle history: last 30 minutes. Code expiry matches this window
+- Re-verification: changing server or game_id resets verified to false
+- Non-mandatory: all services work without verification
+
+**Trust model:** Verified badge (BadgeCheck icon) next to player name tells other users this seller actually owns the character. Unverified users can still trade — verification is social proof, not access control.
+
+### 5. Self-Correcting OCR
+
+The system improves from its own usage. Every user edit during listing registration becomes potential training data.
+
+**Correction capture flow:**
+```
+OCR produces text → User sees result in registration form
+User corrects a line → Frontend sends both original + corrected text
+Backend saves as OcrCorrection (session_id, line_index, original, corrected)
+Line crop image preserved in tmp/ocr_crops/{session_id}/
+```
+
+**Review pipeline:**
+- Admin reviews corrections in the corrections panel (crop image + original vs corrected text side by side)
+- Approved corrections feed the next training data generation
+- `trained_version` field tracks which model version consumed each correction
+
+**Quality signals captured:**
+- `confidence` — OCR confidence score, low confidence = likely error
+- `fm_applied` — whether fuzzy matching was applied (FM corrections that users override reveal FM dictionary gaps)
+- `charset_mismatch` — when corrected text contains characters not in the model's charset (reveals missing chars)
+- `is_stitched` — continuation-merged lines (multi-line text stitched into one crop)
+
+**Feedback loop:** More users → more corrections → better training data → more accurate OCR → fewer corrections needed. The system converges toward accuracy through usage.

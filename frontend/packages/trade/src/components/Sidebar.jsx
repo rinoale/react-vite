@@ -88,7 +88,7 @@ const Sidebar = () => {
             </button>
           ) : (
             <>
-              <PlayerName server={user?.server} gameId={user?.game_id} className={userName} copyable={false} />
+              <PlayerName server={user?.server} gameId={user?.game_id} verified={user?.verified} className={userName} copyable={false} />
               <button type="button" className={logoutBtn} onClick={handleLogout}>
                 <LogOut className="w-4 h-4" />
                 {t('auth.logout')}
