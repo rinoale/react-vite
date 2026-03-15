@@ -2,14 +2,9 @@ import json
 import os
 import shutil
 
+from core.paths import OCR_CROPS_DIR, CORRECTIONS_DIR, MODELS_DIR
 from db.models import OcrCorrection
 from lib.utils.log import logger
-
-# --- Correction capture constants ---
-_BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-_CROPS_DIR = os.path.join(_BASE_DIR, '..', 'tmp', 'ocr_crops')
-_CORRECTIONS_DIR = os.path.join(_BASE_DIR, '..', 'data', 'corrections')
-_MODELS_DIR = os.path.join(_BASE_DIR, 'ocr', 'models')
 
 
 def _load_charsets():
@@ -17,7 +12,7 @@ def _load_charsets():
     charsets = {}
     # Content models
     for yaml_prefix in ('custom_mabinogi_classic', 'custom_nanum_gothic_bold'):
-        yaml_path = os.path.join(_MODELS_DIR, f'{yaml_prefix}.yaml')
+        yaml_path = os.path.join(MODELS_DIR, f'{yaml_prefix}.yaml')
         if not os.path.exists(yaml_path):
             continue
         real_path = os.path.realpath(yaml_path)
@@ -27,7 +22,7 @@ def _load_charsets():
             with open(chars_file, 'r', encoding='utf-8') as f:
                 charsets[yaml_prefix] = set(f.read().strip())
     # Enchant header model
-    enchant_hdr_dir = os.path.join(_MODELS_DIR, 'custom_enchant_header.yaml')
+    enchant_hdr_dir = os.path.join(MODELS_DIR, 'custom_enchant_header.yaml')
     if os.path.exists(enchant_hdr_dir):
         real_path = os.path.realpath(enchant_hdr_dir)
         version_dir = os.path.dirname(real_path)
@@ -51,7 +46,7 @@ def capture_corrections(*, session_id, lines, db):
     if not session_id or not lines:
         return 0
 
-    session_dir = os.path.join(_CROPS_DIR, session_id)
+    session_dir = os.path.join(OCR_CROPS_DIR, session_id)
     results_path = os.path.join(session_dir, 'ocr_results.json')
 
     if not os.path.isfile(results_path):
@@ -63,7 +58,7 @@ def capture_corrections(*, session_id, lines, db):
     # Build lookup: (section, line_index) → original line data
     orig_by_key = {(o['section'], o['line_index']): o for o in originals}
 
-    dest_dir = os.path.join(_CORRECTIONS_DIR, session_id)
+    dest_dir = os.path.join(CORRECTIONS_DIR, session_id)
     corrections_saved = 0
 
     for line in lines:

@@ -3,11 +3,8 @@ import re
 
 from sqlalchemy.orm import Session
 
+from core.paths import OCR_CROPS_DIR, CORRECTIONS_DIR
 from db.models import OcrCorrection
-
-_BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-_CROPS_DIR = os.path.join(_BASE_DIR, '..', 'tmp', 'ocr_crops')
-_CORRECTIONS_DIR = os.path.join(_BASE_DIR, '..', 'data', 'corrections')
 
 _SESSION_ID_RE = re.compile(r'[a-f0-9\-]{36}')
 _FILENAME_RE = re.compile(r'[a-z_]*[0-9]{3}\.png')
@@ -73,7 +70,7 @@ def resolve_crop_path(session_id, filename):
     if not _SESSION_ID_RE.fullmatch(session_id):
         return None, "Invalid session_id"
 
-    for base in (_CORRECTIONS_DIR, _CROPS_DIR):
+    for base in (CORRECTIONS_DIR, OCR_CROPS_DIR):
         path = os.path.join(base, session_id, filename)
         if os.path.isfile(path):
             return path, None
