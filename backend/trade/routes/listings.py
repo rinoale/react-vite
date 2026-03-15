@@ -27,58 +27,90 @@ _STATUS_ACTIONS = {0: "listing_drafted", 1: "listing_listed", 2: "listing_sold",
 router = APIRouter()
 
 
+class GetListingsParams:
+    def __init__(
+        self,
+        game_item_id: UUID | None = Query(default=None),
+        limit: int = Query(default=50, ge=1, le=200),
+        offset: int = Query(default=0, ge=0),
+    ):
+        self.game_item_id = game_item_id
+        self.limit = limit
+        self.offset = offset
+
+
 @router.get("/listings")
-def get_listings(
-    game_item_id: UUID | None = Query(default=None),
-    limit: int = Query(default=50, ge=1, le=200),
-    offset: int = Query(default=0, ge=0),
-    db: Session = Depends(get_db),
-):
-    return svc_get_listings(game_item_id=game_item_id, limit=limit, offset=offset, db=db)
+def get_listings(params: GetListingsParams = Depends(), db: Session = Depends(get_db)):
+    return svc_get_listings(game_item_id=params.game_item_id, limit=params.limit, offset=params.offset, db=db)
+
+
+class SearchListingsParams:
+    def __init__(
+        self,
+        q: str = Query(default=""),
+        tags: list[str] = Query(default=[]),
+        game_item_id: UUID | None = Query(default=None),
+        reforge_filters: str | None = Query(default=None),
+        enchant_filters: str | None = Query(default=None),
+        echostone_filters: str | None = Query(default=None),
+        murias_filters: str | None = Query(default=None),
+        limit: int = Query(default=50, ge=1, le=200),
+        offset: int = Query(default=0, ge=0),
+    ):
+        self.q = q
+        self.tags = tags
+        self.game_item_id = game_item_id
+        self.reforge_filters = reforge_filters
+        self.enchant_filters = enchant_filters
+        self.echostone_filters = echostone_filters
+        self.murias_filters = murias_filters
+        self.limit = limit
+        self.offset = offset
 
 
 @router.get("/listings/search")
 def search_listings(
     request: Request,
-    q: str = Query(default=""),
-    tags: list[str] = Query(default=[]),
-    game_item_id: UUID | None = Query(default=None),
-    reforge_filters: str | None = Query(default=None),
-    enchant_filters: str | None = Query(default=None),
-    echostone_filters: str | None = Query(default=None),
-    murias_filters: str | None = Query(default=None),
-    limit: int = Query(default=50, ge=1, le=200),
-    offset: int = Query(default=0, ge=0),
+    params: SearchListingsParams = Depends(),
     db: Session = Depends(get_db),
     current_user: User | None = Depends(optional_user),
     bg: BackgroundTasks = None,
 ):
     attr_filters = parse_attr_filters(request.query_params)
-    parsed_reforge = parse_reforge_filters(reforge_filters)
-    parsed_enchant = parse_enchant_filters(enchant_filters)
-    parsed_echostone = parse_option_filters(echostone_filters)
-    parsed_murias = parse_option_filters(murias_filters)
-    if not q.strip() and not tags and game_item_id is None and not attr_filters and not parsed_reforge and not parsed_enchant and not parsed_echostone and not parsed_murias:
-        return svc_get_listings(limit=limit, offset=offset, db=db)
+    parsed_reforge = parse_reforge_filters(params.reforge_filters)
+    parsed_enchant = parse_enchant_filters(params.enchant_filters)
+    parsed_echostone = parse_option_filters(params.echostone_filters)
+    parsed_murias = parse_option_filters(params.murias_filters)
+    if not params.q.strip() and not params.tags and params.game_item_id is None and not attr_filters and not parsed_reforge and not parsed_enchant and not parsed_echostone and not parsed_murias:
+        return svc_get_listings(limit=params.limit, offset=params.offset, db=db)
     result = svc_search_listings(
-        q=q.strip() or None, tags=tags or None, game_item_id=game_item_id,
+        q=params.q.strip() or None, tags=params.tags or None, game_item_id=params.game_item_id,
         attr_filters=attr_filters, reforge_filters=parsed_reforge, enchant_filters=parsed_enchant,
         echostone_filters=parsed_echostone, murias_filters=parsed_murias,
-        limit=limit, offset=offset, db=db,
+        limit=params.limit, offset=params.offset, db=db,
     )
     bg.add_task(log_activity, action="search", user_id=current_user.id if current_user else None,
-                target_type="search_query", metadata={"query": q.strip(), "tags": tags, "game_item_id": game_item_id, "results": len(result) if isinstance(result, list) else 0})
+                target_type="search_query", metadata={"query": params.q.strip(), "tags": params.tags, "game_item_id": params.game_item_id, "results": len(result) if isinstance(result, list) else 0})
     return result
+
+
+class MyListingsParams:
+    def __init__(
+        self,
+        limit: int = Query(default=50, ge=1, le=200),
+        offset: int = Query(default=0, ge=0),
+    ):
+        self.limit = limit
+        self.offset = offset
 
 
 @router.get("/listings/mine")
 def get_my_listings(
-    limit: int = Query(default=50, ge=1, le=200),
-    offset: int = Query(default=0, ge=0),
+    params: MyListingsParams = Depends(),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return svc_get_my_listings(user_id=current_user.id, limit=limit, offset=offset, db=db)
+    return svc_get_my_listings(user_id=current_user.id, limit=params.limit, offset=params.offset, db=db)
 
 
 @router.patch("/listings/{listing_id}/status")

@@ -26,15 +26,25 @@ class CorrectionEdit(BaseModel):
     corrected_text: str
 
 
+class ListCorrectionsParams:
+    def __init__(
+        self,
+        status: str = Query("pending"),
+        limit: int = Query(100, le=500),
+        offset: int = Query(0, ge=0),
+    ):
+        self.status = status
+        self.limit = limit
+        self.offset = offset
+
+
 @router.get("/list", response_model=list[CorrectionOut])
 def list_corrections(
-    status: str = Query("pending"),
-    limit: int = Query(100, le=500),
-    offset: int = Query(0, ge=0),
+    params: ListCorrectionsParams = Depends(),
     db: Session = Depends(get_db),
     _: User = _manage_corrections,
 ):
-    return svc_list_corrections(db, status=status, limit=limit, offset=offset)
+    return svc_list_corrections(db, status=params.status, limit=params.limit, offset=params.offset)
 
 
 @router.post("/approve/{correction_id}")

@@ -14,18 +14,27 @@ router = APIRouter()
 _master_required = Depends(require_role("master"))
 
 
+class AdminListUsersParams:
+    def __init__(
+        self,
+        limit: int = Query(default=100, ge=1, le=500),
+        offset: int = Query(default=0, ge=0),
+    ):
+        self.limit = limit
+        self.offset = offset
+
+
 @router.get("/users")
 def admin_list_users(
-    limit: int = Query(default=100, ge=1, le=500),
-    offset: int = Query(default=0, ge=0),
+    params: AdminListUsersParams = Depends(),
     db: Session = Depends(get_db),
     _: User = _master_required,
 ):
     from db.models import User as UserModel
-    users = db.query(UserModel).order_by(UserModel.id).offset(offset).limit(limit).all()
+    users = db.query(UserModel).order_by(UserModel.id).offset(params.offset).limit(params.limit).all()
     return {
-        "limit": limit,
-        "offset": offset,
+        "limit": params.limit,
+        "offset": params.offset,
         "rows": [
             {
                 "id": u.id,

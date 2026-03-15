@@ -11,16 +11,24 @@ from trade.services.listing_service import get_listing_detail as svc_get_listing
 router = APIRouter()
 
 
+class AdminListingsParams:
+    def __init__(
+        self,
+        q: str = Query(default=""),
+        id: str = Query(default=""),
+        limit: int = Query(default=100, ge=1, le=500),
+        offset: int = Query(default=0, ge=0),
+    ):
+        self.q = q
+        self.id = id
+        self.limit = limit
+        self.offset = offset
+
+
 @router.get("/listings", response_model=PaginatedListingResponse)
-def admin_listings(
-    q: str = Query(default=""),
-    id: str = Query(default=""),
-    limit: int = Query(default=100, ge=1, le=500),
-    offset: int = Query(default=0, ge=0),
-    db: Session = Depends(get_db),
-):
-    rows = get_listings(q=q or None, id=id or None, limit=limit, offset=offset, db=db)
-    return {"limit": limit, "offset": offset, "rows": rows}
+def admin_listings(params: AdminListingsParams = Depends(), db: Session = Depends(get_db)):
+    rows = get_listings(q=params.q or None, id=params.id or None, limit=params.limit, offset=params.offset, db=db)
+    return {"limit": params.limit, "offset": params.offset, "rows": rows}
 
 
 @router.get("/listings/{listing_id}/detail", response_model=ListingDetailOut)

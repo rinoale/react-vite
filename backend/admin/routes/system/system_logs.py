@@ -13,28 +13,39 @@ router = APIRouter()
 _master_required = Depends(require_role("master"))
 
 
+class AdminSystemLogsParams:
+    def __init__(
+        self,
+        source: str = Query(default=""),
+        action: str = Query(default=""),
+        limit: int = Query(default=50, ge=1, le=200),
+        offset: int = Query(default=0, ge=0),
+    ):
+        self.source = source
+        self.action = action
+        self.limit = limit
+        self.offset = offset
+
+
 @router.get("/system-logs")
 def admin_list_system_logs(
-    source: str = Query(default=""),
-    action: str = Query(default=""),
-    limit: int = Query(default=50, ge=1, le=200),
-    offset: int = Query(default=0, ge=0),
+    params: AdminSystemLogsParams = Depends(),
     db: Session = Depends(get_db),
     _: User = _master_required,
 ):
     q = db.query(SystemLog)
-    if source:
-        q = q.filter(SystemLog.source == source)
-    if action:
-        q = q.filter(SystemLog.action == action)
+    if params.source:
+        q = q.filter(SystemLog.source == params.source)
+    if params.action:
+        q = q.filter(SystemLog.action == params.action)
 
     total = q.count()
-    rows = q.order_by(SystemLog.created_at.desc()).offset(offset).limit(limit).all()
+    rows = q.order_by(SystemLog.created_at.desc()).offset(params.offset).limit(params.limit).all()
 
     return {
         "total": total,
-        "limit": limit,
-        "offset": offset,
+        "limit": params.limit,
+        "offset": params.offset,
         "rows": [
             {
                 "id": r.id,

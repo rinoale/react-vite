@@ -17,15 +17,22 @@ from admin.services.tag_service import (
 router = APIRouter()
 
 
+class AdminTagsParams:
+    def __init__(
+        self,
+        target_type: str = Query(default=""),
+        limit: int = Query(default=100, ge=1, le=500),
+        offset: int = Query(default=0, ge=0),
+    ):
+        self.target_type = target_type
+        self.limit = limit
+        self.offset = offset
+
+
 @router.get("/tags")
-def admin_tags(
-    target_type: str = Query(default=""),
-    limit: int = Query(default=100, ge=1, le=500),
-    offset: int = Query(default=0, ge=0),
-    db: Session = Depends(get_db),
-):
-    rows = get_tags(db=db, target_type=target_type or None, limit=limit, offset=offset)
-    return {"limit": limit, "offset": offset, "rows": rows}
+def admin_tags(params: AdminTagsParams = Depends(), db: Session = Depends(get_db)):
+    rows = get_tags(db=db, target_type=params.target_type or None, limit=params.limit, offset=params.offset)
+    return {"limit": params.limit, "offset": params.offset, "rows": rows}
 
 
 @router.post("/tags", response_model=TagTargetOut)
@@ -57,16 +64,24 @@ def admin_delete_tag(
     return {"deleted": True}
 
 
+class AdminUniqueTagsParams:
+    def __init__(
+        self,
+        q: str = Query(default=""),
+        sort: str = Query(default=""),
+        limit: int = Query(default=100, ge=1, le=500),
+        offset: int = Query(default=0, ge=0),
+    ):
+        self.q = q
+        self.sort = sort
+        self.limit = limit
+        self.offset = offset
+
+
 @router.get("/tags/unique")
-def admin_unique_tags(
-    q: str = Query(default=""),
-    sort: str = Query(default=""),
-    limit: int = Query(default=100, ge=1, le=500),
-    offset: int = Query(default=0, ge=0),
-    db: Session = Depends(get_db),
-):
-    rows = get_unique_tags(db=db, limit=limit, offset=offset, q=q or None, sort=sort or None)
-    return {"limit": limit, "offset": offset, "rows": rows}
+def admin_unique_tags(params: AdminUniqueTagsParams = Depends(), db: Session = Depends(get_db)):
+    rows = get_unique_tags(db=db, limit=params.limit, offset=params.offset, q=params.q or None, sort=params.sort or None)
+    return {"limit": params.limit, "offset": params.offset, "rows": rows}
 
 
 @router.delete("/tags/by-tag/{tag_id}")
@@ -79,17 +94,25 @@ def admin_delete_tag_by_id(
     return {"deleted": True}
 
 
+class AdminSearchTagEntitiesParams:
+    def __init__(
+        self,
+        target_type: str = Query(...),
+        q: str = Query(default=""),
+        like: bool = Query(default=True),
+        limit: int = Query(default=20, ge=1, le=100),
+    ):
+        self.target_type = target_type
+        self.q = q
+        self.like = like
+        self.limit = limit
+
+
 @router.get("/tags/search-entities")
-def admin_search_tag_entities(
-    target_type: str = Query(...),
-    q: str = Query(default=""),
-    like: bool = Query(default=True),
-    limit: int = Query(default=20, ge=1, le=100),
-    db: Session = Depends(get_db),
-):
-    if not q.strip():
+def admin_search_tag_entities(params: AdminSearchTagEntitiesParams = Depends(), db: Session = Depends(get_db)):
+    if not params.q.strip():
         return []
-    return search_entities(db=db, target_type=target_type, q=q.strip(), limit=limit, like=like)
+    return search_entities(db=db, target_type=params.target_type, q=params.q.strip(), limit=params.limit, like=params.like)
 
 
 @router.post("/tags/bulk")

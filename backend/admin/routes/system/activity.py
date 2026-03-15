@@ -13,28 +13,39 @@ router = APIRouter()
 _master_required = Depends(require_role("master"))
 
 
+class AdminActivityLogsParams:
+    def __init__(
+        self,
+        action: str = Query(default=""),
+        user_id: UUID | None = Query(default=None),
+        limit: int = Query(default=50, ge=1, le=200),
+        offset: int = Query(default=0, ge=0),
+    ):
+        self.action = action
+        self.user_id = user_id
+        self.limit = limit
+        self.offset = offset
+
+
 @router.get("/activity-logs")
 def admin_list_activity_logs(
-    action: str = Query(default=""),
-    user_id: UUID | None = Query(default=None),
-    limit: int = Query(default=50, ge=1, le=200),
-    offset: int = Query(default=0, ge=0),
+    params: AdminActivityLogsParams = Depends(),
     db: Session = Depends(get_db),
     _: User = _master_required,
 ):
     q = db.query(UserActivityLog)
-    if action:
-        q = q.filter(UserActivityLog.action == action)
-    if user_id is not None:
-        q = q.filter(UserActivityLog.user_id == user_id)
+    if params.action:
+        q = q.filter(UserActivityLog.action == params.action)
+    if params.user_id is not None:
+        q = q.filter(UserActivityLog.user_id == params.user_id)
 
     total = q.count()
-    rows = q.order_by(UserActivityLog.created_at.desc()).offset(offset).limit(limit).all()
+    rows = q.order_by(UserActivityLog.created_at.desc()).offset(params.offset).limit(params.limit).all()
 
     return {
         "total": total,
-        "limit": limit,
-        "offset": offset,
+        "limit": params.limit,
+        "offset": params.offset,
         "rows": [
             {
                 "id": r.id,

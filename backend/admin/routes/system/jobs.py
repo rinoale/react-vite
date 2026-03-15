@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from db.connector import get_db
@@ -70,15 +70,22 @@ def trigger_job(
     return JobRunOut.model_validate(run)
 
 
+class JobHistoryParams:
+    def __init__(
+        self,
+        job_name: str | None = Query(default=None),
+        limit: int = Query(default=20, ge=1, le=500),
+        offset: int = Query(default=0, ge=0),
+    ):
+        self.job_name = job_name
+        self.limit = limit
+        self.offset = offset
+
+
 @router.get("/jobs/history")
-def job_history(
-    job_name: str | None = None,
-    limit: int = 20,
-    offset: int = 0,
-    db: Session = Depends(get_db),
-) -> PaginatedJobRunResponse:
+def job_history(params: JobHistoryParams = Depends(), db: Session = Depends(get_db)) -> PaginatedJobRunResponse:
     q = db.query(JobRun)
-    if job_name:
-        q = q.filter(JobRun.job_name == job_name)
-    rows = q.order_by(JobRun.id.desc()).limit(limit).offset(offset).all()
-    return PaginatedJobRunResponse(limit=limit, offset=offset, rows=rows)
+    if params.job_name:
+        q = q.filter(JobRun.job_name == params.job_name)
+    rows = q.order_by(JobRun.id.desc()).limit(params.limit).offset(params.offset).all()
+    return PaginatedJobRunResponse(limit=params.limit, offset=params.offset, rows=rows)
